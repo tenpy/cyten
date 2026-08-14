@@ -1,4 +1,4 @@
-# Python (main_orig_python) → C++ / pybind mapping for layers 2–3.
+# Python → C++ / pybind mapping for layers 2–4.
 # Paths under `py:` are relative to tmp/orig_cyten/.
 # Paths under cpp/pybind are relative to the repo root.
 #
@@ -139,3 +139,44 @@ modules:
       - pybind/symmetries/factors/py_ising_anyon_category.cpp
       - pybind/symmetries/factors/py_su2_k_anyon_category.cpp
       - pybind/symmetries/factors/py_su3_3_anyon_category.cpp
+
+  # --- Layer 4: tensors (_tensors.py) ---
+  - py: tensors/_tensors.py
+    cpp:
+      - src/tensors/labels.cpp
+      - include/cyten/tensors/labels.h
+      - src/tensors/tensor.cpp
+      - include/cyten/tensors/tensor.h
+      - src/tensors/symmetric_tensor.cpp
+      - include/cyten/tensors/symmetric_tensor.h
+      - src/tensors/diagonal_tensor.cpp
+      - include/cyten/tensors/diagonal_tensor.h
+      - src/tensors/mask.cpp
+      - include/cyten/tensors/mask.h
+      - src/tensors/charged_tensor.cpp
+      - include/cyten/tensors/charged_tensor.h
+      - src/tensors/helpers.cpp
+      - include/cyten/tensors/helpers.h
+      - src/tensors/constructors.cpp
+      - include/cyten/tensors/constructors.h
+      - src/tensors/ops_elementwise.cpp
+      - include/cyten/tensors/ops_elementwise.h
+      - src/tensors/ops_algebra.cpp
+      - include/cyten/tensors/ops_algebra.h
+      - src/tensors/ops_legs.cpp
+      - include/cyten/tensors/ops_legs.h
+      - src/tensors/decompositions.cpp
+      - include/cyten/tensors/decompositions.h
+    pybind:
+      - pybind/tensors/py_labels.cpp
+      - pybind/tensors/py_tensor.cpp
+      - pybind/tensors/py_symmetric_tensor.cpp
+      - pybind/tensors/py_diagonal_tensor.cpp
+      - pybind/tensors/py_mask.cpp
+      - pybind/tensors/py_charged_tensor.cpp
+      - pybind/tensors/py_helpers.cpp
+      - pybind/tensors/py_constructors.cpp
+      - pybind/tensors/py_ops_elementwise.cpp
+      - pybind/tensors/py_ops_algebra.cpp
+      - pybind/tensors/py_ops_legs.cpp
+      - pybind/tensors/py_decompositions.cpp

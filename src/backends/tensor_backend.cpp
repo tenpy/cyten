@@ -1,4 +1,8 @@
+#include <cyten/backends/no_symmetry.h>
 #include <cyten/backends/tensor_backend.h>
+#include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/mask.h>
+#include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
 #include <format>
@@ -71,20 +75,65 @@ TensorBackend::__str__() const
     return __repr__();
 }
 
-BlockBackend::Scalar
-TensorBackend::item(py::object a)
+bool
+TensorBackend::equals(TensorBackend const& other) const
 {
-    return data_item(a.attr("data").cast<DataPtr>());
+    if (this == &other)
+        return true;
+    if (backend_type_name(*this) != backend_type_name(other))
+        return false;
+    auto const& a = block_backend;
+    auto const& b = other.block_backend;
+    if (a.get() == b.get())
+        return true;
+    if (!a || !b)
+        return false;
+    return a->get_backend_name() == b->get_backend_name() &&
+           a->default_device == b->default_device;
 }
 
+BlockBackend::Scalar
+TensorBackend::item(TensorCPtr a)
+{
+    DataPtr data_ptr;
+    if (auto st = std::dynamic_pointer_cast<const SymmetricTensor>(a))
+        data_ptr = st->data;
+    else if (auto m = std::dynamic_pointer_cast<const Mask>(a))
+        data_ptr = m->data;
+    else
+        throw std::invalid_argument("TensorBackend::item: expected SymmetricTensor or Mask");
+    return data_item(data_ptr);
+}
+
+namespace {
+
+/// Python-facing ``tensor.data`` (NoSymmetry unwraps ``BlockData`` → Block for ``DataCls``).
+py::object
+data_cls_check_object(TensorBackend::DataPtr const& data_ptr)
+{
+    if (auto* bd = dynamic_cast<NoSymmetryBackend::BlockData*>(data_ptr.get()))
+        return py::cast(bd->block);
+    return py::cast(data_ptr);
+}
+
+} // namespace
+
 void
-TensorBackend::test_tensor_sanity(py::object a, bool /*is_diagonal*/)
+TensorBackend::test_tensor_sanity(TensorCPtr a, bool /*is_diagonal*/)
 {
     // --- hints from Python TensorBackend.test_tensor_sanity ---
     // subclasses will typically call super().test_tensor_sanity(a)
     // ---
     // subclasses will typically call super().test_tensor_sanity(a)
-    py::object data = a.attr("data");
+    DataPtr data_ptr;
+    if (auto st = std::dynamic_pointer_cast<const SymmetricTensor>(a))
+        data_ptr = st->data;
+    else if (auto m = std::dynamic_pointer_cast<const Mask>(a))
+        data_ptr = m->data;
+    else
+        throw std::invalid_argument(
+          "TensorBackend::test_tensor_sanity: expected SymmetricTensor or Mask");
+    py::object data = data_cls_check_object(data_ptr);
     if (!DataCls.is_none() && !py::isinstance(data, DataCls)) {
         throw std::runtime_error(std::format("expected data of type {}, got {}",
                                              py::str(DataCls).cast<std::string>(),
@@ -93,13 +142,13 @@ TensorBackend::test_tensor_sanity(py::object a, bool /*is_diagonal*/)
 }
 
 void
-TensorBackend::test_mask_sanity(py::object a)
+TensorBackend::test_mask_sanity(MaskCPtr a)
 {
     // --- hints from Python TensorBackend.test_mask_sanity ---
     // subclasses will typically call super().test_mask_sanity(a)
     // ---
     // subclasses will typically call super().test_mask_sanity(a)
-    py::object data = a.attr("data");
+    py::object data = data_cls_check_object(a->data);
     if (!DataCls.is_none() && !py::isinstance(data, DataCls)) {
         throw std::runtime_error(std::format("expected data of type {}, got {}",
                                              py::str(DataCls).cast<std::string>(),
@@ -226,32 +275,32 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
 }
 
 bool
-TensorBackend::is_real(py::object a)
+TensorBackend::is_real(TensorCPtr a)
 {
     // --- hints from Python TensorBackend.is_real ---
     // FusionTree backend might implement this differently.
     // ---
     // FusionTree backend might implement this differently.
-    return a.attr("dtype").attr("is_real").cast<bool>();
+    return dtype::is_real(a->dtype);
 }
 
 void
-TensorBackend::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string subpath)
+TensorBackend::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string subpath)
 {
     hdf5_saver.attr("save")(block_backend, subpath + "block_backend");
 }
 
 TensorBackend::Ptr
-TensorBackend::from_hdf5(py::object /*hdf5_loader*/, py::object /*h5gr*/, std::string /*subpath*/)
+TensorBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath)
 {
     // Concrete backends construct the appropriate subclass; base cannot be instantiated.
     throw NotImplemented("TensorBackend::from_hdf5");
 }
 
-std::vector<py::object>
+std::vector<Leg::Ptr>
 conventional_leg_order(TensorProduct::Ptr codomain, TensorProduct::Ptr domain)
 {
-    std::vector<py::object> out;
+    std::vector<Leg::Ptr> out;
     out.reserve(codomain->factors.size() + domain->factors.size());
     for (auto const& f : codomain->factors)
         out.push_back(f);
@@ -260,7 +309,7 @@ conventional_leg_order(TensorProduct::Ptr codomain, TensorProduct::Ptr domain)
     return out;
 }
 
-std::vector<py::object>
+std::vector<Leg::Ptr>
 conventional_leg_order(py::object tensor_or_codomain, py::object domain)
 {
     TensorProduct::Ptr codomain_ptr;
@@ -275,6 +324,12 @@ conventional_leg_order(py::object tensor_or_codomain, py::object domain)
     return conventional_leg_order(codomain_ptr, domain_ptr);
 }
 
+std::vector<Leg::Ptr>
+conventional_leg_order(TensorCPtr tensor)
+{
+    return conventional_leg_order(tensor->codomain, tensor->domain);
+}
+
 TensorBackend::Ptr
 get_same_backend(const std::vector<py::object>& objs, std::string error_msg)
 {
@@ -283,7 +338,21 @@ get_same_backend(const std::vector<py::object>& objs, std::string error_msg)
     TensorBackend::Ptr backend = objs[0].attr("backend").cast<TensorBackend::Ptr>();
     for (std::size_t i = 1; i < objs.size(); ++i) {
         TensorBackend::Ptr other = objs[i].attr("backend").cast<TensorBackend::Ptr>();
-        if (other.get() != backend.get())
+        if (!backend || !other || !backend->equals(*other))
+            throw std::invalid_argument(std::move(error_msg));
+    }
+    return backend;
+}
+
+TensorBackend::Ptr
+get_same_backend(const std::vector<TensorCPtr>& objs, std::string error_msg)
+{
+    if (objs.empty())
+        throw std::invalid_argument("Need at least one tensor");
+    TensorBackend::Ptr backend = objs[0]->backend;
+    for (std::size_t i = 1; i < objs.size(); ++i) {
+        TensorBackend::Ptr const& other = objs[i]->backend;
+        if (!backend || !other || !backend->equals(*other))
             throw std::invalid_argument(std::move(error_msg));
     }
     return backend;

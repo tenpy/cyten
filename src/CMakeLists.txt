@@ -45,6 +45,18 @@ target_sources(cyten
   symmetries/factors/su3_3_anyon_category.cpp
   symmetries/trees.cpp
   symmetries/spaces.cpp
+  tensors/labels.cpp
+  tensors/tensor.cpp
+  tensors/symmetric_tensor.cpp
+  tensors/diagonal_tensor.cpp
+  tensors/mask.cpp
+  tensors/charged_tensor.cpp
+  tensors/helpers.cpp
+  tensors/constructors.cpp
+  tensors/ops_elementwise.cpp
+  tensors/ops_algebra.cpp
+  tensors/ops_legs.cpp
+  tensors/decompositions.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp

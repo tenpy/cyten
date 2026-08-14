@@ -837,7 +837,7 @@ def test_identity_tensor_site():
     assert wL == wR, 'coupling virtual bonds must match'
 
     # overbraid=True
-    tensor = site.identity_tensor(wL, wR, overbraid=True)
+    tensor = site.identity_tensor(wL, overbraid=True)
 
     assert tensor.labels == ['wL', 'p', 'wR', 'p*']
     assert tensor.num_codomain_legs == 2
@@ -850,22 +850,17 @@ def test_identity_tensor_site():
 
     # overbraid=False
     # For a group symmetry (U(1)) braiding is symmetric, so the result is the same tensor.
-    tensor_under = site.identity_tensor(wL, wR, overbraid=False)
+    tensor_under = site.identity_tensor(wL, overbraid=False)
     assert tensor_under.labels == ['wL', 'p', 'wR', 'p*']
     tensor_under.test_sanity()
-
-    # ValueError: wR != wL
-    trivial_space = coupling.factorization[0].get_leg_co_domain('wL')
-    assert trivial_space != wL, 'trivial boundary space must differ from the bond space'
-    with pytest.raises(ValueError):
-        site.identity_tensor(wL, trivial_space)
 
     # Non-trivial physical leg: spin-1 site, same bond
     site_s1 = SpinSite(S=1.0, conserve='Sz')
     coupling_s1 = heisenberg_coupling([site_s1, site_s1])
     wL_s1 = coupling_s1.factorization[0].get_leg_co_domain('wR')
     wR_s1 = coupling_s1.factorization[1].get_leg_co_domain('wL')
-    tensor_s1 = site_s1.identity_tensor(wL_s1, wR_s1)
+    assert wL_s1 == wR_s1, 'wL and wR must be the same legs, since they get contracted'
+    tensor_s1 = site_s1.identity_tensor(wL_s1)
     assert tensor_s1.get_leg_co_domain('p') == site_s1.leg
     tensor_s1.test_sanity()
 

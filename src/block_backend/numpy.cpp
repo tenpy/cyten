@@ -549,6 +549,22 @@ NumpyBlockBackend::abs_argmax(const BlockCPtr& block)
     return out;
 }
 
+std::vector<int64>
+NumpyBlockBackend::argmin(const BlockCPtr& block)
+{
+    py::array arr = py::reinterpret_borrow<py::array>(obj(block));
+    py::module_ np = numpy_module();
+    py::tuple shape_tuple(arr.ndim());
+    for (py::ssize_t i = 0; i < arr.ndim(); ++i)
+        shape_tuple[i] = py::int_(arr.shape(i));
+    py::object idx = np.attr("unravel_index")(np.attr("argmin")(arr), shape_tuple);
+    py::tuple t = py::cast<py::tuple>(idx);
+    std::vector<int64> out;
+    for (auto const& item : t)
+        out.push_back(item.cast<int64>());
+    return out;
+}
+
 bool
 NumpyBlockBackend::all(const BlockCPtr& a)
 {

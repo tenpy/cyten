@@ -560,11 +560,27 @@ def find_cpp_function_body_start(cpp_text: str, qualname: str) -> int | None:
         methods = [qualname] + METHOD_NAME_ALIASES.get(qualname, [])
         for meth in methods:
             if meth:
-                candidates.append(rf'\b{re.escape(meth)}\s*\(')
+                # Definition at beginning of a line only (not calls like ->name( ).
+                candidates.append(rf'(?m)^[ \t]*{re.escape(meth)}\s*\(')
 
     for pat in candidates:
         for m in re.finditer(pat, cpp_text):
-            # Avoid matching calls: require ) ... { with only cv-qualifiers / attributes between
+            if m.start() > 0 and cpp_text[m.start() - 1] in '.>':
+                continue
+            if '.' not in qualname:
+                before = cpp_text[: m.start()].rstrip()
+                prev_nl = before.rfind('\n')
+                prev = before[prev_nl + 1 :] if prev_nl >= 0 else before
+                prev_s = prev.strip()
+                if prev_s and not (
+                    prev_s.startswith('//')
+                    or prev_s.startswith('/*')
+                    or prev_s.startswith('*')
+                    or prev_s.startswith('[[')
+                    or prev_s.endswith('>')
+                    or re.match(r'^[\w:<>\[\],\s\*&]+$', prev_s)
+                ):
+                    continue
             rest = cpp_text[m.end() - 1 : m.end() + 8000]
             depth = 0
             i = 0
@@ -575,7 +591,6 @@ def find_cpp_function_body_start(cpp_text: str, qualname: str) -> int | None:
                     depth -= 1
                     if depth == 0:
                         after = rest[i + 1 : i + 200]
-                        # skip override/const/final/noexcept/try
                         bm = re.search(
                             r'(?:(?:const|override|final|noexcept|volatile|&\s*&?)\s*)*\{',
                             after,
@@ -876,6 +891,13 @@ DOC_BASE_CLASSES: dict[str, list[str]] = {
     'NoSymmetry': ['AbelianGroup', 'Group', 'SymmetryFactor', 'BaseSymmetry'],
     'TreePairMapping': ['TensorMapping'],
     'FactorizedTreeMapping': ['TensorMapping'],
+    # Layer 4 tensors
+    'Tensor': ['LabelledLegs'],
+    'SymmetricTensor': ['Tensor', 'LabelledLegs'],
+    'DiagonalTensor': ['SymmetricTensor', 'Tensor', 'LabelledLegs'],
+    'Identity': ['DiagonalTensor', 'SymmetricTensor', 'Tensor', 'LabelledLegs'],
+    'Mask': ['Tensor', 'LabelledLegs'],
+    'ChargedTensor': ['Tensor', 'LabelledLegs'],
 }
 
 
@@ -906,26 +928,101 @@ def iter_class_regions(text: str) -> list[tuple[str, int, int]]:
     return regions
 
 
+def trailing_cstring_doc_span(text: str, open_paren: int, close_paren: int) -> tuple[int, int] | None:
+    """If the last argument of a .def( call is a plain \"...\" docstring, return its [start, end)."""
+    chunk = text[open_paren : close_paren + 1]
+    # Find last non-whitespace before ')'
+    i = close_paren - 1
+    while i > open_paren and text[i] in ' \t\n\r':
+        i -= 1
+    if i <= open_paren or text[i] != '"':
+        return None
+    # Walk back over a C string literal (no raw/R" support here — those are pydoc)
+    end = i + 1
+    i -= 1
+    while i > open_paren:
+        if text[i] == '"' and text[i - 1] != '\\':
+            # check not part of R" or u8"
+            start = i
+            # ensure preceded by comma (docstring arg), not identifier
+            j = start - 1
+            while j > open_paren and text[j] in ' \t\n\r':
+                j -= 1
+            if text[j] != ',':
+                return None
+            return start, end
+        if text[i] == '\\':
+            i -= 2
+            continue
+        i -= 1
+    return None
+
+
+def insert_or_replace_pydoc(text: str, close_paren: int, doc: str) -> tuple[str, int]:
+    """Insert R\"pydoc before close_paren, or replace a trailing short \"...\" docstring.
+
+    Returns (new_text, new_close_paren_index_after_edit) — actually just new_text;
+    caller works reverse so indices of earlier sites stay valid if we only edit at end.
+    """
+    open_paren = text.rfind('(', 0, close_paren)
+    # Prefer: find matching open for this def — close_paren is known; scan back for depth
+    depth = 0
+    open_paren = None
+    for i in range(close_paren, -1, -1):
+        if text.startswith(PYDOC_END, i - len(PYDOC_END) + 1) if i >= len(PYDOC_END) - 1 else False:
+            pass
+        ch = text[i]
+        if ch == ')':
+            depth += 1
+        elif ch == '(':
+            depth -= 1
+            if depth == 0:
+                open_paren = i
+                break
+    if open_paren is None:
+        open_paren = text.rfind('(', 0, close_paren)
+
+    line_start = text.rfind('\n', 0, close_paren) + 1
+    indent = re.match(r'[ \t]*', text[line_start:close_paren]).group(0) or '      '
+    block = format_pydoc(doc, indent)
+
+    span = trailing_cstring_doc_span(text, open_paren, close_paren)
+    if span is not None:
+        start, end = span
+        # Replace `"short"` with R"pydoc block (keep surrounding commas/whitespace structure)
+        # expand to include optional whitespace before the string so indent is clean
+        j = start
+        while j > open_paren and text[j - 1] in ' \t':
+            j -= 1
+        # keep the comma before; replace from after comma
+        k = j
+        while k > open_paren and text[k - 1] in ' \t\n\r':
+            k -= 1
+        # k should be at comma
+        if text[k - 1] == ',':
+            replacement = '\n' + block
+            return text[:k] + replacement + text[end:]
+        return text[:start] + block.lstrip() + text[end:]
+
+    insertion = ',\n' + block
+    return text[:close_paren] + insertion + text[close_paren:]
+
+
 def fill_docs_in_region(text: str, region_start: int, region_end: int, class_name: str, index) -> tuple[str, int]:
     """Fill missing pydocs for .def bindings inside [region_start, region_end)."""
     region = text[region_start:region_end]
-    # class docstring via .doc() or ctor
     n = 0
     class_doc = lookup_doc(index, class_name, '')
     if class_doc and not (f'.doc() = {PYDOC_START}' in region[:1500] or region[:800].count(PYDOC_START) > 0):
-        # try apply class doc on full text via apply_docstring
         new_text, changed = apply_docstring_to_pybind('', text, class_name, class_doc, True, class_name)
         if changed:
             text = new_text
             n += 1
-            # recompute region end roughly — fall through with refreshed region
             regions = {n: (s, e) for n, s, e in iter_class_regions(text)}
             if class_name in regions:
                 region_start, region_end = regions[class_name]
             region = text[region_start:region_end]
 
-    # Find defs without pydoc in region (absolute indices)
-    # Work from end to start so indices stay valid
     sites_abs: list[tuple[int, int, str, bool]] = []
     for m in re.finditer(
         r'\.def(?:_static|_prop_ro|_property_readonly|_readwrite|_readonly)?\(\s*"(?P<name>[^"]+)"',
@@ -933,9 +1030,8 @@ def fill_docs_in_region(text: str, region_start: int, region_end: int, class_nam
     ):
         name = m.group('name')
         if name.startswith('__') and name.endswith('__'):
-            continue  # skip most dunders
+            continue
         abs_start = region_start + m.start()
-        # find end of this def call in full text
         open_paren = text.find('(', abs_start)
         depth = 0
         i = open_paren
@@ -962,11 +1058,7 @@ def fill_docs_in_region(text: str, region_start: int, region_end: int, class_nam
         doc = lookup_doc(index, class_name, name)
         if not doc:
             continue
-        line_start = text.rfind('\n', 0, end) + 1
-        indent = re.match(r'[ \t]*', text[line_start:end]).group(0) or '      '
-        block = format_pydoc(doc, indent)
-        insertion = ',\n' + block
-        text = text[:end] + insertion + text[end:]
+        text = insert_or_replace_pydoc(text, end, doc)
         n += 1
         print(f'  + fill {class_name}.{name}')
     return text, n
@@ -1024,10 +1116,7 @@ def cmd_fill_bound_docs(args: argparse.Namespace) -> int:
             doc = lookup_doc(index, None, name)
             if not doc:
                 continue
-            line_start = text.rfind('\n', 0, i) + 1
-            indent = re.match(r'[ \t]*', text[line_start:i]).group(0) or '    '
-            block = format_pydoc(doc, indent)
-            text = text[:i] + ',\n' + block + text[i:]
+            text = insert_or_replace_pydoc(text, i, doc)
             n_file += 1
             print(f'  + fill module.{name} → {p}')
         if n_file:

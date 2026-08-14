@@ -615,6 +615,23 @@ ArrayApiBlockBackend::abs_argmax(const BlockCPtr& block)
     return idcs;
 }
 
+std::vector<int64>
+ArrayApiBlockBackend::argmin(const BlockCPtr& block)
+{
+    py::object flat_idx = api_.attr("argmin")(obj(block));
+    // May be 0-d array; convert to Python int.
+    int64 idx = py::int_(flat_idx).cast<int64>();
+    auto shape = get_shape(block);
+    std::vector<int64> idcs;
+    idcs.reserve(shape.size());
+    for (auto it = shape.rbegin(); it != shape.rend(); ++it) {
+        idcs.push_back(idx % *it);
+        idx /= *it;
+    }
+    std::reverse(idcs.begin(), idcs.end());
+    return idcs;
+}
+
 BlockPtr
 ArrayApiBlockBackend::abs(const BlockCPtr& a)
 {

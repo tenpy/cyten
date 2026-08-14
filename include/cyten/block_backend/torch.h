@@ -116,6 +116,7 @@ class TorchBlockBackend : public BlockBackend
                       std::optional<std::string> device) override;
     std::string as_device(std::optional<std::string> device) override;
     std::vector<int64> abs_argmax(const BlockCPtr& block) override;
+    std::vector<int64> argmin(const BlockCPtr& block) override;
     BlockPtr abs(const BlockCPtr& a) override;
     BlockPtr add_axis(const BlockCPtr& a, int64 pos) override;
     bool all(const BlockCPtr& a) override;

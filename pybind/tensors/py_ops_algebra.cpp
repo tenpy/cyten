@@ -1,0 +1,361 @@
+#include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/mask.h>
+#include <cyten/tensors/ops_algebra.h>
+#include <cyten/tensors/tensor.h>
+
+#include "../py_cyten_pybind11.h"
+
+#include <format>
+#include <map>
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
+
+namespace cyten {
+
+namespace {
+
+std::optional<std::map<std::string, std::string>>
+optional_relabel(py::object obj)
+{
+    if (obj.is_none()) {
+        return std::nullopt;
+    }
+    return obj.cast<std::map<std::string, std::string>>();
+}
+
+LegRef
+py_as_leg_ref(py::object obj)
+{
+    if (py::isinstance<py::str>(obj)) {
+        return obj.cast<std::string>();
+    }
+    return obj.cast<int64>();
+}
+
+std::vector<LegRef>
+py_as_leg_refs(py::object obj)
+{
+    std::vector<LegRef> out;
+    if (py::isinstance<py::str>(obj) || !py::isinstance<py::iterable>(obj) ||
+        py::isinstance<py::dict>(obj)) {
+        out.push_back(py_as_leg_ref(obj));
+        return out;
+    }
+    for (auto item : py::reinterpret_borrow<py::iterable>(obj)) {
+        out.push_back(py_as_leg_ref(py::reinterpret_borrow<py::object>(item)));
+    }
+    return out;
+}
+
+py::object
+py_from_tensor_or_scalar(std::variant<TensorPtr, BlockBackend::Scalar> const& v)
+{
+    return std::visit([](auto const& x) -> py::object { return py::cast(x); }, v);
+}
+
+BlockBackend::Scalar
+py_as_scalar(py::object obj, TensorCPtr hint)
+{
+    try {
+        return obj.cast<BlockBackend::Scalar>();
+    } catch (py::cast_error const&) {
+    }
+    return hint->backend->block_backend->as_scalar(obj, hint->dtype);
+}
+
+} // namespace
+
+void
+bind_tensors_ops_algebra(py::module_& m)
+{
+    m.def("almost_equal",
+          &almost_equal,
+          py::arg("tensor_1"),
+          py::arg("tensor_2"),
+          py::arg("rtol") = 1e-5,
+          py::arg("atol") = 1e-8,
+          py::arg("allow_different_types") = false,
+          R"pydoc(
+Checks if two tensors are equal up to numerical tolerance.
+
+We compare the blocks, i.e. the free parameters of the tensors.
+The tensors count as almost equal if all block-entries, i.e. all their free parameters
+individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
+)pydoc");
+
+    m.def(
+      "apply_mask",
+      [](TensorCPtr tensor, MaskCPtr mask, py::object leg) {
+          return apply_mask(std::move(tensor), std::move(mask), py_as_leg_ref(leg));
+      },
+      py::arg("tensor"),
+      py::arg("mask"),
+      py::arg("leg"),
+      R"pydoc(Apply a projection Mask to one leg of a tensor, *projecting* it to a smaller leg.)pydoc");
+
+    m.def(
+      "enlarge_leg",
+      [](TensorCPtr tensor, MaskCPtr mask, py::object leg) {
+          return enlarge_leg(std::move(tensor), std::move(mask), py_as_leg_ref(leg));
+      },
+      py::arg("tensor"),
+      py::arg("mask"),
+      py::arg("leg"),
+      R"pydoc(Apply an inclusion Mask to one leg of a tensor *embedding* it into a larger leg.)pydoc");
+
+    m.def("dagger",
+          &dagger,
+          py::arg("tensor"),
+          R"pydoc(The hermitian conjugate tensor, a.k.a the dagger of a tensor.)pydoc");
+
+    m.def(
+      "compose",
+      [](TensorCPtr tensor1, TensorCPtr tensor2, py::object relabel1, py::object relabel2) {
+          return py_from_tensor_or_scalar(compose(std::move(tensor1),
+                                                  std::move(tensor2),
+                                                  optional_relabel(relabel1),
+                                                  optional_relabel(relabel2)));
+      },
+      py::arg("tensor1"),
+      py::arg("tensor2"),
+      py::arg("relabel1") = py::none(),
+      py::arg("relabel2") = py::none(),
+      R"pydoc(Tensor contraction as map composition. Requires ``tensor1.domain == tensor2.codomain``.)pydoc");
+
+    m.def(
+      "get_same_device",
+      [](py::args tensors, std::string error_msg) {
+          std::vector<TensorCPtr> vec;
+          vec.reserve(static_cast<std::size_t>(tensors.size()));
+          for (auto item : tensors) {
+              vec.push_back(item.cast<TensorCPtr>());
+          }
+          return get_same_device(vec, std::move(error_msg));
+      },
+      py::kw_only(),
+      py::arg("error_msg") = "Incompatible devices.",
+      R"pydoc(If the given tensors have the same device, return it. Raise otherwise.)pydoc");
+
+    m.def("inner",
+          &inner,
+          py::arg("A"),
+          py::arg("B"),
+          py::arg("do_dagger") = true,
+          R"pydoc(The Frobenius inner product of two tensors.)pydoc");
+
+    m.def(
+      "is_scalar",
+      [](py::object obj) {
+          if (py::hasattr(obj, "domain") && py::hasattr(obj, "codomain")) {
+              if (obj.attr("domain").attr("num_sectors").cast<int64>() != 1) {
+                  return false;
+              }
+              if (obj.attr("codomain").attr("num_sectors").cast<int64>() != 1) {
+                  return false;
+              }
+              auto np = py::module_::import("numpy");
+              if (!np.attr("array_equal")(obj.attr("domain").attr("sector_decomposition"),
+                                          obj.attr("codomain").attr("sector_decomposition"))
+                     .cast<bool>()) {
+                  return false;
+              }
+              if (!np.attr("all")(obj.attr("domain").attr("multiplicities").attr("__eq__")(1))
+                     .cast<bool>()) {
+                  return false;
+              }
+              if (!np.attr("all")(obj.attr("codomain").attr("multiplicities").attr("__eq__")(1))
+                     .cast<bool>()) {
+                  return false;
+              }
+              return true;
+          }
+          return py::isinstance(obj, py::module_::import("numbers").attr("Number"));
+      },
+      py::arg("obj"),
+      R"pydoc(If an object is a scalar.)pydoc");
+
+    m.def("item",
+          &item,
+          py::arg("tensor"),
+          R"pydoc(If the tensor is a scalar (with only trivial legs), convert to a Scalar.)pydoc");
+
+    m.def(
+      "linear_combination",
+      [](py::object a, TensorCPtr v, py::object b, TensorCPtr w) {
+          auto is_ok = [](py::object o) {
+              if (py::isinstance(o, py::module_::import("numbers").attr("Number"))) {
+                  return true;
+              }
+              try {
+                  (void)o.cast<BlockBackend::Scalar>();
+                  return true;
+              } catch (py::cast_error const&) {
+                  return false;
+              }
+          };
+          if (!is_ok(a) || !is_ok(b)) {
+              throw py::type_error(
+                std::format("unsupported scalar types: {}, {}",
+                            std::string(py::str(py::type::of(a).attr("__name__"))),
+                            std::string(py::str(py::type::of(b).attr("__name__")))));
+          }
+          auto sa =
+            py::cast(v->backend->block_backend).attr("as_scalar")(a).cast<BlockBackend::Scalar>();
+          auto sb =
+            py::cast(w->backend->block_backend).attr("as_scalar")(b).cast<BlockBackend::Scalar>();
+          return linear_combination(std::move(sa), std::move(v), std::move(sb), std::move(w));
+      },
+      py::arg("a").none(true),
+      py::arg("v"),
+      py::arg("b").none(true),
+      py::arg("w"),
+      R"pydoc(The linear combination ``a * v + b * w``)pydoc");
+
+    m.def("norm", &norm, py::arg("tensor"), R"pydoc(The Frobenius norm of a Tensor.)pydoc");
+
+    m.def("on_device",
+          &on_device,
+          py::arg("tensor"),
+          py::arg("device"),
+          py::arg("copy") = true,
+          R"pydoc(An equivalent tensor (with the same entries) on another device.)pydoc");
+
+    m.def(
+      "outer",
+      [](TensorCPtr tensor1, TensorCPtr tensor2, py::object relabel1, py::object relabel2) {
+          return outer(std::move(tensor1),
+                       std::move(tensor2),
+                       optional_relabel(relabel1),
+                       optional_relabel(relabel2));
+      },
+      py::arg("tensor1"),
+      py::arg("tensor2"),
+      py::arg("relabel1") = py::none(),
+      py::arg("relabel2") = py::none(),
+      R"pydoc(The outer product, or tensor product.)pydoc");
+
+    m.def(
+      "partial_compose",
+      [](TensorCPtr tensor1,
+         TensorCPtr tensor2,
+         py::object tensor1_first_leg,
+         py::object relabel1,
+         py::object relabel2) {
+          return partial_compose(std::move(tensor1),
+                                 std::move(tensor2),
+                                 py_as_leg_ref(tensor1_first_leg),
+                                 optional_relabel(relabel1),
+                                 optional_relabel(relabel2));
+      },
+      py::arg("tensor1"),
+      py::arg("tensor2"),
+      py::arg("tensor1_first_leg"),
+      py::arg("relabel1") = py::none(),
+      py::arg("relabel2") = py::none(),
+      R"pydoc(Tensor contraction / composition involving only a part of the full (co)domain.)pydoc");
+
+    m.def(
+      "partial_trace",
+      [](TensorCPtr tensor, py::args pairs, py::object levels) {
+          std::vector<std::vector<LegRef>> pair_vec;
+          pair_vec.reserve(static_cast<std::size_t>(pairs.size()));
+          for (auto item : pairs) {
+              pair_vec.push_back(py_as_leg_refs(py::reinterpret_borrow<py::object>(item)));
+          }
+          std::optional<LevelsSpec> levels_opt;
+          if (!levels.is_none()) {
+              LevelsSpec spec;
+              for (auto item : levels) {
+                  py::object o = py::reinterpret_borrow<py::object>(item);
+                  if (o.is_none()) {
+                      spec.push_back(std::nullopt);
+                  } else {
+                      spec.push_back(o.cast<int64>());
+                  }
+              }
+              levels_opt = std::move(spec);
+          }
+          return py_from_tensor_or_scalar(
+            partial_trace(std::move(tensor), std::move(pair_vec), levels_opt));
+      },
+      py::arg("tensor"),
+      py::kw_only(),
+      py::arg("levels") = py::none(),
+      R"pydoc(Perform a partial trace.)pydoc");
+
+    m.def("pinv",
+          &pinv,
+          py::arg("tensor"),
+          py::arg("cutoff") = 1e-15,
+          R"pydoc(The Moore-Penrose pseudo-inverse of a tensor.)pydoc");
+
+    m.def(
+      "scalar_multiply",
+      [](py::object a, py::object v) {
+          if (!py::isinstance<Tensor>(v)) {
+              throw py::type_error("scalar_multiply() v must be a Tensor");
+          }
+          auto tensor = v.cast<TensorCPtr>();
+          bool ok = py::isinstance(a, py::module_::import("numbers").attr("Number"));
+          if (!ok) {
+              try {
+                  (void)a.cast<BlockBackend::Scalar>();
+                  ok = true;
+              } catch (py::cast_error const&) {
+              }
+          }
+          if (!ok) {
+              throw py::type_error(
+                std::format("unsupported scalar type: {}",
+                            std::string(py::str(py::type::of(a).attr("__name__")))));
+          }
+          auto s = py::cast(tensor->backend->block_backend)
+                     .attr("as_scalar")(a)
+                     .cast<BlockBackend::Scalar>();
+          return scalar_multiply(std::move(s), std::move(tensor));
+      },
+      py::arg("a").none(true),
+      py::arg("v"),
+      R"pydoc(The scalar multiplication ``a * v``)pydoc");
+
+    m.def(
+      "scale_axis",
+      [](TensorCPtr tensor, DiagonalTensorCPtr diag, py::object leg) {
+          return scale_axis(std::move(tensor), std::move(diag), py_as_leg_ref(leg));
+      },
+      py::arg("tensor"),
+      py::arg("diag"),
+      py::arg("leg"),
+      R"pydoc(Contract one `leg` of  `tensor` with a diagonal tensor.)pydoc");
+
+    m.def(
+      "tdot",
+      [](TensorCPtr tensor1,
+         TensorCPtr tensor2,
+         py::object legs1,
+         py::object legs2,
+         py::object relabel1,
+         py::object relabel2) {
+          return py_from_tensor_or_scalar(tdot(std::move(tensor1),
+                                               std::move(tensor2),
+                                               py_as_leg_refs(legs1),
+                                               py_as_leg_refs(legs2),
+                                               optional_relabel(relabel1),
+                                               optional_relabel(relabel2)));
+      },
+      py::arg("tensor1"),
+      py::arg("tensor2"),
+      py::arg("legs1"),
+      py::arg("legs2"),
+      py::arg("relabel1") = py::none(),
+      py::arg("relabel2") = py::none(),
+      R"pydoc(General tensor contraction, connecting arbitrary pairs of (matching!) legs.)pydoc");
+
+    m.def("trace", &trace, py::arg("tensor"), R"pydoc(Perform the trace.)pydoc");
+
+    m.def("transpose", &transpose, py::arg("tensor"), R"pydoc(The transpose of a tensor.)pydoc");
+}
+
+} // namespace cyten

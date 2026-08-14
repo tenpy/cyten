@@ -692,6 +692,10 @@ bind_block_backend(py::module_& m)
            &BlockBackend::abs_argmax,
            py::arg("block"),
            "Return the indices (one per axis) of the largest entry (by magnitude) of the block")
+      .def("argmin",
+           &BlockBackend::argmin,
+           py::arg("block"),
+           "Return the indices (one per axis) of the smallest entry of the block")
       .def("add_axis", &BlockBackend::add_axis, py::arg("a"), py::arg("pos"))
       .def("all",
            &BlockBackend::all,

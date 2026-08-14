@@ -113,7 +113,7 @@ Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`
 
 ### Layer 4 — Tensors
 
-- **cyten/tensors/_tensors.py** — **Very large** (~6.8k lines). Many classes: `LabelledLegs`, `Tensor`, `ChargedTensor`, `SymmetricTensor`, `DiagonalTensor`, `Mask`, and many functions (`add`, `permute_legs`, `combine_legs`, `compose`, etc.). **Strategy:** Convert in dependency order within the file (e.g. `LabelledLegs` → `Tensor` → `ChargedTensor` → `SymmetricTensor` → …). Consider multiple headers/sources (e.g. `tensors/core.h/.cpp`, `tensors/ops.h/.cpp`) and multiple bindings files to keep units manageable. Use `list_python_names` to get the full list and split into batches.
+- **cyten/tensors/_tensors.py** — **C++ + bindings + monkey-patched**; Python file is a `_core` re-export. Batches 1–17: [convert_tensors.md](convert_tensors.md). Typed C++ API (no leftover tensor/space/leg `py::object`): [convert_tensor_typed_api.md](convert_tensor_typed_api.md).
 - **cyten/tensors/planar.py** — Planar diagram utilities (~1.2k lines), depends on `_tensors` and tools.
 - **cyten/tensors/sparse.py** — `LinearOperator`, `ProjectedLinearOperator`, etc. (~627 lines).
 - **cyten/tensors/krylov_based.py** — `Arnoldi`, `LanczosEvolution`, etc. (~521 lines).

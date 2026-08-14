@@ -5,6 +5,9 @@
 #include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
+#include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/mask.h>
+#include <cyten/tensors/symmetric_tensor.h>
 
 #include <memory>
 #include <optional>
@@ -153,7 +156,7 @@ bind_fusion_tree_backend(py::module_& m)
     cls.def(
       "partial_trace",
       [](FusionTreeBackend& self,
-         py::object tensor,
+         SymmetricTensorCPtr tensor,
          std::vector<std::pair<int64, int64>> pairs,
          std::vector<std::optional<int64>> levels) -> py::object {
           auto [data, codomain, domain] =

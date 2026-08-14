@@ -551,6 +551,22 @@ def test_DiagonalTensor(make_compatible_tensor):
     npt.assert_almost_equal(real_T.max().as_float64(), np.max(real_np))
     npt.assert_almost_equal(real_T.min().as_float64(), np.min(real_np))
 
+    print('checking argmin')
+    i0 = real_T.argmin()
+    assert i0 == int(np.argmin(real_np))
+    npt.assert_almost_equal(real_T[i0, i0].as_float64(), real_T.min().as_float64())
+    with pytest.raises(ValueError, match='argmin is not defined'):
+        T.as_dtype(Dtype.complex64).argmin()
+    sob = np.asarray(real_T.leg.sectors_of_basis)
+    for sec in real_T.leg.sector_decomposition:
+        i_s = real_T.argmin(sec)
+        assert real_T.leg.sector_decomposition_where(real_T.leg.idx_to_sector(i_s)) == (
+            real_T.leg.sector_decomposition_where(sec)
+        )
+        mask = np.all(sob == np.asarray(sec), axis=-1)
+        assert i_s == int(np.argmin(np.where(mask, real_np, np.inf)))
+        npt.assert_almost_equal(real_T[i_s, i_s].as_float64(), np.min(real_np[mask]))
+
     print('checking as_dtype')
     # use as_dtype and compare to to_backend
     dtype = Dtype.complex64
@@ -578,6 +594,9 @@ def test_Identity(compatible_backend, make_compatible_space, make_compatible_ten
 
     assert tensors.almost_equal(tens, eye_diag, allow_different_types=True)
     assert tensors.almost_equal(tens, eye_symm, allow_different_types=True)
+
+    with pytest.raises(ValueError, match='argmin is not supported for Identity'):
+        tens.argmin()
 
     assert tensors.norm(tens - eye_symm) < 1e-14
     assert tensors.norm(tens - eye_diag) < 1e-14
@@ -2058,6 +2077,83 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     assert tensors.almost_equal(V @ W @ V.hc, T, allow_different_types=True)  # is decomposition
     assert tensors.almost_equal(V @ V.hc, SymmetricTensor.from_eye(V.codomain, T.backend))  # unitary 1)
     assert tensors.almost_equal(V.hc @ V, SymmetricTensor.from_eye(V.domain, T.backend))  # unitary 2)
+
+
+@pytest.mark.parametrize(
+    'cls, dom, new_leg_dual',
+    [
+        pytest.param(SymmetricTensor, 1, False, id='Sym-1-False'),
+        pytest.param(SymmetricTensor, 1, True, id='Sym-1-True'),
+        pytest.param(SymmetricTensor, 2, False, id='Sym-2-False'),
+        pytest.param(DiagonalTensor, 1, False, id='Diag-False'),
+    ],
+)
+def test_slice_leg(cls, dom, new_leg_dual, make_compatible_tensor, compatible_backend):
+    kwargs = {}
+    if isinstance(compatible_backend, backends.FusionTreeBackend):
+        kwargs['use_pipes'] = False
+    T: Tensor = make_compatible_tensor(dom, dom, cls=cls, **kwargs)
+    T: Tensor = make_compatible_tensor(T.domain, T.domain, cls=cls, **kwargs)
+    T = T + T.hc
+    T.set_labels(list('efghijk')[: 2 * dom])
+
+    W, V = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
+    eval_leg = V.domain_labels[0]
+    space = V.domain[0]
+
+    if not ChargedTensor.supports_symmetry(T.symmetry):
+        with pytest.raises(SymmetryError):
+            V.slice_leg(eval_leg, space.sector_decomposition[0], 0)
+        return
+
+    def check_psi(psi, sector):
+        psi.test_sanity()
+        assert isinstance(psi, ChargedTensor)
+        assert psi.charged_state is None
+        assert psi.charge_leg.num_sectors == 1
+        assert psi.charge_leg.sector_decomposition[0] == sector
+        assert psi.invariant_part.labels[-1] == ChargedTensor._CHARGE_LEG_LABEL
+        T_psi = T @ psi
+        T_psi.test_sanity()
+        return T_psi
+
+    if T.symmetry.can_be_dropped:
+        W_real = W if W.dtype.is_real else tensors.real(W)
+        i0 = W_real.argmin()
+        sector = space.idx_to_sector(i0)
+        psi = V.slice_leg(eval_leg, i0)
+        T_psi = check_psi(psi, sector)
+        assert space.idx_to_sector(i0) == W.leg.idx_to_sector(i0)
+        assert tensors.almost_equal(T_psi, W[i0, i0] * psi, allow_different_types=True)
+
+        sec_idx, mult_idx = space.parse_index(i0)
+        sec = space.sector_decomposition[sec_idx]
+        m = mult_idx % space.sector_multiplicity(sec)
+        psi_sec = V.slice_leg(eval_leg, sec, m)
+        assert tensors.almost_equal(psi, psi_sec, allow_different_types=True)
+        assert tensors.almost_equal(psi, tensors.slice_leg(V, eval_leg, i0), allow_different_types=True)
+
+        dim = T.symmetry.sector_dim(sec)
+        if dim > 1:
+            for j in range(int(space.dim)):
+                if j == i0:
+                    continue
+                s_j, m_j = space.parse_index(j)
+                if space.sector_decomposition[s_j] == sec and (m_j % space.sector_multiplicity(sec)) == m:
+                    psi_same = V.slice_leg(eval_leg, j)
+                    assert tensors.almost_equal(psi, psi_same, allow_different_types=True)
+                    break
+    else:
+        with pytest.raises(SymmetryError):
+            V.slice_leg(eval_leg, 0)
+        sec = space.sector_decomposition[0]
+        psi = V.slice_leg(eval_leg, sec, 0)
+        check_psi(psi, sec)
+
+    if ChargedTensor.supports_symmetry(T.symmetry):
+        C: ChargedTensor = make_compatible_tensor(1, 1, cls=ChargedTensor, **kwargs)
+        with pytest.raises(ValueError, match='ChargedTensor'):
+            C.slice_leg(0, 0)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases

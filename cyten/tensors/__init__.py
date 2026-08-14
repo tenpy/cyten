@@ -110,6 +110,7 @@ from ._tensors import (
     real_if_close,
     scalar_multiply,
     scale_axis,
+    slice_leg,
     split_legs,
     sqrt,
     squeeze_legs,

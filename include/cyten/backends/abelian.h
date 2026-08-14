@@ -114,82 +114,83 @@ class AbelianBackend : public TensorBackend
     static AbelianBackendData::Ptr unwrap(DataPtr d);
 
     /// Read ``tensor.data`` as ``AbelianBackendData``.
-    static AbelianBackendData::Ptr data_from_tensor(py::object tensor);
+    static AbelianBackendData::Ptr data_from_tensor(TensorCPtr tensor);
 
     explicit AbelianBackend(std::shared_ptr<BlockBackend> block_backend);
     ~AbelianBackend() override = default;
 
-    void test_tensor_sanity(py::object a, bool is_diagonal) override;
-    void test_mask_sanity(py::object a) override;
+    void test_tensor_sanity(TensorCPtr a, bool is_diagonal) override;
+    void test_mask_sanity(MaskCPtr a) override;
 
     LegPipe::Ptr make_pipe(std::vector<Leg::Ptr> legs,
                            bool is_dual,
                            LegPipe::Ptr pipe = nullptr) override;
 
-    DataPtr act_block_diagonal_square_matrix(py::object a,
-                                             py::function block_method,
-                                             py::object dtype_map) override;
+    DataPtr act_block_diagonal_square_matrix(
+      SymmetricTensorCPtr a,
+      BlockUnaryFn block_method,
+      std::optional<DtypeMapFn> dtype_map = std::nullopt) override;
 
-    DataPtr add_trivial_leg(py::object a,
+    DataPtr add_trivial_leg(TensorCPtr a,
                             int64 legs_pos,
                             bool add_to_domain,
                             int64 co_domain_pos,
                             TensorProduct::Ptr new_codomain,
                             TensorProduct::Ptr new_domain) override;
 
-    bool almost_equal(py::object a, py::object b, float64 rtol, float64 atol) override;
+    bool almost_equal(TensorCPtr a, TensorCPtr b, float64 rtol, float64 atol) override;
 
-    DataPtr apply_mask_to_DiagonalTensor(py::object tensor, py::object mask) override;
+    DataPtr apply_mask_to_DiagonalTensor(DiagonalTensorCPtr tensor, MaskCPtr mask) override;
 
-    DataPtr combine_legs(py::object tensor,
+    DataPtr combine_legs(TensorCPtr tensor,
                          std::vector<std::vector<int64>> leg_idcs_combine,
                          std::vector<LegPipe::Ptr> pipes,
                          TensorProduct::Ptr new_codomain,
                          TensorProduct::Ptr new_domain) override;
 
-    DataPtr compose(py::object a, py::object b) override;
+    DataPtr compose(SymmetricTensorCPtr a, SymmetricTensorCPtr b) override;
 
-    DataPtr copy_data(py::object a, std::optional<std::string> device = std::nullopt) override;
+    DataPtr copy_data(TensorCPtr a, std::optional<std::string> device = std::nullopt) override;
 
-    DataPtr dagger(py::object a) override;
+    DataPtr dagger(TensorCPtr a) override;
 
     BlockBackend::Scalar data_item(DataPtr a) override;
 
-    bool diagonal_all(py::object a) override;
+    bool diagonal_all(DiagonalTensorCPtr a) override;
 
-    bool diagonal_any(py::object a) override;
+    bool diagonal_any(DiagonalTensorCPtr a) override;
 
-    DataPtr diagonal_elementwise_binary(py::object a,
-                                        py::object b,
-                                        py::function func,
-                                        py::dict func_kwargs,
+    DataPtr diagonal_elementwise_binary(DiagonalTensorCPtr a,
+                                        DiagonalTensorCPtr b,
+                                        BlockBinaryFn func,
                                         bool partial_zero_is_zero) override;
 
-    DataPtr diagonal_elementwise_unary(py::object a,
-                                       py::function func,
-                                       py::dict func_kwargs,
+    DataPtr diagonal_elementwise_unary(DiagonalTensorCPtr a,
+                                       BlockUnaryFn func,
                                        bool maps_zero_to_zero) override;
 
     DataPtr diagonal_from_block(BlockBackend::BlockPtr a,
                                 TensorProduct::Ptr co_domain,
                                 float64 tol) override;
 
-    DataPtr diagonal_from_sector_block_func(py::function func,
+    DataPtr diagonal_from_sector_block_func(SectorBlockFactoryFn func,
                                             TensorProduct::Ptr co_domain) override;
 
-    DataPtr diagonal_tensor_from_full_tensor(py::object a,
+    DataPtr diagonal_tensor_from_full_tensor(SymmetricTensorCPtr a,
                                              std::optional<float64> tol = 1e-12) override;
 
-    BlockBackend::Scalar diagonal_tensor_trace_full(py::object a) override;
+    BlockBackend::Scalar diagonal_tensor_trace_full(DiagonalTensorCPtr a) override;
 
-    BlockBackend::BlockPtr diagonal_tensor_to_block(py::object a) override;
+    BlockBackend::BlockPtr diagonal_tensor_to_block(DiagonalTensorCPtr a) override;
 
-    std::tuple<DataPtr, ElementarySpace::Ptr> diagonal_to_mask(py::object tens) override;
+    std::tuple<DataPtr, ElementarySpace::Ptr> diagonal_to_mask(DiagonalTensorCPtr tens) override;
 
-    std::tuple<Space::Ptr, DataPtr> diagonal_transpose(py::object tens) override;
+    std::tuple<Space::Ptr, DataPtr> diagonal_transpose(DiagonalTensorCPtr tens) override;
 
-    std::tuple<DataPtr, DataPtr, ElementarySpace::Ptr>
-    eigh(py::object a, bool new_leg_dual, std::optional<std::string> sort = std::nullopt) override;
+    std::tuple<DataPtr, DataPtr, ElementarySpace::Ptr> eigh(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) override;
 
     DataPtr eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::string device) override;
 
@@ -214,7 +215,7 @@ class AbelianBackend : public TensorBackend
                                Dtype dtype,
                                std::string device) override;
 
-    DataPtr from_sector_block_func(py::function func,
+    DataPtr from_sector_block_func(SectorBlockFactoryFn func,
                                    TensorProduct::Ptr codomain,
                                    TensorProduct::Ptr domain) override;
 
@@ -225,79 +226,83 @@ class AbelianBackend : public TensorBackend
       Dtype dtype,
       std::string device) override;
 
-    DataPtr full_data_from_diagonal_tensor(py::object a) override;
+    DataPtr full_data_from_diagonal_tensor(DiagonalTensorCPtr a) override;
 
-    DataPtr full_data_from_mask(py::object a, Dtype dtype) override;
+    DataPtr full_data_from_mask(MaskCPtr a, Dtype dtype) override;
 
     std::string get_device_from_data(DataPtr a) override;
 
     Dtype get_dtype_from_data(DataPtr a) override;
 
-    BlockBackend::Scalar get_element(py::object a, std::vector<int64> idcs) override;
+    BlockBackend::Scalar get_element(SymmetricTensorCPtr a, std::vector<int64> idcs) override;
 
-    BlockBackend::Scalar get_element_diagonal(py::object a, int64 idx) override;
+    BlockBackend::Scalar get_element_diagonal(DiagonalTensorCPtr a, int64 idx) override;
 
-    BlockBackend::Scalar get_element_mask(py::object a, std::vector<int64> idcs) override;
+    BlockBackend::Scalar get_element_mask(MaskCPtr a, std::vector<int64> idcs) override;
 
-    BlockBackend::Scalar inner(py::object a, py::object b, bool do_dagger) override;
+    BlockBackend::Scalar inner(SymmetricTensorCPtr a,
+                               SymmetricTensorCPtr b,
+                               bool do_dagger) override;
 
     DataPtr inv_part_from_dense_block_single_sector(BlockBackend::BlockPtr vector,
                                                     Space::Ptr space,
                                                     ElementarySpace::Ptr charge_leg) override;
 
-    BlockBackend::BlockPtr inv_part_to_dense_block_single_sector(py::object tensor) override;
+    BlockBackend::BlockPtr inv_part_to_dense_block_single_sector(
+      SymmetricTensorCPtr tensor) override;
 
     DataPtr linear_combination(BlockBackend::Scalar a,
-                               py::object v,
+                               TensorCPtr v,
                                BlockBackend::Scalar b,
-                               py::object w) override;
+                               TensorCPtr w) override;
 
-    std::tuple<DataPtr, DataPtr> lq(py::object tensor, TensorProduct::Ptr new_co_domain) override;
+    std::tuple<DataPtr, DataPtr> lq(SymmetricTensorCPtr tensor,
+                                    TensorProduct::Ptr new_co_domain) override;
 
-    std::tuple<DataPtr, ElementarySpace::Ptr> mask_binary_operand(py::object mask1,
-                                                                  py::object mask2,
-                                                                  py::function func) override;
-
-    std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
-    mask_contract_large_leg(py::object tensor, py::object mask, int64 leg_idx) override;
+    std::tuple<DataPtr, ElementarySpace::Ptr> mask_binary_operand(MaskCPtr mask1,
+                                                                  MaskCPtr mask2,
+                                                                  BlockBinaryFn func) override;
 
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
-    mask_contract_small_leg(py::object tensor, py::object mask, int64 leg_idx) override;
+    mask_contract_large_leg(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) override;
 
-    DataPtr mask_dagger(py::object mask) override;
+    std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
+    mask_contract_small_leg(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) override;
+
+    DataPtr mask_dagger(MaskCPtr mask) override;
 
     std::tuple<DataPtr, ElementarySpace::Ptr> mask_from_block(BlockBackend::BlockPtr a,
                                                               Space::Ptr large_leg) override;
 
-    BlockBackend::BlockPtr mask_to_block(py::object a) override;
+    BlockBackend::BlockPtr mask_to_block(MaskCPtr a) override;
 
-    DataPtr mask_to_diagonal(py::object a, Dtype dtype) override;
+    DataPtr mask_to_diagonal(MaskCPtr a, Dtype dtype) override;
 
-    std::tuple<Space::Ptr, Space::Ptr, DataPtr> mask_transpose(py::object tens) override;
+    std::tuple<Space::Ptr, Space::Ptr, DataPtr> mask_transpose(MaskCPtr tens) override;
 
-    std::tuple<DataPtr, ElementarySpace::Ptr> mask_unary_operand(py::object mask,
-                                                                 py::function func) override;
+    std::tuple<DataPtr, ElementarySpace::Ptr> mask_unary_operand(MaskCPtr mask,
+                                                                 BlockUnaryFn func) override;
 
-    DataPtr move_to_device(py::object a, std::string device) override;
+    DataPtr move_to_device(TensorCPtr a, std::string device) override;
 
-    DataPtr mul(BlockBackend::Scalar a, py::object b) override;
+    DataPtr mul(BlockBackend::Scalar a, TensorCPtr b) override;
 
-    BlockBackend::Scalar norm(py::object a) override;
+    BlockBackend::Scalar norm(TensorCPtr a) override;
 
-    DataPtr outer(py::object a, py::object b) override;
+    DataPtr outer(SymmetricTensorCPtr a, SymmetricTensorCPtr b) override;
 
-    DataPtr partial_compose(py::object a,
-                            py::object b,
+    DataPtr partial_compose(SymmetricTensorCPtr a,
+                            SymmetricTensorCPtr b,
                             int64 a_first_leg,
                             TensorProduct::Ptr new_codomain,
                             TensorProduct::Ptr new_domain) override;
 
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> partial_trace(
-      py::object tensor,
+      SymmetricTensorCPtr tensor,
       std::vector<std::pair<int64, int64>> pairs,
       std::vector<std::optional<int64>> levels) override;
 
-    DataPtr permute_legs(py::object a,
+    DataPtr permute_legs(TensorCPtr a,
                          std::vector<int64> codomain_idcs,
                          std::vector<int64> domain_idcs,
                          TensorProduct::Ptr new_codomain,
@@ -306,24 +311,25 @@ class AbelianBackend : public TensorBackend
                          std::vector<std::optional<int64>> levels,
                          std::vector<std::optional<bool>> bend_right) override;
 
-    std::tuple<DataPtr, DataPtr> qr(py::object a, TensorProduct::Ptr new_co_domain) override;
+    std::tuple<DataPtr, DataPtr> qr(SymmetricTensorCPtr a,
+                                    TensorProduct::Ptr new_co_domain) override;
 
-    BlockBackend::Scalar reduce_DiagonalTensor(py::object tensor,
-                                               py::function block_func,
-                                               py::function func) override;
+    BlockBackend::Scalar reduce_DiagonalTensor(DiagonalTensorCPtr tensor,
+                                               BlockToScalarFn block_func,
+                                               ScalarReduceFn func) override;
 
-    DataPtr scale_axis(py::object a, py::object b, int64 leg) override;
+    DataPtr scale_axis(TensorCPtr a, DiagonalTensorCPtr b, int64 leg) override;
 
-    DataPtr split_legs(py::object a,
+    DataPtr split_legs(TensorCPtr a,
                        std::vector<int64> leg_idcs,
                        TensorProduct::Ptr new_codomain,
                        TensorProduct::Ptr new_domain) override;
 
-    DataPtr squeeze_legs(py::object a, std::vector<int64> idcs) override;
+    DataPtr squeeze_legs(TensorCPtr a, std::vector<int64> idcs) override;
 
     bool supports_symmetry(Symmetry::Ptr symmetry) override;
 
-    std::tuple<DataPtr, DataPtr, DataPtr> svd(py::object a,
+    std::tuple<DataPtr, DataPtr, DataPtr> svd(SymmetricTensorCPtr a,
                                               TensorProduct::Ptr new_co_domain,
                                               std::optional<std::string> algorithm) override;
 
@@ -336,18 +342,18 @@ class AbelianBackend : public TensorBackend
                              std::optional<Dtype> dtype = std::nullopt,
                              std::optional<std::string> device = std::nullopt) override;
 
-    BlockBackend::BlockPtr to_dense_block(py::object a) override;
+    BlockBackend::BlockPtr to_dense_block(TensorCPtr a) override;
 
-    BlockBackend::BlockPtr to_dense_block_trivial_sector(py::object tensor) override;
+    BlockBackend::BlockPtr to_dense_block_trivial_sector(TensorCPtr tensor) override;
 
-    DataPtr to_dtype(py::object a, Dtype dtype) override;
+    DataPtr to_dtype(TensorCPtr a, Dtype dtype) override;
 
-    BlockBackend::Scalar trace_full(py::object a,
+    BlockBackend::Scalar trace_full(SymmetricTensorCPtr a,
                                     std::vector<int64> idcs1,
                                     std::vector<int64> idcs2) override;
 
     std::tuple<DataPtr, ElementarySpace::Ptr, float64, float64> truncate_singular_values(
-      py::object S,
+      DiagonalTensorCPtr S,
       std::optional<int64> chi_max,
       int64 chi_min,
       float64 degeneracy_tol,
@@ -376,10 +382,10 @@ class AbelianBackend : public TensorBackend
                                                BlockInds const& incoming_block_inds) const;
 
   private:
-    DataPtr _compose_worker(py::object a, py::object b);
-    DataPtr _compose_no_contraction(py::object a, py::object b);
-    std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> _mask_contract(py::object tensor,
-                                                                               py::object mask,
+    DataPtr _compose_worker(SymmetricTensorCPtr a, SymmetricTensorCPtr b);
+    DataPtr _compose_no_contraction(SymmetricTensorCPtr a, SymmetricTensorCPtr b);
+    std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> _mask_contract(TensorCPtr tensor,
+                                                                               MaskCPtr mask,
                                                                                int64 leg_idx,
                                                                                bool large_leg);
 };

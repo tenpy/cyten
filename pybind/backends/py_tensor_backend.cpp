@@ -1,7 +1,11 @@
 #include "../py_cyten_pybind11.h"
+#include "../tensors/py_callbacks.hpp"
 #include "py_trampolines.hpp"
 
 #include <cyten/backends/tensor_backend.h>
+#include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/mask.h>
+#include <cyten/tensors/symmetric_tensor.h>
 
 #include <memory>
 #include <optional>
@@ -40,6 +44,13 @@ blocks.
     tensor_backend //  methods
       .def("__repr__", &TensorBackend::__repr__)
       .def("__str__", &TensorBackend::__str__)
+      .def("__eq__",
+           [](TensorBackend const& self, py::object other) {
+               if (!py::isinstance<TensorBackend>(other)) {
+                   return false;
+               }
+               return self.equals(other.cast<TensorBackend const&>());
+           })
       .def("item",
            &TensorBackend::item,
            py::arg("a"),
@@ -69,26 +80,33 @@ blocks.
 
            If `pipe` is given, try to return it if suitable.
            )pydoc")
-      .def("act_block_diagonal_square_matrix",
-           &TensorBackend::act_block_diagonal_square_matrix,
-           py::arg("a"),
-           py::arg("block_method"),
-           py::arg("dtype_map"),
-           R"pydoc(
-           Apply functions like exp() and log() on a (square) block-diagonal `a`.
+      .def(
+        "act_block_diagonal_square_matrix",
+        [](TensorBackend& self,
+           SymmetricTensorCPtr a,
+           py::function block_method,
+           py::object dtype_map) {
+            return self.act_block_diagonal_square_matrix(
+              a, block_unary_from_python(block_method), dtype_map_from_python(dtype_map));
+        },
+        py::arg("a"),
+        py::arg("block_method"),
+        py::arg("dtype_map"),
+        R"pydoc(
+        Apply functions like exp() and log() on a (square) block-diagonal `a`.
 
-           Assumes the block_method returns blocks on the same device.
+        Assumes the block_method returns blocks on the same device.
 
-           Parameters
-           ----------
-           a : Tensor
-               The tensor to act on. Can assume ``a.codomain == a.domain``.
-           block_method : function
-               A function with signature ``block_method(a: Block) -> Block`` acting on backend-blocks.
-           dtype_map : function or None
-               Specify how the result dtype depends on the input dtype. ``None`` means unchanged.
-               This is needed in abelian and fusion-tree backends, in case there are 0 blocks.
-           )pydoc")
+        Parameters
+        ----------
+        a : Tensor
+            The tensor to act on. Can assume ``a.codomain == a.domain``.
+        block_method : function
+            A function with signature ``block_method(a: Block) -> Block`` acting on backend-blocks.
+        dtype_map : function or None
+            Specify how the result dtype depends on the input dtype. ``None`` means unchanged.
+            This is needed in abelian and fusion-tree backends, in case there are 0 blocks.
+        )pydoc")
       .def("add_trivial_leg",
            &TensorBackend::add_trivial_leg,
            py::arg("a"),
@@ -96,13 +114,68 @@ blocks.
            py::arg("add_to_domain"),
            py::arg("co_domain_pos"),
            py::arg("new_codomain"),
-           py::arg("new_domain"))
+           py::arg("new_domain"),
+           R"pydoc(
+           Add a trivial leg to a tensor.
+
+           A trivial leg is one-dimensional and consists only of the trivial sector of the symmetry.
+
+           Parameters
+           ----------
+           tens: Tensor
+               The tensor to add a leg to. Since :class:`DiagonalTensor` and :class:`Mask` do not
+               support adding legs, they will be converted to :class:`SymmetricTensor` first.
+           legs_pos, codomain_pos, domain_pos: int
+               The position of the new leg can be specified in three mutually exclusive ways.
+               If the positional argument `leg_pos` is used, ``result.legs[leg_pos]`` will be the trivial
+               leg. In most cases that unambiguously assigns it to either the domain or the codomain.
+               If ambiguous (``if legs_pos == num_codomain_legs``), it is added to the codomain.
+               Alternatively, it can be added to the codomain at ``codomain[codomain_pos]``
+               or to the domain at ``domain_pos``.
+               Note the implications for the ``is_dual`` argument!
+               Per default, we use ``0``, i.e. add at ``legs[0]`` / ``codomain[0]``.
+           label: str
+               The label for the new leg.
+           is_dual: bool
+               If we add a dual (bra-like) or ket-like leg.
+               Note that if `leg_pos` is given, we have ``result.legs[leg_pos].is_dual == is_dual``,
+               but if `domain_pos` is given, we have ``result.domain[domain_pos].is_dual == is_dual``,
+               which are mutually opposite.
+           )pydoc")
       .def("almost_equal",
            &TensorBackend::almost_equal,
            py::arg("a"),
            py::arg("b"),
            py::arg("rtol"),
-           py::arg("atol"))
+           py::arg("atol"),
+           R"pydoc(
+           Checks if two tensors are equal up to numerical tolerance.
+
+           We compare the blocks, i.e. the free parameters of the tensors.
+           The tensors count as almost equal if all block-entries, i.e. all their free parameters
+           individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
+           Note that this is a basis-dependent and backend-dependent notion of distance, which does
+           not come from a norm in the strict mathematical sense.
+
+           Parameters
+           ----------
+           tensor_1, tensor_2
+               The tensors to compare.
+           atol, rtol
+               Absolute and relative tolerance, see above.
+           allow_different_types: bool
+               If ``True``, we convert types, e.g. via :meth:`DiagonalTensor.as_SymmetricTensor`
+               to allow comparison. If ``False``, we raise on mismatching types.
+
+           Notes
+           -----
+           Unlike numpy, our definition is symmetric under exchanging.
+
+           See Also
+           --------
+           planar_almost_equal
+               Comparison between two tensors with a possible planar permutation between them.
+           )pydoc")
       .def("apply_mask_to_DiagonalTensor",
            &TensorBackend::apply_mask_to_DiagonalTensor,
            py::arg("tensor"),
@@ -174,7 +247,41 @@ blocks.
            --------
            move_to_device
            )pydoc")
-      .def("dagger", &TensorBackend::dagger, py::arg("a"))
+      .def("dagger",
+           &TensorBackend::dagger,
+           py::arg("a"),
+           R"pydoc(
+           The hermitian conjugate tensor, a.k.a the dagger of a tensor.
+
+           For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
+           the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
+           For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
+           Graphically::
+
+               |          e   d             a   b   c
+               |          │   │             │   │   │
+               |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
+               |       ┃    A    ┃         ┃dagger(A)┃
+               |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
+               |        │   │   │             │   │
+               |        a   b   c             e   d
+
+           Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
+
+           Returns
+           -------
+           The hermitian conjugate tensor. Its legs and labels are::
+
+               dagger(A).codomain == A.domain
+               dagger(A).domain == A.codomain
+               dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
+               dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
+
+           Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
+           on their bipartition into domain and codomain.
+           For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
+           then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
+           )pydoc")
       .def("data_item",
            &TensorBackend::data_item,
            py::arg("a"),
@@ -186,66 +293,84 @@ blocks.
       .def("diagonal_all",
            &TensorBackend::diagonal_all,
            py::arg("a"),
-           "Assumes a boolean DiagonalTensor. If all entries are True.",
            R"pydoc(
            Assumes a boolean DiagonalTensor. If all entries are True.
            )pydoc")
       .def("diagonal_any",
            &TensorBackend::diagonal_any,
            py::arg("a"),
-           "Assumes a boolean DiagonalTensor. If any entry is True.",
            R"pydoc(
            Assumes a boolean DiagonalTensor. If any entry is True.
            )pydoc")
-      .def("diagonal_elementwise_binary",
-           &TensorBackend::diagonal_elementwise_binary,
-           py::arg("a"),
-           py::arg("b"),
-           py::arg("func"),
-           py::arg("func_kwargs"),
-           py::arg("partial_zero_is_zero"),
-           R"pydoc(
-           Return a modified copy of the data, resulting from applying an elementwise function.
+      .def(
+        "diagonal_elementwise_binary",
+        [](TensorBackend& self,
+           DiagonalTensorCPtr a,
+           DiagonalTensorCPtr b,
+           py::function func,
+           py::dict func_kwargs,
+           bool partial_zero_is_zero) {
+            return self.diagonal_elementwise_binary(
+              a, b, block_binary_from_python(func, func_kwargs), partial_zero_is_zero);
+        },
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("func"),
+        py::arg("func_kwargs"),
+        py::arg("partial_zero_is_zero"),
+        R"pydoc(
+        Return a modified copy of the data, resulting from applying an elementwise function.
 
-           Apply a function ``func(a_block: Block, b_block: Block, **kwargs) -> Block`` to all
-           pairs of elements.
-           Input tensors are both DiagonalTensor and have equal legs.
-           ``partial_zero_is_zero=True`` promises that ``func(any_block, zero_block) == zero_block``,
-           and similarly for the second argument.
+        Apply a function ``func(a_block: Block, b_block: Block, **kwargs) -> Block`` to all
+        pairs of elements.
+        Input tensors are both DiagonalTensor and have equal legs.
+        ``partial_zero_is_zero=True`` promises that ``func(any_block, zero_block) == zero_block``,
+        and similarly for the second argument.
 
-           Assumes both tensors are on the same device.
-           )pydoc")
-      .def("diagonal_elementwise_unary",
-           &TensorBackend::diagonal_elementwise_unary,
-           py::arg("a"),
-           py::arg("func"),
-           py::arg("func_kwargs"),
-           py::arg("maps_zero_to_zero"),
-           R"pydoc(
-           Return a modified copy of the data, resulting from applying an elementwise function.
+        Assumes both tensors are on the same device.
+        )pydoc")
+      .def(
+        "diagonal_elementwise_unary",
+        [](TensorBackend& self,
+           DiagonalTensorCPtr a,
+           py::function func,
+           py::dict func_kwargs,
+           bool maps_zero_to_zero) {
+            return self.diagonal_elementwise_unary(
+              a, block_unary_from_python(func, func_kwargs), maps_zero_to_zero);
+        },
+        py::arg("a"),
+        py::arg("func"),
+        py::arg("func_kwargs"),
+        py::arg("maps_zero_to_zero"),
+        R"pydoc(
+        Return a modified copy of the data, resulting from applying an elementwise function.
 
-           Apply ``func(block: Block, **kwargs) -> Block`` to all elements of a diagonal tensor.
-           ``maps_zero_to_zero=True`` promises that ``func(zero_block) == zero_block``.
-           )pydoc")
+        Apply ``func(block: Block, **kwargs) -> Block`` to all elements of a diagonal tensor.
+        ``maps_zero_to_zero=True`` promises that ``func(zero_block) == zero_block``.
+        )pydoc")
       .def("diagonal_from_block",
            &TensorBackend::diagonal_from_block,
            py::arg("a"),
            py::arg("co_domain"),
            py::arg("tol"),
-           "The DiagonalData from a 1D block in *internal* basis order.",
            R"pydoc(
            The DiagonalData from a 1D block in *internal* basis order.
            )pydoc")
-      .def("diagonal_from_sector_block_func",
-           &TensorBackend::diagonal_from_sector_block_func,
-           py::arg("func"),
-           py::arg("co_domain"),
-           R"pydoc(
-           Generate diagonal data from a function.
+      .def(
+        "diagonal_from_sector_block_func",
+        [](TensorBackend& self, py::function func, TensorProduct::Ptr co_domain) {
+            return self.diagonal_from_sector_block_func(sector_block_factory_from_python(func),
+                                                        std::move(co_domain));
+        },
+        py::arg("func"),
+        py::arg("co_domain"),
+        R"pydoc(
+        Generate diagonal data from a function.
 
-           Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
-           Assumes all generated blocks are on the same device.
-           )pydoc")
+        Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
+        Assumes all generated blocks are on the same device.
+        )pydoc")
       .def("diagonal_tensor_from_full_tensor",
            &TensorBackend::diagonal_tensor_from_full_tensor,
            py::arg("a"),
@@ -277,7 +402,6 @@ blocks.
       .def("diagonal_transpose",
            &TensorBackend::diagonal_transpose,
            py::arg("tens"),
-           "Transpose a diagonal tensor. Also return the new leg ``tens.leg.dual``",
            R"pydoc(
            Transpose a diagonal tensor. Also return the new leg ``tens.leg.dual``
            )pydoc")
@@ -388,17 +512,24 @@ blocks.
            py::arg("sigma"),
            py::arg("dtype"),
            py::arg("device"))
-      .def("from_sector_block_func",
-           &TensorBackend::from_sector_block_func,
-           py::arg("func"),
-           py::arg("codomain"),
-           py::arg("domain"),
-           R"pydoc(
-           Generate tensor data from a function-
+      .def(
+        "from_sector_block_func",
+        [](TensorBackend& self,
+           py::function func,
+           TensorProduct::Ptr codomain,
+           TensorProduct::Ptr domain) {
+            return self.from_sector_block_func(
+              sector_block_factory_from_python(func), std::move(codomain), std::move(domain));
+        },
+        py::arg("func"),
+        py::arg("codomain"),
+        py::arg("domain"),
+        R"pydoc(
+        Generate tensor data from a function-
 
-           Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
-           Assumes all generated blocks are on the same device.
-           )pydoc")
+        Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
+        Assumes all generated blocks are on the same device.
+        )pydoc")
       .def("from_tree_pairs",
            &TensorBackend::from_tree_pairs,
            py::arg("trees"),
@@ -406,7 +537,6 @@ blocks.
            py::arg("domain"),
            py::arg("dtype"),
            py::arg("device"),
-           "Compute the data for :meth:`SymmetricTensor.from_tree_pairs`.",
            R"pydoc(
            Compute the data for :meth:`SymmetricTensor.from_tree_pairs`.
            )pydoc")
@@ -417,14 +547,12 @@ blocks.
            &TensorBackend::full_data_from_mask,
            py::arg("a"),
            py::arg("dtype"),
-           "May assume that the mask is a projection.",
            R"pydoc(
            May assume that the mask is a projection.
            )pydoc")
       .def("get_device_from_data",
            &TensorBackend::get_device_from_data,
            py::arg("a"),
-           "Extract the device from the data object",
            R"pydoc(
            Extract the device from the data object
            )pydoc")
@@ -481,7 +609,6 @@ blocks.
            py::arg("a"),
            py::arg("b"),
            py::arg("do_dagger"),
-           "tensors.inner on SymmetricTensors",
            R"pydoc(
            tensors.inner on SymmetricTensors
            )pydoc")
@@ -514,22 +641,67 @@ blocks.
 
            Assumes `v` and `w` are on the same device.
            )pydoc")
-      .def("lq", &TensorBackend::lq, py::arg("tensor"), py::arg("new_co_domain"))
-      .def("mask_binary_operand",
-           &TensorBackend::mask_binary_operand,
-           py::arg("mask1"),
-           py::arg("mask2"),
-           py::arg("func"),
+      .def("lq",
+           &TensorBackend::lq,
+           py::arg("tensor"),
+           py::arg("new_co_domain"),
            R"pydoc(
-           Elementwise binary function acting on two masks.
+           The LQ decomposition of a tensor.
 
-           May assume that both masks are a projection (from large to small leg)
-           and that the large legs match.
+           A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
+           properties:
 
-           Assumes that `mask1` and `mask2` are on the same device.
+           - ``L`` has a lower triangular structure *in the coupled basis*.
+           - ``Q`` is an isometry: ``dagger(Q) @ Q ~ eye``.
 
-           returns ``mask_data, new_small_leg``
+           Graphically::
+
+               |                                 │   │   │   │
+               |                                ┏┷━━━┷━━━┷━━━┷┓
+               |        │   │   │   │           ┃      Q      ┃
+               |       ┏┷━━━┷━━━┷━━━┷┓          ┗━━━━━━┯━━━━━━┛
+               |       ┃   tensor    ┃    ==           │
+               |       ┗━━┯━━━┯━━━┯━━┛          ┏━━━━━━┷━━━━━━┓
+               |          │   │   │             ┃      L      ┃
+               |                                ┗━━┯━━━┯━━━┯━━┛
+               |                                   │   │   │
+
+           We always compute the "reduced", a.k.a. "economic" version.
+           To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
+
+           Parameters
+           ----------
+           tensor: :class:`Tensor`
+               The tensor to decompose.
+           new_labels: (list of) str
+               Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1] == a``
+               and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
+           new_leg_dual: bool
+               If the new leg should be a ket space (``False``) or bra space (``True``).
+           charge_leg_top: bool
+               Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+               top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``). The corresponding
+               tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+               `ChargedTensor`.
            )pydoc")
+      .def(
+        "mask_binary_operand",
+        [](TensorBackend& self, MaskCPtr mask1, MaskCPtr mask2, py::function func) {
+            return self.mask_binary_operand(mask1, mask2, block_binary_from_python(func));
+        },
+        py::arg("mask1"),
+        py::arg("mask2"),
+        py::arg("func"),
+        R"pydoc(
+        Elementwise binary function acting on two masks.
+
+        May assume that both masks are a projection (from large to small leg)
+        and that the large legs match.
+
+        Assumes that `mask1` and `mask2` are on the same device.
+
+        returns ``mask_data, new_small_leg``
+        )pydoc")
       .def("mask_contract_large_leg",
            &TensorBackend::mask_contract_large_leg,
            py::arg("tensor"),
@@ -569,7 +741,6 @@ blocks.
       .def("mask_to_block",
            &TensorBackend::mask_to_block,
            py::arg("a"),
-           "As a block of the large_leg, in *internal* basis order.",
            R"pydoc(
            As a block of the large_leg, in *internal* basis order.
            )pydoc")
@@ -582,16 +753,19 @@ blocks.
 
            Those spaces are the duals of the respective other in the old mask.
            )pydoc")
-      .def("mask_unary_operand",
-           &TensorBackend::mask_unary_operand,
-           py::arg("mask"),
-           py::arg("func"),
-           R"pydoc(
-           Elementwise function acting on a mask.
+      .def(
+        "mask_unary_operand",
+        [](TensorBackend& self, MaskCPtr mask, py::function func) {
+            return self.mask_unary_operand(mask, block_unary_from_python(func));
+        },
+        py::arg("mask"),
+        py::arg("func"),
+        R"pydoc(
+        Elementwise function acting on a mask.
 
-           May assume that mask is a projection (from large to small leg).
-           Returns ``mask_data, new_small_leg``
-           )pydoc")
+        May assume that mask is a projection (from large to small leg).
+        Returns ``mask_data, new_small_leg``
+        )pydoc")
       .def("move_to_device",
            &TensorBackend::move_to_device,
            py::arg("a"),
@@ -610,7 +784,6 @@ blocks.
       .def("norm",
            &TensorBackend::norm,
            py::arg("a"),
-           "Norm of a tensor. order has already been parsed and is a number",
            R"pydoc(
            Norm of a tensor. order has already been parsed and is a number
            )pydoc")
@@ -696,18 +869,25 @@ blocks.
            ``Q.domain == a.domain``, ``Q.codomain == new_codomain``
            ``R.domain == new_codomain``, ``R.codomain == a.codomain``
            )pydoc")
-      .def("reduce_DiagonalTensor",
-           &TensorBackend::reduce_DiagonalTensor,
-           py::arg("tensor"),
-           py::arg("block_func"),
-           py::arg("func"),
-           R"pydoc(
-           Reduce a diagonal tensor to a single number.
+      .def(
+        "reduce_DiagonalTensor",
+        [](TensorBackend& self,
+           DiagonalTensorCPtr tensor,
+           py::function block_func,
+           py::function func) {
+            return self.reduce_DiagonalTensor(
+              tensor, block_to_scalar_from_python(block_func), scalar_reduce_from_python(func));
+        },
+        py::arg("tensor"),
+        py::arg("block_func"),
+        py::arg("func"),
+        R"pydoc(
+        Reduce a diagonal tensor to a single number.
 
-           Used e.g. to implement ``DiagonalTensor.max``.
-           ``block_func(block: Block) -> Scalar`` realizes that reduction on blocks,
-           ``func(numbers: Sequence[Scalar]) -> Scalar`` for numbers.
-           )pydoc")
+        Used e.g. to implement ``DiagonalTensor.max``.
+        ``block_func(block: Block) -> Scalar`` realizes that reduction on blocks,
+        ``func(numbers: Sequence[Scalar]) -> Scalar`` for numbers.
+        )pydoc")
       .def("scale_axis",
            &TensorBackend::scale_axis,
            py::arg("a"),
@@ -742,13 +922,77 @@ blocks.
            &TensorBackend::squeeze_legs,
            py::arg("a"),
            py::arg("idcs"),
-           "Assume the legs at given indices are trivial and get rid of them",
            R"pydoc(
            Assume the legs at given indices are trivial and get rid of them
            )pydoc")
       .def("supports_symmetry", &TensorBackend::supports_symmetry, py::arg("symmetry"))
-      .def(
-        "svd", &TensorBackend::svd, py::arg("a"), py::arg("new_co_domain"), py::arg("algorithm"))
+      .def("svd",
+           &TensorBackend::svd,
+           py::arg("a"),
+           py::arg("new_co_domain"),
+           py::arg("algorithm"),
+           R"pydoc(
+           The singular value decomposition (SVD) of a tensor.
+
+           A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
+           properties:
+
+           - ``Vh`` and ``U`` are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
+           - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
+           - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
+             reproduces the usual matrix SVD.
+
+           .. note ::
+               The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
+               e.g., :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
+
+           Graphically::
+
+               |                                 │   │   │   │
+               |                                ┏┷━━━┷━━━┷━━━┷┓
+               |                                ┃      Vh     ┃
+               |        │   │   │   │           ┗━━━━━━┯━━━━━━┛
+               |       ┏┷━━━┷━━━┷━━━┷┓               ┏━┷━┓
+               |       ┃   tensor    ┃    ==         ┃ S ┃
+               |       ┗━━┯━━━┯━━━┯━━┛               ┗━┯━┛
+               |          │   │   │             ┏━━━━━━┷━━━━━━┓
+               |                                ┃      U      ┃
+               |                                ┗━━┯━━━┯━━━┯━━┛
+               |                                   │   │   │
+
+           We always compute the "reduced", a.k.a. "economic" version of SVD, where the isometries are
+           (in general) not full unitaries.
+
+           To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
+
+           Parameters
+           ----------
+           tensor: :class:`Tensor`
+               The tensor to decompose.
+           new_labels: (list of) str, optional
+               The labels for the new legs can be specified in the following three ways;
+               Four labels ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
+               ``Vh.labels[0] == d``.
+               Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
+               A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
+               The new legs are unlabelled by default.
+           new_leg_dual: bool
+               If the new leg should be a ket space (``False``) or bra space (``True``).
+           charge_leg_top: bool
+               Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+               top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``). The corresponding
+               tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+               `ChargedTensor`.
+           algorithm: str, optional
+               The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
+               See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
+
+           Returns
+           -------
+           U: SymmetricTensor | ChargedTensor
+           S: DiagonalTensor
+           Vh: SymmetricTensor | ChargedTensor
+           )pydoc")
       .def("state_tensor_product",
            &TensorBackend::state_tensor_product,
            py::arg("state1"),
@@ -786,7 +1030,6 @@ blocks.
            &TensorBackend::to_dtype,
            py::arg("a"),
            py::arg("dtype"),
-           "Cast to given dtype. No copy if already has dtype.",
            R"pydoc(
            Cast to given dtype. No copy if already has dtype.
            )pydoc")
