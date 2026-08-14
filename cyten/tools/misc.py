@@ -56,7 +56,7 @@ def as_immutable_array(a, dtype=None):
     return a
 
 
-def permutation_as_swaps(permutation: list[int]) -> Generator[int, None, None]:
+def permutation_as_swaps(permutation: list[int]) -> Generator[int]:
     """Decompose an arbitrary permutation into a sequence of swaps.
 
     Parameters

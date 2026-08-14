@@ -76,7 +76,7 @@ TensorBackend::__str__() const
 }
 
 bool
-TensorBackend::equals(TensorBackend const& other) const
+TensorBackend::operator==(TensorBackend const& other) const
 {
     if (this == &other)
         return true;
@@ -88,8 +88,7 @@ TensorBackend::equals(TensorBackend const& other) const
         return true;
     if (!a || !b)
         return false;
-    return a->get_backend_name() == b->get_backend_name() &&
-           a->default_device == b->default_device;
+    return *a == *b;
 }
 
 BlockBackend::Scalar
@@ -338,7 +337,7 @@ get_same_backend(const std::vector<py::object>& objs, std::string error_msg)
     TensorBackend::Ptr backend = objs[0].attr("backend").cast<TensorBackend::Ptr>();
     for (std::size_t i = 1; i < objs.size(); ++i) {
         TensorBackend::Ptr other = objs[i].attr("backend").cast<TensorBackend::Ptr>();
-        if (!backend || !other || !backend->equals(*other))
+        if (!backend || !other || !(*backend == *other))
             throw std::invalid_argument(std::move(error_msg));
     }
     return backend;
@@ -352,7 +351,7 @@ get_same_backend(const std::vector<TensorCPtr>& objs, std::string error_msg)
     TensorBackend::Ptr backend = objs[0]->backend;
     for (std::size_t i = 1; i < objs.size(); ++i) {
         TensorBackend::Ptr const& other = objs[i]->backend;
-        if (!backend || !other || !backend->equals(*other))
+        if (!backend || !other || !(*backend == *other))
             throw std::invalid_argument(std::move(error_msg));
     }
     return backend;

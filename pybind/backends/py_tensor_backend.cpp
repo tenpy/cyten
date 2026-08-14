@@ -49,7 +49,7 @@ blocks.
                if (!py::isinstance<TensorBackend>(other)) {
                    return false;
                }
-               return self.equals(other.cast<TensorBackend const&>());
+               return self == other.cast<TensorBackend const&>();
            })
       .def("item",
            &TensorBackend::item,

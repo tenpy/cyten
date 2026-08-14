@@ -270,6 +270,11 @@ class BlockBackend
     /// Name of the backend class for __repr__ / __str__ (e.g. "NumpyBlockBackend").
     virtual std::string get_backend_name() const;
 
+    /// Semantic equality: same backend class and equivalent instance state (e.g. device).
+    /// Subclasses with extra state (e.g. Array API namespace) should override.
+    [[nodiscard]] virtual bool operator==(BlockBackend const& other) const;
+    bool operator!=(BlockBackend const& other) const { return !(*this == other); }
+
     /// The absolute value of a complex number, elementwise.
     virtual BlockPtr abs(const BlockCPtr& a) = 0;
     /// Apply :attr:`~cyten.symmetries.spaces.Leg.basis_perm` (or its inverse) on every axis.

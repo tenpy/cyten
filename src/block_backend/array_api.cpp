@@ -541,6 +541,17 @@ ArrayApiBlockBackend::get_backend_name() const
     return "ArrayApiBlockBackend";
 }
 
+bool
+ArrayApiBlockBackend::operator==(BlockBackend const& other) const
+{
+    if (!BlockBackend::operator==(other))
+        return false;
+    auto const* o = dynamic_cast<ArrayApiBlockBackend const*>(&other);
+    if (o == nullptr)
+        return false;
+    return api_.is(o->api_);
+}
+
 BlockPtr
 ArrayApiBlockBackend::apply_leg_permutations(const BlockCPtr& block,
                                              const std::vector<py::array_t<int64>>& perms)

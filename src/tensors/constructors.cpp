@@ -105,7 +105,7 @@ tensor(TensorCPtr obj,
     if (domain && !products_equal(domain, obj->domain)) {
         throw std::invalid_argument("Mismatching domain");
     }
-    if (backend && (!obj->backend || !backend->equals(*obj->backend))) {
+    if (backend && (!obj->backend || !(*backend == *obj->backend))) {
         throw std::invalid_argument("Mismatching backend");
     }
     TensorPtr out;

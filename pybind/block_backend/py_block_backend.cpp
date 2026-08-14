@@ -603,6 +603,13 @@ bind_block_backend(py::module_& m)
            [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
       .def("__str__",
            [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
+      .def("__eq__",
+           [](BlockBackend const& self, py::object other) {
+               if (!py::isinstance<BlockBackend>(other)) {
+                   return false;
+               }
+               return self == other.cast<BlockBackend const&>();
+           })
       .def(
         "as_scalar",
         [](BlockBackend& self, py::bool_ value) { return self.as_scalar(value.cast<bool>()); },

@@ -646,6 +646,15 @@ BlockBackend::get_backend_name() const
     return "BlockBackend";
 }
 
+bool
+BlockBackend::operator==(BlockBackend const& other) const
+{
+    if (this == &other)
+        return true;
+    return get_backend_name() == other.get_backend_name() &&
+           default_device == other.default_device;
+}
+
 std::vector<int64>
 BlockBackend::get_shape(const BlockCPtr& a)
 {

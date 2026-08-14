@@ -41,3 +41,18 @@ def test_python_subclass_override_kron():
     b = be.as_block([[2.0]], Dtype.float64)
     k = be.kron(a, b)
     np.testing.assert_allclose(k.to_numpy(), np.kron([[1, 0], [0, 1]], [[2]]))
+
+
+def test_equals_compares_api_namespace(arrayapi_backend):
+    same = ArrayApiBlockBackend(np, default_device='cpu')
+    other_device = ArrayApiBlockBackend(np, default_device='cpu:1')
+
+    class Ns:
+        def __getattr__(self, name):
+            return getattr(np, name)
+
+    other_api = ArrayApiBlockBackend(Ns(), default_device='cpu')
+
+    assert arrayapi_backend == same
+    assert arrayapi_backend != other_device
+    assert arrayapi_backend != other_api

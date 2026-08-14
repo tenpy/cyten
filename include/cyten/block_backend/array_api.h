@@ -103,6 +103,8 @@ class ArrayApiBlockBackend : public BlockBackend
 
     std::string get_backend_name() const override;
 
+    bool operator==(BlockBackend const& other) const override;
+
     BlockPtr apply_leg_permutations(const BlockCPtr& block,
                                     const std::vector<py::array_t<int64>>& perms) override;
     BlockPtr as_block(py::object a,
