@@ -69,10 +69,6 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// Set by concrete backends (e.g. block class or pybind type object).
     py::object DataCls;
 
-    /// If the decompositions (SVD, QR, EIGH, ...) can operate on many-leg tensors,
-    /// or require legs to be combined first.
-    bool can_decompose_tensors = false;
-
     std::shared_ptr<BlockBackend> block_backend;
 
     explicit TensorBackend(std::shared_ptr<BlockBackend> block_backend);
@@ -84,6 +80,10 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// Semantic equality: same backend class and equivalent :attr:`block_backend`.
     [[nodiscard]] bool operator==(TensorBackend const& other) const;
     bool operator!=(TensorBackend const& other) const { return !(*this == other); }
+
+    /// If decompositions (SVD, QR, EIGH, ...) can operate on many-leg tensors.
+    /// Otherwise legs must be combined first. Default: ``false``.
+    [[nodiscard]] virtual bool can_decompose_tensors() const { return false; }
 
     /// Convert tensor to a python scalar.
     ///

@@ -427,7 +427,6 @@ AbelianBackend::data_from_tensor(TensorCPtr tensor)
 AbelianBackend::AbelianBackend(std::shared_ptr<BlockBackend> block_backend_)
   : TensorBackend(std::move(block_backend_))
 {
-    // Match Python AbelianBackend: can_decompose_tensors remains false.
     // DataCls is set when pybind bindings for AbelianBackend exist.
     DataCls = py::none();
 }

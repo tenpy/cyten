@@ -374,7 +374,7 @@ eigh_py(py::object tensor, py::object new_labels, bool new_leg_dual, py::object 
 
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
     // If the backend requires it, combine legs first
-    if (!backend->can_decompose_tensors) {
+    if (!backend->can_decompose_tensors()) {
         int64 n_cod = tensor.attr("num_codomain_legs").cast<int64>();
         int64 n_legs = tensor.attr("num_legs").cast<int64>();
         std::vector<LegRef> cod_idcs;
@@ -411,7 +411,7 @@ eigh_py(py::object tensor, py::object new_labels, bool new_leg_dual, py::object 
       nested_labels_codomain_domain(tensor.attr("codomain_labels"), leg_label_to_py(a)));
 
     // undo the combine
-    if (!backend->can_decompose_tensors) {
+    if (!backend->can_decompose_tensors()) {
         V = py::cast(split_legs(V.cast<TensorCPtr>(), std::vector<LegRef>{ int64{ 0 } }));
     }
 

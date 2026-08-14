@@ -103,6 +103,8 @@ class FusionTreeBackend : public TensorBackend
     explicit FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend, float64 eps = 5.0e-14);
     ~FusionTreeBackend() override = default;
 
+    bool can_decompose_tensors() const override { return true; }
+
     void test_tensor_sanity(TensorCPtr a, bool is_diagonal) override;
     void test_mask_sanity(MaskCPtr a) override;
 

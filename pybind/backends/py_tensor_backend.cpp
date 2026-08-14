@@ -38,7 +38,7 @@ blocks.
 
     tensor_backend.def(py::init<std::shared_ptr<BlockBackend>>(), py::arg("block_backend"))
       .def_readwrite("DataCls", &TensorBackend::DataCls)
-      .def_readwrite("can_decompose_tensors", &TensorBackend::can_decompose_tensors)
+      .def_property_readonly("can_decompose_tensors", &TensorBackend::can_decompose_tensors)
       .def_readwrite("block_backend", &TensorBackend::block_backend);
 
     tensor_backend //  methods

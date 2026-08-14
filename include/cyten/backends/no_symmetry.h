@@ -58,6 +58,8 @@ class NoSymmetryBackend : public TensorBackend
     explicit NoSymmetryBackend(std::shared_ptr<BlockBackend> block_backend);
     ~NoSymmetryBackend() override = default;
 
+    bool can_decompose_tensors() const override { return true; }
+
     void test_tensor_sanity(TensorCPtr a, bool is_diagonal) override;
     void test_mask_sanity(MaskCPtr a) override;
 

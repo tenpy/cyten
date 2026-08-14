@@ -192,7 +192,7 @@ exp(TensorCPtr obj)
                                std::vector<Space::Ptr>{ sym->codomain });
 
         auto backend = sym->backend;
-        bool combine = (!backend->can_decompose_tensors) && (sym->num_domain_legs() > 1);
+        bool combine = (!backend->can_decompose_tensors()) && (sym->num_domain_legs() > 1);
         if (combine) {
             int64 J = sym->num_codomain_legs();
             int64 N = sym->num_legs;

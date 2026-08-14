@@ -618,7 +618,7 @@ _decomposition_prepare(TensorCPtr tensor, bool new_leg_dual)
     bool combine_codomain = false;
     bool combine_domain = false;
     auto backend = tens->backend;
-    if (!backend->can_decompose_tensors) {
+    if (!backend->can_decompose_tensors()) {
         combine_codomain = tens->num_codomain_legs() > 1;
         combine_domain = tens->num_domain_legs() > 1;
         int64 n_cod = tens->num_codomain_legs();
