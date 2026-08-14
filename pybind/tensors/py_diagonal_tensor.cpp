@@ -1,6 +1,7 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/diagonal_tensor.h>
 
+#include "py_callbacks.hpp"
 #include "py_factory_parse.hpp"
 #include "py_trampolines.hpp"
 
@@ -139,14 +140,10 @@ E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
          std::optional<Dtype> dtype,
          std::optional<std::string> device) {
           auto init = py_parse_diag(leg, std::move(backend), labels);
-          return DiagonalTensor::from_block_func(std::move(func),
-                                                 py_as_space_leg(leg),
-                                                 init.backend,
-                                                 init.labels,
-                                                 func_kwargs,
-                                                 shape_kw,
-                                                 dtype,
-                                                 device);
+          auto wrapped = block_factory_from_python(
+            func, func_kwargs, shape_kw, init.backend->block_backend, dtype, device);
+          return DiagonalTensor::from_block_func(
+            std::move(wrapped), py_as_space_leg(leg), init.backend, init.labels, dtype, device);
       },
       py::arg("func"),
       py::arg("leg"),
@@ -425,13 +422,10 @@ dtype: Dtype
          std::optional<Dtype> dtype,
          std::optional<std::string> device) {
           auto init = py_parse_diag(leg, std::move(backend), labels);
-          return DiagonalTensor::from_sector_block_func(std::move(func),
-                                                        py_as_space_leg(leg),
-                                                        init.backend,
-                                                        init.labels,
-                                                        func_kwargs,
-                                                        dtype,
-                                                        device);
+          auto wrapped = sector_block_factory_from_python(
+            func, func_kwargs, init.backend->block_backend, dtype, device);
+          return DiagonalTensor::from_sector_block_func(
+            std::move(wrapped), py_as_space_leg(leg), init.backend, init.labels, dtype, device);
       },
       py::arg("func"),
       py::arg("leg"),

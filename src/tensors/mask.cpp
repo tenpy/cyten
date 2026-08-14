@@ -416,18 +416,20 @@ Mask::from_random(Space::Ptr large_leg_in,
     auto small_leg_cap = small_leg;
     auto np_random_cap = np_random;
     auto np = py::module_::import("numpy");
-    py::function func =
-      py::cpp_function([small_leg_cap, np_random_cap, np](py::object shape, py::object coupled) {
-          int64 num_keep = small_leg_cap->sector_multiplicity(coupled.cast<Sector>());
-          auto block = np.attr("zeros")(shape, np.attr("bool_"));
+    auto bb = backend->block_backend;
+    SectorBlockFactoryFn func =
+      [small_leg_cap, np_random_cap, np, bb, device](std::vector<int64> const& shape,
+                                                     Sector const& coupled) {
+          int64 num_keep = small_leg_cap->sector_multiplicity(coupled);
+          py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
           auto which = np_random_cap.attr("choice")(
-            shape[py::int_(0)], py::arg("size") = num_keep, py::arg("replace") = false);
+            shape[0], py::arg("size") = num_keep, py::arg("replace") = false);
           block.attr("__setitem__")(which, true);
-          return block;
-      });
+          return bb->as_block(block, Dtype::Bool, device);
+      };
 
     auto diag = DiagonalTensor::from_sector_block_func(
-      func, large_leg, backend, labels, py::none(), Dtype::Bool, device);
+      std::move(func), large_leg, backend, labels, Dtype::Bool, device);
     auto res = from_DiagonalTensor(diag);
     assert(static_cast<Space const&>(*res->small_leg()) == static_cast<Space const&>(*small_leg));
     return res;

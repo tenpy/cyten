@@ -146,17 +146,14 @@ DiagonalTensor::leg() const
 }
 
 DiagonalTensor::Ptr
-DiagonalTensor::from_block_func(py::function func,
+DiagonalTensor::from_block_func(BlockFactoryFn func,
                                 Space::Ptr leg,
                                 TensorBackend::Ptr backend,
                                 std::optional<LegLabels> labels,
-                                py::object func_kwargs,
-                                std::optional<std::string> shape_kw,
                                 std::optional<Dtype> dtype,
                                 std::optional<std::string> device)
 {
     // --- hints from Python DiagonalTensor.from_block_func ---
-    // wrap func to consider func_kwargs, shape_kw, dtype
     // use same backend function as from_sector_block_func, so we include the coupled arg
     // but just ignore it.
     // ---
@@ -166,28 +163,11 @@ DiagonalTensor::from_block_func(py::function func,
       _init_parse_args(tp, tp, std::move(backend));
     (void)unused_domain;
     (void)symmetry;
-
-    // wrap func to consider func_kwargs, shape_kw, dtype
-    py::dict kwargs = copy_dict(func_kwargs);
-    py::object shape_kw_obj = shape_kw.has_value() ? py::cast(*shape_kw) : py::none();
-    std::optional<Dtype> dtype_cap = dtype;
-    std::optional<std::string> device_cap = device;
-    auto bb = backend_tp->block_backend;
+    (void)dtype;
+    (void)device;
 
     SectorBlockFactoryFn block_func =
-      [func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](std::vector<int64> const& shape,
-                                                             Sector const& /*coupled*/) {
-          py::object block;
-          auto shape_t = shape_as_tuple(shape);
-          if (shape_kw_obj.is_none()) {
-              block = func(shape_t, **kwargs);
-          } else {
-              py::dict call_kwargs = py::dict(kwargs);
-              call_kwargs[shape_kw_obj] = shape_t;
-              block = func(**call_kwargs);
-          }
-          return bb->as_block(block, dtype_cap, device_cap);
-      };
+      [func](std::vector<int64> const& shape, Sector const& /*coupled*/) { return func(shape); };
 
     auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
     auto res = std::make_shared<DiagonalTensor>(
@@ -272,23 +252,11 @@ DiagonalTensor::from_eye(Space::Ptr leg,
     (void)unused_domain;
     (void)symmetry;
     auto bb = backend_tp->block_backend;
-    py::cpp_function ones([bb](py::object shape, py::kwargs kwargs) {
-        std::optional<std::string> dev;
-        if (kwargs.contains("device") && !kwargs["device"].is_none()) {
-            dev = kwargs["device"].cast<std::string>();
-        }
-        return bb->ones_block(
-          shape.cast<std::vector<int64>>(), kwargs["dtype"].cast<Dtype>(), dev);
-    });
-    py::dict func_kwargs;
-    func_kwargs["dtype"] = py::cast(dtype);
-    if (device.has_value()) {
-        func_kwargs["device"] = py::cast(*device);
-    } else {
-        func_kwargs["device"] = py::none();
-    }
+    BlockFactoryFn ones = [bb, dtype, device](std::vector<int64> const& shape) {
+        return bb->ones_block(shape, dtype, device);
+    };
     return from_block_func(
-      ones, leg_sp, backend_tp, std::move(labels), func_kwargs, std::nullopt, dtype, device);
+      std::move(ones), std::move(leg_sp), std::move(backend_tp), std::move(labels), dtype, device);
 }
 
 DiagonalTensor::Ptr
@@ -338,17 +306,11 @@ DiagonalTensor::from_random_normal(Space::Ptr leg,
     }
 
     auto bb = backend->block_backend;
-    py::cpp_function randn([bb](py::object shape, py::kwargs kwargs) {
-        return bb->random_normal(shape.cast<std::vector<int64>>(),
-                                 kwargs["dtype"].cast<Dtype>(),
-                                 kwargs["sigma"].cast<float64>(),
-                                 std::nullopt);
-    });
-    py::dict func_kwargs;
-    func_kwargs["dtype"] = py::cast(dtype);
-    func_kwargs["sigma"] = py::cast(sigma);
-    auto with_zero_mean = from_block_func(
-      randn, leg, backend, std::move(labels), func_kwargs, std::nullopt, dtype, device);
+    BlockFactoryFn randn = [bb, dtype, sigma](std::vector<int64> const& shape) {
+        return bb->random_normal(shape, dtype, sigma, std::nullopt);
+    };
+    auto with_zero_mean =
+      from_block_func(std::move(randn), leg, backend, std::move(labels), dtype, device);
 
     if (mean) {
         auto one = backend->block_backend->as_scalar(1.0);
@@ -377,59 +339,31 @@ DiagonalTensor::from_random_uniform(Space::Ptr leg,
     (void)unused_domain;
     (void)symmetry;
     auto bb = backend_tp->block_backend;
-    py::cpp_function func([bb](py::object shape, py::kwargs kwargs) {
-        auto dims = shape.cast<std::vector<int64>>();
-        auto d = kwargs["dtype"].cast<Dtype>();
-        std::optional<std::string> dev;
-        if (!kwargs["device"].is_none()) {
-            dev = kwargs["device"].cast<std::string>();
-        }
-        return bb->random_uniform(dims, d, dev);
-    });
-    py::dict func_kwargs;
-    func_kwargs["dtype"] = py::cast(dtype);
-    if (device.has_value()) {
-        func_kwargs["device"] = py::cast(*device);
-    } else {
-        func_kwargs["device"] = py::none();
-    }
+    BlockFactoryFn func = [bb, dtype, device](std::vector<int64> const& shape) {
+        return bb->random_uniform(shape, dtype, device);
+    };
     return from_block_func(
-      func, leg_sp, backend_tp, std::move(labels), func_kwargs, std::nullopt, dtype, device);
+      std::move(func), std::move(leg_sp), std::move(backend_tp), std::move(labels), dtype, device);
 }
 
 DiagonalTensor::Ptr
-DiagonalTensor::from_sector_block_func(py::function func,
+DiagonalTensor::from_sector_block_func(SectorBlockFactoryFn func,
                                        Space::Ptr leg,
                                        TensorBackend::Ptr backend,
                                        std::optional<LegLabels> labels,
-                                       py::object func_kwargs,
                                        std::optional<Dtype> dtype,
                                        std::optional<std::string> device)
 {
-    // --- hints from Python DiagonalTensor.from_sector_block_func ---
-    // wrap func to consider func_kwargs and dtype
-    // ---
     auto leg_sp = as_space_leg(std::move(leg));
     auto tp = product_of_leg(leg_sp);
     auto [co_domain, unused_domain, backend_tp, unused_symm] =
       _init_parse_args(tp, tp, std::move(backend));
     (void)unused_domain;
     (void)unused_symm;
+    (void)dtype;
+    (void)device;
 
-    // wrap func to consider func_kwargs and dtype
-    py::dict kwargs = copy_dict(func_kwargs);
-    std::optional<Dtype> dtype_cap = dtype;
-    std::optional<std::string> device_cap = device;
-    auto bb = backend_tp->block_backend;
-
-    SectorBlockFactoryFn block_func =
-      [func, kwargs, dtype_cap, device_cap, bb](std::vector<int64> const& shape,
-                                                Sector const& coupled) {
-          py::object block = func(shape_as_tuple(shape), py::cast(coupled), **kwargs);
-          return bb->as_block(block, dtype_cap, device_cap);
-      };
-
-    auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
+    auto data = backend_tp->diagonal_from_sector_block_func(std::move(func), co_domain);
     auto res = std::make_shared<DiagonalTensor>(
       data,
       leg_sp,

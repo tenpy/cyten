@@ -43,12 +43,10 @@ class DiagonalTensor : public SymmetricTensor
 
     // --- factories ---
 
-    [[nodiscard]] static Ptr from_block_func(py::function func,
+    [[nodiscard]] static Ptr from_block_func(BlockFactoryFn func,
                                              Space::Ptr leg,
                                              TensorBackend::Ptr backend = nullptr,
                                              std::optional<LegLabels> labels = std::nullopt,
-                                             py::object func_kwargs = py::none(),
-                                             std::optional<std::string> shape_kw = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
@@ -90,11 +88,10 @@ class DiagonalTensor : public SymmetricTensor
                                                  std::optional<std::string> device = std::nullopt);
 
     [[nodiscard]] static Ptr from_sector_block_func(
-      py::function func,
+      SectorBlockFactoryFn func,
       Space::Ptr leg,
       TensorBackend::Ptr backend = nullptr,
       std::optional<LegLabels> labels = std::nullopt,
-      py::object func_kwargs = py::none(),
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 

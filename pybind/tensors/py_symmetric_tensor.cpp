@@ -1,6 +1,7 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include "py_callbacks.hpp"
 #include "py_factory_parse.hpp"
 #include "py_trampolines.hpp"
 
@@ -126,14 +127,15 @@ data:
          std::optional<Dtype> dtype,
          std::optional<std::string> device) {
           auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
-          return SymmetricTensor::from_block_func(std::move(func),
+          auto dt = SymmetricTensor::_parse_default_dtype(dtype, init.symmetry);
+          auto wrapped = block_factory_from_python(
+            func, func_kwargs, shape_kw, init.backend->block_backend, dt, device);
+          return SymmetricTensor::from_block_func(std::move(wrapped),
                                                   init.codomain,
                                                   init.domain,
                                                   init.backend,
                                                   init.labels,
-                                                  func_kwargs,
-                                                  shape_kw,
-                                                  dtype,
+                                                  dt,
                                                   device);
       },
       py::arg("func"),
@@ -431,13 +433,15 @@ dtype: Dtype
          std::optional<Dtype> dtype,
          std::optional<std::string> device) {
           auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
-          return SymmetricTensor::from_sector_block_func(std::move(func),
+          auto dt = SymmetricTensor::_parse_default_dtype(dtype, init.symmetry);
+          auto wrapped = sector_block_factory_from_python(
+            func, func_kwargs, init.backend->block_backend, dt, device);
+          return SymmetricTensor::from_sector_block_func(std::move(wrapped),
                                                          init.codomain,
                                                          init.domain,
                                                          init.backend,
                                                          init.labels,
-                                                         func_kwargs,
-                                                         dtype,
+                                                         dt,
                                                          device);
       },
       py::arg("func"),

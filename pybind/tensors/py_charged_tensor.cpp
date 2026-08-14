@@ -1,5 +1,6 @@
 #include <cyten/tensors/charged_tensor.h>
 
+#include "py_callbacks.hpp"
 #include "py_factory_parse.hpp"
 
 #include "../py_cyten_pybind11.h"
@@ -160,16 +161,17 @@ charged_state: block | None
          std::optional<std::string> device) {
           auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
           auto cs = py_optional_block(charged_state, init.backend, dtype, device);
-          return ChargedTensor::from_block_func(std::move(func),
+          auto dt = SymmetricTensor::_parse_default_dtype(dtype, init.symmetry);
+          auto wrapped = block_factory_from_python(
+            func, func_kwargs, shape_kw, init.backend->block_backend, dt, device);
+          return ChargedTensor::from_block_func(std::move(wrapped),
                                                 py_as_charge(charge),
                                                 init.codomain,
                                                 init.domain,
                                                 cs,
                                                 init.backend,
                                                 init.labels,
-                                                func_kwargs,
-                                                shape_kw,
-                                                dtype,
+                                                dt,
                                                 device);
       },
       py::arg("func"),

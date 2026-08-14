@@ -29,25 +29,6 @@ legs_from_py(std::vector<Leg::Ptr> const& objs)
     return out;
 }
 
-py::dict
-copy_dict(py::object obj)
-{
-    if (obj.is_none()) {
-        return py::dict();
-    }
-    return py::dict(obj);
-}
-
-py::tuple
-shape_as_tuple(std::vector<int64> const& shape)
-{
-    py::tuple t(shape.size());
-    for (std::size_t i = 0; i < shape.size(); ++i) {
-        t[i] = py::int_(shape[i]);
-    }
-    return t;
-}
-
 } // namespace
 
 SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
@@ -177,18 +158,15 @@ SymmetricTensor::from_eye(TensorProduct::Ptr co_domain,
 }
 
 SymmetricTensor::Ptr
-SymmetricTensor::from_block_func(py::function func,
+SymmetricTensor::from_block_func(BlockFactoryFn func,
                                  TensorProduct::Ptr codomain,
                                  TensorProduct::Ptr domain,
                                  TensorBackend::Ptr backend,
                                  std::optional<LegLabels> labels,
-                                 py::object func_kwargs,
-                                 std::optional<std::string> shape_kw,
                                  std::optional<Dtype> dtype,
                                  std::optional<std::string> device)
 {
     // --- hints from Python SymmetricTensor.from_block_func ---
-    // wrap func to consider func_kwargs, shape_kw, dtype, device
     // use same backend function as from_sector_block_func, so we include the coupled arg
     // but just ignore it.
     // OPTIMIZE remove?
@@ -196,28 +174,11 @@ SymmetricTensor::from_block_func(py::function func,
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
       _init_parse_args(std::move(codomain), std::move(domain), std::move(backend));
     dtype = _parse_default_dtype(dtype, symmetry);
+    (void)dtype;
+    (void)device;
 
-    py::dict kwargs = copy_dict(func_kwargs);
-    py::object shape_kw_obj = shape_kw.has_value() ? py::cast(*shape_kw) : py::none();
-    std::optional<Dtype> dtype_cap = dtype;
-    std::optional<std::string> device_cap = device;
-    auto bb = backend_tp->block_backend;
-
-    // wrap func to consider func_kwargs, shape_kw, dtype, device
     SectorBlockFactoryFn block_func =
-      [func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](std::vector<int64> const& shape,
-                                                             Sector const& /*coupled*/) {
-          py::object block;
-          auto shape_t = shape_as_tuple(shape);
-          if (shape_kw_obj.is_none()) {
-              block = func(shape_t, **kwargs);
-          } else {
-              py::dict call_kwargs = py::dict(kwargs);
-              call_kwargs[shape_kw_obj] = shape_t;
-              block = func(**call_kwargs);
-          }
-          return bb->as_block(block, dtype_cap, device_cap);
-      };
+      [func](std::vector<int64> const& shape, Sector const& /*coupled*/) { return func(shape); };
 
     auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
     auto res = std::make_shared<SymmetricTensor>(
@@ -232,36 +193,21 @@ SymmetricTensor::from_block_func(py::function func,
 }
 
 SymmetricTensor::Ptr
-SymmetricTensor::from_sector_block_func(py::function func,
+SymmetricTensor::from_sector_block_func(SectorBlockFactoryFn func,
                                         TensorProduct::Ptr codomain,
                                         TensorProduct::Ptr domain,
                                         TensorBackend::Ptr backend,
                                         std::optional<LegLabels> labels,
-                                        py::object func_kwargs,
                                         std::optional<Dtype> dtype,
                                         std::optional<std::string> device)
 {
-    // --- hints from Python SymmetricTensor.from_sector_block_func ---
-    // wrap func to consider func_kwargs and dtype
-    // ---
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
       _init_parse_args(std::move(codomain), std::move(domain), std::move(backend));
     dtype = _parse_default_dtype(dtype, symmetry);
+    (void)dtype;
+    (void)device;
 
-    // wrap func to consider func_kwargs and dtype
-    py::dict kwargs = copy_dict(func_kwargs);
-    std::optional<Dtype> dtype_cap = dtype;
-    std::optional<std::string> device_cap = device;
-    auto bb = backend_tp->block_backend;
-
-    SectorBlockFactoryFn block_func =
-      [func, kwargs, dtype_cap, device_cap, bb](std::vector<int64> const& shape,
-                                                Sector const& coupled) {
-          py::object block = func(shape_as_tuple(shape), py::cast(coupled), **kwargs);
-          return bb->as_block(block, dtype_cap, device_cap);
-      };
-
-    auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
+    auto data = backend_tp->from_sector_block_func(std::move(func), codomain_tp, domain_tp);
     auto res = std::make_shared<SymmetricTensor>(
       data,
       codomain_tp,
@@ -434,31 +380,17 @@ SymmetricTensor::from_random_uniform(TensorProduct::Ptr codomain,
       _init_parse_args(std::move(codomain), std::move(domain), std::move(backend));
     auto dt = _parse_default_dtype(dtype, symmetry);
     assert(dt.has_value());
+    Dtype d = *dt;
     auto bb = backend_tp->block_backend;
-    py::cpp_function func([bb](py::object shape, py::kwargs kwargs) {
-        auto dims = shape.cast<std::vector<int64>>();
-        auto d = kwargs["dtype"].cast<Dtype>();
-        std::optional<std::string> dev;
-        if (!kwargs["device"].is_none()) {
-            dev = kwargs["device"].cast<std::string>();
-        }
-        return bb->random_uniform(dims, d, dev);
-    });
-    py::dict func_kwargs;
-    func_kwargs["dtype"] = py::cast(*dt);
-    if (device.has_value()) {
-        func_kwargs["device"] = py::cast(*device);
-    } else {
-        func_kwargs["device"] = py::none();
-    }
-    return from_block_func(func,
-                           codomain_tp,
-                           domain_tp,
-                           backend_tp,
+    BlockFactoryFn func = [bb, d, device](std::vector<int64> const& shape) {
+        return bb->random_uniform(shape, d, device);
+    };
+    return from_block_func(std::move(func),
+                           std::move(codomain_tp),
+                           std::move(domain_tp),
+                           std::move(backend_tp),
                            std::move(labels),
-                           func_kwargs,
-                           std::nullopt,
-                           dt,
+                           d,
                            device);
 }
 

@@ -1459,17 +1459,20 @@ slice_leg(TensorCPtr tensor, LegRef leg, Sector const& sector, int64 multiplicit
     Sector mask_sector = in_domain ? tensor->symmetry->dual_sector(sector) : sector;
 
     Sector sector_cap = mask_sector;
-    py::cpp_function func([sector_cap, m](py::object shape, py::object coupled) {
-        auto np = py::module_::import("numpy");
-        py::object block = np.attr("zeros")(shape, py::arg("dtype") = np.attr("bool_"));
-        if (coupled.cast<Sector>() == sector_cap) {
-            block.attr("__setitem__")(m, true);
-        }
-        return block;
-    });
+    auto bb = tensor->backend->block_backend;
+    auto device = tensor->device;
+    SectorBlockFactoryFn func =
+      [sector_cap, m, bb, device](std::vector<int64> const& shape, Sector const& coupled) {
+          auto np = py::module_::import("numpy");
+          py::object block = np.attr("zeros")(py::cast(shape), py::arg("dtype") = np.attr("bool_"));
+          if (coupled == sector_cap) {
+              block.attr("__setitem__")(m, true);
+          }
+          return bb->as_block(block, Dtype::Bool, device);
+      };
 
     auto diag = DiagonalTensor::from_sector_block_func(
-      func, mask_space, tensor->backend, std::nullopt, py::none(), Dtype::Bool, tensor->device);
+      std::move(func), mask_space, tensor->backend, std::nullopt, Dtype::Bool, tensor->device);
     auto mask = Mask::from_DiagonalTensor(diag);
     auto masked = apply_mask(tensor, mask, leg);
     auto moved = move_leg(masked,

@@ -127,15 +127,13 @@ ChargedTensor::_parse_inv_labels(std::optional<LegLabels> labels,
 }
 
 ChargedTensor::Ptr
-ChargedTensor::from_block_func(py::function func,
+ChargedTensor::from_block_func(BlockFactoryFn func,
                                std::variant<ElementarySpace::Ptr, Sector> charge,
                                TensorProduct::Ptr codomain,
                                TensorProduct::Ptr domain,
                                BlockBackend::BlockPtr charged_state,
                                TensorBackend::Ptr backend,
                                std::optional<LegLabels> labels,
-                               py::object func_kwargs,
-                               std::optional<std::string> shape_kw,
                                std::optional<Dtype> dtype,
                                std::optional<std::string> device)
 {
@@ -156,13 +154,11 @@ ChargedTensor::from_block_func(py::function func,
     (void)charge_leg_sp;
     auto [labs, inv_labels] = _parse_inv_labels(std::move(labels), codomain_tp, domain_tp);
     (void)labs;
-    auto inv = SymmetricTensor::from_block_func(func,
-                                                codomain_tp,
-                                                inv_domain,
-                                                backend_tp,
-                                                inv_labels,
-                                                func_kwargs,
-                                                shape_kw,
+    auto inv = SymmetricTensor::from_block_func(std::move(func),
+                                                std::move(codomain_tp),
+                                                std::move(inv_domain),
+                                                std::move(backend_tp),
+                                                std::move(inv_labels),
                                                 dtype,
                                                 std::optional<std::string>{ device_s });
     return std::make_shared<ChargedTensor>(inv, charged_state);

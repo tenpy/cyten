@@ -60,15 +60,13 @@ class ChargedTensor : public Tensor
 
     // --- factories ---
 
-    [[nodiscard]] static Ptr from_block_func(py::function func,
+    [[nodiscard]] static Ptr from_block_func(BlockFactoryFn func,
                                              std::variant<ElementarySpace::Ptr, Sector> charge,
                                              TensorProduct::Ptr codomain,
                                              TensorProduct::Ptr domain = nullptr,
                                              BlockBackend::BlockPtr charged_state = nullptr,
                                              TensorBackend::Ptr backend = nullptr,
                                              std::optional<LegLabels> labels = std::nullopt,
-                                             py::object func_kwargs = py::none(),
-                                             std::optional<std::string> shape_kw = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
