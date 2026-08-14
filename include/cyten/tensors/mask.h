@@ -165,7 +165,7 @@ class Mask : public Tensor
                                              std::string const& operand,
                                              bool return_NotImplemented = true);
 
-    [[nodiscard]] Ptr _unary_operand(py::function func);
+    [[nodiscard]] Ptr _unary_operand(BlockUnaryFn func);
 };
 
 } // namespace cyten

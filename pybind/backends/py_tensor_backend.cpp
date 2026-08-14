@@ -1,4 +1,5 @@
 #include "../py_cyten_pybind11.h"
+#include "../tensors/py_callbacks.hpp"
 #include "py_trampolines.hpp"
 
 #include <cyten/backends/tensor_backend.h>
@@ -79,11 +80,18 @@ blocks.
 
            If `pipe` is given, try to return it if suitable.
            )pydoc")
-      .def("act_block_diagonal_square_matrix",
-           &TensorBackend::act_block_diagonal_square_matrix,
-           py::arg("a"),
-           py::arg("block_method"),
-           py::arg("dtype_map"),
+      .def(
+        "act_block_diagonal_square_matrix",
+        [](TensorBackend& self,
+           SymmetricTensorCPtr a,
+           py::function block_method,
+           py::object dtype_map) {
+            return self.act_block_diagonal_square_matrix(
+              a, block_unary_from_python(block_method), dtype_map_from_python(dtype_map));
+        },
+        py::arg("a"),
+        py::arg("block_method"),
+        py::arg("dtype_map"),
            R"pydoc(
            Apply functions like exp() and log() on a (square) block-diagonal `a`.
 
@@ -294,13 +302,22 @@ blocks.
            R"pydoc(
            Assumes a boolean DiagonalTensor. If any entry is True.
            )pydoc")
-      .def("diagonal_elementwise_binary",
-           &TensorBackend::diagonal_elementwise_binary,
-           py::arg("a"),
-           py::arg("b"),
-           py::arg("func"),
-           py::arg("func_kwargs"),
-           py::arg("partial_zero_is_zero"),
+      .def(
+        "diagonal_elementwise_binary",
+        [](TensorBackend& self,
+           DiagonalTensorCPtr a,
+           DiagonalTensorCPtr b,
+           py::function func,
+           py::dict func_kwargs,
+           bool partial_zero_is_zero) {
+            return self.diagonal_elementwise_binary(
+              a, b, block_binary_from_python(func, func_kwargs), partial_zero_is_zero);
+        },
+        py::arg("a"),
+        py::arg("b"),
+        py::arg("func"),
+        py::arg("func_kwargs"),
+        py::arg("partial_zero_is_zero"),
            R"pydoc(
            Return a modified copy of the data, resulting from applying an elementwise function.
 
@@ -312,12 +329,20 @@ blocks.
 
            Assumes both tensors are on the same device.
            )pydoc")
-      .def("diagonal_elementwise_unary",
-           &TensorBackend::diagonal_elementwise_unary,
-           py::arg("a"),
-           py::arg("func"),
-           py::arg("func_kwargs"),
-           py::arg("maps_zero_to_zero"),
+      .def(
+        "diagonal_elementwise_unary",
+        [](TensorBackend& self,
+           DiagonalTensorCPtr a,
+           py::function func,
+           py::dict func_kwargs,
+           bool maps_zero_to_zero) {
+            return self.diagonal_elementwise_unary(
+              a, block_unary_from_python(func, func_kwargs), maps_zero_to_zero);
+        },
+        py::arg("a"),
+        py::arg("func"),
+        py::arg("func_kwargs"),
+        py::arg("maps_zero_to_zero"),
            R"pydoc(
            Return a modified copy of the data, resulting from applying an elementwise function.
 
@@ -332,10 +357,14 @@ blocks.
            R"pydoc(
            The DiagonalData from a 1D block in *internal* basis order.
            )pydoc")
-      .def("diagonal_from_sector_block_func",
-           &TensorBackend::diagonal_from_sector_block_func,
-           py::arg("func"),
-           py::arg("co_domain"),
+      .def(
+        "diagonal_from_sector_block_func",
+        [](TensorBackend& self, py::function func, TensorProduct::Ptr co_domain) {
+            return self.diagonal_from_sector_block_func(sector_block_factory_from_python(func),
+                                                        std::move(co_domain));
+        },
+        py::arg("func"),
+        py::arg("co_domain"),
            R"pydoc(
            Generate diagonal data from a function.
 
@@ -483,11 +512,18 @@ blocks.
            py::arg("sigma"),
            py::arg("dtype"),
            py::arg("device"))
-      .def("from_sector_block_func",
-           &TensorBackend::from_sector_block_func,
-           py::arg("func"),
-           py::arg("codomain"),
-           py::arg("domain"),
+      .def(
+        "from_sector_block_func",
+        [](TensorBackend& self,
+           py::function func,
+           TensorProduct::Ptr codomain,
+           TensorProduct::Ptr domain) {
+            return self.from_sector_block_func(
+              sector_block_factory_from_python(func), std::move(codomain), std::move(domain));
+        },
+        py::arg("func"),
+        py::arg("codomain"),
+        py::arg("domain"),
            R"pydoc(
            Generate tensor data from a function-
 
@@ -648,11 +684,14 @@ blocks.
                tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
                `ChargedTensor`.
            )pydoc")
-      .def("mask_binary_operand",
-           &TensorBackend::mask_binary_operand,
-           py::arg("mask1"),
-           py::arg("mask2"),
-           py::arg("func"),
+      .def(
+        "mask_binary_operand",
+        [](TensorBackend& self, MaskCPtr mask1, MaskCPtr mask2, py::function func) {
+            return self.mask_binary_operand(mask1, mask2, block_binary_from_python(func));
+        },
+        py::arg("mask1"),
+        py::arg("mask2"),
+        py::arg("func"),
            R"pydoc(
            Elementwise binary function acting on two masks.
 
@@ -714,10 +753,13 @@ blocks.
 
            Those spaces are the duals of the respective other in the old mask.
            )pydoc")
-      .def("mask_unary_operand",
-           &TensorBackend::mask_unary_operand,
-           py::arg("mask"),
-           py::arg("func"),
+      .def(
+        "mask_unary_operand",
+        [](TensorBackend& self, MaskCPtr mask, py::function func) {
+            return self.mask_unary_operand(mask, block_unary_from_python(func));
+        },
+        py::arg("mask"),
+        py::arg("func"),
            R"pydoc(
            Elementwise function acting on a mask.
 
@@ -827,11 +869,18 @@ blocks.
            ``Q.domain == a.domain``, ``Q.codomain == new_codomain``
            ``R.domain == new_codomain``, ``R.codomain == a.codomain``
            )pydoc")
-      .def("reduce_DiagonalTensor",
-           &TensorBackend::reduce_DiagonalTensor,
-           py::arg("tensor"),
-           py::arg("block_func"),
-           py::arg("func"),
+      .def(
+        "reduce_DiagonalTensor",
+        [](TensorBackend& self,
+           DiagonalTensorCPtr tensor,
+           py::function block_func,
+           py::function func) {
+            return self.reduce_DiagonalTensor(
+              tensor, block_to_scalar_from_python(block_func), scalar_reduce_from_python(func));
+        },
+        py::arg("tensor"),
+        py::arg("block_func"),
+        py::arg("func"),
            R"pydoc(
            Reduce a diagonal tensor to a single number.
 

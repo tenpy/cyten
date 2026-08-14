@@ -38,6 +38,16 @@ copy_dict(py::object obj)
     return py::dict(obj);
 }
 
+py::tuple
+shape_as_tuple(std::vector<int64> const& shape)
+{
+    py::tuple t(shape.size());
+    for (std::size_t i = 0; i < shape.size(); ++i) {
+        t[i] = py::int_(shape[i]);
+    }
+    return t;
+}
+
 } // namespace
 
 SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
@@ -194,20 +204,20 @@ SymmetricTensor::from_block_func(py::function func,
     auto bb = backend_tp->block_backend;
 
     // wrap func to consider func_kwargs, shape_kw, dtype, device
-    py::cpp_function block_func([func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](
-                                  py::object shape, py::object /*coupled*/) {
-        // use same backend function as from_sector_block_func, so we include the coupled arg
-        // but just ignore it.
-        py::object block;
-        if (shape_kw_obj.is_none()) {
-            block = func(shape, **kwargs);
-        } else {
-            py::dict call_kwargs = py::dict(kwargs);
-            call_kwargs[shape_kw_obj] = shape;
-            block = func(**call_kwargs);
-        }
-        return bb->as_block(block, dtype_cap, device_cap);
-    });
+    SectorBlockFactoryFn block_func =
+      [func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](std::vector<int64> const& shape,
+                                                             Sector const& /*coupled*/) {
+          py::object block;
+          auto shape_t = shape_as_tuple(shape);
+          if (shape_kw_obj.is_none()) {
+              block = func(shape_t, **kwargs);
+          } else {
+              py::dict call_kwargs = py::dict(kwargs);
+              call_kwargs[shape_kw_obj] = shape_t;
+              block = func(**call_kwargs);
+          }
+          return bb->as_block(block, dtype_cap, device_cap);
+      };
 
     auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
     auto res = std::make_shared<SymmetricTensor>(
@@ -244,11 +254,12 @@ SymmetricTensor::from_sector_block_func(py::function func,
     std::optional<std::string> device_cap = device;
     auto bb = backend_tp->block_backend;
 
-    py::cpp_function block_func(
-      [func, kwargs, dtype_cap, device_cap, bb](py::object shape, py::object coupled) {
-          py::object block = func(shape, coupled, **kwargs);
+    SectorBlockFactoryFn block_func =
+      [func, kwargs, dtype_cap, device_cap, bb](std::vector<int64> const& shape,
+                                                Sector const& coupled) {
+          py::object block = func(shape_as_tuple(shape), py::cast(coupled), **kwargs);
           return bb->as_block(block, dtype_cap, device_cap);
-      });
+      };
 
     auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
     auto res = std::make_shared<SymmetricTensor>(
@@ -473,19 +484,17 @@ SymmetricTensor::from_sector_projection(TensorProduct::Ptr co_domain,
     Sector sector_copy = sector;
     auto bb = backend_tp->block_backend;
 
-    py::cpp_function func(
-      [bb, dtype_cap, device_cap, sector_copy](py::object shape, py::object coupled) {
-          Sector c = coupled.cast<Sector>();
-          auto shape_vec = shape.cast<std::vector<int64>>();
+    SectorBlockFactoryFn func =
+      [bb, dtype_cap, device_cap, sector_copy](std::vector<int64> const& shape,
+                                               Sector const& coupled) {
           Dtype dt = dtype_cap.value_or(Dtype::Complex128);
-          if (c == sector_copy) {
-              std::vector<int64> half(shape_vec.begin(),
-                                      shape_vec.begin() +
-                                        static_cast<std::ptrdiff_t>(shape_vec.size() / 2));
+          if (coupled == sector_copy) {
+              std::vector<int64> half(shape.begin(),
+                                      shape.begin() + static_cast<std::ptrdiff_t>(shape.size() / 2));
               return bb->eye_block(half, dt, device_cap);
           }
-          return bb->zeros(shape_vec, dt, device_cap);
-      });
+          return bb->zeros(shape, dt, device_cap);
+      };
 
     auto data = backend_tp->from_sector_block_func(func, co_domain_tp, co_domain_tp);
     auto res = std::make_shared<SymmetricTensor>(

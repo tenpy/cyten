@@ -1,6 +1,7 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/mask.h>
 
+#include "py_callbacks.hpp"
 #include "py_factory_parse.hpp"
 
 #include "../py_cyten_pybind11.h"
@@ -644,14 +645,21 @@ from_eye
                 Whether `NotImplemented` should be returned on a non-scalar and non-`Tensor` other.
             )pydoc");
 
-    cls.def("_unary_operand", &Mask::_unary_operand, py::arg("func"));
+    cls.def(
+      "_unary_operand",
+      [](Mask& self, py::function func) {
+          return self._unary_operand(adapt_block_bool_unary(func, self.backend->block_backend));
+      },
+      py::arg("func"));
 
     cls.def("__bool__", [](Mask&) {
         throw py::type_error("The truth value of a Mask is ambiguous. Use a.any() or a.all()");
     });
 
     cls.def("__invert__", [](Mask& self) {
-        return self._unary_operand(py::module_::import("operator").attr("invert"));
+        return self._unary_operand(
+          adapt_block_bool_unary(py::module_::import("operator").attr("invert"),
+                                 self.backend->block_backend));
     });
 
     auto bind_bool_binop = [&](char const* name, char const* op_name, char const* operand) {

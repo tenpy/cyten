@@ -8,6 +8,7 @@
 #include <cyten/symmetries/trees.h>
 #include <cyten/tensors/forward_declare.h>
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -17,6 +18,18 @@
 #include <vector>
 
 namespace cyten {
+
+/// Callbacks that act on backend blocks / scalars. Python callables are wrapped in pybind.
+using BlockUnaryFn = std::function<BlockBackend::BlockPtr(BlockBackend::BlockPtr const&)>;
+using BlockBinaryFn = std::function<BlockBackend::BlockPtr(BlockBackend::BlockPtr const&,
+                                                           BlockBackend::BlockPtr const&)>;
+using BlockFactoryFn = std::function<BlockBackend::BlockPtr(std::vector<int64> const& shape)>;
+using SectorBlockFactoryFn =
+  std::function<BlockBackend::BlockPtr(std::vector<int64> const& shape, Sector const& coupled)>;
+using BlockToScalarFn = std::function<BlockBackend::Scalar(BlockBackend::BlockPtr const&)>;
+using ScalarReduceFn =
+  std::function<BlockBackend::Scalar(std::vector<BlockBackend::Scalar> const&)>;
+using DtypeMapFn = std::function<Dtype(Dtype)>;
 
 /// Abstract base class for tensor-backends.
 ///
@@ -92,9 +105,10 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
                                    LegPipe::Ptr pipe = nullptr);
 
     /// Apply functions like exp() and log() on a (square) block-diagonal `a`.
-    virtual DataPtr act_block_diagonal_square_matrix(SymmetricTensorCPtr a,
-                                                     py::function block_method,
-                                                     py::object dtype_map) = 0;
+    virtual DataPtr act_block_diagonal_square_matrix(
+      SymmetricTensorCPtr a,
+      BlockUnaryFn block_method,
+      std::optional<DtypeMapFn> dtype_map = std::nullopt) = 0;
 
     virtual DataPtr add_trivial_leg(TensorCPtr a,
                                     int64 legs_pos,
@@ -134,14 +148,12 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// Return a modified copy of the data, resulting from applying an elementwise function.
     virtual DataPtr diagonal_elementwise_binary(DiagonalTensorCPtr a,
                                                 DiagonalTensorCPtr b,
-                                                py::function func,
-                                                py::dict func_kwargs,
+                                                BlockBinaryFn func,
                                                 bool partial_zero_is_zero) = 0;
 
     /// Return a modified copy of the data, resulting from applying an elementwise function.
     virtual DataPtr diagonal_elementwise_unary(DiagonalTensorCPtr a,
-                                               py::function func,
-                                               py::dict func_kwargs,
+                                               BlockUnaryFn func,
                                                bool maps_zero_to_zero) = 0;
 
     /// The DiagonalData from a 1D block in *internal* basis order.
@@ -150,7 +162,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
                                         float64 tol) = 0;
 
     /// Generate diagonal data from a function.
-    virtual DataPtr diagonal_from_sector_block_func(py::function func,
+    virtual DataPtr diagonal_from_sector_block_func(SectorBlockFactoryFn func,
                                                     TensorProduct::Ptr co_domain) = 0;
 
     /// Get the DiagonalData corresponding to a tensor with two legs.
@@ -204,7 +216,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
                                        std::string device) = 0;
 
     /// Generate tensor data from a function.
-    virtual DataPtr from_sector_block_func(py::function func,
+    virtual DataPtr from_sector_block_func(SectorBlockFactoryFn func,
                                            TensorProduct::Ptr codomain,
                                            TensorProduct::Ptr domain) = 0;
 
@@ -261,7 +273,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// Elementwise binary function acting on two masks.
     virtual std::tuple<DataPtr, ElementarySpace::Ptr> mask_binary_operand(MaskCPtr mask1,
                                                                           MaskCPtr mask2,
-                                                                          py::function func) = 0;
+                                                                          BlockBinaryFn func) = 0;
 
     /// Contraction with the large leg of a Mask.
     virtual std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
@@ -287,7 +299,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
 
     /// Elementwise function acting on a mask.
     virtual std::tuple<DataPtr, ElementarySpace::Ptr> mask_unary_operand(MaskCPtr mask,
-                                                                         py::function func) = 0;
+                                                                         BlockUnaryFn func) = 0;
 
     /// Move tensor to a given device.
     virtual DataPtr move_to_device(TensorCPtr a, std::string device) = 0;
@@ -330,8 +342,8 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
 
     /// Reduce a diagonal tensor to a single number.
     virtual BlockBackend::Scalar reduce_DiagonalTensor(DiagonalTensorCPtr tensor,
-                                                       py::function block_func,
-                                                       py::function func) = 0;
+                                                       BlockToScalarFn block_func,
+                                                       ScalarReduceFn func) = 0;
 
     /// Scale axis ``leg`` of ``a`` with ``b``.
     virtual DataPtr scale_axis(TensorCPtr a, DiagonalTensorCPtr b, int64 leg) = 0;

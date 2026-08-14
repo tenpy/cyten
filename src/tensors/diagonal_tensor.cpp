@@ -26,6 +26,34 @@ copy_dict(py::object obj)
     return py::dict(obj);
 }
 
+py::tuple
+shape_as_tuple(std::vector<int64> const& shape)
+{
+    py::tuple t(shape.size());
+    for (std::size_t i = 0; i < shape.size(); ++i) {
+        t[i] = py::int_(shape[i]);
+    }
+    return t;
+}
+
+BlockUnaryFn
+block_unary_from_py(py::function func, py::object func_kwargs = py::none())
+{
+    py::dict kwargs = copy_dict(func_kwargs);
+    return [func, kwargs](BlockBackend::BlockPtr const& block) {
+        return func(py::cast(block), **kwargs).cast<BlockBackend::BlockPtr>();
+    };
+}
+
+BlockBinaryFn
+block_binary_from_py(py::function func, py::object func_kwargs = py::none())
+{
+    py::dict kwargs = copy_dict(func_kwargs);
+    return [func, kwargs](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+        return func(py::cast(a), py::cast(b), **kwargs).cast<BlockBackend::BlockPtr>();
+    };
+}
+
 Space::Ptr
 as_space_leg(Space::Ptr leg)
 {
@@ -146,20 +174,20 @@ DiagonalTensor::from_block_func(py::function func,
     std::optional<std::string> device_cap = device;
     auto bb = backend_tp->block_backend;
 
-    py::cpp_function block_func([func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](
-                                  py::object shape, py::object /*coupled*/) {
-        // use same backend function as from_sector_block_func, so we include the coupled arg
-        // but just ignore it.
-        py::object block;
-        if (shape_kw_obj.is_none()) {
-            block = func(shape, **kwargs);
-        } else {
-            py::dict call_kwargs = py::dict(kwargs);
-            call_kwargs[shape_kw_obj] = shape;
-            block = func(**call_kwargs);
-        }
-        return bb->as_block(block, dtype_cap, device_cap);
-    });
+    SectorBlockFactoryFn block_func =
+      [func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](std::vector<int64> const& shape,
+                                                             Sector const& /*coupled*/) {
+          py::object block;
+          auto shape_t = shape_as_tuple(shape);
+          if (shape_kw_obj.is_none()) {
+              block = func(shape_t, **kwargs);
+          } else {
+              py::dict call_kwargs = py::dict(kwargs);
+              call_kwargs[shape_kw_obj] = shape_t;
+              block = func(**call_kwargs);
+          }
+          return bb->as_block(block, dtype_cap, device_cap);
+      };
 
     auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
     auto res = std::make_shared<DiagonalTensor>(
@@ -394,11 +422,12 @@ DiagonalTensor::from_sector_block_func(py::function func,
     std::optional<std::string> device_cap = device;
     auto bb = backend_tp->block_backend;
 
-    py::cpp_function block_func(
-      [func, kwargs, dtype_cap, device_cap, bb](py::object shape, py::object coupled) {
-          py::object block = func(shape, coupled, **kwargs);
+    SectorBlockFactoryFn block_func =
+      [func, kwargs, dtype_cap, device_cap, bb](std::vector<int64> const& shape,
+                                                Sector const& coupled) {
+          py::object block = func(shape_as_tuple(shape), py::cast(coupled), **kwargs);
           return bb->as_block(block, dtype_cap, device_cap);
-      });
+      };
 
     auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
     auto res = std::make_shared<DiagonalTensor>(
@@ -497,20 +526,18 @@ DiagonalTensor::_binary_operand(py::object other,
         py::object other_block =
           py::cast(std::const_pointer_cast<BlockBackend::Block>(other_scalar._block()));
         if (right) {
-            py::cpp_function wrapped(
-              [func, other_block](py::object block) { return func(other_block, block); });
             new_data = backend->diagonal_elementwise_unary(
               std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-              wrapped,
-              py::dict(),
+              [func, other_block](BlockBackend::BlockPtr const& block) {
+                  return func(other_block, py::cast(block)).cast<BlockBackend::BlockPtr>();
+              },
               /*maps_zero_to_zero=*/false);
         } else {
-            py::cpp_function wrapped(
-              [func, other_block](py::object block) { return func(block, other_block); });
             new_data = backend->diagonal_elementwise_unary(
               std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-              wrapped,
-              py::dict(),
+              [func, other_block](BlockBackend::BlockPtr const& block) {
+                  return func(py::cast(block), other_block).cast<BlockBackend::BlockPtr>();
+              },
               /*maps_zero_to_zero=*/false);
         }
     } else if (py::isinstance(other, tensors_mod.attr("DiagonalTensor")) ||
@@ -530,15 +557,13 @@ DiagonalTensor::_binary_operand(py::object other,
             new_data = same->diagonal_elementwise_binary(
               other.cast<DiagonalTensorCPtr>(),
               std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-              func,
-              py::dict(),
+              block_binary_from_py(func),
               /*partial_zero_is_zero=*/false);
         } else {
             new_data = same->diagonal_elementwise_binary(
               std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
               other.cast<DiagonalTensorCPtr>(),
-              func,
-              py::dict(),
+              block_binary_from_py(func),
               /*partial_zero_is_zero=*/false);
         }
         out_labels = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
@@ -659,8 +684,7 @@ DiagonalTensor::_elementwise_binary(py::object other,
     auto data_out = same->diagonal_elementwise_binary(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
       other.cast<DiagonalTensorCPtr>(),
-      func,
-      copy_dict(func_kwargs),
+      block_binary_from_py(func, func_kwargs),
       partial_zero_is_zero);
     auto labs = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
     return std::make_shared<DiagonalTensor>(data_out, leg(), same, symmetry, labs);
@@ -673,8 +697,7 @@ DiagonalTensor::_elementwise_unary(py::function func,
 {
     auto data_out = backend->diagonal_elementwise_unary(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-      func,
-      copy_dict(func_kwargs),
+      block_unary_from_py(func, func_kwargs),
       maps_zero_to_zero);
     return std::make_shared<DiagonalTensor>(data_out, leg(), backend, symmetry, labels());
 }
@@ -721,9 +744,10 @@ DiagonalTensor::max() const
     auto bb = backend->block_backend;
     return backend->reduce_DiagonalTensor(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-      py::cpp_function(
-        [bb](py::object block) { return bb->max(block.cast<BlockBackend::BlockPtr>()); }),
-      py::module_::import("builtins").attr("max"));
+      [bb](BlockBackend::BlockPtr const& block) { return bb->max(block); },
+      [](std::vector<BlockBackend::Scalar> const& xs) {
+          return py::module_::import("builtins").attr("max")(py::cast(xs)).cast<BlockBackend::Scalar>();
+      });
 }
 
 BlockBackend::Scalar
@@ -733,9 +757,10 @@ DiagonalTensor::min() const
     auto bb = backend->block_backend;
     return backend->reduce_DiagonalTensor(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-      py::cpp_function(
-        [bb](py::object block) { return bb->min(block.cast<BlockBackend::BlockPtr>()); }),
-      py::module_::import("builtins").attr("min"));
+      [bb](BlockBackend::BlockPtr const& block) { return bb->min(block); },
+      [](std::vector<BlockBackend::Scalar> const& xs) {
+          return py::module_::import("builtins").attr("min")(py::cast(xs)).cast<BlockBackend::Scalar>();
+      });
 }
 
 int64

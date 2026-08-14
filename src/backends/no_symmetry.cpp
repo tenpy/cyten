@@ -170,10 +170,10 @@ NoSymmetryBackend::test_mask_sanity(MaskCPtr a)
 
 TensorBackend::DataPtr
 NoSymmetryBackend::act_block_diagonal_square_matrix(SymmetricTensorCPtr a,
-                                                    py::function block_method,
-                                                    py::object dtype_map)
+                                                    BlockUnaryFn block_method,
+                                                    std::optional<DtypeMapFn> /*dtype_map*/)
 {
-    return wrap(block_method(py::cast(block_from_tensor(a))).cast<BlockBackend::BlockPtr>());
+    return wrap(block_method(block_from_tensor(a)));
 }
 
 TensorBackend::DataPtr
@@ -264,23 +264,18 @@ NoSymmetryBackend::diagonal_any(DiagonalTensorCPtr a)
 TensorBackend::DataPtr
 NoSymmetryBackend::diagonal_elementwise_binary(DiagonalTensorCPtr a,
                                                DiagonalTensorCPtr b,
-                                               py::function func,
-                                               py::dict func_kwargs,
-                                               bool partial_zero_is_zero)
+                                               BlockBinaryFn func,
+                                               bool /*partial_zero_is_zero*/)
 {
-    py::object out =
-      func(py::cast(block_from_tensor(a)), py::cast(block_from_tensor(b)), **func_kwargs);
-    return wrap(out.cast<BlockBackend::BlockPtr>());
+    return wrap(func(block_from_tensor(a), block_from_tensor(b)));
 }
 
 TensorBackend::DataPtr
 NoSymmetryBackend::diagonal_elementwise_unary(DiagonalTensorCPtr a,
-                                              py::function func,
-                                              py::dict func_kwargs,
-                                              bool maps_zero_to_zero)
+                                              BlockUnaryFn func,
+                                              bool /*maps_zero_to_zero*/)
 {
-    py::object out = func(py::cast(block_from_tensor(a)), **func_kwargs);
-    return wrap(out.cast<BlockBackend::BlockPtr>());
+    return wrap(func(block_from_tensor(a)));
 }
 
 TensorBackend::DataPtr
@@ -292,11 +287,11 @@ NoSymmetryBackend::diagonal_from_block(BlockBackend::BlockPtr a,
 }
 
 TensorBackend::DataPtr
-NoSymmetryBackend::diagonal_from_sector_block_func(py::function func, TensorProduct::Ptr co_domain)
+NoSymmetryBackend::diagonal_from_sector_block_func(SectorBlockFactoryFn func,
+                                                   TensorProduct::Ptr co_domain)
 {
     Sector coupled = co_domain->symmetry->trivial_sector;
-    py::tuple shape = py::make_tuple(space_dim_i64(*co_domain));
-    return wrap(func(shape, coupled).cast<BlockBackend::BlockPtr>());
+    return wrap(func(std::vector<int64>{ space_dim_i64(*co_domain) }, coupled));
 }
 
 TensorBackend::DataPtr
@@ -446,14 +441,13 @@ NoSymmetryBackend::from_random_normal(TensorProduct::Ptr codomain,
 }
 
 TensorBackend::DataPtr
-NoSymmetryBackend::from_sector_block_func(py::function func,
+NoSymmetryBackend::from_sector_block_func(SectorBlockFactoryFn func,
                                           TensorProduct::Ptr codomain,
                                           TensorProduct::Ptr domain)
 {
     Sector coupled = codomain->symmetry->trivial_sector;
     auto dims = dims_from_legs(conventional_leg_order(codomain, domain));
-    py::tuple shape = py::cast(dims);
-    return wrap(func(shape, coupled).cast<BlockBackend::BlockPtr>());
+    return wrap(func(dims, coupled));
 }
 
 TensorBackend::DataPtr
@@ -595,11 +589,10 @@ NoSymmetryBackend::lq(SymmetricTensorCPtr tensor, TensorProduct::Ptr new_co_doma
 }
 
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
-NoSymmetryBackend::mask_binary_operand(MaskCPtr mask1, MaskCPtr mask2, py::function func)
+NoSymmetryBackend::mask_binary_operand(MaskCPtr mask1, MaskCPtr mask2, BlockBinaryFn func)
 {
     auto large_leg = py::cast(mask1->large_leg()).cast<Space::Ptr>();
-    auto data = func(py::cast(block_from_tensor(mask1)), py::cast(block_from_tensor(mask2)))
-                  .cast<BlockBackend::BlockPtr>();
+    auto data = func(block_from_tensor(mask1), block_from_tensor(mask2));
     auto basis_perm = rank_basis_perm_masked(
       py::cast(mask1->large_leg()).attr("_basis_perm"), *block_backend, data);
     auto small_leg = elementary_from_trivial(
@@ -695,10 +688,10 @@ NoSymmetryBackend::mask_transpose(MaskCPtr tens)
 }
 
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
-NoSymmetryBackend::mask_unary_operand(MaskCPtr mask, py::function func)
+NoSymmetryBackend::mask_unary_operand(MaskCPtr mask, BlockUnaryFn func)
 {
     auto large_leg = py::cast(mask->large_leg()).cast<Space::Ptr>();
-    auto data = func(py::cast(block_from_tensor(mask))).cast<BlockBackend::BlockPtr>();
+    auto data = func(block_from_tensor(mask));
     auto basis_perm = rank_basis_perm_masked(
       py::cast(mask->large_leg()).attr("_basis_perm"), *block_backend, data);
     auto small_leg = elementary_from_trivial(
@@ -856,10 +849,10 @@ NoSymmetryBackend::qr(SymmetricTensorCPtr a, TensorProduct::Ptr new_co_domain)
 
 BlockBackend::Scalar
 NoSymmetryBackend::reduce_DiagonalTensor(DiagonalTensorCPtr tensor,
-                                         py::function block_func,
-                                         py::function func)
+                                         BlockToScalarFn block_func,
+                                         ScalarReduceFn /*func*/)
 {
-    return block_func(py::cast(block_from_tensor(tensor))).cast<BlockBackend::Scalar>();
+    return block_func(block_from_tensor(tensor));
 }
 
 TensorBackend::DataPtr

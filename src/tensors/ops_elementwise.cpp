@@ -198,7 +198,12 @@ exp(TensorCPtr obj)
             sym = std::dynamic_pointer_cast<SymmetricTensor const>(combined);
         }
         py::object matrix_exp = py::cast(backend->block_backend).attr("matrix_exp");
-        auto data = backend->act_block_diagonal_square_matrix(sym, matrix_exp, py::none());
+        auto data = backend->act_block_diagonal_square_matrix(
+          sym,
+          [matrix_exp](BlockBackend::BlockPtr const& block) {
+              return matrix_exp(py::cast(block)).cast<BlockBackend::BlockPtr>();
+          },
+          std::nullopt);
         auto res = std::make_shared<SymmetricTensor>(
           std::move(data), sym->codomain, sym->domain, backend, sym->symmetry, sym->labels());
         if (combine) {

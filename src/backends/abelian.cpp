@@ -560,8 +560,8 @@ AbelianBackend::make_pipe(std::vector<Leg::Ptr> legs, bool is_dual, LegPipe::Ptr
 
 TensorBackend::DataPtr
 AbelianBackend::act_block_diagonal_square_matrix(SymmetricTensorCPtr a,
-                                                 py::function block_method,
-                                                 py::object dtype_map)
+                                                 BlockUnaryFn block_method,
+                                                 std::optional<DtypeMapFn> dtype_map)
 {
     // --- hints from Python AbelianBackend.act_block_diagonal_square_matrix ---
     // use that all_block_inds is just ascending -> all_block_inds[j, 0] == j
@@ -581,11 +581,11 @@ AbelianBackend::act_block_diagonal_square_matrix(SymmetricTensorCPtr a,
           } else {
               block = a_data->blocks[static_cast<std::size_t>(*i)];
           }
-          res_blocks.push_back(block_method(py::cast(block)).cast<BlockBackend::BlockPtr>());
+          res_blocks.push_back(block_method(block));
       });
     Dtype dtype = a->dtype;
-    if (!dtype_map.is_none())
-        dtype = dtype_map(py::cast(dtype)).cast<Dtype>();
+    if (dtype_map)
+        dtype = (*dtype_map)(dtype);
     for (auto& b : res_blocks)
         b = block_backend->to_dtype(b, dtype);
     return wrap(make_data(dtype, a_data->device, std::move(res_blocks), all_block_inds, true));
@@ -740,22 +740,19 @@ AbelianBackend::diagonal_any(DiagonalTensorCPtr a)
 
 TensorBackend::DataPtr
 AbelianBackend::diagonal_elementwise_unary(DiagonalTensorCPtr a,
-                                           py::function func,
-                                           py::dict func_kwargs,
+                                           BlockUnaryFn func,
                                            bool maps_zero_to_zero)
 {
     // --- hints from Python AbelianBackend.diagonal_elementwise_unary ---
     // use that block_inds is just arange -> block_inds[i, 0] == i
     // ---
     auto a_data = data_from_tensor(a);
-    auto np = numpy();
     std::vector<BlockBackend::BlockPtr> blocks;
     BlockInds block_inds;
     if (maps_zero_to_zero) {
         blocks.reserve(a_data->blocks.size());
         for (auto const& b : a_data->blocks) {
-            py::object res = func(py::cast(b), **func_kwargs);
-            blocks.push_back(res.cast<BlockBackend::BlockPtr>());
+            blocks.push_back(func(b));
         }
         block_inds = a_data->block_inds;
     } else {
@@ -771,14 +768,12 @@ AbelianBackend::diagonal_elementwise_unary(DiagonalTensorCPtr a,
               } else {
                   block = a_data->blocks[static_cast<std::size_t>(*j)];
               }
-              py::object res = func(py::cast(block), **func_kwargs);
-              blocks.push_back(res.cast<BlockBackend::BlockPtr>());
+              blocks.push_back(func(block));
           });
     }
     Dtype dt;
     if (blocks.empty()) {
-        py::object example = func(py::cast(block_backend->zeros({ 1 }, a->dtype)), **func_kwargs);
-        dt = block_backend->get_dtype(example.cast<BlockBackend::BlockPtr>());
+        dt = block_backend->get_dtype(func(block_backend->zeros({ 1 }, a->dtype)));
     } else {
         dt = block_backend->get_dtype(blocks[0]);
     }
@@ -1579,8 +1574,7 @@ AbelianBackend::_compose_no_contraction(SymmetricTensorCPtr a, SymmetricTensorCP
 TensorBackend::DataPtr
 AbelianBackend::diagonal_elementwise_binary(DiagonalTensorCPtr a,
                                             DiagonalTensorCPtr b,
-                                            py::function func,
-                                            py::dict func_kwargs,
+                                            BlockBinaryFn func,
                                             bool partial_zero_is_zero)
 {
     // --- hints from Python AbelianBackend.diagonal_elementwise_binary ---
@@ -1627,17 +1621,16 @@ AbelianBackend::diagonal_elementwise_binary(DiagonalTensorCPtr a,
         } else {
             block_b = block_backend->zeros({ mults[i] }, a_dtype);
         }
-        py::object res = func(py::cast(block_a), py::cast(block_b), **func_kwargs);
-        blocks.push_back(res.cast<BlockBackend::BlockPtr>());
+        blocks.push_back(func(block_a, block_b));
         block_ind_list.push_back(static_cast<int64>(i));
     }
     BlockInds block_inds;
     Dtype dt;
     if (blocks.empty()) {
         block_inds = zeros_i64(0, 2);
-        auto sample = func(py::cast(block_backend->ones_block({ 1 }, a_dtype)),
-                           py::cast(block_backend->ones_block({ 1 }, b->dtype)));
-        dt = block_backend->get_dtype(sample.cast<BlockBackend::BlockPtr>());
+        auto sample = func(block_backend->ones_block({ 1 }, a_dtype),
+                           block_backend->ones_block({ 1 }, b->dtype));
+        dt = block_backend->get_dtype(sample);
     } else {
         block_inds = BlockInds::column_stack(
           std::vector<std::span<const int64>>{ block_ind_list, block_ind_list });
@@ -1666,7 +1659,8 @@ AbelianBackend::diagonal_from_block(BlockBackend::BlockPtr a,
 }
 
 TensorBackend::DataPtr
-AbelianBackend::diagonal_from_sector_block_func(py::function func, TensorProduct::Ptr co_domain)
+AbelianBackend::diagonal_from_sector_block_func(SectorBlockFactoryFn func,
+                                                TensorProduct::Ptr co_domain)
 {
     py::object leg = py::cast(co_domain->factors[0]);
     auto np = numpy();
@@ -1676,12 +1670,10 @@ AbelianBackend::diagonal_from_sector_block_func(py::function func, TensorProduct
     auto mults = mults_of(leg);
     std::vector<BlockBackend::BlockPtr> blocks;
     for (std::size_t i = 0; i < mults.size(); ++i) {
-        blocks.push_back(
-          func(py::make_tuple(mults[i]), py::cast(sectors[i])).cast<BlockBackend::BlockPtr>());
+        blocks.push_back(func(std::vector<int64>{ mults[i] }, sectors[i]));
     }
     BlockBackend::BlockPtr sample =
-      blocks.empty() ? func(py::make_tuple(1), py::cast(co_domain->symmetry->trivial_sector))
-                         .cast<BlockBackend::BlockPtr>()
+      blocks.empty() ? func(std::vector<int64>{ 1 }, co_domain->symmetry->trivial_sector)
                      : blocks[0];
     return wrap(make_data(block_backend->get_dtype(sample),
                           block_backend->get_device(sample),
@@ -2000,16 +1992,16 @@ AbelianBackend::from_random_normal(TensorProduct::Ptr codomain,
                                    std::string device)
 {
     auto self = this;
-    py::function func =
-      py::cpp_function([self, sigma, dtype, device](py::object shape, py::object /*coupled*/) {
-          return self->block_backend->random_normal(
-            shape.cast<std::vector<int64>>(), dtype, sigma, device);
-      });
-    return from_sector_block_func(func, codomain, domain);
+    return from_sector_block_func(
+      [self, sigma, dtype, device](std::vector<int64> const& shape, Sector const& /*coupled*/) {
+          return self->block_backend->random_normal(shape, dtype, sigma, device);
+      },
+      codomain,
+      domain);
 }
 
 TensorBackend::DataPtr
-AbelianBackend::from_sector_block_func(py::function func,
+AbelianBackend::from_sector_block_func(SectorBlockFactoryFn func,
                                        TensorProduct::Ptr codomain,
                                        TensorProduct::Ptr domain)
 {
@@ -2030,13 +2022,12 @@ AbelianBackend::from_sector_block_func(py::function func,
             secs.push_back(sectors[static_cast<std::size_t>(bi(r, i))]);
         }
         auto coupled = codomain->symmetry->multiple_fusion(secs);
-        blocks.push_back(func(shape, py::cast(coupled)).cast<BlockBackend::BlockPtr>());
+        blocks.push_back(func(shape, coupled));
     }
     BlockBackend::BlockPtr sample;
     if (blocks.empty()) {
         std::vector<int64> shape(static_cast<std::size_t>(M + domain->num_factors), 1);
-        sample =
-          func(shape, py::cast(codomain->symmetry->trivial_sector)).cast<BlockBackend::BlockPtr>();
+        sample = func(shape, codomain->symmetry->trivial_sector);
     } else {
         sample = blocks[0];
     }
@@ -2398,7 +2389,7 @@ AbelianBackend::lq(SymmetricTensorCPtr tensor, TensorProduct::Ptr new_co_domain)
 }
 
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
-AbelianBackend::mask_binary_operand(MaskCPtr mask1, MaskCPtr mask2, py::function func)
+AbelianBackend::mask_binary_operand(MaskCPtr mask1, MaskCPtr mask2, BlockBinaryFn func)
 {
     // --- hints from Python AbelianBackend.mask_binary_operand ---
     // next block of mask1 to process
@@ -2440,7 +2431,7 @@ AbelianBackend::mask_binary_operand(MaskCPtr mask1, MaskCPtr mask2, py::function
         } else {
             block2 = block_backend->zeros({ mults[sector_idx] }, Dtype::Bool);
         }
-        auto new_block = func(py::cast(block1), py::cast(block2)).cast<BlockBackend::BlockPtr>();
+        auto new_block = func(block1, block2);
         int64 mult = block_backend->sum_all(new_block).as_int64();
         if (mult == 0)
             continue;
@@ -2699,7 +2690,7 @@ AbelianBackend::mask_transpose(MaskCPtr tens)
 }
 
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
-AbelianBackend::mask_unary_operand(MaskCPtr mask, py::function func)
+AbelianBackend::mask_unary_operand(MaskCPtr mask, BlockUnaryFn func)
 {
     // --- hints from Python AbelianBackend.mask_unary_operand ---
     // mask has no further blocks
@@ -2727,7 +2718,7 @@ AbelianBackend::mask_unary_operand(MaskCPtr mask, py::function func)
         } else {
             block = block_backend->zeros({ mults[sector_idx] }, Dtype::Bool);
         }
-        auto new_block = func(py::cast(block)).cast<BlockBackend::BlockPtr>();
+        auto new_block = func(block);
         int64 mult = block_backend->sum_all(new_block).as_int64();
         if (mult == 0)
             continue;
@@ -3168,12 +3159,12 @@ AbelianBackend::qr(SymmetricTensorCPtr a, TensorProduct::Ptr new_co_domain)
 
 BlockBackend::Scalar
 AbelianBackend::reduce_DiagonalTensor(DiagonalTensorCPtr tensor,
-                                      py::function block_func,
-                                      py::function func)
+                                      BlockToScalarFn block_func,
+                                      ScalarReduceFn func)
 {
     auto data = data_from_tensor(tensor);
     auto mults = mults_of(py::cast(tensor->leg()));
-    py::list numbers;
+    std::vector<BlockBackend::Scalar> numbers;
     py::ssize_t i = 0;
     auto const& bi = data->block_inds;
     for (std::size_t j = 0; j < mults.size(); ++j) {
@@ -3185,9 +3176,9 @@ AbelianBackend::reduce_DiagonalTensor(DiagonalTensorCPtr tensor,
         } else {
             block = block_backend->zeros({ mults[j] }, tensor->dtype);
         }
-        numbers.append(block_func(py::cast(block)));
+        numbers.push_back(block_func(block));
     }
-    return func(numbers).cast<BlockBackend::Scalar>();
+    return func(numbers);
 }
 
 TensorBackend::DataPtr

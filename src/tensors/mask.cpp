@@ -57,36 +57,25 @@ as_leg_cptr(Space::Ptr const& space)
 }
 
 /// Adapt a numpy-oriented bool function so backends can call it on Block objects.
-py::function
+BlockUnaryFn
 adapt_block_bool_unary(py::function func, std::shared_ptr<BlockBackend> bb)
 {
-    return py::cpp_function([func, bb](py::object block_obj) {
-        auto block = block_obj.cast<BlockBackend::BlockPtr>();
+    return [func, bb](BlockBackend::BlockPtr const& block) {
         auto arr = bb->to_numpy(block, py::module_::import("builtins").attr("bool"));
         auto out = func(arr);
         return bb->as_block(out, Dtype::Bool, block->device());
-    });
+    };
 }
 
-py::function
+BlockBinaryFn
 adapt_block_bool_binary(py::function func, std::shared_ptr<BlockBackend> bb)
 {
-    return py::cpp_function([func, bb](py::object a_obj, py::object b_obj) {
-        // ``b`` may be a bool scalar (unary-via-binary path) or a Block.
-        if (py::isinstance<py::bool_>(b_obj) ||
-            py::isinstance(b_obj, py::module_::import("numpy").attr("bool_"))) {
-            auto a = a_obj.cast<BlockBackend::BlockPtr>();
-            auto arr = bb->to_numpy(a, py::module_::import("builtins").attr("bool"));
-            auto out = func(arr, b_obj);
-            return bb->as_block(out, Dtype::Bool, a->device());
-        }
-        auto a = a_obj.cast<BlockBackend::BlockPtr>();
-        auto b = b_obj.cast<BlockBackend::BlockPtr>();
+    return [func, bb](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
         auto arr_a = bb->to_numpy(a, py::module_::import("builtins").attr("bool"));
         auto arr_b = bb->to_numpy(b, py::module_::import("builtins").attr("bool"));
         auto out = func(arr_a, arr_b);
         return bb->as_block(out, Dtype::Bool, a->device());
-    });
+    };
 }
 
 int64
@@ -529,8 +518,12 @@ Mask::_binary_operand(py::object other,
     // deal with non-Mask types
     if (py::isinstance<py::bool_>(other)) {
         bool other_b = other.cast<bool>();
-        return py::cast(_unary_operand(py::cpp_function(
-          [func, other_b](py::object block) { return func(block, py::bool_(other_b)); })));
+        auto bb = backend->block_backend;
+        return py::cast(_unary_operand([func, other_b, bb](BlockBackend::BlockPtr const& block) {
+            auto arr = bb->to_numpy(block, py::module_::import("builtins").attr("bool"));
+            auto out = func(arr, py::bool_(other_b));
+            return bb->as_block(out, Dtype::Bool, block->device());
+        }));
     }
     if (is_mask_obj(other)) {
         // remaining case: other is Mask
@@ -570,7 +563,7 @@ Mask::_binary_operand(py::object other,
 }
 
 Mask::Ptr
-Mask::_unary_operand(py::function func)
+Mask::_unary_operand(BlockUnaryFn func)
 {
     // --- hints from Python Mask._unary_operand ---
     // operate on the respective projection
@@ -584,8 +577,7 @@ Mask::_unary_operand(py::function func)
     }
 
     auto [data_out, small] =
-      backend->mask_unary_operand(std::static_pointer_cast<Mask const>(shared_from_this()),
-                                  adapt_block_bool_unary(func, backend->block_backend));
+      backend->mask_unary_operand(std::static_pointer_cast<Mask const>(shared_from_this()), func);
     return make_mask(data_out, large_leg(), small, true, backend, labels());
 }
 
@@ -663,7 +655,8 @@ Mask::move_to_device(std::string device_in)
 Mask::Ptr
 Mask::orthogonal_complement()
 {
-    return _unary_operand(py::module_::import("operator").attr("invert"));
+    return _unary_operand(
+      adapt_block_bool_unary(py::module_::import("operator").attr("invert"), backend->block_backend));
 }
 
 bool
