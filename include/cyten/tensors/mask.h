@@ -158,12 +158,11 @@ class Mask : public Tensor
     [[nodiscard]] Ptr orthogonal_complement();
 
     /// Utility for binary boolean ops (``&``, ``|``, ``^``, ``==``, ``!=``).
-    ///
-    /// ``other`` is a bool or Mask. Returns a Mask, or ``NotImplemented`` when appropriate.
-    [[nodiscard]] py::object _binary_operand(py::object other,
-                                             py::function func,
-                                             std::string const& operand,
-                                             bool return_NotImplemented = true);
+    [[nodiscard]] Ptr _binary_operand(bool other, BlockBinaryFn func, std::string const& operand);
+
+    [[nodiscard]] Ptr _binary_operand(MaskCPtr other,
+                                      BlockBinaryFn func,
+                                      std::string const& operand);
 
     [[nodiscard]] Ptr _unary_operand(BlockUnaryFn func);
 };

@@ -978,11 +978,17 @@ linear_combination_py(py::object a, py::object v, py::object b, py::object w)
     //  all other cases  ->  SymmetricTensor
 
     if (is_DiagonalTensor(v) && is_DiagonalTensor(w)) {
-        py::cpp_function func([a, b](py::object _v, py::object _w) {
-            return a.attr("__mul__")(_v).attr("__add__")(b.attr("__mul__")(_w));
-        });
-        return v.attr("_binary_operand")(
-          w, py::arg("func") = func, py::arg("operand") = "linear_combination");
+        auto a_sc = a.cast<BlockBackend::Scalar>();
+        auto b_sc = b.cast<BlockBackend::Scalar>();
+        BlockBinaryFn func = [a_sc, b_sc](BlockBackend::BlockPtr const& _v,
+                                          BlockBackend::BlockPtr const& _w) {
+            auto left = a_sc * (*_v);
+            auto right = b_sc * (*_w);
+            return (*left) + (*right);
+        };
+        auto v_d = std::const_pointer_cast<DiagonalTensor>(v.cast<DiagonalTensorCPtr>());
+        return py::cast(v_d->_binary_operand(
+          w.cast<DiagonalTensorCPtr>(), std::move(func), "linear_combination"));
     }
     if (is_ChargedTensor(v) && is_ChargedTensor(w)) {
         if (!py_eq(v.attr("charge_leg"), w.attr("charge_leg"))) {
@@ -1538,9 +1544,10 @@ scalar_multiply_py(py::object a, py::object v)
     py::object bb = v.attr("backend").attr("block_backend");
     a = bb.attr("as_scalar")(a);
     if (is_DiagonalTensor(v)) {
-        py::cpp_function func([a](py::object _v) { return a.attr("__mul__")(_v); });
-        return v.attr("_elementwise_unary")(py::arg("func") = func,
-                                            py::arg("maps_zero_to_zero") = true);
+        auto a_sc = a.cast<BlockBackend::Scalar>();
+        BlockUnaryFn func = [a_sc](BlockBackend::BlockPtr const& _v) { return a_sc * (*_v); };
+        auto v_d = std::const_pointer_cast<DiagonalTensor>(v.cast<DiagonalTensorCPtr>());
+        return py::cast(v_d->_elementwise_unary(std::move(func), /*maps_zero_to_zero=*/true));
     }
     if (is_Mask(v)) {
         char const* msg = "Converting to SymmetricTensor for scalar multiplication. "

@@ -20,19 +20,6 @@ namespace cyten {
 
 namespace {
 
-bool
-is_mask_obj(py::handle obj)
-{
-    if (py::isinstance<Mask>(obj)) {
-        return true;
-    }
-    try {
-        return py::isinstance(obj, py::module_::import("cyten.tensors._tensors").attr("Mask"));
-    } catch (py::error_already_set const&) {
-        return false;
-    }
-}
-
 ElementarySpace::Ptr
 as_elementary_space(Space::Ptr obj)
 {
@@ -64,17 +51,6 @@ adapt_block_bool_unary(py::function func, std::shared_ptr<BlockBackend> bb)
         auto arr = bb->to_numpy(block, py::module_::import("builtins").attr("bool"));
         auto out = func(arr);
         return bb->as_block(out, Dtype::Bool, block->device());
-    };
-}
-
-BlockBinaryFn
-adapt_block_bool_binary(py::function func, std::shared_ptr<BlockBackend> bb)
-{
-    return [func, bb](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
-        auto arr_a = bb->to_numpy(a, py::module_::import("builtins").attr("bool"));
-        auto arr_b = bb->to_numpy(b, py::module_::import("builtins").attr("bool"));
-        auto out = func(arr_a, arr_b);
-        return bb->as_block(out, Dtype::Bool, a->device());
     };
 }
 
@@ -506,62 +482,43 @@ Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
       new_data, codomain, domain, backend, symmetry, labels());
 }
 
-py::object
-Mask::_binary_operand(py::object other,
-                      py::function func,
-                      std::string const& operand,
-                      bool return_NotImplemented)
+Mask::Ptr
+Mask::_binary_operand(bool other, BlockBinaryFn func, std::string const& /*operand*/)
+{
+    auto bb = backend->block_backend;
+    auto other_block = std::const_pointer_cast<BlockBackend::Block>(bb->as_scalar(other)._block());
+    return _unary_operand([func, other_block](BlockBackend::BlockPtr const& block) {
+        return func(block, other_block);
+    });
+}
+
+Mask::Ptr
+Mask::_binary_operand(MaskCPtr other, BlockBinaryFn func, std::string const& operand)
 {
     // --- hints from Python Mask._binary_operand ---
-    // deal with non-Mask types
     // remaining case: other is Mask
     // OPTIMIZE how hard is it to deal with inclusions in the backend?
     // ---
-    // deal with non-Mask types
-    if (py::isinstance<py::bool_>(other)) {
-        bool other_b = other.cast<bool>();
-        auto bb = backend->block_backend;
-        return py::cast(_unary_operand([func, other_b, bb](BlockBackend::BlockPtr const& block) {
-            auto arr = bb->to_numpy(block, py::module_::import("builtins").attr("bool"));
-            auto out = func(arr, py::bool_(other_b));
-            return bb->as_block(out, Dtype::Bool, block->device());
-        }));
-    }
-    if (is_mask_obj(other)) {
-        // remaining case: other is Mask
-    } else if (return_NotImplemented &&
-               !(py::isinstance<Tensor>(other) ||
-                 py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
-        return py::cast(Py_NotImplemented);
-    } else {
-        throw std::invalid_argument(std::format("Invalid types for operand \"{}\": Mask and {}",
-                                                operand,
-                                                std::string(py::str(py::type::of(other)))));
-    }
-
-    bool other_is_projection = other.attr("is_projection").cast<bool>();
-    if (is_projection != other_is_projection) {
+    if (is_projection != other->is_projection) {
         throw std::invalid_argument("Mismatching is_projection.");
     }
     if (!is_projection) {
         // OPTIMIZE how hard is it to deal with inclusions in the backend?
-        // dagger is a property (like Python), not a callable method.
         auto self_proj = std::static_pointer_cast<Mask>(dagger());
-        auto other_proj = other.attr("dagger");
-        auto res_projection =
-          self_proj->_binary_operand(other_proj, func, operand, return_NotImplemented);
-        return res_projection.attr("dagger");
+        auto other_proj = std::dynamic_pointer_cast<Mask>(other->dagger());
+        auto res_projection = self_proj->_binary_operand(other_proj, func, operand);
+        return std::static_pointer_cast<Mask>(res_projection->dagger());
     }
 
-    auto same = get_same_backend({ shared_from_this(), other.cast<TensorCPtr>() });
-    if (!py::cast(domain).equal(other.attr("domain"))) {
+    auto same = get_same_backend(std::vector<TensorCPtr>{
+      std::static_pointer_cast<Tensor const>(shared_from_this()), other });
+    if (!(static_cast<Space const&>(*domain) == static_cast<Space const&>(*other->domain))) {
         throw std::invalid_argument("Incompatible domain.");
     }
-    auto adapted = adapt_block_bool_binary(func, same->block_backend);
     auto [data_out, small] = same->mask_binary_operand(
-      std::static_pointer_cast<Mask const>(shared_from_this()), other.cast<MaskCPtr>(), adapted);
-    auto labs = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
-    return py::cast(make_mask(data_out, large_leg(), small, is_projection, same, labs));
+      std::static_pointer_cast<Mask const>(shared_from_this()), other, std::move(func));
+    auto labs = _get_matching_labels(labels(), other->labels());
+    return make_mask(data_out, large_leg(), small, is_projection, same, labs);
 }
 
 Mask::Ptr

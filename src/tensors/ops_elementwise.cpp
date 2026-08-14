@@ -25,15 +25,10 @@ numpy()
 }
 
 DiagonalTensorPtr
-elementwise_on_diagonal(DiagonalTensorCPtr x,
-                        char const* block_func,
-                        bool maps_zero_to_zero,
-                        py::dict kwargs = py::dict())
+elementwise_on_diagonal(DiagonalTensorCPtr x, BlockUnaryFn func, bool maps_zero_to_zero)
 {
     auto mut = std::const_pointer_cast<DiagonalTensor>(x);
-    py::object meth = py::cast(x->backend->block_backend).attr(block_func);
-    py::cpp_function unary([meth, kwargs](py::object block) { return meth(block, **kwargs); });
-    return mut->_elementwise_unary(unary, py::none(), maps_zero_to_zero);
+    return mut->_elementwise_unary(std::move(func), maps_zero_to_zero);
 }
 
 BlockBackend::Scalar
@@ -47,7 +42,9 @@ numpy_unary_scalar(BlockBackend::Scalar const& x, char const* name)
 DiagonalTensorPtr
 angle(DiagonalTensorCPtr x)
 {
-    return elementwise_on_diagonal(x, "angle", true);
+    auto bb = x->backend->block_backend;
+    return elementwise_on_diagonal(
+      x, [bb](BlockBackend::BlockPtr const& b) { return bb->angle(b); }, true);
 }
 
 BlockBackend::Scalar
@@ -59,9 +56,11 @@ angle(BlockBackend::Scalar const& x)
 DiagonalTensorPtr
 cutoff_inverse(DiagonalTensorCPtr x, float64 cutoff)
 {
-    py::dict kw;
-    kw["cutoff"] = cutoff;
-    return elementwise_on_diagonal(x, "cutoff_inverse", true, kw);
+    auto bb = x->backend->block_backend;
+    return elementwise_on_diagonal(
+      x,
+      [bb, cutoff](BlockBackend::BlockPtr const& b) { return bb->cutoff_inverse(b, cutoff); },
+      true);
 }
 
 BlockBackend::Scalar
@@ -78,7 +77,9 @@ cutoff_inverse(BlockBackend::Scalar const& x, float64 cutoff)
 DiagonalTensorPtr
 complex_conj(DiagonalTensorCPtr x)
 {
-    return elementwise_on_diagonal(x, "conj", true);
+    auto bb = x->backend->block_backend;
+    return elementwise_on_diagonal(
+      x, [bb](BlockBackend::BlockPtr const& b) { return bb->conj(b); }, true);
 }
 
 BlockBackend::Scalar
@@ -90,7 +91,9 @@ complex_conj(BlockBackend::Scalar const& x)
 DiagonalTensorPtr
 imag(DiagonalTensorCPtr x)
 {
-    return elementwise_on_diagonal(x, "imag", true);
+    auto bb = x->backend->block_backend;
+    return elementwise_on_diagonal(
+      x, [bb](BlockBackend::BlockPtr const& b) { return bb->imag(b); }, true);
 }
 
 BlockBackend::Scalar
@@ -102,7 +105,9 @@ imag(BlockBackend::Scalar const& x)
 DiagonalTensorPtr
 real(DiagonalTensorCPtr x)
 {
-    return elementwise_on_diagonal(x, "real", true);
+    auto bb = x->backend->block_backend;
+    return elementwise_on_diagonal(
+      x, [bb](BlockBackend::BlockPtr const& b) { return bb->real(b); }, true);
 }
 
 BlockBackend::Scalar
@@ -114,9 +119,9 @@ real(BlockBackend::Scalar const& x)
 DiagonalTensorPtr
 real_if_close(DiagonalTensorCPtr x, float64 tol)
 {
-    py::dict kw;
-    kw["tol"] = tol;
-    return elementwise_on_diagonal(x, "real_if_close", true, kw);
+    auto bb = x->backend->block_backend;
+    return elementwise_on_diagonal(
+      x, [bb, tol](BlockBackend::BlockPtr const& b) { return bb->real_if_close(b, tol); }, true);
 }
 
 BlockBackend::Scalar
@@ -130,7 +135,9 @@ real_if_close(BlockBackend::Scalar const& x, float64 tol)
 DiagonalTensorPtr
 sqrt(DiagonalTensorCPtr x)
 {
-    return elementwise_on_diagonal(x, "sqrt", true);
+    auto bb = x->backend->block_backend;
+    return elementwise_on_diagonal(
+      x, [bb](BlockBackend::BlockPtr const& b) { return bb->sqrt(b); }, true);
 }
 
 BlockBackend::Scalar
@@ -145,9 +152,9 @@ stable_log(DiagonalTensorCPtr x, float64 cutoff)
     if (!(cutoff > 0)) {
         throw std::runtime_error("cutoff must be > 0");
     }
-    py::dict kw;
-    kw["cutoff"] = cutoff;
-    return elementwise_on_diagonal(x, "stable_log", true, kw);
+    auto bb = x->backend->block_backend;
+    return elementwise_on_diagonal(
+      x, [bb, cutoff](BlockBackend::BlockPtr const& b) { return bb->stable_log(b, cutoff); }, true);
 }
 
 BlockBackend::Scalar
@@ -171,8 +178,8 @@ exp(TensorCPtr obj)
     // ---
     if (auto diag = std::dynamic_pointer_cast<DiagonalTensor const>(obj)) {
         auto mut = std::const_pointer_cast<DiagonalTensor>(diag);
-        py::object exp_fn = py::cast(diag->backend->block_backend).attr("exp");
-        return mut->_elementwise_unary(exp_fn);
+        auto bb = diag->backend->block_backend;
+        return mut->_elementwise_unary([bb](BlockBackend::BlockPtr const& b) { return bb->exp(b); });
     }
     if (std::dynamic_pointer_cast<ChargedTensor const>(obj)) {
         throw py::type_error("ChargedTensor can not be exponentiated.");
@@ -197,12 +204,10 @@ exp(TensorCPtr obj)
             auto combined = combine_legs(sym, { std::move(cod_idcs), std::move(dom_idcs) });
             sym = std::dynamic_pointer_cast<SymmetricTensor const>(combined);
         }
-        py::object matrix_exp = py::cast(backend->block_backend).attr("matrix_exp");
+        auto bb = backend->block_backend;
         auto data = backend->act_block_diagonal_square_matrix(
           sym,
-          [matrix_exp](BlockBackend::BlockPtr const& block) {
-              return matrix_exp(py::cast(block)).cast<BlockBackend::BlockPtr>();
-          },
+          [bb](BlockBackend::BlockPtr const& block) { return bb->matrix_exp(block); },
           std::nullopt);
         auto res = std::make_shared<SymmetricTensor>(
           std::move(data), sym->codomain, sym->domain, backend, sym->symmetry, sym->labels());

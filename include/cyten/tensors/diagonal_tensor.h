@@ -148,25 +148,26 @@ class DiagonalTensor : public SymmetricTensor
 
     [[nodiscard]] virtual py::array diagonal_as_numpy(py::object numpy_dtype = py::none());
 
-    [[nodiscard]] virtual Ptr elementwise_almost_equal(py::object other,
+    [[nodiscard]] virtual Ptr elementwise_almost_equal(DiagonalTensorCPtr other,
                                                        float64 rtol = 1e-5,
                                                        float64 atol = 1e-8);
 
-    [[nodiscard]] virtual Ptr _elementwise_unary(py::function func,
-                                                 py::object func_kwargs = py::none(),
-                                                 bool maps_zero_to_zero = false);
+    [[nodiscard]] virtual Ptr _elementwise_unary(BlockUnaryFn func, bool maps_zero_to_zero = false);
 
-    [[nodiscard]] virtual Ptr _elementwise_binary(py::object other,
-                                                  py::function func,
-                                                  py::object func_kwargs = py::none(),
+    [[nodiscard]] virtual Ptr _elementwise_binary(DiagonalTensorCPtr other,
+                                                  BlockBinaryFn func,
                                                   bool partial_zero_is_zero = false);
 
     /// Common implementation for the binary dunder methods ``__mul__`` etc.
-    [[nodiscard]] virtual py::object _binary_operand(py::object other,
-                                                     py::function func,
-                                                     std::string const& operand,
-                                                     bool return_NotImplemented = false,
-                                                     bool right = false);
+    [[nodiscard]] virtual Ptr _binary_operand(BlockBackend::Scalar other,
+                                              BlockBinaryFn func,
+                                              std::string const& operand,
+                                              bool right = false);
+
+    [[nodiscard]] virtual Ptr _binary_operand(DiagonalTensorCPtr other,
+                                              BlockBinaryFn func,
+                                              std::string const& operand,
+                                              bool right = false);
 
     [[nodiscard]] virtual bool all() const;
     [[nodiscard]] virtual bool any() const;
@@ -219,11 +220,15 @@ class Identity : public DiagonalTensor
       bool guarantee_copy = false,
       std::optional<std::string> warning = std::nullopt) override;
 
-    [[nodiscard]] py::object _binary_operand(py::object other,
-                                             py::function func,
-                                             std::string const& operand,
-                                             bool return_NotImplemented = false,
-                                             bool right = false) override;
+    [[nodiscard]] DiagonalTensor::Ptr _binary_operand(BlockBackend::Scalar other,
+                                                      BlockBinaryFn func,
+                                                      std::string const& operand,
+                                                      bool right = false) override;
+
+    [[nodiscard]] DiagonalTensor::Ptr _binary_operand(DiagonalTensorCPtr other,
+                                                      BlockBinaryFn func,
+                                                      std::string const& operand,
+                                                      bool right = false) override;
 
     [[nodiscard]] Tensor::Ptr copy(bool deep = true,
                                    std::optional<std::string> device = std::nullopt,
@@ -236,18 +241,16 @@ class Identity : public DiagonalTensor
 
     [[nodiscard]] py::array diagonal_as_numpy(py::object numpy_dtype = py::none()) override;
 
-    [[nodiscard]] DiagonalTensor::Ptr elementwise_almost_equal(py::object other,
+    [[nodiscard]] DiagonalTensor::Ptr elementwise_almost_equal(DiagonalTensorCPtr other,
                                                                float64 rtol = 1e-5,
                                                                float64 atol = 1e-8) override;
 
-    [[nodiscard]] DiagonalTensor::Ptr _elementwise_unary(py::function func,
-                                                         py::object func_kwargs = py::none(),
+    [[nodiscard]] DiagonalTensor::Ptr _elementwise_unary(BlockUnaryFn func,
                                                          bool maps_zero_to_zero = false) override;
 
     [[nodiscard]] DiagonalTensor::Ptr _elementwise_binary(
-      py::object other,
-      py::function func,
-      py::object func_kwargs = py::none(),
+      DiagonalTensorCPtr other,
+      BlockBinaryFn func,
       bool partial_zero_is_zero = false) override;
 
     [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;

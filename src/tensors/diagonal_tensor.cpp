@@ -17,43 +17,6 @@ namespace cyten {
 
 namespace {
 
-py::dict
-copy_dict(py::object obj)
-{
-    if (obj.is_none()) {
-        return py::dict();
-    }
-    return py::dict(obj);
-}
-
-py::tuple
-shape_as_tuple(std::vector<int64> const& shape)
-{
-    py::tuple t(shape.size());
-    for (std::size_t i = 0; i < shape.size(); ++i) {
-        t[i] = py::int_(shape[i]);
-    }
-    return t;
-}
-
-BlockUnaryFn
-block_unary_from_py(py::function func, py::object func_kwargs = py::none())
-{
-    py::dict kwargs = copy_dict(func_kwargs);
-    return [func, kwargs](BlockBackend::BlockPtr const& block) {
-        return func(py::cast(block), **kwargs).cast<BlockBackend::BlockPtr>();
-    };
-}
-
-BlockBinaryFn
-block_binary_from_py(py::function func, py::object func_kwargs = py::none())
-{
-    py::dict kwargs = copy_dict(func_kwargs);
-    return [func, kwargs](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
-        return func(py::cast(a), py::cast(b), **kwargs).cast<BlockBackend::BlockPtr>();
-    };
-}
-
 Space::Ptr
 as_space_leg(Space::Ptr leg)
 {
@@ -439,87 +402,63 @@ DiagonalTensor::as_DiagonalTensor(bool guarantee_copy, std::optional<std::string
     return std::static_pointer_cast<DiagonalTensor>(shared_from_this());
 }
 
-py::object
-DiagonalTensor::_binary_operand(py::object other,
-                                py::function func,
-                                std::string const& operand,
-                                bool return_NotImplemented,
+DiagonalTensor::Ptr
+DiagonalTensor::_binary_operand(BlockBackend::Scalar other,
+                                BlockBinaryFn func,
+                                std::string const& /*operand*/,
                                 bool right)
 {
+    auto other_block =
+      std::const_pointer_cast<BlockBackend::Block>(other._block());
     TensorBackend::DataPtr new_data;
-    LegLabels out_labels = labels();
-    auto bb = backend->block_backend;
-    auto tensors_mod = py::module_::import("cyten.tensors._tensors");
-    py::object numbers_Number = py::module_::import("numbers").attr("Number");
-    py::object ScalarCls = py::type::of(py::cast(bb)).attr("Scalar");
-
-    if (py::isinstance(other, numbers_Number) || py::isinstance(other, ScalarCls)) {
-        // Match Python: as_scalar(other) without forcing self.dtype (complex * float tensor).
-        // Dispatch via pybind overloads so complex/float/int keep their native dtype.
-        auto other_scalar = py::cast(bb).attr("as_scalar")(other).cast<BlockBackend::Scalar>();
-        py::object other_block =
-          py::cast(std::const_pointer_cast<BlockBackend::Block>(other_scalar._block()));
-        if (right) {
-            new_data = backend->diagonal_elementwise_unary(
-              std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-              [func, other_block](BlockBackend::BlockPtr const& block) {
-                  return func(other_block, py::cast(block)).cast<BlockBackend::BlockPtr>();
-              },
-              /*maps_zero_to_zero=*/false);
-        } else {
-            new_data = backend->diagonal_elementwise_unary(
-              std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-              [func, other_block](BlockBackend::BlockPtr const& block) {
-                  return func(py::cast(block), other_block).cast<BlockBackend::BlockPtr>();
-              },
-              /*maps_zero_to_zero=*/false);
-        }
-    } else if (py::isinstance(other, tensors_mod.attr("DiagonalTensor")) ||
-               py::isinstance(other,
-                              py::type::of(py::cast(std::static_pointer_cast<DiagonalTensor const>(
-                                shared_from_this())))) ||
-               py::isinstance<DiagonalTensor>(other)) {
-        if (py::isinstance(other, tensors_mod.attr("Identity")) ||
-            py::isinstance<Identity>(other)) {
-            other = other.attr("as_DiagonalTensor")();
-        }
-        auto same = get_same_backend({ shared_from_this(), other.cast<TensorCPtr>() });
-        if (!py::cast(leg()).equal(other.attr("leg"))) {
-            throw std::invalid_argument("Incompatible legs!");
-        }
-        if (right) {
-            new_data = same->diagonal_elementwise_binary(
-              other.cast<DiagonalTensorCPtr>(),
-              std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-              block_binary_from_py(func),
-              /*partial_zero_is_zero=*/false);
-        } else {
-            new_data = same->diagonal_elementwise_binary(
-              std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-              other.cast<DiagonalTensorCPtr>(),
-              block_binary_from_py(func),
-              /*partial_zero_is_zero=*/false);
-        }
-        out_labels = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
-    } else if (return_NotImplemented && !py::isinstance(other, tensors_mod.attr("Tensor")) &&
-               !py::isinstance<Tensor>(other)) {
-        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+    if (right) {
+        new_data = backend->diagonal_elementwise_unary(
+          std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
+          [func, other_block](BlockBackend::BlockPtr const& block) {
+              return func(other_block, block);
+          },
+          /*maps_zero_to_zero=*/false);
     } else {
-        if (right) {
-            throw std::invalid_argument(
-              std::format("Invalid types for operand \"{}\": {} and {}",
-                          operand,
-                          py::str(py::type::of(other)).cast<std::string>(),
-                          class_name()));
-        }
-        throw std::invalid_argument(std::format("Invalid types for operand \"{}\": {} and {}",
-                                                operand,
-                                                class_name(),
-                                                py::str(py::type::of(other)).cast<std::string>()));
+        new_data = backend->diagonal_elementwise_unary(
+          std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
+          [func, other_block](BlockBackend::BlockPtr const& block) {
+              return func(block, other_block);
+          },
+          /*maps_zero_to_zero=*/false);
     }
+    return std::make_shared<DiagonalTensor>(new_data, leg(), backend, symmetry, labels());
+}
 
-    return py::cast(
-      std::make_shared<DiagonalTensor>(new_data, leg(), backend, symmetry, out_labels));
+DiagonalTensor::Ptr
+DiagonalTensor::_binary_operand(DiagonalTensorCPtr other,
+                                BlockBinaryFn func,
+                                std::string const& /*operand*/,
+                                bool right)
+{
+    if (auto id = std::dynamic_pointer_cast<Identity const>(other)) {
+        other = std::const_pointer_cast<Identity>(id)->as_DiagonalTensor();
+    }
+    if (!(*leg() == *other->leg())) {
+        throw std::invalid_argument("Incompatible legs!");
+    }
+    auto same = get_same_backend(std::vector<TensorCPtr>{
+      std::static_pointer_cast<Tensor const>(shared_from_this()), other });
+    TensorBackend::DataPtr new_data;
+    if (right) {
+        new_data = same->diagonal_elementwise_binary(
+          other,
+          std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
+          func,
+          /*partial_zero_is_zero=*/false);
+    } else {
+        new_data = same->diagonal_elementwise_binary(
+          std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
+          other,
+          func,
+          /*partial_zero_is_zero=*/false);
+    }
+    auto out_labels = _get_matching_labels(labels(), other->labels());
+    return std::make_shared<DiagonalTensor>(new_data, leg(), same, symmetry, out_labels);
 }
 
 Tensor::Ptr
@@ -579,59 +518,65 @@ DiagonalTensor::diagonal_as_numpy(py::object numpy_dtype)
 }
 
 DiagonalTensor::Ptr
-DiagonalTensor::elementwise_almost_equal(py::object other, float64 rtol, float64 atol)
+DiagonalTensor::elementwise_almost_equal(DiagonalTensorCPtr other, float64 rtol, float64 atol)
 {
     // --- hints from Python DiagonalTensor.elementwise_almost_equal ---
     // no (Scalar + Block) operation defined, so requires explicit casting
     // ---
-    other = other.attr("as_DiagonalTensor")();
-    // no (Scalar + Block) operation defined, so requires explicit casting
+    if (auto id = std::dynamic_pointer_cast<Identity const>(other)) {
+        other = std::const_pointer_cast<Identity>(id)->as_DiagonalTensor();
+    }
     auto ones = from_eye(leg(), backend, labels(), dtype::to_real(dtype), device);
-    py::object self_py =
-      py::cast(std::static_pointer_cast<DiagonalTensor const>(shared_from_this()));
-    py::object diff = self_py.attr("__sub__")(other);
-    py::object left = diff.attr("__abs__")();
-    py::object right =
-      (py::float_(atol) * py::cast(ones)) + (py::float_(rtol) * self_py.attr("__abs__")());
-    return left.attr("__le__")(right).cast<Ptr>();
+    auto self_m = std::static_pointer_cast<DiagonalTensor>(shared_from_this());
+    BlockBinaryFn sub = [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+        return (*a) - (*b);
+    };
+    BlockBinaryFn mul = [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+        return (*a) * (*b);
+    };
+    BlockBinaryFn add = [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+        return (*a) + (*b);
+    };
+    BlockBinaryFn le = [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+        return (*a) <= (*b);
+    };
+    auto diff = self_m->_binary_operand(other, sub, "sub");
+    auto left = diff->abs();
+    auto bb = backend->block_backend;
+    auto atol_ones = ones->_binary_operand(bb->as_scalar(atol), mul, "mul");
+    auto rtol_abs = self_m->abs()->_binary_operand(bb->as_scalar(rtol), mul, "mul");
+    auto right = atol_ones->_binary_operand(rtol_abs, add, "add");
+    return left->_binary_operand(right, le, "le");
 }
 
 DiagonalTensor::Ptr
-DiagonalTensor::_elementwise_binary(py::object other,
-                                    py::function func,
-                                    py::object func_kwargs,
+DiagonalTensor::_elementwise_binary(DiagonalTensorCPtr other,
+                                    BlockBinaryFn func,
                                     bool partial_zero_is_zero)
 {
-    auto tensors_mod = py::module_::import("cyten.tensors._tensors");
-    if (!py::isinstance(other, tensors_mod.attr("DiagonalTensor")) &&
-        !py::isinstance(other,
-                        py::type::of(py::cast(
-                          std::static_pointer_cast<DiagonalTensor const>(shared_from_this())))) &&
-        !py::isinstance<DiagonalTensor>(other)) {
-        throw std::invalid_argument("Expected a DiagonalTensor");
+    if (auto id = std::dynamic_pointer_cast<Identity const>(other)) {
+        other = std::const_pointer_cast<Identity>(id)->as_DiagonalTensor();
     }
-    other = other.attr("as_DiagonalTensor")();
-    if (!py::cast(leg()).equal(other.attr("leg"))) {
+    if (!(*leg() == *other->leg())) {
         throw std::invalid_argument("Incompatible legs");
     }
-    auto same = get_same_backend({ shared_from_this(), other.cast<TensorCPtr>() });
+    auto same = get_same_backend(std::vector<TensorCPtr>{
+      std::static_pointer_cast<Tensor const>(shared_from_this()), other });
     auto data_out = same->diagonal_elementwise_binary(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-      other.cast<DiagonalTensorCPtr>(),
-      block_binary_from_py(func, func_kwargs),
+      other,
+      std::move(func),
       partial_zero_is_zero);
-    auto labs = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
+    auto labs = _get_matching_labels(labels(), other->labels());
     return std::make_shared<DiagonalTensor>(data_out, leg(), same, symmetry, labs);
 }
 
 DiagonalTensor::Ptr
-DiagonalTensor::_elementwise_unary(py::function func,
-                                   py::object func_kwargs,
-                                   bool maps_zero_to_zero)
+DiagonalTensor::_elementwise_unary(BlockUnaryFn func, bool maps_zero_to_zero)
 {
     auto data_out = backend->diagonal_elementwise_unary(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
-      block_unary_from_py(func, func_kwargs),
+      std::move(func),
       maps_zero_to_zero);
     return std::make_shared<DiagonalTensor>(data_out, leg(), backend, symmetry, labels());
 }
@@ -748,9 +693,7 @@ DiagonalTensor::abs() const
 {
     auto bb = backend->block_backend;
     return const_cast<DiagonalTensor*>(this)->_elementwise_unary(
-      py::cpp_function(
-        [bb](py::object block) { return bb->abs(block.cast<BlockBackend::BlockPtr>()); }),
-      py::none(),
+      [bb](BlockBackend::BlockPtr const& block) { return bb->abs(block); },
       /*maps_zero_to_zero=*/true);
 }
 
@@ -944,15 +887,22 @@ Identity::as_DiagonalTensor(bool /*guarantee_copy*/, std::optional<std::string> 
     return DiagonalTensor::from_eye(leg(), backend, labels(), dtype, device);
 }
 
-py::object
-Identity::_binary_operand(py::object other,
-                          py::function func,
+DiagonalTensor::Ptr
+Identity::_binary_operand(BlockBackend::Scalar other,
+                          BlockBinaryFn func,
                           std::string const& operand,
-                          bool return_NotImplemented,
                           bool right)
 {
-    auto substitute = as_DiagonalTensor();
-    return substitute->_binary_operand(other, func, operand, return_NotImplemented, right);
+    return as_DiagonalTensor()->_binary_operand(other, std::move(func), operand, right);
+}
+
+DiagonalTensor::Ptr
+Identity::_binary_operand(DiagonalTensorCPtr other,
+                          BlockBinaryFn func,
+                          std::string const& operand,
+                          bool right)
+{
+    return as_DiagonalTensor()->_binary_operand(std::move(other), std::move(func), operand, right);
 }
 
 Tensor::Ptr
@@ -994,25 +944,24 @@ Identity::diagonal_as_numpy(py::object numpy_dtype)
 }
 
 DiagonalTensor::Ptr
-Identity::elementwise_almost_equal(py::object other, float64 rtol, float64 atol)
+Identity::elementwise_almost_equal(DiagonalTensorCPtr other, float64 rtol, float64 atol)
 {
-    return as_DiagonalTensor()->elementwise_almost_equal(other, rtol, atol);
+    return as_DiagonalTensor()->elementwise_almost_equal(std::move(other), rtol, atol);
 }
 
 DiagonalTensor::Ptr
-Identity::_elementwise_unary(py::function func, py::object func_kwargs, bool maps_zero_to_zero)
+Identity::_elementwise_unary(BlockUnaryFn func, bool maps_zero_to_zero)
 {
-    return as_DiagonalTensor()->_elementwise_unary(func, func_kwargs, maps_zero_to_zero);
+    return as_DiagonalTensor()->_elementwise_unary(std::move(func), maps_zero_to_zero);
 }
 
 DiagonalTensor::Ptr
-Identity::_elementwise_binary(py::object other,
-                              py::function func,
-                              py::object func_kwargs,
+Identity::_elementwise_binary(DiagonalTensorCPtr other,
+                              BlockBinaryFn func,
                               bool partial_zero_is_zero)
 {
     return as_DiagonalTensor()->_elementwise_binary(
-      other, func, func_kwargs, partial_zero_is_zero);
+      std::move(other), std::move(func), partial_zero_is_zero);
 }
 
 BlockBackend::Scalar

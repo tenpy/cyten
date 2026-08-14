@@ -10,7 +10,9 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
+#include <format>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
@@ -34,6 +36,124 @@ optional_leg_order(py::object obj)
         }
     }
     return out;
+}
+
+py::object
+tensors_mod()
+{
+    return py::module_::import("cyten.tensors._tensors");
+}
+
+bool
+is_py_tensor(py::object obj)
+{
+    return py::isinstance(obj, tensors_mod().attr("Tensor")) || py::isinstance<Tensor>(obj);
+}
+
+bool
+is_py_diagonal(py::object obj)
+{
+    return py::isinstance(obj, tensors_mod().attr("DiagonalTensor")) ||
+           py::isinstance<DiagonalTensor>(obj);
+}
+
+bool
+is_py_number_or_scalar(py::object obj, std::shared_ptr<BlockBackend> const& bb)
+{
+    return py::isinstance(obj, py::module_::import("numbers").attr("Number")) ||
+           py::isinstance<BlockBackend::Scalar>(obj) ||
+           py::isinstance(obj, py::type::of(py::cast(bb)).attr("Scalar"));
+}
+
+BlockBackend::Scalar
+scalar_from_py(std::shared_ptr<BlockBackend> const& bb, py::object obj)
+{
+    // Match Python: as_scalar(other) without forcing self.dtype (complex * float tensor).
+    return py::cast(bb).attr("as_scalar")(obj).cast<BlockBackend::Scalar>();
+}
+
+BlockBinaryFn
+block_op_from_name(char const* op)
+{
+    std::string s = op;
+    if (s == "add") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return (*a) + (*b);
+        };
+    }
+    if (s == "sub") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return (*a) - (*b);
+        };
+    }
+    if (s == "mul") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return (*a) * (*b);
+        };
+    }
+    if (s == "truediv") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return (*a) / (*b);
+        };
+    }
+    if (s == "pow") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return a->pow(*b);
+        };
+    }
+    if (s == "lt") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return (*a) < (*b);
+        };
+    }
+    if (s == "le") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return (*a) <= (*b);
+        };
+    }
+    if (s == "gt") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return (*a) > (*b);
+        };
+    }
+    if (s == "ge") {
+        return [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+            return (*a) >= (*b);
+        };
+    }
+    throw std::logic_error(std::format("unknown block operator '{}'", s));
+}
+
+py::object
+py_diagonal_binary_operand(DiagonalTensor& self,
+                           py::object other,
+                           BlockBinaryFn func,
+                           std::string const& operand,
+                           bool return_NotImplemented,
+                           bool right)
+{
+    auto bb = self.backend->block_backend;
+    if (is_py_number_or_scalar(other, bb)) {
+        return py::cast(self._binary_operand(
+          scalar_from_py(bb, other), std::move(func), operand, right));
+    }
+    if (is_py_diagonal(other)) {
+        return py::cast(
+          self._binary_operand(other.cast<DiagonalTensorCPtr>(), std::move(func), operand, right));
+    }
+    if (return_NotImplemented && !is_py_tensor(other)) {
+        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+    }
+    if (right) {
+        throw std::invalid_argument(std::format("Invalid types for operand \"{}\": {} and {}",
+                                                operand,
+                                                py::str(py::type::of(other)).cast<std::string>(),
+                                                self.class_name()));
+    }
+    throw std::invalid_argument(std::format("Invalid types for operand \"{}\": {} and {}",
+                                            operand,
+                                            self.class_name(),
+                                            py::str(py::type::of(other)).cast<std::string>()));
 }
 
 } // namespace
@@ -600,41 +720,75 @@ device: str
     cls.def("diagonal_as_numpy",
             &DiagonalTensor::diagonal_as_numpy,
             py::arg("numpy_dtype") = py::none());
-    cls.def("elementwise_almost_equal",
-            &DiagonalTensor::elementwise_almost_equal,
-            py::arg("other"),
-            py::arg("rtol") = 1e-5,
-            py::arg("atol") = 1e-8);
-    cls.def("_elementwise_unary",
-            &DiagonalTensor::_elementwise_unary,
-            py::arg("func"),
-            py::arg("func_kwargs") = py::none(),
-            py::arg("maps_zero_to_zero") = false,
-            R"pydoc(
+    cls.def(
+      "elementwise_almost_equal",
+      [](DiagonalTensor& self, py::object other, float64 rtol, float64 atol) {
+          return self.elementwise_almost_equal(other.attr("as_DiagonalTensor")().cast<DiagonalTensorCPtr>(),
+                                               rtol,
+                                               atol);
+      },
+      py::arg("other"),
+      py::arg("rtol") = 1e-5,
+      py::arg("atol") = 1e-8);
+    cls.def(
+      "_elementwise_unary",
+      [](DiagonalTensor& self, py::function func, py::object func_kwargs, bool maps_zero_to_zero) {
+          return self._elementwise_unary(block_unary_from_python(func, func_kwargs),
+                                         maps_zero_to_zero);
+      },
+      py::arg("func"),
+      py::arg("func_kwargs") = py::none(),
+      py::arg("maps_zero_to_zero") = false,
+      R"pydoc(
             An elementwise function acting on a diagonal tensor.
 
             Applies ``func(self_block: Block, **func_kwargs) -> Block`` elementwise.
             Set ``maps_zero_to_zero=True`` to promise that ``func(0) == 0``.
             )pydoc");
-    cls.def("_elementwise_binary",
-            &DiagonalTensor::_elementwise_binary,
-            py::arg("other"),
-            py::arg("func"),
-            py::arg("func_kwargs") = py::none(),
-            py::arg("partial_zero_is_zero") = false,
-            R"pydoc(
+    cls.def(
+      "_elementwise_binary",
+      [](DiagonalTensor& self,
+         py::object other,
+         py::function func,
+         py::object func_kwargs,
+         bool partial_zero_is_zero) {
+          if (!is_py_diagonal(other)) {
+              throw std::invalid_argument("Expected a DiagonalTensor");
+          }
+          return self._elementwise_binary(other.attr("as_DiagonalTensor")().cast<DiagonalTensorCPtr>(),
+                                          block_binary_from_python(func, func_kwargs),
+                                          partial_zero_is_zero);
+      },
+      py::arg("other"),
+      py::arg("func"),
+      py::arg("func_kwargs") = py::none(),
+      py::arg("partial_zero_is_zero") = false,
+      R"pydoc(
             An elementwise function acting on two diagonal tensors.
 
             Applies ``func(self_block: Block, other_block: Block, **func_kwargs) -> Block`` elementwise.
             Set ``partial_zero_is_zero=True`` to promise that ``func(0, any) == 0 == func(any, 0)``.
             )pydoc");
-    cls.def("_binary_operand",
-            &DiagonalTensor::_binary_operand,
-            py::arg("other"),
-            py::arg("func"),
-            py::arg("operand"),
-            py::arg("return_NotImplemented") = false,
-            py::arg("right") = false,
+    cls.def(
+      "_binary_operand",
+      [](DiagonalTensor& self,
+         py::object other,
+         py::function func,
+         std::string operand,
+         bool return_NotImplemented,
+         bool right) {
+          return py_diagonal_binary_operand(self,
+                                            other,
+                                            block_binary_from_python(func),
+                                            operand,
+                                            return_NotImplemented,
+                                            right);
+      },
+      py::arg("other"),
+      py::arg("func"),
+      py::arg("operand"),
+      py::arg("return_NotImplemented") = false,
+      py::arg("right") = false,
             R"pydoc(
             Common implementation for the binary dunder methods ``__mul__`` etc.
 
@@ -772,26 +926,21 @@ device: str
         std::string dunder_s = dunder;
         cls.def(
           dunder,
-          [dunder_s, op, right](DiagonalTensor& self, py::object other) {
-              auto tensors_mod = py::module_::import("cyten.tensors._tensors");
-              if (py::isinstance(other, tensors_mod.attr("Tensor")) ||
-                  py::isinstance<Tensor>(other)) {
+          [dunder_s, op, right](DiagonalTensor& self, py::object other) -> py::object {
+              if (is_py_tensor(other)) {
+                  auto tm = tensors_mod();
                   if (dunder_s == "__add__" || dunder_s == "__radd__") {
-                      return tensors_mod.attr("linear_combination")(
-                        1.0, py::cast(self), 1.0, other);
+                      return tm.attr("linear_combination")(1.0, py::cast(self), 1.0, other);
                   }
                   if (dunder_s == "__sub__") {
-                      return tensors_mod.attr("linear_combination")(
-                        1.0, py::cast(self), -1.0, other);
+                      return tm.attr("linear_combination")(1.0, py::cast(self), -1.0, other);
                   }
                   if (dunder_s == "__rsub__") {
-                      return tensors_mod.attr("linear_combination")(
-                        1.0, other, -1.0, py::cast(self));
+                      return tm.attr("linear_combination")(1.0, other, -1.0, py::cast(self));
                   }
               }
-              py::object op_func = py::module_::import("operator").attr(op);
-              return self._binary_operand(
-                other, op_func, op, /*return_NotImplemented=*/true, right);
+              return py_diagonal_binary_operand(
+                self, other, block_op_from_name(op), op, /*return_NotImplemented=*/true, right);
           },
           py::arg("other"));
     };
@@ -948,59 +1097,6 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
     id_cls.def("diagonal_as_block", &Identity::diagonal_as_block, py::arg("dtype") = py::none());
     id_cls.def(
       "diagonal_as_numpy", &Identity::diagonal_as_numpy, py::arg("numpy_dtype") = py::none());
-    id_cls.def("elementwise_almost_equal",
-               &Identity::elementwise_almost_equal,
-               py::arg("other"),
-               py::arg("rtol") = 1e-5,
-               py::arg("atol") = 1e-8);
-    id_cls.def("_elementwise_unary",
-               &Identity::_elementwise_unary,
-               py::arg("func"),
-               py::arg("func_kwargs") = py::none(),
-               py::arg("maps_zero_to_zero") = false,
-               R"pydoc(
-               An elementwise function acting on a diagonal tensor.
-
-               Applies ``func(self_block: Block, **func_kwargs) -> Block`` elementwise.
-               Set ``maps_zero_to_zero=True`` to promise that ``func(0) == 0``.
-               )pydoc");
-    id_cls.def("_elementwise_binary",
-               &Identity::_elementwise_binary,
-               py::arg("other"),
-               py::arg("func"),
-               py::arg("func_kwargs") = py::none(),
-               py::arg("partial_zero_is_zero") = false,
-               R"pydoc(
-               An elementwise function acting on two diagonal tensors.
-
-               Applies ``func(self_block: Block, other_block: Block, **func_kwargs) -> Block`` elementwise.
-               Set ``partial_zero_is_zero=True`` to promise that ``func(0, any) == 0 == func(any, 0)``.
-               )pydoc");
-    id_cls.def("_binary_operand",
-               &Identity::_binary_operand,
-               py::arg("other"),
-               py::arg("func"),
-               py::arg("operand"),
-               py::arg("return_NotImplemented") = false,
-               py::arg("right") = false,
-               R"pydoc(
-               Common implementation for the binary dunder methods ``__mul__`` etc.
-
-               Parameters
-               ----------
-               other
-                   Either a number or a DiagonalTensor.
-               func
-                   The function with signature
-                   ``func(self_block: Block, other_block: Block) -> Block``
-                   Scalars get passed the (0D) block representation of the scalar.
-               operand
-                   A string representation of the operand, used in error messages
-               return_NotImplemented
-                   Whether `NotImplemented` should be returned on a non-scalar and non-`Tensor` other.
-               right
-                   If this is the "right" version, i.e. ``func(other, self)``.
-               )pydoc");
     id_cls.def("_get_item",
                &Identity::_get_item,
                py::arg("idx"),

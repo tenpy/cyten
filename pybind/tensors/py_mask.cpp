@@ -9,6 +9,7 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
+#include <format>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -623,12 +624,35 @@ from_eye
       Convert to a numpy array
       )pydoc");
 
-    cls.def("_binary_operand",
-            &Mask::_binary_operand,
-            py::arg("other"),
-            py::arg("func"),
-            py::arg("operand"),
-            py::arg("return_NotImplemented") = true,
+    cls.def(
+      "_binary_operand",
+      [](Mask& self,
+         py::object other,
+         py::function func,
+         std::string operand,
+         bool return_NotImplemented) -> py::object {
+          auto adapted = adapt_block_bool_binary(func, self.backend->block_backend);
+          if (py::isinstance<py::bool_>(other)) {
+              return py::cast(self._binary_operand(other.cast<bool>(), adapted, operand));
+          }
+          if (py::isinstance<Mask>(other) ||
+              py::isinstance(other, py::module_::import("cyten.tensors._tensors").attr("Mask"))) {
+              return py::cast(self._binary_operand(other.cast<MaskCPtr>(), adapted, operand));
+          }
+          if (return_NotImplemented &&
+              !(py::isinstance<Tensor>(other) ||
+                py::isinstance(other, py::module_::import("cyten.tensors._tensors").attr("Tensor")) ||
+                py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
+              return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+          }
+          throw std::invalid_argument(std::format("Invalid types for operand \"{}\": Mask and {}",
+                                                  operand,
+                                                  std::string(py::str(py::type::of(other)))));
+      },
+      py::arg("other"),
+      py::arg("func"),
+      py::arg("operand"),
+      py::arg("return_NotImplemented") = true,
             R"pydoc(
             Utility function for a shared implementation of binary functions.
 
@@ -665,9 +689,27 @@ from_eye
     auto bind_bool_binop = [&](char const* name, char const* op_name, char const* operand) {
         cls.def(
           name,
-          [op_name, operand](Mask& self, py::object other) {
-              return self._binary_operand(
-                other, py::module_::import("operator").attr(op_name), operand, true);
+          [op_name, operand](Mask& self, py::object other) -> py::object {
+              auto func = adapt_block_bool_binary(py::module_::import("operator").attr(op_name),
+                                                  self.backend->block_backend);
+              if (py::isinstance<py::bool_>(other)) {
+                  return py::cast(self._binary_operand(other.cast<bool>(), func, operand));
+              }
+              if (py::isinstance<Mask>(other) ||
+                  py::isinstance(other,
+                                 py::module_::import("cyten.tensors._tensors").attr("Mask"))) {
+                  return py::cast(self._binary_operand(other.cast<MaskCPtr>(), func, operand));
+              }
+              if (!(py::isinstance<Tensor>(other) ||
+                    py::isinstance(
+                      other, py::module_::import("cyten.tensors._tensors").attr("Tensor")) ||
+                    py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
+                  return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+              }
+              throw std::invalid_argument(
+                std::format("Invalid types for operand \"{}\": Mask and {}",
+                            operand,
+                            std::string(py::str(py::type::of(other)))));
           },
           py::arg("other"));
     };
