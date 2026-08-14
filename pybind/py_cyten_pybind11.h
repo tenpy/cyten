@@ -15,7 +15,6 @@ namespace py = pybind11;
 
 // here, we have declarations of binding functions defined in the corresponding *.cpp files.
 
-void bind_version(py::module_& m);
 void bind_config(py::module_& m);
 void bind_tools(py::module_& m);
 void bind_cost_polynomials(py::module_& m);

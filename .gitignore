@@ -28,6 +28,7 @@ docs/reference
 .conda
 .venv
 src/version.h
+cyten/_version.py
 .cursor/plans
 
 # Local checkouts / scratch (not for commit)

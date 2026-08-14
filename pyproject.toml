@@ -1,26 +1,6 @@
-
-[build-system]
-# torch is required at build time: CMake links against the same libtorch as `import torch`
-requires = ["scikit-build-core", "pybind11", "numpy>=2.0", "torch"]
-build-backend = "scikit_build_core.build"
-
-
-[tool.scikit-build]
-cmake.version = ">=3.15"
-build-dir = "build" # The build directory. Defaults to a temporary directory, but can be set.
-cmake.build-type = "Debug"  # TODO: for now setup debug builds - update this once we release!
-# Select the editable mode to use. Can be "redirect" (default) or "inplace".
-# editable.mode = "inplace"
-wheel.packages = ["cyten"]
-
-[tool.scikit-build.cmake.define]
-BUILD_DOC = {env="BUILD_DOC", default="OFF"}
-
-
 [project]
 name = "cyten"
-version = "0.1"
-# dynamic = ["version"] # TODO: does this still work with scikit build?
+dynamic = ["version"]  # set during packaging/build from git description
 description = ""
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.14"
@@ -87,9 +67,30 @@ all = ["cyten[io, test, lint, docbuild]"]
 # [project.scripts]
 # cyten-run = "cyten:console_main"
 
+[build-system]
+# torch is required at build time: CMake links against the same libtorch as `import torch`
+requires = ["scikit-build-core", "pybind11", "numpy>=2.0", "torch", "setuptools-scm"]
+build-backend = "scikit_build_core.build"
 
-[tool.setuptools.packages.find]
-include = ['cyten*']
+
+[tool.scikit-build]
+cmake.version = ">=3.15"
+cmake.define.BUILD_DOC = {env="BUILD_DOC", default="OFF"}
+build-dir = "build" # The build directory. Defaults to a temporary directory, but can be set.
+cmake.build-type = "Debug"  # TODO: for now setup debug builds - update this once we release!
+# Select the editable mode to use. Can be "redirect" (default) or "inplace".
+# editable.mode = "inplace"
+wheel.packages = ["cyten"]
+sdist.include = ["cyten/_version.py"]
+
+[[tool.dynamic-metadata]]
+provider = "scikit_build_core.metadata.setuptools_scm"
+
+[tool.setuptools_scm]  # Section required
+write_to = "cyten/_version.py"
+
+#[tool.setuptools.packages.find]
+#include = ['cyten*']
 
 
 [tool.pytest.ini_options]
@@ -113,7 +114,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py314"
 exclude = ["scripts/"]
 
 

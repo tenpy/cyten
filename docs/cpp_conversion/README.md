@@ -131,8 +131,7 @@ Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`
 - **Sources:** Add under a `src/` (or equivalent) and register in CMake.
 - **Bindings:** [pybind/](pybind/) — extend `_core.cpp` or add separate `.cpp` files and include them in the same module.
 
-Keep namespaces and include structure consistent with [include/cyten/cyten.h](include/cyten/cyten.h) and existing [include/cyten/config.h](include/cyten/config.h) / [include/cyten/version.h](include/cyten/version.h).
-
+Keep namespaces and include structure consistent with existing headers.
 
 
 ## Practical recommendations

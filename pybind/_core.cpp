@@ -6,7 +6,6 @@ PYBIND11_MODULE(_core, m)
 {
     m.doc() = "Cyten python bindings using pybind11"; // optional module docstring
 
-    bind_version(m);
     bind_tools(m);
     bind_cost_polynomials(m);
     bind_config(m);

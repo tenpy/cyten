@@ -13,7 +13,6 @@ get_config()  # initialize config
 
 # note: order matters!
 from . import (
-    version,
     config,
     tools,
     block_backends,
@@ -140,8 +139,7 @@ from .tensors import (
     truncated_svd,
     zero_like,
 )
-from .version import full_version as __full_version__
-from .version import version as __version__
+from ._version import __version__, __version_tuple__, __commit_id__
 
 
 def show_config():
@@ -149,7 +147,17 @@ def show_config():
 
     The information printed is :attr:`cyten.version.version_summary`.
     """
-    print(version.version_summary)
+    import sys
+    import numpy
+    import pytorch
+
+    summary = (
+        f'cyten {__version__!s} at git commit {__commit_id__!s} using\n'
+        f'  python {sys.version!s}\n'
+        f'  numpy {numpy.__version__!s}\n'
+        f'  pytorch {pytorch.__version__!s}\n'
+    )
+    return summary
 
 
 # expose Dtypes directly

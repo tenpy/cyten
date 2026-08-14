@@ -7,6 +7,7 @@ dependencies:
   - setuptools>=68.0.0
   - pybind11>=3.0
   - scikit-build-core
+  - setuptools-scm
   - numpy>=2.0
   - scipy
   - openblas
