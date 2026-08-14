@@ -1,22 +1,28 @@
 C++ API Reference
 =================
 
-.. todo ::
-   the autodoxygenindex allows to document everything, but without module levels.
-   Also, I hardcoded the `breathe_project_source` in conf.py for quick and dirty testing.
-   Adjust this to get a more strucutred documentation...
+Public C++ types and functions declared in ``include/``. Each page
+corresponds to a header; classes list all members (methods, attributes,
+nested types).
 
+Build Doxygen XML first (``doxygen`` in ``docs/``) so Breathe can resolve
+these stubs.
 
-.. autodoxygenindex::
-   :project: cyten
+.. toctree::
+   :maxdepth: 1
+   :caption: Core
 
+   cpp/config
+   cpp/version
+   cpp/warn
+   cpp/tools
+   cpp/check
 
-.. .. doxygenfunction:: cyten::add
+.. toctree::
+   :maxdepth: 2
+   :caption: Libraries
 
-.. .. doxygenclass:: cyten::SymmetryError
-
-.. .. doxygenclass:: cyten::Symmetry
-..     :members:
-
-
-.. .. doxygenindex::
+   cpp/backends
+   cpp/block_backend
+   cpp/symmetries
+   cpp/tensors
