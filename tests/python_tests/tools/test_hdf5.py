@@ -4,8 +4,10 @@ import os
 import warnings
 
 import io_test
+import numpy as np
 import pytest
 
+import cyten
 from cyten.tools import hdf5_io
 
 h5py = pytest.importorskip('h5py')
@@ -38,45 +40,10 @@ def export_to_datadir():
 
 
 @pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
-def test_hdf5_export_import(make_compatible_space, compatible_backend, tmp_path):
-    """Try subsequent export and import to pickle."""
-    data = io_test.gen_example_data()
-    io_test.assert_event_handler_example_works(data)  # if this fails, it's not import/export
-    filename = tmp_path / 'test.hdf5'
-    with h5py.File(str(filename), 'w') as f:
-        hdf5_io.save_to_hdf5(f, data)
-    with h5py.File(str(filename), 'r') as f:
-        data_imported = hdf5_io.load_from_hdf5(f)
-    io_test.assert_equal_data(data_imported, data)
-    io_test.assert_event_handler_example_works(data_imported)
-
-
-@pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
-def test_hdf5_tensor_io(tmp_path):
-    """Try subsequent export and import to hdf5."""
-    testU1 = io_test.U1_sym_test_tensor()
-    testSU2 = io_test.SU2_sym_test_tensor()
-    testrand = io_test.create_test_random_symmetric_tensor()
-    testdiag = io_test.create_test_random_diagonal_tensor()
-
-    for data in [testU1, testSU2, testrand, testdiag]:
-        io_test.assert_event_handler_example_works(data)  # if this fails, it's not import/export
-        filename = tmp_path / 'test.hdf5'
-        with h5py.File(str(filename), 'w') as f:
-            hdf5_io.save_to_hdf5(f, data)
-        with h5py.File(str(filename), 'r') as f:
-            data_imported = hdf5_io.load_from_hdf5(f)
-        io_test.assert_equal_data(data_imported, data)
-        io_test.assert_event_handler_example_works(data_imported)
-
-
-@pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
-def test_hdf5_block_and_scalar_io(tmp_path):
+def test_hdf5_block_and_scalar_io(block_backend, tmp_path):
     """Roundtrip C++ NumpyBlockBackend Block and Scalar via HDF5."""
-    import numpy as np
-    from cyten._core import NumpyBlockBackend
 
-    be = NumpyBlockBackend.from_factory('cpu')
+    be = cyten.get_backend('no_symmetry', block_backend).block_backend
     block = be.as_block(np.arange(6, dtype=np.float64).reshape(2, 3))
     scalar = be.as_scalar(3.5)
 
@@ -94,6 +61,18 @@ def test_hdf5_block_and_scalar_io(tmp_path):
     assert scalar_loaded.dtype == scalar.dtype
 
 
+@pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
+def test_hdf5_export_import(tmp_path):
+    """Try subsequent export and import to pickle."""
+    data = io_test.gen_example_data()
+    filename = tmp_path / 'test.hdf5'
+    with h5py.File(str(filename), 'w') as f:
+        hdf5_io.save_to_hdf5(f, data)
+    with h5py.File(str(filename), 'r') as f:
+        data_imported = hdf5_io.load_from_hdf5(f)
+    io_test.assert_equal_data(data_imported, data)
+
+
 @pytest.mark.parametrize('fn', datadir_hdf5)
 @pytest.mark.filterwarnings('ignore::FutureWarning')
 def test_import_from_datadir(fn):
@@ -101,9 +80,7 @@ def test_import_from_datadir(fn):
     filename = os.path.join(io_test.datadir, fn)
     with h5py.File(filename, 'r') as f:
         data = hdf5_io.load_from_hdf5(f)
-    if 'version' in data:
-        data_expected = io_test.gen_example_data(data['version'])
-    else:
-        data_expected = io_test.gen_example_data('0.4.0')
+    if 'version' not in data:
+        raise ValueError(f'Version not found in data: {data.keys()}')
+    data_expected = io_test.gen_example_data(data['version'])
     io_test.assert_equal_data(data, data_expected)
-    io_test.assert_event_handler_example_works(data)

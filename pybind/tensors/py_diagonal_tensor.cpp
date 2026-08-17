@@ -1031,6 +1031,15 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
           The dtype for the entries.
       )pydoc");
 
+    id_cls.def_static("from_hdf5",
+                      &Identity::from_hdf5,
+                      py::arg("hdf5_loader"),
+                      py::arg("h5gr"),
+                      py::arg("subpath"),
+                      R"pydoc(
+                      Import Identity from hdf5
+                      )pydoc");
+
     id_cls.def("as_dtype",
                &Identity::as_dtype,
                py::arg("dtype"),

@@ -211,6 +211,10 @@ class Identity : public DiagonalTensor
                                       Dtype dtype = Dtype::Float64,
                                       std::optional<std::string> device = std::nullopt);
 
+    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
+                                       py::object h5gr,
+                                       std::string const& subpath);
+
     [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
 
     [[nodiscard]] SymmetricTensorPtr as_SymmetricTensor(
