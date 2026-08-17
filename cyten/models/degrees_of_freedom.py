@@ -31,12 +31,13 @@ from ..symmetries import (
 )
 from ..tensors import DiagonalTensor, Identity, SymmetricTensor, compose, permute_legs
 from ..tools import as_immutable_array, is_iterable, to_iterable, to_valid_idx
+from ..tools.hdf5_io import Hdf5Exportable
 
 ALL_SPECIES = object()
 """Singleton object used to indicate to sum over all species in fermion/boson couplings."""
 
 
-class Site:
+class Site(Hdf5Exportable):
     """Collects necessary information about a local site of a lattice model.
 
     A site defines the local Hilbert space in terms of its :attr:`leg`.

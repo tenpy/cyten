@@ -791,9 +791,25 @@ DiagonalTensor::Ptr
 DiagonalTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
 {
     /// Import DiagonalTensor from hdf5
-    auto sym = SymmetricTensor::from_hdf5(hdf5_loader, h5gr, subpath);
-    return std::make_shared<DiagonalTensor>(
-      sym->data, as_space(sym->codomain->factors[0]), sym->backend, sym->symmetry, sym->labels());
+    auto domain = hdf5_loader.attr("load")(subpath + "domain").cast<TensorProduct::Ptr>();
+    auto codomain = hdf5_loader.attr("load")(subpath + "codomain").cast<TensorProduct::Ptr>();
+    auto symmetry = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto backend = hdf5_loader.attr("load")(subpath + "backend").cast<TensorBackend::Ptr>();
+    auto data = hdf5_loader.attr("load")(subpath + "data").cast<TensorBackend::DataPtr>();
+    auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
+    auto dt = dtype::from_numpy_dtype(hdf5_loader.attr("load")(subpath + "dtype"));
+    auto labels = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
+    int64 nlegs = codomain->num_factors + domain->num_factors;
+    if (labels.empty() && nlegs > 0) {
+        labels.assign(static_cast<std::size_t>(nlegs), std::nullopt);
+    }
+
+    auto obj = std::make_shared<DiagonalTensor>(
+      data, as_space(codomain->factors[0]), backend, symmetry, std::move(labels));
+    obj->dtype = dt;
+    obj->device = std::move(device);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
 }
 
 // ---------------------------------------------------------------------------
@@ -861,6 +877,27 @@ Identity::from_eye(Space::Ptr leg,
       _init_parse_labels(std::move(labels), co_domain, co_domain, /*is_endomorphism=*/true);
     return std::make_shared<Identity>(
       leg_sp, backend_tp, symmetry, std::move(labs), *dt, std::move(device_s));
+}
+
+Identity::Ptr
+Identity::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    auto domain = hdf5_loader.attr("load")(subpath + "domain").cast<TensorProduct::Ptr>();
+    (void)hdf5_loader.attr("load")(subpath + "codomain");
+    auto symmetry = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto backend = hdf5_loader.attr("load")(subpath + "backend").cast<TensorBackend::Ptr>();
+    (void)hdf5_loader.attr("load")(subpath + "data");
+    auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
+    auto dt = dtype::from_numpy_dtype(hdf5_loader.attr("load")(subpath + "dtype"));
+    auto labels = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
+    if (labels.empty()) {
+        labels.assign(2, std::nullopt);
+    }
+
+    auto obj = std::make_shared<Identity>(
+      as_space(domain->factors[0]), backend, symmetry, std::move(labels), dt, std::move(device));
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
 }
 
 Tensor::Ptr
