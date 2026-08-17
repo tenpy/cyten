@@ -1127,12 +1127,17 @@ blocks.
            &TensorBackend::save_hdf5,
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
-           py::arg("subpath"))
-      .def_static("from_hdf5",
-                  &TensorBackend::from_hdf5,
-                  py::arg("hdf5_loader"),
-                  py::arg("h5gr"),
-                  py::arg("subpath"));
+           py::arg("subpath"));
+
+    py::object classmethod = py::module_::import("builtins").attr("classmethod");
+    tensor_backend.attr("from_hdf5") = classmethod(
+      py::cpp_function(&TensorBackend::from_hdf5,
+                       py::name("from_hdf5"),
+                       py::arg("cls"),
+                       py::arg("hdf5_loader"),
+                       py::arg("h5gr"),
+                       py::arg("subpath"),
+                       "Reconstruct a tensor backend from HDF5 by loading its BlockBackend."));
 
     // Nested Data type under TensorBackend for Python parity with BlockBackend.BlockCls style.
     tensor_backend.attr("Data") = data_cls;

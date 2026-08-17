@@ -378,8 +378,6 @@ class AbelianBackend : public TensorBackend
 
     DataPtr zero_mask_data(Space::Ptr large_leg, std::string device) override;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath);
-
     /// Map incoming multi-leg block indices through a pipe ``block_ind_map``.
     BlockInds leg_pipe_map_incoming_block_inds(AbelianLegPipe const& pipe,
                                                BlockInds const& incoming_block_inds) const;
