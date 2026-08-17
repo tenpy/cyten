@@ -59,6 +59,10 @@ class NoSymmetryBackend : public TensorBackend
     ~NoSymmetryBackend() override = default;
 
     bool can_decompose_tensors() const override { return true; }
+    bool is_correct_data_type(DataCPtr data) const override
+    {
+        return dynamic_cast<BlockData const*>(data.get()) != nullptr;
+    }
 
     void test_tensor_sanity(TensorCPtr a, bool is_diagonal) override;
     void test_mask_sanity(MaskCPtr a) override;

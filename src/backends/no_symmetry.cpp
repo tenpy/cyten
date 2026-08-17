@@ -132,15 +132,6 @@ NoSymmetryBackend::block_from_tensor(TensorCPtr tensor)
 NoSymmetryBackend::NoSymmetryBackend(std::shared_ptr<BlockBackend> block_backend_)
   : TensorBackend(std::move(block_backend_))
 {
-    // Match Python: DataCls = block_backend.BlockCls (concrete nested type).
-    try {
-        py::object bb = py::cast(block_backend);
-        DataCls = py::type::of(bb).attr("BlockCls");
-    } catch (py::error_already_set const&) {
-        DataCls = py::none();
-    } catch (py::cast_error const&) {
-        DataCls = py::none();
-    }
 }
 
 void

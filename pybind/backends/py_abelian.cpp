@@ -170,10 +170,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
 )pydoc";
 
     cls.def(py::init([](py::object block_backend) {
-                auto backend =
-                  std::make_shared<AbelianBackend>(as_shared_block_backend(block_backend));
-                backend->DataCls = py::type::of<AbelianBackendData>();
-                return backend;
+                return std::make_shared<AbelianBackend>(as_shared_block_backend(block_backend));
             }),
             py::arg("block_backend"));
 

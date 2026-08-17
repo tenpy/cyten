@@ -427,8 +427,6 @@ AbelianBackend::data_from_tensor(TensorCPtr tensor)
 AbelianBackend::AbelianBackend(std::shared_ptr<BlockBackend> block_backend_)
   : TensorBackend(std::move(block_backend_))
 {
-    // DataCls is set when pybind bindings for AbelianBackend exist.
-    DataCls = py::none();
 }
 
 // ---- 02_early.cpp ----
@@ -446,8 +444,7 @@ AbelianBackend::test_tensor_sanity(TensorCPtr a, bool is_diagonal)
     // check blocks and charge rule
     // ---
     TensorBackend::test_tensor_sanity(a, is_diagonal);
-    // When DataCls is unset, skip deep checks that require C++ AbelianBackendData on the tensor.
-    // Full checks run once bindings/monkey-patch store C++ Data.
+    // Skip deep checks if the tensor still holds Python-side data.
     py::object raw = py::cast(a).attr("data");
     AbelianBackendData::Ptr data;
     try {
@@ -858,18 +855,13 @@ AbelianBackend::zero_mask_data(Space::Ptr /*large_leg*/, std::string device)
     return wrap(make_data(Dtype::Bool, std::move(device), {}, zeros_i64(0, 2), true));
 }
 
-void
-AbelianBackend::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string subpath)
-{
-    hdf5_saver.attr("save")(DataCls, subpath + "DataCls");
-}
-
 AbelianBackend::Ptr
 AbelianBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath)
 {
     auto obj = std::make_shared<AbelianBackend>(nullptr);
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
-    obj->DataCls = hdf5_loader.attr("load")(subpath + "DataCls");
+    obj->block_backend =
+      hdf5_loader.attr("load")(subpath + "block_backend").cast<std::shared_ptr<BlockBackend>>();
     return obj;
 }
 
