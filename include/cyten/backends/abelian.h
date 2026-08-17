@@ -119,6 +119,11 @@ class AbelianBackend : public TensorBackend
     explicit AbelianBackend(std::shared_ptr<BlockBackend> block_backend);
     ~AbelianBackend() override = default;
 
+    bool is_correct_data_type(DataCPtr data) const override
+    {
+        return dynamic_cast<AbelianBackendData const*>(data.get()) != nullptr;
+    }
+
     void test_tensor_sanity(TensorCPtr a, bool is_diagonal) override;
     void test_mask_sanity(MaskCPtr a) override;
 
@@ -372,8 +377,6 @@ class AbelianBackend : public TensorBackend
                                std::string device) override;
 
     DataPtr zero_mask_data(Space::Ptr large_leg, std::string device) override;
-
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string subpath) override;
 
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath);
 

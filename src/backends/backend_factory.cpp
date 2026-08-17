@@ -108,23 +108,9 @@ get_backend(py::object symmetry, py::object block_backend)
     if (tensor_backend == "no_symmetry") {
         backend = py::cast(std::make_shared<NoSymmetryBackend>(block_backend_instance));
     } else if (tensor_backend == "abelian") {
-        auto ab = std::make_shared<AbelianBackend>(block_backend_instance);
-        // DataCls is filled when the type object exists (bindings); factory may run before
-        // AbelianBackendData is fully usable from Python — set via py::type if available.
-        try {
-            ab->DataCls = py::type::of<AbelianBackendData>();
-        } catch (py::error_already_set const&) {
-            ab->DataCls = py::none();
-        }
-        backend = py::cast(std::move(ab));
+        backend = py::cast(std::make_shared<AbelianBackend>(block_backend_instance));
     } else if (tensor_backend == "fusion_tree") {
-        auto ft = std::make_shared<FusionTreeBackend>(block_backend_instance);
-        try {
-            ft->DataCls = py::type::of<FusionTreeData>();
-        } catch (py::error_already_set const&) {
-            ft->DataCls = py::none();
-        }
-        backend = py::cast(std::move(ft));
+        backend = py::cast(std::make_shared<FusionTreeBackend>(block_backend_instance));
     } else {
         throw std::invalid_argument("Unknown tensor_backend: " + tensor_backend);
     }

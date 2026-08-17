@@ -413,7 +413,6 @@ FusionTreeBackend::FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend
     // we obtained additional blocks above this threshold (from numerical imprecisions) when
     // bending some legs and then going back to the initial configuration.
     // ---
-    DataCls = py::none();
 }
 
 void

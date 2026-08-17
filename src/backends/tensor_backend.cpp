@@ -1,11 +1,9 @@
-#include <cyten/backends/no_symmetry.h>
 #include <cyten/backends/tensor_backend.h>
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
-#include <format>
 #include <sstream>
 #include <stdexcept>
 
@@ -50,8 +48,7 @@ legs_equal(std::vector<Leg::Ptr> const& a, std::vector<Leg::Ptr> const& b)
 } // namespace
 
 TensorBackend::TensorBackend(std::shared_ptr<BlockBackend> block_backend_)
-  : DataCls(py::none())
-  , block_backend(std::move(block_backend_))
+  : block_backend(std::move(block_backend_))
 {
 }
 
@@ -104,26 +101,9 @@ TensorBackend::item(TensorCPtr a)
     return data_item(data_ptr);
 }
 
-namespace {
-
-/// Python-facing ``tensor.data`` (NoSymmetry unwraps ``BlockData`` → Block for ``DataCls``).
-py::object
-data_cls_check_object(TensorBackend::DataPtr const& data_ptr)
-{
-    if (auto* bd = dynamic_cast<NoSymmetryBackend::BlockData*>(data_ptr.get()))
-        return py::cast(bd->block);
-    return py::cast(data_ptr);
-}
-
-} // namespace
-
 void
 TensorBackend::test_tensor_sanity(TensorCPtr a, bool /*is_diagonal*/)
 {
-    // --- hints from Python TensorBackend.test_tensor_sanity ---
-    // subclasses will typically call super().test_tensor_sanity(a)
-    // ---
-    // subclasses will typically call super().test_tensor_sanity(a)
     DataPtr data_ptr;
     if (auto st = std::dynamic_pointer_cast<const SymmetricTensor>(a))
         data_ptr = st->data;
@@ -132,27 +112,15 @@ TensorBackend::test_tensor_sanity(TensorCPtr a, bool /*is_diagonal*/)
     else
         throw std::invalid_argument(
           "TensorBackend::test_tensor_sanity: expected SymmetricTensor or Mask");
-    py::object data = data_cls_check_object(data_ptr);
-    if (!DataCls.is_none() && !py::isinstance(data, DataCls)) {
-        throw std::runtime_error(std::format("expected data of type {}, got {}",
-                                             py::str(DataCls).cast<std::string>(),
-                                             py::str(py::type::of(data)).cast<std::string>()));
-    }
+    if (!data_ptr || !is_correct_data_type(data_ptr))
+        throw std::runtime_error("wrong tensor data type");
 }
 
 void
 TensorBackend::test_mask_sanity(MaskCPtr a)
 {
-    // --- hints from Python TensorBackend.test_mask_sanity ---
-    // subclasses will typically call super().test_mask_sanity(a)
-    // ---
-    // subclasses will typically call super().test_mask_sanity(a)
-    py::object data = data_cls_check_object(a->data);
-    if (!DataCls.is_none() && !py::isinstance(data, DataCls)) {
-        throw std::runtime_error(std::format("expected data of type {}, got {}",
-                                             py::str(DataCls).cast<std::string>(),
-                                             py::str(py::type::of(data)).cast<std::string>()));
-    }
+    if (!a->data || !is_correct_data_type(a->data))
+        throw std::runtime_error("wrong tensor data type");
 }
 
 LegPipe::Ptr

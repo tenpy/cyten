@@ -43,6 +43,10 @@ class PyTensorBackend
     {
         PYBIND11_OVERRIDE(void, TensorBackend, test_mask_sanity, a);
     }
+    bool is_correct_data_type(TensorBackend::DataCPtr data) const override
+    {
+        PYBIND11_OVERRIDE_PURE(bool, TensorBackend, is_correct_data_type, data);
+    }
     LegPipe::Ptr make_pipe(std::vector<Leg::Ptr> legs, bool is_dual, LegPipe::Ptr pipe) override
     {
         PYBIND11_OVERRIDE(LegPipe::Ptr, TensorBackend, make_pipe, legs, is_dual, pipe);

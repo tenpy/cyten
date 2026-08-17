@@ -141,10 +141,8 @@ bind_fusion_tree_backend(py::module_& m)
         )pydoc";
 
     cls.def(py::init([](py::object block_backend, float64 eps) {
-                auto backend =
-                  std::make_shared<FusionTreeBackend>(as_shared_block_backend(block_backend), eps);
-                backend->DataCls = py::type::of<FusionTreeData>();
-                return backend;
+                return std::make_shared<FusionTreeBackend>(as_shared_block_backend(block_backend),
+                                                           eps);
             }),
             py::arg("block_backend"),
             py::arg("eps") = 5.0e-14);

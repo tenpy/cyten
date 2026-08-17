@@ -47,10 +47,7 @@ SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
            backend_in->get_device_from_data(data_in))
   , data(std::move(data_in))
 {
-    if (!backend->DataCls.is_none() && !std::dynamic_pointer_cast<NoSymmetryBackend>(backend)) {
-        // NoSymmetry stores BlockData while DataCls is BlockCls (Python stores the Block).
-        assert(py::isinstance(py::cast(data), backend->DataCls));
-    }
+    assert(backend->is_correct_data_type(data));
     if (check_complex_dtype) {
         verify_dtype();
     }

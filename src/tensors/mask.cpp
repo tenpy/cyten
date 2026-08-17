@@ -143,6 +143,7 @@ Mask::Mask(TensorBackend::DataPtr data_in,
   , is_projection(is_projection_in)
   , data(std::move(data_in))
 {
+    assert(backend->is_correct_data_type(data));
     if (py::isinstance<LegPipe>(py::cast(space_in)) ||
         py::isinstance<LegPipe>(py::cast(space_out))) {
         throw std::invalid_argument("Mask is not defined on LegPipes.");

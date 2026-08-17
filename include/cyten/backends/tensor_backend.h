@@ -65,10 +65,6 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     using DataPtr = Data::Ptr;
     using DataCPtr = Data::CPtr;
 
-    /// Python ``DataCls`` used by sanity checks (``isinstance(a.data, DataCls)``).
-    /// Set by concrete backends (e.g. block class or pybind type object).
-    py::object DataCls;
-
     std::shared_ptr<BlockBackend> block_backend;
 
     explicit TensorBackend(std::shared_ptr<BlockBackend> block_backend);
@@ -84,6 +80,9 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// If decompositions (SVD, QR, EIGH, ...) can operate on many-leg tensors.
     /// Otherwise legs must be combined first. Default: ``false``.
     [[nodiscard]] virtual bool can_decompose_tensors() const { return false; }
+
+    /// Return true if ``data`` is this backend's payload type.
+    [[nodiscard]] virtual bool is_correct_data_type(DataCPtr data) const = 0;
 
     /// Convert tensor to a python scalar.
     ///
