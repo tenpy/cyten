@@ -20,6 +20,10 @@ class CytenConfig
     bool check_fusion = true;
     std::string default_tensor_backend = "abelian";
     std::string default_block_backend = "numpy";
+    /// Threshold for discarding near-zero fusion-tree blocks after topological moves.
+    /// Default is based on tests for 4-leg tensors: smaller values produced extra blocks from
+    /// numerical noise when bending legs and restoring the original configuration.
+    float64 fusion_tree_eps = 5.0e-14;
 
     CytenConfig() = default;
 
@@ -32,6 +36,7 @@ class CytenConfig
     void set_option(const std::string& key, const std::string& value);
     void set_option(const std::string& key, int64 value);
     void set_option(const std::string& key, bool value);
+    void set_option(const std::string& key, float64 value);
 
     void update(py::dict options);
     void update(const CytenConfig& other);
@@ -60,6 +65,7 @@ const CytenConfig& get_config();
 void set_option(const std::string& key, const std::string& value);
 void set_option(const std::string& key, int64 value);
 void set_option(const std::string& key, bool value);
+void set_option(const std::string& key, float64 value);
 void set_option(const std::string& key, py::handle value);
 void set_options(py::dict options);
 

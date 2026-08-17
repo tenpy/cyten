@@ -42,6 +42,9 @@ The following options are available::
     default_tensor_backend    'abelian'    Tensor-backend to be used by default. See :func:`cyten.get_backend`.
     ------------------------  -----------  ----------------------------------------------------------------------
     default_block_backend     'numpy'      Block-backend to be used by default. See :func:`cyten.get_backend`.
+    ------------------------  -----------  ----------------------------------------------------------------------
+    fusion_tree_eps           5e-14        Threshold for discarding near-zero fusion-tree blocks after
+                                           topological moves (braids, bends, twists).
     ========================  ===========  ======================================================================
 
 

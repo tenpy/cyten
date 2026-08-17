@@ -6,6 +6,7 @@
 #include <cyten/tensors/symmetric_tensor.h>
 
 #include <cyten/backends/block_inds_numpy.h>
+#include <cyten/config.h>
 #include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/trees.h>
 #include <cyten/tools.h>
@@ -404,15 +405,9 @@ FusionTreeBackend::data_from_tensor(TensorCPtr tensor)
       "FusionTreeBackend::data_from_tensor: expected SymmetricTensor or Mask");
 }
 
-FusionTreeBackend::FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend_, float64 eps_)
+FusionTreeBackend::FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend_)
   : TensorBackend(std::move(block_backend_))
-  , eps(eps_)
 {
-    // --- hints from Python FusionTreeBackend.__init__ ---
-    // the default value for eps is based on tests for 4-leg tensors. For smaller values of eps,
-    // we obtained additional blocks above this threshold (from numerical imprecisions) when
-    // bending some legs and then going back to the initial configuration.
-    // ---
 }
 
 void
@@ -627,7 +622,7 @@ FusionTreeBackend::apply_instructions(TensorCPtr tensor,
                                         domain_idcs,
                                         block_backend);
     }
-    res->discard_zero_blocks(block_backend, eps);
+    res->discard_zero_blocks(block_backend, get_config().fusion_tree_eps);
     return wrap(res);
 }
 
@@ -2495,7 +2490,7 @@ FusionTreeBackend::_mask_contract(TensorCPtr tensor, MaskCPtr mask, int64 leg_id
     }
     auto res =
       make_data(tensor->dtype, t_data->device, std::move(res_blocks), res_block_inds, true);
-    res->discard_zero_blocks(block_backend, eps);
+    res->discard_zero_blocks(block_backend, get_config().fusion_tree_eps);
     return { wrap(res), codomain, domain };
 }
 
@@ -2662,7 +2657,7 @@ FusionTreeBackend::outer(SymmetricTensorCPtr a, SymmetricTensorCPtr b)
                 }
             });
       });
-    new_data->discard_zero_blocks(block_backend, eps);
+    new_data->discard_zero_blocks(block_backend, get_config().fusion_tree_eps);
     return wrap(new_data);
 }
 
@@ -2875,7 +2870,7 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
         block_inds = zeros_i64(0, 2);
     }
     auto res = make_data(dtype, a_data->device, std::move(new_blocks), block_inds, true);
-    res->discard_zero_blocks(block_backend, eps);
+    res->discard_zero_blocks(block_backend, get_config().fusion_tree_eps);
     return wrap(res);
 }
 
@@ -3157,7 +3152,7 @@ FusionTreeBackend::partial_trace(SymmetricTensorCPtr tensor,
                   (*cur) + (*contribution));
         }
     }
-    new_data->discard_zero_blocks(block_backend, eps);
+    new_data->discard_zero_blocks(block_backend, get_config().fusion_tree_eps);
 
     if (remaining.empty()) {
         Dtype dt = tensor->dtype;
@@ -3513,7 +3508,7 @@ FusionTreeBackend::from_grid(std::vector<std::vector<py::object>> grid,
             }
         }
     }
-    data->discard_zero_blocks(block_backend, eps);
+    data->discard_zero_blocks(block_backend, get_config().fusion_tree_eps);
     return wrap(data);
 }
 

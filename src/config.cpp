@@ -52,8 +52,32 @@ parse_int64(const std::string& value)
     }
 }
 
+float64
+parse_float64(const std::string& value)
+{
+    try {
+        size_t idx = 0;
+        double v = std::stod(value, &idx);
+        if (idx != value.size())
+            throw std::invalid_argument("trailing characters");
+        return static_cast<float64>(v);
+    } catch (const std::exception& e) {
+        throw py::value_error(std::string("Invalid float config value: ") + value + " (" +
+                              e.what() + ")");
+    }
+}
+
 void
 check_min(int64 value, int64 min_value, const std::string& key)
+{
+    if (value < min_value) {
+        throw py::value_error("Config option '" + key + "' must be >= " +
+                              std::to_string(min_value) + ", got " + std::to_string(value));
+    }
+}
+
+void
+check_min(float64 value, float64 min_value, const std::string& key)
 {
     if (value < min_value) {
         throw py::value_error("Config option '" + key + "' must be >= " +
@@ -151,7 +175,7 @@ CytenConfig::all_option_keys()
 {
     static const std::vector<std::string> keys = {
         "print_linewidth", "print_indent",           "maxlines_spaces",       "maxlines_tensors",
-        "check_fusion",    "default_tensor_backend", "default_block_backend",
+        "check_fusion",    "default_tensor_backend", "default_block_backend", "fusion_tree_eps",
     };
     return keys;
 }
@@ -177,8 +201,23 @@ CytenConfig::set_option(const std::string& key, int64 value)
     } else if (key == "maxlines_tensors") {
         check_min(value, 0, key);
         maxlines_tensors = value;
+    } else if (key == "fusion_tree_eps") {
+        set_option(key, static_cast<float64>(value));
     } else if (std::ranges::contains(all_option_keys(), key)) {
         throw py::type_error("Config option '" + key + "' is not an int");
+    } else {
+        throw py::key_error("Invalid config option: " + key);
+    }
+}
+
+void
+CytenConfig::set_option(const std::string& key, float64 value)
+{
+    if (key == "fusion_tree_eps") {
+        check_min(value, 0.0, key);
+        fusion_tree_eps = value;
+    } else if (std::ranges::contains(all_option_keys(), key)) {
+        throw py::type_error("Config option '" + key + "' is not a float");
     } else {
         throw py::key_error("Invalid config option: " + key);
     }
@@ -204,6 +243,8 @@ CytenConfig::set_option(const std::string& key, const std::string& value)
         set_option(key, parse_int64(value));
     } else if (key == "check_fusion") {
         set_option(key, coerce_bool(value));
+    } else if (key == "fusion_tree_eps") {
+        set_option(key, parse_float64(value));
     } else if (key == "default_tensor_backend") {
         static const std::vector<std::string> allowed = { "no_symmetry",
                                                           "abelian",
@@ -234,6 +275,8 @@ CytenConfig::update(py::dict options)
             set_option(key, py::cast<bool>(val));
         } else if (py::isinstance<py::int_>(val)) {
             set_option(key, py::cast<int64>(val));
+        } else if (py::isinstance<py::float_>(val)) {
+            set_option(key, py::cast<float64>(val));
         } else if (py::isinstance<py::str>(val)) {
             set_option(key, py::cast<std::string>(val));
         } else {
@@ -313,6 +356,8 @@ CytenConfig::get_option(const std::string& key) const
         return py::cast(default_tensor_backend);
     if (key == "default_block_backend")
         return py::cast(default_block_backend);
+    if (key == "fusion_tree_eps")
+        return py::cast(fusion_tree_eps);
     throw py::key_error("Invalid option name: " + key);
 }
 
@@ -382,6 +427,13 @@ set_option(const std::string& key, int64 value)
 
 void
 set_option(const std::string& key, bool value)
+{
+    get_config();
+    _global_config.set_option(key, value);
+}
+
+void
+set_option(const std::string& key, float64 value)
 {
     get_config();
     _global_config.set_option(key, value);

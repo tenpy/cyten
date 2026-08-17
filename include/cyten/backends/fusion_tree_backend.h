@@ -88,9 +88,6 @@ class FusionTreeBackend : public TensorBackend
     using Ptr = std::shared_ptr<FusionTreeBackend>;
     using CPtr = std::shared_ptr<const FusionTreeBackend>;
 
-    /// Numerical threshold for discarding near-zero blocks after topological moves.
-    float64 eps = 5.0e-14;
-
     /// Wrap ``FusionTreeData`` as abstract ``DataPtr``.
     static DataPtr wrap(FusionTreeData::Ptr d);
 
@@ -100,7 +97,7 @@ class FusionTreeBackend : public TensorBackend
     /// Read ``tensor.data`` as ``FusionTreeData``.
     static FusionTreeData::Ptr data_from_tensor(TensorCPtr tensor);
 
-    explicit FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend, float64 eps = 5.0e-14);
+    explicit FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend);
     ~FusionTreeBackend() override = default;
 
     bool can_decompose_tensors() const override { return true; }

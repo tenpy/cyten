@@ -13,6 +13,7 @@ from numpy import testing as npt
 from cyten import backends
 from cyten.backends import fusion_tree_backend, get_backend
 from cyten.block_backends.dtypes import Dtype
+from cyten.config import get_option
 from cyten.symmetries import (
     SU2,
     ElementarySpace,
@@ -1972,7 +1973,6 @@ def cross_check_single_c_symbol_tree_blocks(
     # This way, it is easier to understand the more compact and more efficient function
     ftb = fusion_tree_backend
     index = ten.get_leg_idcs(leg)[0]
-    backend = ten.backend
     block_backend = ten.backend.block_backend
     symmetry = ten.symmetry
 
@@ -2088,7 +2088,7 @@ def cross_check_single_c_symbol_tree_blocks(
                     b_unc[domain_index : domain_index + 2] = b_unc[domain_index : domain_index + 2][::-1]
                     b_in[domain_index - 1] = f
                     for (kap, lam), c in np.ndenumerate(cs):
-                        if abs(c) < backend.eps:
+                        if abs(c) < get_option('fusion_tree_eps'):
                             continue
                         b_mul[domain_index - 1] = kap
                         b_mul[domain_index] = lam
@@ -2125,14 +2125,14 @@ def cross_check_single_c_symbol_tree_blocks(
                     a_unc[index : index + 2] = a_unc[index : index + 2][::-1]
                     a_in[index - 1] = f
                     for (kap, lam), c in np.ndenumerate(cs):
-                        if abs(c) < backend.eps:
+                        if abs(c) < get_option('fusion_tree_eps'):
                             continue
                         a_mul[index - 1] = kap
                         a_mul[index] = lam
 
                         alpha_slice = new_codomain.tree_block_slice(a)
                         new_data.blocks[block_charge][alpha_slice, beta_slice] += c * tree_block
-    new_data.discard_zero_blocks(block_backend, backend.eps)
+    new_data.discard_zero_blocks(block_backend, get_option('fusion_tree_eps'))
     return new_data, new_codomain, new_domain
 
 
@@ -2147,7 +2147,6 @@ def cross_check_single_c_symbol_tree_cols(
     """
     ftb = fusion_tree_backend
     index = ten.get_leg_idcs(leg)[0]
-    backend = ten.backend
     block_backend = ten.backend.block_backend
     symmetry = ten.symmetry
 
@@ -2249,7 +2248,7 @@ def cross_check_single_c_symbol_tree_cols(
                 new_tree.uncoupled[index : index + 2] = new_tree.uncoupled[index : index + 2][::-1]
                 new_tree.inner_sectors[index - 1] = f
                 for (kap, lam), c in np.ndenumerate(cs):
-                    if abs(c) < backend.eps:
+                    if abs(c) < get_option('fusion_tree_eps'):
                         continue
                     new_tree.multiplicities[index - 1] = kap
                     new_tree.multiplicities[index] = lam
@@ -2263,7 +2262,7 @@ def cross_check_single_c_symbol_tree_cols(
                         new_data.blocks[block_charge][:, new_slc] += c * tree_block
                     else:
                         new_data.blocks[block_charge][new_slc, :] += c * tree_block
-    new_data.discard_zero_blocks(block_backend, backend.eps)
+    new_data.discard_zero_blocks(block_backend, get_option('fusion_tree_eps'))
     return new_data, new_codomain, new_domain
 
 
@@ -2277,7 +2276,6 @@ def cross_check_single_b_symbol(
     NOTE this function may be deleted at a later stage
     """
     ftb = fusion_tree_backend
-    backend = ten.backend
     block_backend = ten.backend.block_backend
     symmetry = ten.symmetry
 
@@ -2377,7 +2375,7 @@ def cross_check_single_b_symbol(
             b_sym *= symmetry.frobenius_schur(tree1.uncoupled[-1])
         mu = tree1.multiplicities[-1] if tree1.multiplicities.shape[0] > 0 else 0
         for nu in range(b_sym.shape[1]):
-            if abs(b_sym[mu, nu]) < backend.eps:
+            if abs(b_sym[mu, nu]) < get_option('fusion_tree_eps'):
                 continue
             new_tree2.multiplicities[-1] = nu
 
@@ -2395,7 +2393,7 @@ def cross_check_single_b_symbol(
                 beta_slice = new_domain.tree_block_slice(new_tree2)
 
             new_data.blocks[block_ind][alpha_slice, beta_slice] += b_sym[mu, nu] * tree_block
-    new_data.discard_zero_blocks(block_backend, backend.eps)
+    new_data.discard_zero_blocks(block_backend, get_option('fusion_tree_eps'))
     return new_data, new_codomain, new_domain
 
 
