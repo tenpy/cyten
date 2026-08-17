@@ -55,7 +55,7 @@ def dummy_function(obj):
     _dummy_function_arg_memo.append(obj)
 
 
-def gen_example_data(version=cyten.version.full_version):
+def gen_example_data(version=cyten.__version__):
     if '+' in version:
         version = version.split('+')[0]  # discard '+GITHASH' from version
     testU1 = U1_sym_test_tensor()
@@ -209,7 +209,7 @@ def get_datadir_filename(template='pickled_from_tenpy_{0}.pkl'):
     """Determine filename for export to `datadir`."""
     if not os.path.isdir(datadir):
         os.mkdir(datadir)
-    version = cyten.version.full_version
+    version = cyten.__version__
     fn = template.format(version)
     filename = os.path.join(datadir, fn)
     if os.path.exists(filename):
