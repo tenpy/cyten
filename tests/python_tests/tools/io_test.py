@@ -84,6 +84,9 @@ def assert_equal_data(data_imported, data_expected, max_recursion_depth=10):
         np.testing.assert_array_equal(data_imported, data_expected)
     elif isinstance(data_expected, (int, float, np.int64, np.float64, complex, str)):
         assert data_imported == data_expected
+    elif isinstance(data_expected, (cyten.symmetries.Symmetry, cyten.symmetries.SymmetryFactor)):
+        # Extra parameters (N, handedness, nu, ...) are part of equality.
+        assert data_imported == data_expected
     elif isinstance(data_expected, (types.FunctionType, type)):
         # global variables where no copy should be made
         assert data_imported is data_expected

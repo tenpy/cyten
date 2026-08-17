@@ -84,3 +84,141 @@ def test_import_from_datadir(fn):
         raise ValueError(f'Version not found in data: {data.keys()}')
     data_expected = io_test.gen_example_data(data['version'])
     io_test.assert_equal_data(data, data_expected)
+
+
+def _hdf5_roundtrip(obj, tmp_path, filename='sym.hdf5'):
+    path = tmp_path / filename
+    with h5py.File(str(path), 'w') as f:
+        hdf5_io.save_to_hdf5(f, obj)
+    with h5py.File(str(path), 'r') as f:
+        return hdf5_io.load_from_hdf5(f)
+
+
+def _with_descriptive_name(obj, name):
+    obj.descriptive_name = name
+    return obj
+
+
+def _symmetry_hdf5_cases():
+    S = cyten.symmetries
+    cases = [
+        ('NoSymmetry', S.NoSymmetry(), {}),
+        ('NoSymmetry named', _with_descriptive_name(S.NoSymmetry(), 'trivial'), {'descriptive_name': 'trivial'}),
+        ('U1', S.U1(), {}),
+        ('U1 named', S.U1('Sz'), {'descriptive_name': 'Sz'}),
+        ('U1 no trivial_shift', S.U1('N', False), {'descriptive_name': 'N', 'trivial_shift': False}),
+        ('ZN(2)', S.ZN(2), {'N': 2}),
+        ('ZN(3)', S.ZN(3), {'N': 3}),
+        ('ZN(5) named', S.ZN(5, 'mod5'), {'N': 5, 'descriptive_name': 'mod5'}),
+        ('ZN(7) no shift', S.ZN(7, 'bar', False), {'N': 7, 'descriptive_name': 'bar', 'trivial_shift': False}),
+        ('SU2', S.SU2(), {}),
+        ('SU2 named', S.SU2('spin'), {'descriptive_name': 'spin'}),
+        ('FermionNumber', S.FermionNumber(), {}),
+        ('FermionNumber named', S.FermionNumber('N_f', False), {'descriptive_name': 'N_f', 'trivial_shift': False}),
+        ('FermionParity', S.FermionParity(), {}),
+        ('FermionParity named', S.FermionParity('P', False), {'descriptive_name': 'P', 'trivial_shift': False}),
+        ('Fib left', S.FibonacciAnyonCategory('left'), {'handedness': 'left'}),
+        ('Fib right', S.FibonacciAnyonCategory('right'), {'handedness': 'right'}),
+        (
+            'Fib named',
+            _with_descriptive_name(S.FibonacciAnyonCategory('left'), 'fib'),
+            {'handedness': 'left', 'descriptive_name': 'fib'},
+        ),
+        ('Ising nu=1', S.IsingAnyonCategory(1), {'nu': 1}),
+        ('Ising nu=5', S.IsingAnyonCategory(5), {'nu': 5}),
+        # Constructor canonicalizes nu modulo 16 into [0, 16).
+        ('Ising nu=-3', S.IsingAnyonCategory(-3), {'nu': 13}),
+        (
+            'Ising named',
+            _with_descriptive_name(S.IsingAnyonCategory(3), 'ising'),
+            {'nu': 3, 'descriptive_name': 'ising'},
+        ),
+        ('SU2_k 4 left', S.SU2_kAnyonCategory(4, 'left'), {'k': 4, 'handedness': 'left'}),
+        ('SU2_k 3 right', S.SU2_kAnyonCategory(3, 'right'), {'k': 3, 'handedness': 'right'}),
+        (
+            'SU2_k named',
+            _with_descriptive_name(S.SU2_kAnyonCategory(2, 'left'), 'su2k'),
+            {'k': 2, 'handedness': 'left', 'descriptive_name': 'su2k'},
+        ),
+        ('SU3_3', S.SU3_3AnyonCategory(), {}),
+        ('SU3_3 named', _with_descriptive_name(S.SU3_3AnyonCategory(), 'su3_3'), {'descriptive_name': 'su3_3'}),
+        ('Toric', S.ToricCodeCategory(), {}),
+        ('Toric named', S.ToricCodeCategory('tc'), {'descriptive_name': 'tc'}),
+        ('ZNAnyon 3,1', S.ZNAnyonCategory(3, 1), {'N': 3, 'n': 1}),
+        ('ZNAnyon 5,2 named', S.ZNAnyonCategory(5, 2, 'any'), {'N': 5, 'n': 2, 'descriptive_name': 'any'}),
+        ('ZNAnyon2 4,1', S.ZNAnyonCategory2(4, 1), {'N': 4, 'n': 1}),
+        ('ZNAnyon2 6,5 named', S.ZNAnyonCategory2(6, 5, 'half'), {'N': 6, 'n': 5, 'descriptive_name': 'half'}),
+        ('QDZN 3', S.QuantumDoubleZNAnyonCategory(3), {'N': 3}),
+        ('QDZN 4 named', S.QuantumDoubleZNAnyonCategory(4, 'qd'), {'N': 4, 'descriptive_name': 'qd'}),
+        ('ZN.as_Symmetry', S.ZN(6).as_Symmetry(), {}),
+        ('U1.as_Symmetry named', S.U1('charge').as_Symmetry(), {}),
+        ('product ZN x U1', S.ZN(3, 'parity') * S.U1('Sz'), {}),
+        ('product Fib x U1', S.FibonacciAnyonCategory('right') * S.U1(), {}),
+        (
+            'product extra params',
+            S.ZN(5, 'mod5', False) * S.FibonacciAnyonCategory('left') * S.U1('Sz'),
+            {},
+        ),
+    ]
+    return [pytest.param(obj, attrs, id=case_id) for case_id, obj, attrs in cases]
+
+
+@pytest.mark.parametrize('obj,attrs', _symmetry_hdf5_cases())
+@pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
+def test_hdf5_symmetry_roundtrip(obj, attrs, tmp_path):
+    loaded = _hdf5_roundtrip(obj, tmp_path)
+    assert type(loaded) is type(obj)
+    assert loaded == obj
+    assert loaded.is_equivalent_to(obj)
+    for name, expected in attrs.items():
+        assert getattr(loaded, name) == expected
+    if isinstance(obj, cyten.symmetries.Symmetry):
+        assert loaded.num_factors == obj.num_factors
+        for f_loaded, f_orig in zip(loaded.factors, obj.factors, strict=True):
+            assert type(f_loaded) is type(f_orig)
+            assert f_loaded == f_orig
+            if hasattr(f_orig, 'N'):
+                assert f_loaded.N == f_orig.N
+            if hasattr(f_orig, 'n'):
+                assert f_loaded.n == f_orig.n
+            if hasattr(f_orig, 'handedness'):
+                assert f_loaded.handedness == f_orig.handedness
+            if hasattr(f_orig, 'nu'):
+                assert f_loaded.nu == f_orig.nu
+            if hasattr(f_orig, 'k'):
+                assert f_loaded.k == f_orig.k
+            assert f_loaded.descriptive_name == f_orig.descriptive_name
+            assert f_loaded.trivial_shift == f_orig.trivial_shift
+
+
+@pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
+def test_hdf5_symmetry_extra_params_are_distinguished(tmp_path):
+    S = cyten.symmetries
+    pairs = [
+        (S.ZN(3), S.ZN(4)),
+        (S.ZN(3, 'a'), S.ZN(3, 'b')),
+        (S.U1('Sz'), S.U1('N')),
+        (S.FibonacciAnyonCategory('left'), S.FibonacciAnyonCategory('right')),
+        (S.IsingAnyonCategory(1), S.IsingAnyonCategory(3)),
+        (S.SU2_kAnyonCategory(3, 'left'), S.SU2_kAnyonCategory(4, 'left')),
+        (S.SU2_kAnyonCategory(3, 'left'), S.SU2_kAnyonCategory(3, 'right')),
+        (S.ZNAnyonCategory(3, 1), S.ZNAnyonCategory(3, 2)),
+        (S.ZNAnyonCategory(4, 1), S.ZNAnyonCategory(5, 1)),
+        (S.ZNAnyonCategory2(4, 1), S.ZNAnyonCategory2(6, 1)),
+        (S.QuantumDoubleZNAnyonCategory(3), S.QuantumDoubleZNAnyonCategory(4)),
+        (S.ZN(2).as_Symmetry(), S.ZN(3).as_Symmetry()),
+        (S.ZN(3) * S.U1(), S.ZN(4) * S.U1()),
+        (S.FibonacciAnyonCategory('left') * S.U1(), S.FibonacciAnyonCategory('right') * S.U1()),
+    ]
+    data = {f'a{i}': a for i, (a, _) in enumerate(pairs)}
+    data.update({f'b{i}': b for i, (_, b) in enumerate(pairs)})
+    loaded = _hdf5_roundtrip(data, tmp_path, 'pairs.hdf5')
+    for i, (a, b) in enumerate(pairs):
+        assert a != b
+        la = loaded[f'a{i}']
+        lb = loaded[f'b{i}']
+        assert la == a
+        assert lb == b
+        assert la != lb
+        assert type(la) is type(a)
+        assert type(lb) is type(b)
