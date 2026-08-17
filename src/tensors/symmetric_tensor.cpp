@@ -2,7 +2,10 @@
 #include <cyten/tensors/helpers.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include <cyten/backends/abelian.h>
 #include <cyten/backends/backend_factory.h>
+#include <cyten/backends/fusion_tree_backend.h>
+#include <cyten/block_backend/torch.h>
 #include <cyten/tools.h>
 #include <cyten/warn.h>
 
@@ -795,7 +798,7 @@ SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
     auto symmetry = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
     auto backend = hdf5_loader.attr("load")(subpath + "backend").cast<TensorBackend::Ptr>();
     auto data = hdf5_loader.attr("load")(subpath + "data").cast<TensorBackend::DataPtr>();
-    auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
+    (void)hdf5_loader.attr("load")(subpath + "device"); // device follows loaded blocks / fallback
     auto dt = dtype::from_numpy_dtype(hdf5_loader.attr("load")(subpath + "dtype"));
     (void)hdf5_loader.attr("get_attr")(h5gr, "num_legs");
     auto shape = hdf5_loader.attr("get_attr")(h5gr, "shape").cast<std::vector<float64>>();
@@ -808,9 +811,19 @@ SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
 
     auto obj = std::make_shared<SymmetricTensor>(
       data, codomain, domain, backend, symmetry, std::move(labels));
-    // Constructor overwrites dtype/device from data; restore hdf5 values if needed
+    // Constructor sets dtype/device from data; restore dtype from hdf5. Device follows the
+    // loaded blocks, with Torch falling back if the saved device is unavailable.
     obj->dtype = dt;
-    obj->device = device;
+    obj->device = backend->get_device_from_data(data);
+    if (dynamic_cast<TorchBlockBackend*>(backend->block_backend.get()) != nullptr) {
+        obj->device = TorchBlockBackend::device_for_hdf5_load(
+          obj->device, backend->block_backend->default_device);
+        if (auto* abd = dynamic_cast<AbelianBackendData*>(data.get())) {
+            abd->device = obj->device;
+        } else if (auto* ftd = dynamic_cast<FusionTreeData*>(data.get())) {
+            ftd->device = obj->device;
+        }
+    }
     obj->shape = std::move(shape);
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;

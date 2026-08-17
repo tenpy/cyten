@@ -1,5 +1,6 @@
 #include <cyten/block_backend/torch.h>
 #include <cyten/tools.h>
+#include <cyten/warn.h>
 
 #include <map>
 #include <mutex>
@@ -7,6 +8,7 @@
 #include <optional>
 #include <span>
 #include <stdexcept>
+#include <string>
 #include <torch/torch.h>
 #include <type_traits>
 #include <variant>
@@ -78,6 +80,37 @@ tensor_from_py_object(py::object a)
         return tensor_from_numpy_array(py::reinterpret_borrow<py::array>(a));
     py::module_ np = py::module_::import("numpy");
     return tensor_from_numpy_array(np.attr("asarray")(a).cast<py::array>());
+}
+
+torch::Device
+canonicalize_torch_device(std::string const& device)
+{
+    torch::Device d(device);
+    if (!d.has_index())
+        d = torch::Device(d.type(), /*index=*/0);
+    return d;
+}
+
+bool
+torch_device_is_available(torch::Device const& d)
+{
+    if (d.is_cpu())
+        return true;
+    if (d.is_cuda()) {
+        if (!torch::cuda::is_available())
+            return false;
+        auto const idx = d.has_index() ? d.index() : static_cast<c10::DeviceIndex>(0);
+        return idx >= 0 && idx < static_cast<c10::DeviceIndex>(torch::cuda::device_count());
+    }
+    // MPS / XPU / privateuse1 / ...: probe with an empty allocation.
+    try {
+        (void)torch::empty({ 0 }, torch::TensorOptions().device(d));
+        return true;
+    } catch (std::exception const&) {
+        return false;
+    } catch (...) {
+        return false;
+    }
 }
 
 } // namespace
@@ -467,6 +500,7 @@ TorchBlockBackend::Block::save_hdf5(py::object hdf5_saver,
                                     const std::string& subpath)
 {
     hdf5_saver.attr("save")(to_numpy(), subpath + std::string("arr"));
+    hdf5_saver.attr("save")(device_, subpath + std::string("device"));
 }
 
 std::shared_ptr<TorchBlockBackend::Block>
@@ -475,7 +509,18 @@ TorchBlockBackend::Block::from_hdf5(py::object hdf5_loader,
                                     const std::string& subpath)
 {
     py::array arr = hdf5_loader.attr("load")(subpath + std::string("arr")).cast<py::array>();
-    auto obj = std::make_shared<TorchBlockBackend::Block>(tensor_from_numpy_array(arr));
+    // Older files omit device; treat as factory default (cpu).
+    std::string saved_device;
+    try {
+        saved_device =
+          hdf5_loader.attr("load")(subpath + std::string("device")).cast<std::string>();
+    } catch (py::error_already_set&) {
+        PyErr_Clear();
+        saved_device.clear();
+    }
+    std::string device = device_for_hdf5_load(saved_device);
+    torch::Tensor t = tensor_from_numpy_array(arr).to(canonicalize_torch_device(device));
+    auto obj = std::make_shared<TorchBlockBackend::Block>(std::move(t));
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }
@@ -660,6 +705,29 @@ TorchBlockBackend::TorchBlockBackend(const std::string& default_device_in)
 }
 
 std::string
+TorchBlockBackend::device_for_hdf5_load(std::string const& device,
+                                        std::optional<std::string> fallback)
+{
+    std::string fallback_device = fallback.has_value() ? canonicalize_torch_device(*fallback).str()
+                                                       : from_factory_shared()->default_device;
+    if (device.empty())
+        return fallback_device;
+    try {
+        torch::Device d = canonicalize_torch_device(device);
+        if (torch_device_is_available(d))
+            return d.str();
+    } catch (std::exception const&) {
+        // Invalid device string → fall back below.
+    } catch (...) {
+    }
+    if (device != fallback_device) {
+        warn("Torch HDF5 load: device '" + device + "' is not available; falling back to '" +
+             fallback_device + "'");
+    }
+    return fallback_device;
+}
+
+std::string
 TorchBlockBackend::get_backend_name() const
 {
     return "TorchBlockBackend";
@@ -670,7 +738,7 @@ TorchBlockBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, const std:
 {
     std::string device =
       hdf5_loader.attr("load")(subpath + std::string("default_device")).cast<std::string>();
-    auto obj = TorchBlockBackend::from_factory_shared(device);
+    auto obj = TorchBlockBackend::from_factory_shared(device_for_hdf5_load(device));
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }

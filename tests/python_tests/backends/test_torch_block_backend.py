@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import textwrap
+import warnings
 
 import numpy as np
 import pytest
@@ -69,6 +70,56 @@ def test_torch_block_getitem_setitem_slice_and_index_array():
     s = block[1, 2]
     assert isinstance(s, BlockBackend.Scalar)
     assert s.as_float64() == 6.0
+
+
+@pytest.mark.torch
+def test_torch_block_hdf5_preserves_device(tmp_path):
+    h5py = pytest.importorskip('h5py')
+    from cyten.tools import hdf5_io
+
+    bb = TorchBlockBackend.from_factory('cpu:0')
+    block = bb.zeros([2, 3], Dtype.float64)
+    path = tmp_path / 'torch_block.hdf5'
+    with h5py.File(str(path), 'w') as f:
+        hdf5_io.save_to_hdf5(f, {'block': block, 'backend': bb})
+    with h5py.File(str(path), 'r') as f:
+        loaded = hdf5_io.load_from_hdf5(f)
+    assert loaded['backend'].default_device == 'cpu:0'
+    assert loaded['block'].device == 'cpu:0'
+    np.testing.assert_array_equal(bb.to_numpy(loaded['block']), bb.to_numpy(block))
+
+
+@pytest.mark.torch
+def test_torch_hdf5_falls_back_when_device_unavailable(tmp_path):
+    """Saved CUDA devices must load on CPU when no GPU is present."""
+    h5py = pytest.importorskip('h5py')
+    import torch
+
+    from cyten.tools import hdf5_io
+
+    bb = TorchBlockBackend.from_factory('cpu:0')
+    block = bb.block_from_numpy(np.arange(6, dtype=np.float64).reshape(2, 3))
+    path = tmp_path / 'torch_fallback.hdf5'
+    with h5py.File(str(path), 'w') as f:
+        hdf5_io.save_to_hdf5(f, {'block': block, 'backend': bb})
+
+    # Rewrite device fields as if the file came from a GPU node.
+    with h5py.File(str(path), 'r+') as f:
+        f['block/device'][()] = np.bytes_('cuda:3')
+        f['backend/default_device'][()] = np.bytes_('cuda:3')
+
+    if torch.cuda.is_available() and torch.cuda.device_count() > 3:
+        pytest.skip('cuda:3 is available; cannot test fallback')
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter('always')
+        with h5py.File(str(path), 'r') as f:
+            loaded = hdf5_io.load_from_hdf5(f)
+
+    assert loaded['block'].device == 'cpu:0'
+    assert loaded['backend'].default_device == 'cpu:0'
+    np.testing.assert_array_equal(bb.to_numpy(loaded['block']), np.arange(6, dtype=np.float64).reshape(2, 3))
+    assert any('not available' in str(w.message) for w in caught)
 
 
 @pytest.mark.torch
