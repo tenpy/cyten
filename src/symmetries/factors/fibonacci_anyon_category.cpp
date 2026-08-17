@@ -294,6 +294,7 @@ FibonacciAnyonCategory::from_hdf5(py::object hdf5_loader,
 {
     std::string handedness = hdf5_loader.attr("load")(subpath + "handedness").cast<std::string>();
     auto obj = std::make_shared<FibonacciAnyonCategory>(handedness);
+    obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }

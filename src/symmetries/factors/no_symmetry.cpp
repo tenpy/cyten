@@ -93,6 +93,7 @@ NoSymmetry::Ptr
 NoSymmetry::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& /*subpath*/)
 {
     auto obj = std::make_shared<NoSymmetry>();
+    obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }

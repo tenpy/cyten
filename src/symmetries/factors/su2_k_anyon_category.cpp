@@ -383,6 +383,7 @@ SU2_kAnyonCategory::from_hdf5(py::object hdf5_loader, py::object h5gr, std::stri
     int k = hdf5_loader.attr("load")(subpath + "k").cast<int>();
     std::string handedness = hdf5_loader.attr("load")(subpath + "handedness").cast<std::string>();
     auto obj = std::make_shared<SU2_kAnyonCategory>(k, handedness);
+    obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }

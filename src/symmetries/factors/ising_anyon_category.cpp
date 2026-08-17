@@ -355,6 +355,7 @@ IsingAnyonCategory::from_hdf5(py::object hdf5_loader, py::object h5gr, std::stri
 {
     int nu = hdf5_loader.attr("load")(subpath + "nu").cast<int>();
     auto obj = std::make_shared<IsingAnyonCategory>(nu);
+    obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }
