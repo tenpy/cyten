@@ -54,6 +54,7 @@ bind_config(py::module_& m)
       .def_readonly("check_fusion", &CytenConfig::check_fusion)
       .def_readonly("default_tensor_backend", &CytenConfig::default_tensor_backend)
       .def_readonly("default_block_backend", &CytenConfig::default_block_backend)
+      .def_readonly("fusion_tree_eps", &CytenConfig::fusion_tree_eps)
       .def_static(
         "all_option_keys", &CytenConfig::all_option_keys, "Names of all recognized config options")
       .def_static("env_var_name",
@@ -66,6 +67,10 @@ bind_config(py::module_& m)
            py::arg("value"))
       .def("set_option",
            py::overload_cast<const std::string&, int64>(&CytenConfig::set_option),
+           py::arg("key"),
+           py::arg("value"))
+      .def("set_option",
+           py::overload_cast<const std::string&, float64>(&CytenConfig::set_option),
            py::arg("key"),
            py::arg("value"))
       .def("set_option",
