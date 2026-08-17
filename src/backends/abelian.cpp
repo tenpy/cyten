@@ -855,16 +855,6 @@ AbelianBackend::zero_mask_data(Space::Ptr /*large_leg*/, std::string device)
     return wrap(make_data(Dtype::Bool, std::move(device), {}, zeros_i64(0, 2), true));
 }
 
-AbelianBackend::Ptr
-AbelianBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath)
-{
-    auto obj = std::make_shared<AbelianBackend>(nullptr);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
-    obj->block_backend =
-      hdf5_loader.attr("load")(subpath + "block_backend").cast<std::shared_ptr<BlockBackend>>();
-    return obj;
-}
-
 BlockInds
 AbelianBackend::leg_pipe_map_incoming_block_inds(AbelianLegPipe const& pipe,
                                                  BlockInds const& incoming_block_inds) const

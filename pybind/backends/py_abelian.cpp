@@ -231,13 +231,6 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       Returns ``data, codomain, domain``.
       )pydoc");
 
-    // Override static from_hdf5 (base throws NotImplemented).
-    cls.def_static("from_hdf5",
-                   &AbelianBackend::from_hdf5,
-                   py::arg("hdf5_loader"),
-                   py::arg("h5gr"),
-                   py::arg("subpath"));
-
     // Expose under both the C++ name and the Python private name.
     m.def("valid_block_inds",
           &valid_block_inds,

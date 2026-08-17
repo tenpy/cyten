@@ -258,10 +258,16 @@ TensorBackend::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string sub
 }
 
 TensorBackend::Ptr
-TensorBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath)
+TensorBackend::from_hdf5(py::object cls,
+                         py::object hdf5_loader,
+                         py::object h5gr,
+                         std::string subpath)
 {
-    // Concrete backends construct the appropriate subclass; base cannot be instantiated.
-    throw NotImplemented("TensorBackend::from_hdf5");
+    auto block_backend =
+      hdf5_loader.attr("load")(subpath + "block_backend").cast<std::shared_ptr<BlockBackend>>();
+    py::object obj = cls(block_backend);
+    hdf5_loader.attr("memorize_load")(h5gr, obj);
+    return obj.cast<Ptr>();
 }
 
 std::vector<Leg::Ptr>

@@ -427,7 +427,11 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
 
     virtual void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string subpath);
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath);
+    /// Reconstruct a concrete backend. Bound as a Python classmethod so `cls` is the saved type.
+    static Ptr from_hdf5(py::object cls,
+                         py::object hdf5_loader,
+                         py::object h5gr,
+                         std::string subpath);
 };
 
 /// The conventional order of legs: ``[*codomain.factors, *reversed(domain.factors)]``.

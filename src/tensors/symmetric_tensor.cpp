@@ -793,7 +793,7 @@ SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
     auto domain = hdf5_loader.attr("load")(subpath + "domain").cast<TensorProduct::Ptr>();
     auto codomain = hdf5_loader.attr("load")(subpath + "codomain").cast<TensorProduct::Ptr>();
     auto symmetry = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto backend = get_backend(py::cast(symmetry), py::cast("numpy")).cast<TensorBackend::Ptr>();
+    auto backend = hdf5_loader.attr("load")(subpath + "backend").cast<TensorBackend::Ptr>();
     auto data = hdf5_loader.attr("load")(subpath + "data").cast<TensorBackend::DataPtr>();
     auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
     auto dt = dtype::from_numpy_dtype(hdf5_loader.attr("load")(subpath + "dtype"));
