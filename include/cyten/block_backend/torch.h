@@ -99,6 +99,14 @@ class TorchBlockBackend : public BlockBackend
     static std::shared_ptr<TorchBlockBackend> from_factory_shared(
       const std::string& device = "cpu:0");
 
+    /// Map an HDF5-saved device string to one that is usable on this machine.
+    ///
+    /// If ``device`` is available, return its canonical form (e.g. ``cuda:0``).
+    /// Otherwise fall back to ``fallback`` (default: factory default, typically ``cpu:0``)
+    /// and emit a UserWarning.
+    static std::string device_for_hdf5_load(std::string const& device,
+                                            std::optional<std::string> fallback = std::nullopt);
+
   protected:
     explicit TorchBlockBackend(const std::string& default_device);
 

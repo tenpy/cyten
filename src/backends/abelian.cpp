@@ -129,6 +129,11 @@ AbelianBackendData::from_hdf5(py::object hdf5_loader, py::object h5gr, std::stri
     py::object dt = hdf5_loader.attr("load")(subpath + "dtype");
     Dtype dtype = dtype::from_numpy_dtype(dt);
 
+    // Blocks may have fallen back to another device (e.g. GPU → CPU); keep Data in sync.
+    if (!blocks.empty()) {
+        device = blocks.front()->device();
+    }
+
     auto obj = std::make_shared<AbelianBackendData>(
       dtype, std::move(device), std::move(blocks), std::move(block_inds), /*is_sorted=*/true);
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));

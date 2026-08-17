@@ -137,6 +137,11 @@ FusionTreeData::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string s
     auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
     auto dtype = hdf5_loader.attr("load")(subpath + "dtype").cast<Dtype>();
 
+    // Blocks may have fallen back to another device (e.g. GPU → CPU); keep Data in sync.
+    if (!blocks.empty()) {
+        device = blocks.front()->device();
+    }
+
     // Already sorted when saved; skip lexsort.
     auto obj = std::make_shared<FusionTreeData>(
       std::move(block_inds), std::move(blocks), dtype, std::move(device), /*is_sorted=*/true);

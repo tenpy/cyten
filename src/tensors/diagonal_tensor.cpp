@@ -1,7 +1,9 @@
 #include <cyten/tensors/diagonal_tensor.h>
 
+#include <cyten/backends/abelian.h>
 #include <cyten/backends/backend_factory.h>
 #include <cyten/backends/fusion_tree_backend.h>
+#include <cyten/block_backend/torch.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/tools.h>
 #include <cyten/warn.h>
@@ -796,7 +798,7 @@ DiagonalTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string c
     auto symmetry = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
     auto backend = hdf5_loader.attr("load")(subpath + "backend").cast<TensorBackend::Ptr>();
     auto data = hdf5_loader.attr("load")(subpath + "data").cast<TensorBackend::DataPtr>();
-    auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
+    (void)hdf5_loader.attr("load")(subpath + "device"); // device follows loaded blocks / fallback
     auto dt = dtype::from_numpy_dtype(hdf5_loader.attr("load")(subpath + "dtype"));
     auto labels = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
     int64 nlegs = codomain->num_factors + domain->num_factors;
@@ -807,7 +809,17 @@ DiagonalTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string c
     auto obj = std::make_shared<DiagonalTensor>(
       data, as_space(codomain->factors[0]), backend, symmetry, std::move(labels));
     obj->dtype = dt;
-    obj->device = std::move(device);
+    // Device follows the loaded blocks, with Torch falling back if unavailable.
+    obj->device = backend->get_device_from_data(data);
+    if (dynamic_cast<TorchBlockBackend*>(backend->block_backend.get()) != nullptr) {
+        obj->device = TorchBlockBackend::device_for_hdf5_load(
+          obj->device, backend->block_backend->default_device);
+        if (auto* abd = dynamic_cast<AbelianBackendData*>(data.get())) {
+            abd->device = obj->device;
+        } else if (auto* ftd = dynamic_cast<FusionTreeData*>(data.get())) {
+            ftd->device = obj->device;
+        }
+    }
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }
@@ -892,6 +904,14 @@ Identity::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& 
     auto labels = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
     if (labels.empty()) {
         labels.assign(2, std::nullopt);
+    }
+
+    // Resolve via the block backend when possible (Torch falls back if device missing).
+    if (dynamic_cast<TorchBlockBackend*>(backend->block_backend.get()) != nullptr) {
+        device =
+          TorchBlockBackend::device_for_hdf5_load(device, backend->block_backend->default_device);
+    } else {
+        device = backend->block_backend->as_device(device);
     }
 
     auto obj = std::make_shared<Identity>(
