@@ -155,12 +155,8 @@ class TensorLinearOperator(LinearOperator):
 class LinearOperatorWrapper(LinearOperator):
     """Base class for wrapping around another :class:`LinearOperator`.
 
-    Attributes which are not explicitly set, e.g. via `self.attribute = value` or by
-    defining methods default to the attributes of the `original_operator`.
-
-    This behavior is particularly useful when wrapping some concrete subclass of :class:`LinearOperator`,
-    which defines additional attributes.
-    Using this base class, we can define the wrappers below without considering those extra attributes.
+    The wrapped operator is stored as :attr:`original_operator`.
+    Use :meth:`unwrapped` to recover the innermost operator.
 
     .. warning ::
         If there are multiple levels of wrapping operators, the order might be critical to get
@@ -181,11 +177,6 @@ class LinearOperatorWrapper(LinearOperator):
             vector_labels=original_operator.vector_labels,
         )
         self.original_operator = original_operator
-
-    def __getattr__(self, name):
-        # note: __getattr__ (unlike __getattribute__) is only called if the attribute is not
-        #       found in the __dict__, so it is the fallback for attributes that are not explicitly set.
-        return getattr(self.original_operator, name)
 
     def unwrapped(self, recursive: bool = True) -> LinearOperator:
         """Return the original :class:`LinearOperator`

@@ -24,10 +24,6 @@ class ScalingDummyOperator(sparse.LinearOperator):
     def __init__(self, factor, vector_legs, vector_labels=None):
         super().__init__(vector_legs=vector_legs, dtype=Dtype.complex128, vector_labels=vector_labels)
         self.factor = factor
-        self.some_weird_attribute = 'arbitrary value'
-
-    def some_unrelated_function(self, x):
-        return 2 * x
 
     def matvec(self, vec: Tensor) -> Tensor:
         return self.factor * vec
@@ -50,10 +46,6 @@ class TensorDummyOperator(sparse.LinearOperator):
             vector_labels=acts_on,
         )
         self.tensor = tensor
-        self.some_weird_attribute = 42
-
-    def some_unrelated_function(self, x):
-        return 'buzz'
 
     def matvec(self, vec: Tensor) -> Tensor:
         return tdot(self.tensor, vec, ['b*', 'a*'], ['b', 'a'])
@@ -110,8 +102,6 @@ def test_SumLinearOperator(make_compatible_tensor):
     print('single operator')
     op = sparse.SumLinearOperator(op1)
     assert almost_equal(op.matvec(vec), factor1 * vec)
-    assert op.some_weird_attribute == 'arbitrary value'
-    assert op.some_unrelated_function(2) == 4
     check_to_tensor(op, vec)
 
     print('two operators')
@@ -119,15 +109,11 @@ def test_SumLinearOperator(make_compatible_tensor):
         return
     op = sparse.SumLinearOperator(op2, op1)
     assert almost_equal(op.matvec(vec), factor1 * vec + tdot(T, vec, ['b*', 'a*'], ['b', 'a']))
-    assert op.some_weird_attribute == 42
-    assert op.some_unrelated_function(2) == 'buzz'
     check_to_tensor(op, vec)
 
     print('three operators')
     op = sparse.SumLinearOperator(op1, op2, op3)
     assert almost_equal(op.matvec(vec), (factor1 + factor3) * vec + tdot(T, vec, ['b*', 'a*'], ['b', 'a']))
-    assert op.some_weird_attribute == 'arbitrary value'
-    assert op.some_unrelated_function(2) == 4
     check_to_tensor(op, vec)
 
 
@@ -139,8 +125,6 @@ def test_ShiftedLinearOperator(make_compatible_tensor):
 
     op = sparse.ShiftedLinearOperator(op1, shift)
     assert almost_equal(op.matvec(vec), (factor + shift) * vec)
-    assert op.some_weird_attribute == 'arbitrary value'
-    assert op.some_unrelated_function(2) == 4
     check_to_tensor(op, vec)
 
 
@@ -176,9 +160,6 @@ def test_ProjectedLinearOperator(make_compatible_tensor, penalty, project_operat
     expect = original_op.matvec(vec1)
     res = projected_op.matvec(vec1)
     assert almost_equal(res, expect)
-
-    assert projected_op.some_weird_attribute == 'arbitrary value'
-    assert projected_op.some_unrelated_function(2) == 4
 
     check_to_tensor(projected_op, vec)
 
