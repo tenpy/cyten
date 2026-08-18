@@ -82,7 +82,7 @@ class ChargedTensor : public Tensor
       float64 tol = 1e-6,
       bool understood_braiding = false);
 
-    /// Not implemented (matches Python).
+    /// Inverse of :meth:`to_dense_block_single_sector` (qdim == 1 only).
     [[nodiscard]] static Ptr from_dense_block_single_sector(
       BlockBackend::BlockPtr vector,
       Leg::Ptr space,

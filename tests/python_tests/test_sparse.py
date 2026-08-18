@@ -4,20 +4,25 @@
 import numpy as np
 import numpy.testing as npt
 import pytest
-import scipy
 
-from cyten import Dtype, backends, get_backend, sparse, tensors
-from cyten.tensors import SymmetricTensor, Tensor, almost_equal
-
-pytest.skip('sparse not yet revised', allow_module_level=True)  # TODO
-
+from cyten import Dtype, SymmetryError, backends, sparse, tensors
+from cyten.symmetries import TensorProduct
+from cyten.tensors import (
+    ChargedTensor,
+    SymmetricTensor,
+    Tensor,
+    almost_equal,
+    inner,
+    norm,
+    tdot,
+)
 
 # define a few simple operators to test the wrappers:
 
 
 class ScalingDummyOperator(sparse.LinearOperator):
-    def __init__(self, factor, vector_shape):
-        super().__init__(vector_shape=vector_shape, dtype=Dtype.complex128)
+    def __init__(self, factor, vector_legs, vector_labels=None):
+        super().__init__(vector_legs=vector_legs, dtype=Dtype.complex128, vector_labels=vector_labels)
         self.factor = factor
         self.some_weird_attribute = 'arbitrary value'
 
@@ -29,126 +34,129 @@ class ScalingDummyOperator(sparse.LinearOperator):
 
     def to_tensor(self, backend=None) -> Tensor:
         assert backend is not None, 'backend kwarg is needed for ScalingDummyOperator.to_tensor'
-        return self.factor * SymmetricTensor.eye(
-            legs=self.vector_shape.legs, backend=backend, labels=self.vector_shape.labels
-        )
+        return self.factor * SymmetricTensor.from_eye(self.vector_legs, backend=backend, labels=self.vector_labels)
 
     def adjoint(self):
-        return ScalingDummyOperator(np.conj(self.factor), self.vector_shape)
+        return ScalingDummyOperator(np.conj(self.factor), self.vector_legs, self.vector_labels)
 
 
-# class TensorDummyOperator(sparse.LinearOperator):
-#     def __init__(self, tensor: SymmetricTensor):
-#         assert tensor.labels == ['a', 'b*', 'a*', 'b']
-#         acts_on = ['a', 'b']
-#         # TODO should we be strict about num_domain_legs here?
-#         vector_shape = Shape(legs=tensor.get_legs(acts_on), num_domain_legs=0, labels=acts_on)
-#         super().__init__(vector_shape=vector_shape, dtype=tensor.dtype)
-#         self.tensor = tensor
-#         self.some_weird_attribute = 42
+class TensorDummyOperator(sparse.LinearOperator):
+    def __init__(self, tensor: SymmetricTensor):
+        assert tensor.labels == ['a', 'b', 'b*', 'a*']
+        acts_on = ['a', 'b']
+        super().__init__(
+            vector_legs=tensor.get_leg(acts_on),
+            dtype=tensor.dtype,
+            vector_labels=acts_on,
+        )
+        self.tensor = tensor
+        self.some_weird_attribute = 42
 
-#     def some_unrelated_function(self, x):
-#         return 'buzz'
+    def some_unrelated_function(self, x):
+        return 'buzz'
 
-#     def matvec(self, vec: Tensor) -> Tensor:
-#         return self.tensor.tdot(vec, ['a*', 'b*'], ['a', 'b'])
+    def matvec(self, vec: Tensor) -> Tensor:
+        return tdot(self.tensor, vec, ['b*', 'a*'], ['b', 'a'])
 
-#     def to_tensor(self, **kw) -> Tensor:
-#         return self.tensor.permute_legs(['a', 'b', 'b*', 'a*'])
+    def to_tensor(self, **kw) -> Tensor:
+        return self.tensor
 
-#     def adjoint(self):
-#         return TensorDummyOperator(self.tensor.conj())
+    def adjoint(self):
+        return TensorDummyOperator(self.tensor.dagger)
 
 
 def check_to_tensor(op: sparse.LinearOperator, vec: Tensor):
     """perform common checks of the LinearOperator.to_tensor method"""
     res_matvec = op.matvec(vec)
+    if not vec.symmetry.has_trivial_braid:
+        return
     tensor = op.to_tensor(backend=vec.backend)
     _ = op.to_matrix(backend=vec.backend)  # just check if it runs...
-    res_tensor = tensor.tdot(vec, range(vec.num_legs, 2 * vec.num_legs), reversed(range(vec.num_legs)))
+    N = vec.num_legs
+    res_tensor = tdot(tensor, vec, list(range(N, 2 * N)), list(reversed(range(N))))
     assert almost_equal(res_matvec, res_tensor)
 
 
+def test_TensorLinearOperator(make_compatible_tensor):
+    vec = make_compatible_tensor(codomain=1, labels=['v'], use_pipes=False)
+    leg = vec.legs[0]
+    H = make_compatible_tensor(codomain=[leg], domain=[leg], labels=['w', 'v'], use_pipes=False)
+
+    op = sparse.TensorLinearOperator(H)
+    assert almost_equal(op.matvec(vec), tdot(H, vec, [1], [0]))
+    check_to_tensor(op, vec)
+
+    adj = op.adjoint()
+    assert almost_equal(adj.matvec(vec), tdot(H.dagger, vec, [1], [0]))
+
+    H_h = H + H.dagger
+    hop = sparse.TensorLinearOperator(H_h)
+    assert almost_equal(hop.matvec(vec), hop.adjoint().matvec(vec))
+    mat = hop.to_matrix(backend=vec.backend)
+    assert mat.num_legs == 2
+
+
 def test_SumLinearOperator(make_compatible_tensor):
-    vec = make_compatible_tensor(labels=['a', 'b'])
-    # a, b = vec.legs
-    # T = make_compatible_tensor(legs=[a, b.dual, a.dual, b], labels=['a', 'b*', 'a*', 'b'])
+    vec = make_compatible_tensor(codomain=['a', 'b'], use_pipes=False)
+    a, b = vec.legs
+    T = make_compatible_tensor(codomain=[a, b], domain=[a, b], labels=['a', 'b', 'b*', 'a*'], use_pipes=False)
 
-    # factor1 = 2.4
-    # factor3 = 3.1 - 42.j
-    # op1 = ScalingDummyOperator(factor1, vec.shape)
-    # op2 = TensorDummyOperator(T)
-    # op3 = ScalingDummyOperator(factor3, vec.shape)
+    factor1 = 2.4
+    factor3 = 3.1 - 42.0j
+    op1 = ScalingDummyOperator(factor1, vec.legs, vec.labels)
+    op2 = TensorDummyOperator(T)
+    op3 = ScalingDummyOperator(factor3, vec.legs, vec.labels)
 
-    # print('single operator')
-    # op = sparse.SumLinearOperator(op1)
-    # # check matvec correct
+    print('single operator')
+    op = sparse.SumLinearOperator(op1)
+    assert almost_equal(op.matvec(vec), factor1 * vec)
+    assert op.some_weird_attribute == 'arbitrary value'
+    assert op.some_unrelated_function(2) == 4
+    check_to_tensor(op, vec)
 
-    # assert almost_equal(op.matvec(vec), factor1 *  vec)
-    # # check access to attributes of original_operator
-    # assert op.some_weird_attribute == 'arbitrary value'
-    # assert op.some_unrelated_function(2) == 4
+    print('two operators')
+    if not vec.symmetry.has_trivial_braid:
+        return
+    op = sparse.SumLinearOperator(op2, op1)
+    assert almost_equal(op.matvec(vec), factor1 * vec + tdot(T, vec, ['b*', 'a*'], ['b', 'a']))
+    assert op.some_weird_attribute == 42
+    assert op.some_unrelated_function(2) == 'buzz'
+    check_to_tensor(op, vec)
 
-    # if isinstance(T.backend, backends.FusionTreeBackend):
-    #     with pytest.raises(NotImplementedError, match='permute_legs not implemented|combine_legs not implemented'):
-    #         check_to_tensor(op, vec)
-    #     return  # TODO
-
-    # check_to_tensor(op, vec)
-
-    # print('two operators')
-    # op = sparse.SumLinearOperator(op2, op1)
-    # assert almost_equal(op.matvec(vec), factor1 *  vec + T.tdot(vec, ['a*', 'b*'], ['a', 'b']))
-    # assert op.some_weird_attribute == 42
-    # assert op.some_unrelated_function(2) == 'buzz'
-    # check_to_tensor(op, vec)
-
-    # print('three operators')
-    # op = sparse.SumLinearOperator(op1, op2, op3)
-    # assert almost_equal(op.matvec(vec), (factor1 + factor3) * vec + T.tdot(vec, ['a*', 'b*'], ['a', 'b']))
-    # assert op.some_weird_attribute == 'arbitrary value'
-    # assert op.some_unrelated_function(2) == 4
-    # check_to_tensor(op, vec)
+    print('three operators')
+    op = sparse.SumLinearOperator(op1, op2, op3)
+    assert almost_equal(op.matvec(vec), (factor1 + factor3) * vec + tdot(T, vec, ['b*', 'a*'], ['b', 'a']))
+    assert op.some_weird_attribute == 'arbitrary value'
+    assert op.some_unrelated_function(2) == 4
+    check_to_tensor(op, vec)
 
 
 def test_ShiftedLinearOperator(make_compatible_tensor):
-    vec = make_compatible_tensor(labels=['a', 'b'])
+    vec = make_compatible_tensor(codomain=['a', 'b'], use_pipes=False)
     factor = 3.2
-    op1 = ScalingDummyOperator(factor=factor, vector_shape=vec.shape)
+    op1 = ScalingDummyOperator(factor=factor, vector_legs=vec.legs, vector_labels=vec.labels)
     shift = 5.0j
 
     op = sparse.ShiftedLinearOperator(op1, shift)
     assert almost_equal(op.matvec(vec), (factor + shift) * vec)
     assert op.some_weird_attribute == 'arbitrary value'
     assert op.some_unrelated_function(2) == 4
-
-    if isinstance(vec.backend, backends.FusionTreeBackend):
-        with pytest.raises(NotImplementedError, match='combine_legs not implemented'):
-            check_to_tensor(op, vec)
-        return  # TODO
-
     check_to_tensor(op, vec)
 
 
 @pytest.mark.parametrize(['penalty', 'project_operator'], [(None, True), (2.0 - 0.3j, True), (-4, False)])
 def test_ProjectedLinearOperator(make_compatible_tensor, penalty, project_operator):
-    vec = make_compatible_tensor(labels=['a', 'b'])
-    a, b = vec.legs
-    o1 = make_compatible_tensor(legs=[a, b], labels=['a', 'b'])
-    assert (o1_norm := o1.norm()) > 0
+    vec = make_compatible_tensor(codomain=['a', 'b'], use_pipes=False)
+    o1 = make_compatible_tensor(like=vec, use_pipes=False)
+    assert (o1_norm := norm(o1)) > 0
     o1 = o1 / o1_norm
-    o2 = make_compatible_tensor(legs=[a, b], labels=['a', 'b'])
+    o2 = make_compatible_tensor(like=vec, use_pipes=False)
 
-    if isinstance(vec.backend, backends.FusionTreeBackend):
-        with pytest.raises(NotImplementedError, match='inner not implemented'):
-            o2 = o2 - o1.inner(o2) * o1
-        return  # TODO
-
-    o2 = o2 - o1.inner(o2) * o1
-    assert (o2_norm := o2.norm()) > 0
+    o2 = o2 - inner(o1, o2) * o1
+    assert (o2_norm := norm(o2)) > 0
     o2 = o2 / o2_norm
     factor = 3.2
-    original_op = ScalingDummyOperator(factor=factor, vector_shape=o1.shape)
+    original_op = ScalingDummyOperator(factor=factor, vector_legs=o1.legs, vector_labels=o1.labels)
 
     projected_op = sparse.ProjectedLinearOperator(
         original_op, [o1, o2], project_operator=project_operator, penalty=penalty
@@ -164,7 +172,7 @@ def test_ProjectedLinearOperator(make_compatible_tensor, penalty, project_operat
     assert almost_equal(projected_op.matvec(o1), expect)
 
     print('check vector orthogonal to ortho_vecs')
-    vec1 = vec - o1.inner(vec) * o1 - o2.inner(vec) * o2
+    vec1 = vec - inner(o1, vec) * o1 - inner(o2, vec) * o2
     expect = original_op.matvec(vec1)
     res = projected_op.matvec(vec1)
     assert almost_equal(res, expect)
@@ -172,67 +180,115 @@ def test_ProjectedLinearOperator(make_compatible_tensor, penalty, project_operat
     assert projected_op.some_weird_attribute == 'arbitrary value'
     assert projected_op.some_unrelated_function(2) == 4
 
+    check_to_tensor(projected_op, vec)
+
+
+def _xfail_ft_dense_block_sector(backend, fn):
+    if not isinstance(backend, backends.FusionTreeBackend):
+        return fn()
+    with pytest.raises(
+        (NotImplementedError, SymmetryError),
+        match='from_dense_block_trivial_sector|to_dense_block_trivial_sector|'
+        'from_dense_block_single_sector|inv_part_from_dense_block_single_sector|'
+        'inv_part_to_dense_block_single_sector|Dense block representation is not supported|'
+        'non-trivial braids|sector_dim',
+    ):
+        fn()
+    pytest.xfail('FTBackend does not support dense-block sector conversions yet')
+
 
 @pytest.mark.parametrize('use_hermitian', [True, False])
-def test_NumpyArrayLinearOperator_sector(make_compatible_space, make_compatible_tensor, use_hermitian, k=5, tol=1e-14):
-    a = make_compatible_space()
-    b = make_compatible_space()
-    H = make_compatible_tensor(legs=[a, b.dual, a.dual, b], labels=['a', 'b*', 'a*', 'b'])
+def test_NumpyArrayLinearOperator_sector(make_compatible_tensor, use_hermitian, tol=1e-12):
+    vec = make_compatible_tensor(codomain=['a', 'b'], use_pipes=False)
+    a, b = vec.legs
+    H = make_compatible_tensor(codomain=[a, b], domain=[a, b], labels=['a', 'b', 'b*', 'a*'], use_pipes=False)
 
-    if isinstance(H.backend, backends.FusionTreeBackend):
-        with pytest.raises(NotImplementedError, match='conj not implemented'):
-            H = H + H.conj()
-        return  # TODO
+    def cyten_matvec(v):
+        return tdot(H, v, ['b*', 'a*'], ['b', 'a'])
 
-    H = H + H.conj()
-    #
-    H_np = H.to_numpy(leg_order=['a', 'b*', 'a*', 'b'])
-    H_mat = np.transpose(H_np, [0, 3, 2, 1]).reshape([a.dim * b.dim, a.dim * b.dim])
-    E_np, psi_np = np.linalg.eigh(H_mat)
-    E0_np, psi0_np = E_np[0], psi_np[:, 0]
-    print(f'full spectrum: {E_np}')
-    #
-    sectors = tensors.detect_sectors_from_block(
-        psi0_np.reshape([a.dim, b.dim]), legs=[a, b], backend=get_backend(symmetry=a.symmetry, block_backend='numpy')
+    cls = sparse.HermitianNumpyArrayLinearOperator if use_hermitian else sparse.NumpyArrayLinearOperator
+    H_op = cls(
+        cyten_matvec,
+        legs=vec.legs,
+        backend=vec.backend,
+        dtype=vec.dtype.to_numpy_dtype(),
+        labels=vec.labels,
+        charge_sector='trivial',
     )
-    sector = a.symmetry.fusion_outcomes(*sectors)[0, :]
-    #
-    if use_hermitian:
-        H_op = sparse.HermitianNumpyArrayLinearOperator.from_Tensor(
-            H, legs1=['a*', 'b*'], legs2=['a', 'b'], charge_sector=sector
+
+    def roundtrip():
+        vec_flat = H_op.tensor_to_flat_array(vec)
+        vec2 = H_op.flat_array_to_tensor(vec_flat)
+        assert almost_equal(vec, vec2)
+        res_flat = H_op.matvec(vec_flat)
+        npt.assert_allclose(res_flat, H_op.tensor_to_flat_array(cyten_matvec(vec)), atol=tol, rtol=tol)
+        # from_Tensor on a two-leg endomorphism, if the space contains the trivial sector
+        try:
+            H2 = make_compatible_tensor(codomain=[a], domain=[a], labels=['w', 'v'], use_pipes=False)
+            op2 = cls.from_Tensor(H2, legs1=['v'], legs2=['w'], charge_sector='trivial')
+        except ValueError:
+            return
+        v1 = make_compatible_tensor(codomain=[a], labels=['w'], use_pipes=False)
+        npt.assert_allclose(
+            op2.matvec(op2.tensor_to_flat_array(v1)),
+            op2.tensor_to_flat_array(tdot(H2, v1, ['v'], ['w'])),
+            atol=tol,
+            rtol=tol,
         )
-    else:
-        H_op = sparse.NumpyArrayLinearOperator.from_Tensor(
-            H, legs1=['a*', 'b*'], legs2=['a', 'b'], charge_sector=sector
+
+    _xfail_ft_dense_block_sector(H.backend, roundtrip)
+
+
+def test_NumpyArrayLinearOperator_from_matvec_and_vector(make_compatible_tensor, np_random):
+    vec = make_compatible_tensor(codomain=['a', 'b'], use_pipes=False)
+    a, b = vec.legs
+    H = make_compatible_tensor(codomain=[a, b], domain=[a, b], labels=['a', 'b', 'b*', 'a*'], use_pipes=False)
+
+    def cyten_matvec(v):
+        return tdot(H, v, ['b*', 'a*'], ['b', 'a'])
+
+    def run():
+        op, vec_flat = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(cyten_matvec, vec)
+        vec2 = op.flat_array_to_tensor(vec_flat)
+        assert almost_equal(vec, vec2)
+        npt.assert_allclose(op.matvec(vec_flat), op.tensor_to_flat_array(cyten_matvec(vec)))
+
+        if not ChargedTensor.supports_symmetry(vec.symmetry):
+            return
+        domain = TensorProduct(list(vec.legs))
+        nontrivial = [s for s in domain.sector_decomposition if not np.array_equal(s, vec.symmetry.trivial_sector)]
+        if not nontrivial:
+            return
+        sector = nontrivial[0]
+        if vec.symmetry.qdim(sector) > 1:
+            return
+        size = int(domain.block_size(sector))
+        block = np_random.normal(size=size) + 1j * np_random.normal(size=size)
+        charged = ChargedTensor.from_dense_block_single_sector(
+            vector=block, space=op.pipe, sector=sector, backend=vec.backend
         )
-    psi_init = tensors.ChargedTensor.random_uniform(legs=[a, b], charge=sector, labels=['a', 'b'], charged_state=[1])
-    psi_init_np = H_op.tensor_to_flat_array(psi_init)
-    #
-    E, psi = scipy.sparse.linalg.eigsh(H_op, k, v0=psi_init_np, which='SA')
-    E0, psi0 = E[0], psi[:, 0]
-    assert abs((E0 - E0_np) / E0_np) < tol
-    psi0_H_psi0 = np.inner(psi0.conj(), H_op.matvec(psi0)).item()
-    assert abs(psi0_H_psi0 / E0 - 1.0) < tol
+        if charged.num_legs == 1 and len(vec.legs) > 1:
+            charged = tensors.split_legs(charged, 0)
+        if vec.labels is not None and any(l is not None for l in vec.labels):
+            charged.set_labels(list(vec.labels))
+        op2, cflat = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(cyten_matvec, charged)
+        npt.assert_allclose(op2.matvec(cflat), op2.tensor_to_flat_array(cyten_matvec(charged)))
+
+    _xfail_ft_dense_block_sector(vec.backend, run)
 
 
 @pytest.mark.parametrize('num_legs', [1, 2])
 def test_gram_schmidt(make_compatible_tensor, num_legs, num_vecs=5, tol=1e-15):
-    first = make_compatible_tensor(num_legs=num_legs)
-    vecs_old = [first] + [make_compatible_tensor(first.legs) for _ in range(num_vecs - 1)]
+    first = make_compatible_tensor(codomain=num_legs, use_pipes=False)
+    vecs_old = [first] + [make_compatible_tensor(like=first, use_pipes=False) for _ in range(num_vecs - 1)]
     # note: depending on the dimension of `legs` (which is random),
     # some of those can be linearly dependent!
-
-    if isinstance(first.backend, backends.FusionTreeBackend):
-        with pytest.raises(NotImplementedError, match='inner not implemented'):
-            vecs_new = sparse.gram_schmidt(vecs_old)
-        return  # TODO
 
     vecs_new = sparse.gram_schmidt(vecs_old)  # rtol=tol is too small for some random spaces
     assert len(vecs_new) <= len(vecs_old)
     ovs = np.zeros((len(vecs_new), len(vecs_new)), dtype=np.complex128)
-    vecs = [v.to_numpy().flatten() for v in vecs_new]
-    for i, v in enumerate(vecs):
-        for j, w in enumerate(vecs):
-            ovs[i, j] = np.inner(v.conj(), w)
+    for i, v in enumerate(vecs_new):
+        for j, w in enumerate(vecs_new):
+            ovs[i, j] = inner(v, w).to_numpy()
     atol = 2 * first.num_parameters * (num_vecs) ** 2 * tol
     npt.assert_allclose(ovs, np.eye(len(vecs_new)), atol=atol)

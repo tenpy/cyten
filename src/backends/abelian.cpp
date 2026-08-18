@@ -813,11 +813,18 @@ AbelianBackend::state_tensor_product(BlockBackend::BlockPtr /*state1*/,
 BlockBackend::BlockPtr
 AbelianBackend::to_dense_block_trivial_sector(TensorCPtr tensor)
 {
-    // --- hints from Python AbelianBackend.to_dense_block_trivial_sector ---
-    // TODO not yet reviewed
-    // this should not happen for single-leg tensors
-    // ---
-    throw NotImplemented("to_dense_block_trivial_sector");
+    assert(tensor->num_legs == 1);
+    auto data = data_from_tensor(tensor);
+    auto space = as_space(tensor->codomain->factors[0]);
+    auto bi = space->sector_decomposition_where(space->symmetry->trivial_sector);
+    assert(bi.has_value());
+    int64 const row_v = *bi;
+    auto block = data->get_block(BlockInds::from_row(std::span<const int64>(&row_v, 1)));
+    if (!block) {
+        int64 dim = space->multiplicities[static_cast<std::size_t>(*bi)];
+        return block_backend->zeros({ dim }, data->dtype);
+    }
+    return block;
 }
 
 TensorBackend::DataPtr

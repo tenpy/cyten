@@ -428,27 +428,25 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
             npt.assert_almost_equal(T_np, expect)
 
 
-# TODO test to_dense_block_trivial_sector
-# def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
-#     # TODO move to SymmetricTensor test?
-#     tens = make_compatible_tensor(labels=['a'])
-#     leg, = tens.legs
-#     block_size = leg.sector_multiplicity(tens.symmetry.trivial_sector)
-#     #
-#     if isinstance(tens.backend, backends.FusionTreeBackend):
-#         with pytest.raises(NotImplementedError, match='to_dense_block_trivial_sector not implemented'):
-#             block = tens.to_dense_block_trivial_sector()
-#         return  # TODO
-#     #
-#     block = tens.to_dense_block_trivial_sector()
-#     assert tens.backend.block_shape(block) == (block_size,)
-#     tens2 = SymmetricTensor.from_dense_block_trivial_sector(leg=leg, block=block, backend=tens.backend, label='a')
-#     tens2.test_sanity()
-#     assert tensors.almost_equal(tens, tens2)
-#     block2 = tens2.to_dense_block_trivial_sector()
-#     npt.assert_array_almost_equal_nulp(tens.backend.block_to_numpy(block),
-#                                     tens.backend.block_to_numpy(block2),
-#                                     100)
+def test_SymmetricTensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
+    tens = make_compatible_tensor(codomain=['a'], use_pipes=False)
+    (leg,) = tens.legs
+    block_size = leg.sector_multiplicity(tens.symmetry.trivial_sector)
+
+    if isinstance(tens.backend, backends.FusionTreeBackend):
+        with pytest.raises(NotImplementedError, match='to_dense_block_trivial_sector not implemented'):
+            _ = tens.to_dense_block_trivial_sector()
+        pytest.xfail('FTBackend does not support to_dense_block_trivial_sector yet')
+
+    block = tens.to_dense_block_trivial_sector()
+    assert tens.backend.block_backend.get_shape(block) == (block_size,)
+    tens2 = SymmetricTensor.from_dense_block_trivial_sector(vector=block, space=leg, backend=tens.backend, label='a')
+    tens2.test_sanity()
+    assert tensors.almost_equal(tens, tens2)
+    block2 = tens2.to_dense_block_trivial_sector()
+    npt.assert_array_almost_equal_nulp(
+        tens.backend.block_backend.to_numpy(block), tens.backend.block_backend.to_numpy(block2), 100
+    )
 
 
 def test_fixes_124(np_random):
@@ -868,17 +866,14 @@ def test_ChargedTensor_to_dense_block_single_sector(
         # TODO for LegPipe, cant do .sector_multiplicity to get the expected size
         pass
 
-    with pytest.raises(NotImplementedError):
-        tens2 = ChargedTensor.from_dense_block_single_sector(
-            vector=block, space=leg, sector=sector, backend=tens.backend
-        )
-        tens2.test_sanity()
-        assert tens2.charge_leg == tens.charge_leg
-        assert tensors.almost_equal(tens, tens2)
-        block2 = tens2.to_dense_block_single_sector()
-        npt.assert_array_almost_equal_nulp(
-            tens.backend.block_backend.to_numpy(block), tens.backend.block_backend.to_numpy(block2), 100
-        )
+    tens2 = ChargedTensor.from_dense_block_single_sector(vector=block, space=leg, sector=sector, backend=tens.backend)
+    tens2.test_sanity()
+    assert tens2.charge_leg == tens.charge_leg
+    assert tensors.almost_equal(tens, tens2)
+    block2 = tens2.to_dense_block_single_sector()
+    npt.assert_array_almost_equal_nulp(
+        tens.backend.block_backend.to_numpy(block), tens.backend.block_backend.to_numpy(block2), 100
+    )
 
 
 # fmt: off

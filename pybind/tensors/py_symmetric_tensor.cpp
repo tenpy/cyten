@@ -249,7 +249,7 @@ understood_braiding : bool
     cls.def_static(
       "from_dense_block_trivial_sector",
       [](py::object vector,
-         Space::Ptr space,
+         Leg::Ptr space,
          TensorBackend::Ptr backend,
          std::optional<std::string> device,
          LegLabel label) {

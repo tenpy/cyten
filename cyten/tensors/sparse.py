@@ -4,8 +4,8 @@ Some linear algebra algorithms, e.g. Lanczos, do not require the full representa
 operator, but only the action on a vector, i.e., a matrix-vector product `matvec`. Here we define
 the structure of such a general operator, :class:`LinearOperator`, as it is used in our own
 implementations of these algorithms (e.g., :mod:`~cyten.krylov_based`). Moreover, the
-:class:`FlatLinearOperator` allows to use all the scipy sparse methods by providing functionality
-to convert flat numpy arrays to and from cyten tensors.
+:class:`NumpyArrayLinearOperator` allows to use all the scipy sparse methods by providing
+functionality to convert flat numpy arrays to and from cyten tensors.
 """
 # Copyright (C) TeNPy Developers, Apache license
 
@@ -25,7 +25,24 @@ from ..block_backends import Dtype
 from ..symmetries import Sector, Space, TensorProduct
 from ..tools.math import speigs, speigsh
 from ..tools.misc import argsort
-from ._tensors import ChargedTensor, SymmetricTensor, Tensor, combine_legs
+from ._tensors import (
+    ChargedTensor,
+    SymmetricTensor,
+    Tensor,
+    combine_legs,
+    combine_to_matrix,
+    inner,
+    norm,
+    outer,
+    permute_legs,
+    split_legs,
+    tdot,
+    zero_like,
+)
+
+
+def _same_legs(legs1, legs2) -> bool:
+    return len(legs1) == len(legs2) and all(a == b for a, b in zip(legs1, legs2))
 
 
 class LinearOperator(metaclass=ABCMeta):
@@ -33,8 +50,10 @@ class LinearOperator(metaclass=ABCMeta):
 
     Attributes
     ----------
-    vector_shape : Shape
-        The shape of tensors that this operator can act on
+    vector_legs : list of Space
+        The legs of tensors that this operator can act on.
+    vector_labels : list of str or None
+        Labels of the vectors that this operator can act on, or ``None``.
     dtype : Dtype
         The dtype of a full representation of the operator
     acts_on : list of str
@@ -44,15 +63,16 @@ class LinearOperator(metaclass=ABCMeta):
 
     acts_on = None  # Derived classes should set this as a class attribute
 
-    def __init__(self, vector_shape, dtype: Dtype):  # TODO Shape removed
-        self.vector_shape = vector_shape
+    def __init__(self, vector_legs, dtype: Dtype, vector_labels=None):
+        self.vector_legs = list(vector_legs)
+        self.vector_labels = None if vector_labels is None else list(vector_labels)
         self.dtype = dtype
 
     @abstractmethod
     def matvec(self, vec: Tensor) -> Tensor:
         """Apply the linear operator to a "vector".
 
-        We consider as vectors all tensors of the shape given by :attr:`vector_shape`,
+        We consider as vectors all tensors with :attr:`vector_legs`,
         and in particular allow multi-leg tensors as "vectors".
         The result of `matvec` must be a tensor of the same shape.
         """
@@ -73,9 +93,8 @@ class LinearOperator(metaclass=ABCMeta):
 
     def to_matrix(self, backend: TensorBackend = None) -> Tensor:
         """The tensor representation of self, reshaped to a matrix."""
-        # OPTIMIZE could find a way to store the TensorProduct and use it here
-        N = self.vector_shape.num_legs
-        return self.to_tensor(backend=backend).combine_legs(list(range(N)), list(range(N, 2 * N)))
+        N = len(self.vector_legs)
+        return combine_to_matrix(self.to_tensor(backend=backend), list(range(N)), list(range(N, 2 * N)))
 
     def adjoint(self) -> LinearOperator:
         """Return the hermitian conjugate operator.
@@ -93,38 +112,44 @@ class TensorLinearOperator(LinearOperator):
     This class is effectively a thin wrapper around tensors that allows them to be used as inputs
     for sparse linear algebra routines, such as lanczos.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     tensor :
         The tensor that is contracted with the vector on matvec
-    which_legs : int or str
+    which_leg : int or str
         Which leg of `tensor` is to be contracted on matvec.
+
     """
 
     def __init__(self, tensor: SymmetricTensor, which_leg: int | str = -1):
-        if tensor.num_legs > 2:
+        if tensor.num_legs != 2:
             raise ValueError('Expected a two-leg tensor')
-        raise NotImplementedError  # TODO
-        # TODO can_contract_with was removed. should probably check codomain == domain after permuting?
-        # if not tensor.legs[0].can_contract_with(tensor.legs[1]):
-        #     raise ValueError('Expected contractible legs')
-        # self.which_leg = which_leg = tensor.get_leg_idx(which_leg)
-        # self.other_leg = other_leg = 1 - which_leg
-        # self.tensor = tensor
-        # vector_shape = Shape(legs=[tensor.legs[other_leg]], num_domain_legs=0, labels=tensor.labels[other_leg])
-        # super().__init__(vector_shape=vector_shape, dtype=tensor.dtype)
+        which_idcs = tensor.get_leg_idcs(which_leg)
+        if len(which_idcs) != 1:
+            raise ValueError('which_leg must refer to a single leg')
+        self.which_leg = which_leg = which_idcs[0]
+        self.other_leg = other_leg = 1 - which_leg
+        if tensor.legs[which_leg] != tensor.legs[other_leg].dual:
+            raise ValueError('Expected contractible legs')
+        self.tensor = tensor
+        other_label = tensor.labels[other_leg]
+        super().__init__(
+            vector_legs=[tensor.legs[other_leg]],
+            dtype=tensor.dtype,
+            vector_labels=None if other_label is None else [other_label],
+        )
 
     def matvec(self, vec: Tensor) -> Tensor:
         assert vec.num_legs == 1
-        return self.tensor.tdot(vec, self.which_leg, 0)
+        return tdot(self.tensor, vec, [self.which_leg], [0])
 
     def to_tensor(self, **kw) -> Tensor:
-        if self.tensor.which_leg == 1:
-            return self.tensor
-        return self.tensor.permute_legs([1, 0])
+        return permute_legs(self.tensor, codomain=[self.other_leg], domain=[self.which_leg])
 
     def adjoint(self) -> TensorLinearOperator:
-        return TensorLinearOperator(tensor=self.tensor.conj(), which_leg=self.other_leg)
+        # dagger of an endomorphism ``[V, V.dual]`` keeps that leg order, so the contracted leg
+        # stays at the same index.
+        return TensorLinearOperator(tensor=self.tensor.dagger, which_leg=self.which_leg)
 
 
 class LinearOperatorWrapper(LinearOperator):
@@ -150,10 +175,12 @@ class LinearOperatorWrapper(LinearOperator):
     """
 
     def __init__(self, original_operator: LinearOperator):
+        super().__init__(
+            vector_legs=original_operator.vector_legs,
+            dtype=original_operator.dtype,
+            vector_labels=original_operator.vector_labels,
+        )
         self.original_operator = original_operator
-        # TODO (JU) should we call LinearOperator.__init__ or super().__init__ here?
-        #      Its current implementation only sets attributes, which we dont need because
-        #      we hack into __getattr__
 
     def __getattr__(self, name):
         # note: __getattr__ (unlike __getattribute__) is only called if the attribute is not
@@ -182,7 +209,7 @@ class SumLinearOperator(LinearOperatorWrapper):
 
     def __init__(self, original_operator: LinearOperator, *more_operators: LinearOperator):
         super().__init__(original_operator=original_operator)
-        assert all(op.vector_shape == original_operator.vector_shape for op in more_operators)
+        assert all(_same_legs(op.vector_legs, original_operator.vector_legs) for op in more_operators)
         self.more_operators = more_operators
         self.dtype = Dtype.common(original_operator.dtype, *(op.dtype for op in more_operators))
 
@@ -213,9 +240,12 @@ class ShiftedLinearOperator(LinearOperatorWrapper):
     def matvec(self, vec: Tensor) -> Tensor:
         return self.original_operator.matvec(vec) + self.shift * vec
 
-    # def to_tensor(self, **kw) -> Tensor:
-    #     res = self.original_operator.to_tensor(**kw)
-    #     return res + self.shift * eye_like(res)
+    def to_tensor(self, **kw) -> Tensor:
+        res = self.original_operator.to_tensor(**kw)
+        identity = SymmetricTensor.from_eye(
+            self.vector_legs, backend=res.backend, labels=self.vector_labels, dtype=res.dtype
+        )
+        return res + self.shift * identity
 
     def adjoint(self):
         return ShiftedLinearOperator(original_operator=self.original_operator.adjoint(), shift=np.conj(self.shift))
@@ -269,7 +299,7 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
         if not project_operator and penalty is None:
             warnings.warn('project_operator=False and penalty=None means ProjectedLinearOperator does not do anything')
         super().__init__(original_operator=original_operator)
-        assert all(v.shape == original_operator.vector_shape for v in ortho_vecs)
+        assert all(_same_legs(v.legs, original_operator.vector_legs) for v in ortho_vecs)
         self.ortho_vecs = gram_schmidt(ortho_vecs)
         self.project_operator = project_operator
         self.penalty = penalty
@@ -281,17 +311,17 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
             # form ``P vec`` and keep coefficients for later use in the penalty term
             coefficients = []
             for o in self.ortho_vecs:
-                c = o.inner(res)
+                c = inner(o, res)
                 coefficients.append(c)
                 res = res - c * o
         else:
-            coefficients = [o.inner(res) for o in self.ortho_vecs]
+            coefficients = [inner(o, res) for o in self.ortho_vecs]
         # 2: res = H P vec
         res = self.original_operator.matvec(res)
         # 3: res = P H P vec
         if self.project_operator:
             for o in self.ortho_vecs:
-                res = res - o.inner(res) * o
+                res = res - inner(o, res) * o
         # 4: res = P H P vec + (1 - P) vec
         if self.penalty is not None:
             for c, o in zip(coefficients, self.ortho_vecs):
@@ -300,29 +330,30 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
         return res
 
     def to_tensor(self, **kw) -> Tensor:
-        raise NotImplementedError
-        # TODO adjust to changed leg convention (change convention of outer to match this?)
-        #      or change conj accordingly? or implement a projector function |a><a|
-        # res = self.original_operator.to_tensor(**kw)
-        # P_ortho = zero_like(res)
-        # for o in self.ortho_vecs:
-        #     P_ortho += o.outer(o.conj())
-        # if self.project_operator:
-        #     P = eye_like(res) - P_ortho
-        #     N = self.vector_shape.num_legs
-        #     first = list(range(N))
-        #     last = list(range(N, 2 * N))
-        #     # TODO should we offer tdot(res, P, N) with N: int for this use case?
-        #     res = tdot(res, P, last, first)
-        #     res = tdot(P, res, last, first)
-        # if self.penalty is not None:
-        #     res = res + self.penalty * P_ortho
-        # return res
+        res = self.original_operator.to_tensor(**kw)
+        P_ortho = zero_like(res)
+        for o in self.ortho_vecs:
+            P_ortho = P_ortho + outer(o, o.dagger)
+        if self.project_operator:
+            identity = SymmetricTensor.from_eye(
+                self.vector_legs, backend=res.backend, labels=self.vector_labels, dtype=res.dtype
+            )
+            P = identity - P_ortho
+            N = len(self.vector_legs)
+            first = list(range(N))
+            last = list(range(N, 2 * N))
+            rev_first = list(reversed(first))
+            res = tdot(res, P, last, rev_first)
+            res = tdot(P, res, last, rev_first)
+        if self.penalty is not None:
+            res = res + self.penalty * P_ortho
+        return res
 
     def adjoint(self) -> LinearOperator:
         return ProjectedLinearOperator(
             original_operator=self.original_operator.adjoint(),
             ortho_vecs=self.ortho_vecs,  # hc(|o> <o|) = |o> <o|  ->  can use same ortho_vecs
+            project_operator=self.project_operator,
             penalty=None if self.penalty is None else np.conj(self.penalty),
         )
 
@@ -374,6 +405,8 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     domain : :class:`~cyten.spaces.TensorProduct`
         The product of the :attr:`legs`. Self is an operator on either this entire space,
         or one of its sectors, as specified by :attr:`charge_sector`.
+    pipe : LegPipe
+        Combined pipe of :attr:`legs`, used for convertion to/from a 1-leg tensor.
     symmetry
         The symmetry of all involved spaces
     shape : (int, int)
@@ -391,18 +424,19 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         charge_sector: None | Sector | Literal['trivial'] = 'trivial',
     ):
         self.cyten_matvec = cyten_matvec
-        self.legs = legs
         self.backend = backend
-        # even if there is just one leg, we form the TensorProduct anyway, so we dont have to distinguish
-        #  cases and use combine_legs / split_legs in np_to_tensor and tensor_to_np
-        # TODO this probably no longer makes sense after the update of how spaces work!
-        # OPTIMIZE pass domain as an arg instead, to allow us to avoid recomputing it?
         if not isinstance(legs, TensorProduct):
-            self.domain = TensorProduct(legs, backend=backend)
-            self.symmetry = legs[0].symmetry
+            self.legs = list(legs)
+            self.domain = TensorProduct(self.legs)
+            self.symmetry = self.legs[0].symmetry
         else:
             self.domain = legs
+            self.legs = list(legs.factors)
             self.symmetry = legs.symmetry
+        if len(self.legs) == 1:
+            self.pipe = self.legs[0]
+        else:
+            self.pipe = backend.make_pipe(self.legs, is_dual=False)
         self.matvec_count = 0
         self.labels = labels
 
@@ -449,14 +483,12 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             if isinstance(l, int):
                 vec_contr_legs.append(res_legs[l])
             else:
-                vec_contr_legs.extend(tensor.get_legs(l))
-        raise NotImplementedError  # TODO
-        # TODO can_contract_with was removed. should probably check codomain == domain after permuting?
-        if not all(l_t.can_contract_with(l_v) for l_t, l_v in zip(tensor_contr_legs, vec_contr_legs)):
+                vec_contr_legs.append(tensor.get_leg(l))
+        if not all(l_t == l_v.dual for l_t, l_v in zip(tensor_contr_legs, vec_contr_legs)):
             raise ValueError('Expected contractible legs')
 
         def cyten_matvec(vec):
-            return tensor.tdot(vec, legs1, legs2)
+            return tdot(tensor, vec, legs1, legs2)
 
         return cls(
             cyten_matvec,
@@ -475,7 +507,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
 
         This is a convenience wrapper around the constructor where arguments are inferred
         from the example `vector` that is given.
-        Additionally, the `vector` is converted via :meth:`tensor_to_np`.
+        Additionally, the `vector` is converted via :meth:`tensor_to_flat_array`.
         The resulting `NumpyArrayLinearOperator` has a `charge_sector` set to be the sector of
         `vector`.
 
@@ -486,9 +518,8 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             Has to return a tensor with the same leg and has to be linear.
         vector : :class:`~cyten.tensors.Tensor` | :class:`~cyten.tensors.ChargedTensor`
             A tensor that `cyten_matvec` can act on.
-            If a ChargedTensor, expect a single sector on the dummy leg, which is used as the
+            If a ChargedTensor, expect a single sector on the charge leg, which is used as the
             :attr:`charge_sector`.
-            TODO revise this. purge the "dummy" language, its now "charged"
         dtype
             The *numpy* dtype of the operator. Per default, the dtype of `vector` is used.
 
@@ -501,13 +532,23 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
 
         """
         if isinstance(vector, ChargedTensor):
-            assert vector.dummy_leg.num_sectors == 1 and vector.dummy_leg.multiplicities[0] == 1
-            sector = vector.dummy_leg.sector_decomposition[0]
+            assert vector.charge_leg.num_sectors == 1 and vector.charge_leg.multiplicities[0] == 1
+            sector = vector.charge_leg.sector_decomposition[0]
         else:
             sector = 'trivial'
         if dtype is None:
             dtype = vector.dtype.to_numpy_dtype()
-        op = cls(cyten_matvec, legs=vector.legs, backend=vector.backend, dtype=dtype, charge_sector=sector)
+        labels = vector.labels
+        if labels is not None and not any(l is not None for l in labels):
+            labels = None
+        op = cls(
+            cyten_matvec,
+            legs=vector.legs,
+            backend=vector.backend,
+            dtype=dtype,
+            labels=labels,
+            charge_sector=sector,
+        )
         vec_flat = op.tensor_to_flat_array(vector)
         return op, vec_flat
 
@@ -526,12 +567,12 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             sector = value
         self._charge_sector = value
         if sector is None:
-            size = self.domain.dim
+            size = int(self.domain.dim)
         else:
             sector_idx = self.domain.sector_decomposition_where(sector)
             if sector_idx is None:
                 raise ValueError('Domain of linear operator does not have this sector')
-            size = (self.symmetry.sector_dim(sector) * self.domain.multiplicities[sector_idx]).item()
+            size = int(self.domain.block_size(sector))
         self.shape = (size, size)
 
     def _matvec(self, vec):
@@ -559,51 +600,48 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         self.matvec_count += 1
         return self.tensor_to_flat_array(tens)
 
+    def _combine_vector_legs(self, tens: Tensor) -> Tensor:
+        if tens.num_legs == 1:
+            return tens
+        return combine_legs(tens, list(range(tens.num_legs)), pipes=[self.pipe])
+
+    def _split_vector_legs(self, tens: Tensor) -> Tensor:
+        if len(self.legs) == 1:
+            return tens
+        return split_legs(tens, 0)
+
     def flat_array_to_tensor(self, vec: np.ndarray) -> Tensor:
         """Convert flat numpy data to a tensor in the selected charge sector."""
         assert vec.shape == (self.shape[1],)
+        block = self.backend.block_backend.block_from_numpy(vec)
         if self._charge_sector is None:
-            # TODO this is a bit difficult.
-            #  We need to work with tensors which do not fulfill the charge rule.
-            #  I.e. they are not confined to live in the trivial sector of their parent space
-            #  but can have components in all of its sectors.
-            #  We could emulate this behavior by using a ChargedTensor that has as a dummy leg
-            #  all sectors of the self.domain, with multiplicities all 1 and a state [1, 1, ..., 1]
-            #  One way to make conversion flat_array <-> such ChargedTensor work would be to
-            #  "stack" ChargedTensors?
-            raise NotImplementedError
+            raise NotImplementedError('charge_sector=None is not implemented')
         elif isinstance(self._charge_sector, str) and self._charge_sector == 'trivial':
-            tens = SymmetricTensor.from_dense_block_trivial_sector(
-                leg=self.domain, block=self.backend.block_from_numpy(vec), backend=self.backend
-            )
-            res = tens.split_legs(0)
+            tens = SymmetricTensor.from_dense_block_trivial_sector(vector=block, space=self.pipe, backend=self.backend)
         else:
             tens = ChargedTensor.from_dense_block_single_sector(
-                leg=self.domain,
-                block=self.backend.block_from_numpy(vec),
+                vector=block,
+                space=self.pipe,
                 sector=self._charge_sector,
                 backend=self.backend,
             )
-            res = tens.split_legs(0)
+        res = self._split_vector_legs(tens)
         if self.labels is not None:
             res.set_labels(self.labels)
         return res
 
     def tensor_to_flat_array(self, tens: Tensor) -> np.ndarray:
         """Convert a tensor in the selected charge sector to a flat numpy array."""
-        if self.labels is not None:
-            tens = tens.permute_legs(tens.get_leg_idcs(self.labels))
+        if self.labels is not None and all(l is not None for l in self.labels):
+            tens = permute_legs(tens, tens.get_leg_idcs(self.labels))
+        tens = self._combine_vector_legs(tens)
         if self._charge_sector is None:
-            # TODO undo the conversion from flat_array_to_tensor
-            raise NotImplementedError
+            raise NotImplementedError('charge_sector=None is not implemented')
         elif isinstance(self._charge_sector, str) and self._charge_sector == 'trivial':
-            # TODO save the pipe!
-            res = combine_legs(tens, list(range(tens.num_legs)), pipes=[self.pipe])
-            res = res.to_dense_block_trivial_sector()
+            res = tens.to_dense_block_trivial_sector()
         else:
-            res = combine_legs(tens, list(range(tens.num_legs)), pipes=[self.pipe])
-            res = res.to_dense_block_single_sector()
-        res = self.backend.block_to_numpy(res)
+            res = tens.to_dense_block_single_sector()
+        res = self.backend.block_backend.to_numpy(res)
         assert res.shape == (self.shape[0],)
         return res
 
@@ -641,7 +679,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         v0_np : 1D ndarray
             Initial guess as a flat numpy array, i.e. a suitable input to :meth:`_matvec`.
         v0_tensor : :class:`~cyten.tensors.Tensor` | :class:`~cyten.tensors.ChargedTensor`
-            Initial guess as a tensor, i.e. a suitable input to :meth:`tensor_to_np`.
+            Initial guess as a tensor, i.e. a suitable input to :meth:`tensor_to_flat_array`.
         cutoff : float
             Only used if ``self.charge_sector is None``; in that case it determines when entries in
             a given charge-block are considered nonzero, and what counts as degenerate.
@@ -687,8 +725,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         if self._charge_sector is not None:
             vecs = [self.flat_array_to_tensor(A[:, j]) for j in range(A.shape[1])]
         else:
-            # TODO again this is complicated. can and should select a single charge sector here.
-            raise NotImplementedError
+            raise NotImplementedError('charge_sector=None is not implemented')
 
         perm = argsort(eta, which)
         return np.array(eta)[perm], [vecs[j] for j in perm]
@@ -727,9 +764,9 @@ def gram_schmidt(vecs: list[Tensor], rcond=1.0e-14) -> list[Tensor]:
     res = []
     for vec in vecs:
         for other in res:
-            ov = other.inner(vec)
+            ov = inner(other, vec)
             vec = vec - ov * other
-        n = vec.norm()
+        n = abs(norm(vec).to_numpy())
         if n > rcond:
-            res.append(vec.multiply_scalar(1.0 / n))
+            res.append(vec * (1.0 / float(n)))
     return res

@@ -261,24 +261,44 @@ SymmetricTensor::from_dense_block(BlockBackend::BlockPtr block,
 
 SymmetricTensor::Ptr
 SymmetricTensor::from_dense_block_trivial_sector(BlockBackend::BlockPtr vector,
-                                                 Space::Ptr space,
+                                                 Leg::Ptr space,
                                                  TensorBackend::Ptr backend,
                                                  std::optional<std::string> device,
-                                                 LegLabel /*label*/)
+                                                 LegLabel label)
 {
+    assert(space);
     if (!backend) {
         backend = get_backend(space->symmetry);
     }
-    auto vec = backend->block_backend->as_block(py::cast(vector), std::nullopt, device);
-    // Python checks ``space._basis_perm is not None`` then applies a perm; unfinished below.
-    if (py::isinstance<Leg>(py::cast(space)) &&
-        py::cast(space).cast<Leg::Ptr>()->has_custom_basis_perm()) {
-        auto i = space->sector_decomposition_where(space->symmetry->trivial_sector);
+    (void)device;
+    auto vec = vector;
+    auto space_as_space = as_space(space);
+    // Inverse of the permutation applied in to_dense_block_trivial_sector.
+    if (space->has_custom_basis_perm()) {
+        auto i = space_as_space->sector_decomposition_where(space->symmetry->trivial_sector);
         assert(i.has_value());
-        (void)vec;
-        (void)i;
+        assert(space_as_space->slices.has_value());
+        auto const& sl = (*space_as_space->slices)[static_cast<std::size_t>(*i)];
+        auto basis_perm = space->basis_perm();
+        std::vector<int64> segment(basis_perm.begin() + sl[0], basis_perm.begin() + sl[1]);
+        std::vector<int64> order(segment.size());
+        std::iota(order.begin(), order.end(), 0);
+        std::ranges::sort(order, [&](int64 a, int64 b) {
+            return segment[static_cast<std::size_t>(a)] < segment[static_cast<std::size_t>(b)];
+        });
+        std::vector<int64> inv(order.size());
+        for (std::size_t j = 0; j < order.size(); ++j) {
+            inv[static_cast<std::size_t>(order[j])] = static_cast<int64>(j);
+        }
+        vec = backend->block_backend->apply_leg_permutations(
+          vec, { py::array_t<int64>(static_cast<py::ssize_t>(inv.size()), inv.data()) });
     }
-    throw NotImplemented("SymmetricTensor.from_dense_block_trivial_sector");
+    auto data = backend->from_dense_block_trivial_sector(vec, space_as_space);
+    auto codomain =
+      std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ space }, space->symmetry);
+    auto domain = std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{}, space->symmetry);
+    return std::make_shared<SymmetricTensor>(
+      data, codomain, domain, backend, space->symmetry, LegLabels{ std::move(label) });
 }
 
 SymmetricTensor::Ptr
