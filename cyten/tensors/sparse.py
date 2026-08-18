@@ -652,7 +652,11 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
 
     def tensor_to_flat_array(self, tens: Tensor) -> np.ndarray:
         """Convert a tensor in the selected charge sector to a flat numpy array."""
-        if self.labels is not None and all(l is not None for l in self.labels):
+        if (
+            self.labels is not None
+            and all(l is not None for l in self.labels)
+            and all(l in tens.labels for l in self.labels)
+        ):
             tens = permute_legs(tens, tens.get_leg_idcs(self.labels))
         tens = self._combine_vector_legs(tens)
         if self._charge_sector is None:

@@ -8,7 +8,12 @@ import numpy as np
 
 from ..tools.misc import argsort  # TODO replace this?
 from ._tensors import Tensor, inner, norm, scalar_multiply
-from .sparse import LinearOperator, ProjectedLinearOperator, ShiftedLinearOperator
+from .sparse import (
+    HermitianNumpyArrayLinearOperator,
+    LinearOperator,
+    ProjectedLinearOperator,
+    ShiftedLinearOperator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -598,11 +603,13 @@ def lanczos_arpack(H, psi, options={}):
         Ground state vector.
 
     """
-    #  options = asConfig(options, "Lanczos")
-    raise NotImplementedError  # TODO need to implement DenseArrayLinearOperator (f.k.a. FlatLinearOperator)
-    # H_dense = DenseArrayLinearOperator.from_LinearOperator(H)
-    # psi_dense = H_dense.tensor_to_dense(psi)
-    # tol = options.get('P_tol', 1.e-14)
-    # N_min = options.get('N_min', None)
-    # Es, Vs = H_dense.eigenvectors(num_ev=1, which='SA', v0=psi_dense, tol=tol, ncv=N_min)
-    # return Es[0], Vs[0]
+    H_np, psi_np = HermitianNumpyArrayLinearOperator.from_matvec_and_vector(
+        H.matvec, psi, dtype=H.dtype.to_numpy_dtype()
+    )
+    tol = options.get('P_tol', 1.0e-14)
+    N_min = options.get('N_min', None)
+    kwargs = dict(num_ev=1, which='SA', v0_np=psi_np, tol=tol)
+    if N_min is not None:
+        kwargs['ncv'] = N_min
+    Es, Vs = H_np.eigenvectors(**kwargs)
+    return Es[0], Vs[0]

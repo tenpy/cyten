@@ -7,14 +7,13 @@ from numpy import testing as npt
 from scipy.linalg import expm
 
 import cyten
-from cyten import krylov_based, sparse, tensors
+from cyten import backends, krylov_based, sparse, tensors
 from cyten.tools import random_matrix
-
-pytest.skip('krylov_based not yet revised', allow_module_level=True)  # TODO
 
 
 @pytest.mark.parametrize(['N_cache', 'tol'], [(10, 5.0e-13), (20, 5.0e-14)])
 def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
+    pytest.skip('lanczos not yet revised')
     # TODO revise this. purge the "dummy" language, its now "charged"
 
     # generate hermitian test array
@@ -94,23 +93,25 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
         print("warning: test didn't find a second eigenvector in the same charge sector!")
 
 
-def test_lanczos_arpack():
-    pytest.xfail('Not implemented yet (the operator in linalg.sparse is missing)')
-    # TODO old below
-    # print("version with arpack")
-    # E0a, psi0a = lanczos.lanczos_arpack(H_Op, psi_init, {})
-    # print("E0a = {E0a:.14f} vs exact {E0_flat:.14f}".format(E0a=E0a, E0_flat=E0_flat))
-    # print("|E0a-E0_flat| / |E0_flat| =", abs((E0a - E0_flat) / E0_flat))
-    # psi0a_H_psi0a = npc.inner(psi0a, npc.tensordot(H, psi0a, axes=[1, 0]), 'range', do_conj=True)
-    # print("<psi0a|H|psi0a> / E0a = 1. + ", psi0a_H_psi0a / E0a - 1.)
-    # assert (abs(psi0a_H_psi0a / E0a - 1.) < tol)
-    # ov = np.inner(psi0a.to_ndarray().conj(), psi0_flat)
-    # print("|<psi0a|psi0_flat>|=", abs(ov))
-    # assert (abs(1. - abs(ov)) < tol)
+def test_lanczos_arpack(make_compatible_tensor, tol=1.0e-8):
+    vec = make_compatible_tensor(codomain=1, labels=['v'], use_pipes=False)
+    if isinstance(vec.backend, backends.FusionTreeBackend):
+        pytest.xfail('FTBackend does not support dense-block sector conversions yet')
+    leg = vec.legs[0]
+    H = make_compatible_tensor(codomain=[leg], domain=[leg], labels=['w', 'v'], use_pipes=False)
+    H_h = H + H.dagger
+    H_op = sparse.TensorLinearOperator(H_h)
+
+    E0, psi0 = krylov_based.lanczos_arpack(H_op, vec, {})
+    n = abs(tensors.norm(psi0).to_numpy())
+    assert abs(n - 1.0) < tol
+    residual = tensors.norm(H_op.matvec(psi0) - E0 * psi0)
+    assert abs(residual.to_numpy()) < tol * (abs(E0) + 1.0)
 
 
 @pytest.mark.parametrize(['N_cache', 'tol'], [(10, 5.0e-13), (20, 5.0e-14)])
 def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol):
+    pytest.skip('LanczosEvolution not yet revised')
     backend = compatible_backend
     leg = make_compatible_space()
 
@@ -160,6 +161,7 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
 
 @pytest.mark.parametrize('which', ['LM', 'SR', 'LR'])
 def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
+    pytest.skip('Arnoldi not yet revised')
     backend = compatible_backend
     leg = make_compatible_space()
     tol = 1.0e-13 if leg.dim <= N_max else 1.0e-10
