@@ -42,6 +42,15 @@ def gen_example_data(version=cyten.__version__):
 
     SU2_SpinSite = cyten.models.SpinSite(conserve='SU2')
     FermionSite = cyten.models.SpinlessFermionSite(num_species=1, conserve='N')
+    leg = FermionSite.leg
+    n_op = FermionSite.get_op('N')  # DiagonalTensor
+    identity = FermionSite.get_op('Id')  # Identity
+    # Two-leg identity map stored as a generic SymmetricTensor (not DiagonalTensor).
+    symmetric = cyten.tensors.SymmetricTensor.from_eye([leg], labels=['p'])
+    mask = cyten.tensors.Mask.from_block_mask(np.array([True, False]), large_leg=leg, labels=['p'])
+    # ChargedTensor: hide a trivial charge leg on a non-zero operator.
+    inv = cyten.add_trivial_leg(n_op.as_SymmetricTensor(), domain_pos=0, label='!')
+    charged = cyten.tensors.ChargedTensor(inv, charged_state=[1.0])
 
     data = {
         'version': version,
@@ -55,7 +64,14 @@ def gen_example_data(version=cyten.__version__):
         'range': range(2, 8, 3),
         'dtypes': [np.dtype('int64'), np.dtype([('a', np.int32, 8), ('b', np.float64, 5)])],
         'symmetry': FermionSite.symmetry,
-        'tensor': FermionSite.get_op('N'),
+        'tensor': n_op,
+        'tensors': {
+            'SymmetricTensor': symmetric,
+            'DiagonalTensor': n_op,
+            'Identity': identity,
+            'Mask': mask,
+            'ChargedTensor': charged,
+        },
         'site': SU2_SpinSite,
     }
     data['recursive'][3][1] = data['recursive'][1] = data['recursive']
@@ -87,6 +103,11 @@ def assert_equal_data(data_imported, data_expected, max_recursion_depth=10):
     elif isinstance(data_expected, (cyten.symmetries.Symmetry, cyten.symmetries.SymmetryFactor)):
         # Extra parameters (N, handedness, nu, ...) are part of equality.
         assert data_imported == data_expected
+    elif isinstance(data_expected, cyten.tensors.Tensor):
+        assert type(data_imported) is type(data_expected)
+        assert data_imported.dtype == data_expected.dtype
+        assert data_imported.labels == data_expected.labels
+        assert cyten.almost_equal(data_imported, data_expected)
     elif isinstance(data_expected, (types.FunctionType, type)):
         # global variables where no copy should be made
         assert data_imported is data_expected
