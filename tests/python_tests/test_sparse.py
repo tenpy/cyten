@@ -258,6 +258,45 @@ def test_NumpyArrayLinearOperator_from_matvec_and_vector(make_compatible_tensor,
     _xfail_ft_dense_block_sector(vec.backend, run)
 
 
+def test_NumpyArrayLinearOperator_all_sectors(make_compatible_tensor, np_random, tol=1e-12):
+    vec = make_compatible_tensor(codomain=['a', 'b'], use_pipes=False)
+    a, b = vec.legs
+    H = make_compatible_tensor(codomain=[a, b], domain=[a, b], labels=['a', 'b', 'b*', 'a*'], use_pipes=False)
+
+    def cyten_matvec(v):
+        return tdot(H, v, ['b*', 'a*'], ['b', 'a'])
+
+    kwargs = dict(
+        cyten_matvec=cyten_matvec,
+        legs=vec.legs,
+        backend=vec.backend,
+        dtype=vec.dtype.to_numpy_dtype(),
+        labels=vec.labels,
+        charge_sector=None,
+    )
+    if not vec.symmetry.can_be_dropped:
+        with pytest.raises(SymmetryError, match='charge_sector=None'):
+            sparse.NumpyArrayLinearOperator(**kwargs)
+        return
+
+    H_op = sparse.NumpyArrayLinearOperator(**kwargs)
+    assert H_op.shape[0] == int(H_op.domain.dim)
+
+    flat = np_random.normal(size=H_op.shape[0]) + 1j * np_random.normal(size=H_op.shape[0])
+    tens = H_op.flat_array_to_tensor(flat)
+    assert isinstance(tens, ChargedTensor)
+    assert tens.charged_state is not None
+    npt.assert_allclose(H_op.tensor_to_flat_array(tens), flat, atol=tol, rtol=tol)
+    npt.assert_allclose(H_op.matvec(flat), H_op.tensor_to_flat_array(cyten_matvec(tens)), atol=tol, rtol=tol)
+
+    # a SymmetricTensor (trivial total charge) also converts through the dense all-sector map
+    triv_flat = H_op.tensor_to_flat_array(vec)
+    npt.assert_allclose(triv_flat, H_op.tensor_to_flat_array(H_op.flat_array_to_tensor(triv_flat)), atol=tol, rtol=tol)
+
+    op2, _ = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(cyten_matvec, tens)
+    assert op2.charge_sector is None
+
+
 @pytest.mark.parametrize('num_legs', [1, 2])
 def test_gram_schmidt(make_compatible_tensor, num_legs, num_vecs=5, tol=1e-15):
     first = make_compatible_tensor(codomain=num_legs, use_pipes=False)

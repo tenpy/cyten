@@ -22,7 +22,7 @@ from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator
 
 from ..backends import TensorBackend
 from ..block_backends import Dtype
-from ..symmetries import Sector, Space, TensorProduct
+from ..symmetries import Sector, Space, SymmetryError, TensorProduct
 from ..tools.math import speigs, speigsh
 from ..tools.misc import argsort
 from ._tensors import (
@@ -371,7 +371,10 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     charge_sector : None | Sector | 'trivial'
         If given, only the specified charge sector is considered.
         Per default, or if the string ``'trivial'`` is given, the trivial sector of the symmetry is used.
-        ``None`` stands for *all* sectors.
+        ``None`` stands for *all* sectors: the numpy vector is the full dense representation,
+        converted via a :class:`~cyten.tensors.ChargedTensor` with a specified
+        :attr:`~cyten.tensors.ChargedTensor.charged_state`.
+        This requires a group-like symmetry with :attr:`~cyten.symmetries.Symmetry.can_be_dropped`.
 
     Attributes
     ----------
@@ -388,7 +391,8 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     charge_sector : None | Sector | 'trivial'
         If given, only the specified charge sector is considered.
         If ``'trivial'`` is given, the trivial sector of the symmetry is used.
-        ``None`` stands for *all* sectors.
+        ``None`` stands for *all* sectors, represented via :class:`~cyten.tensors.ChargedTensor`
+        with a specified :attr:`~cyten.tensors.ChargedTensor.charged_state`.
     matvec_count : int
         The number of times `cyten_matvec` was called.
     N : int
@@ -509,8 +513,9 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             Has to return a tensor with the same leg and has to be linear.
         vector : :class:`~cyten.tensors.Tensor` | :class:`~cyten.tensors.ChargedTensor`
             A tensor that `cyten_matvec` can act on.
-            If a ChargedTensor, expect a single sector on the charge leg, which is used as the
-            :attr:`charge_sector`.
+            If a ChargedTensor with a single one-dimensional charge, that sector is used as
+            :attr:`charge_sector`. If it has a specified :attr:`~cyten.tensors.ChargedTensor.charged_state`
+            spanning multiple sectors, :attr:`charge_sector` is ``None``.
         dtype
             The *numpy* dtype of the operator. Per default, the dtype of `vector` is used.
 
@@ -523,8 +528,18 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
 
         """
         if isinstance(vector, ChargedTensor):
-            assert vector.charge_leg.num_sectors == 1 and vector.charge_leg.multiplicities[0] == 1
-            sector = vector.charge_leg.sector_decomposition[0]
+            charge = vector.charge_leg
+            try:
+                single_charge = charge.num_sectors == 1 and charge.multiplicities[0] == 1
+            except AttributeError:
+                # e.g. a LegPipe charge leg from the all-sector identity construction
+                single_charge = False
+            if single_charge:
+                sector = charge.sector_decomposition[0]
+            elif vector.charged_state is not None:
+                sector = None
+            else:
+                raise ValueError('Cannot infer charge_sector from a ChargedTensor with unspecified charged_state')
         else:
             sector = 'trivial'
         if dtype is None:
@@ -552,6 +567,11 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         if isinstance(value, str) and value == 'trivial':
             sector = self.symmetry.trivial_sector
         elif value is None:
+            if not self.symmetry.can_be_dropped:
+                raise SymmetryError(
+                    'charge_sector=None uses ChargedTensor.charged_state and is only defined '
+                    f'for symmetries that can be dropped. Got {self.symmetry}.'
+                )
             sector = None
         else:
             assert self.symmetry.is_valid_sector(value)
@@ -606,7 +626,16 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         assert vec.shape == (self.shape[1],)
         block = self.backend.block_backend.block_from_numpy(vec)
         if self._charge_sector is None:
-            raise NotImplementedError('charge_sector=None is not implemented')
+            # The numpy vector is the full dense state on the parent space. Represent it as
+            # ChargedTensor(from_eye, charged_state=block): the identity invariant part maps the
+            # charge leg onto the vector space, and charged_state holds the dense components.
+            inv = SymmetricTensor.from_eye(
+                [self.pipe],
+                backend=self.backend,
+                labels=[None, ChargedTensor._CHARGE_LEG_LABEL],
+                dtype=Dtype.from_numpy_dtype(self.dtype),
+            )
+            tens = ChargedTensor(inv, charged_state=block)
         elif isinstance(self._charge_sector, str) and self._charge_sector == 'trivial':
             tens = SymmetricTensor.from_dense_block_trivial_sector(vector=block, space=self.pipe, backend=self.backend)
         else:
@@ -627,13 +656,13 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             tens = permute_legs(tens, tens.get_leg_idcs(self.labels))
         tens = self._combine_vector_legs(tens)
         if self._charge_sector is None:
-            raise NotImplementedError('charge_sector=None is not implemented')
+            res = tens.to_dense_block(understood_braiding=True)
         elif isinstance(self._charge_sector, str) and self._charge_sector == 'trivial':
             res = tens.to_dense_block_trivial_sector()
         else:
             res = tens.to_dense_block_single_sector()
         res = self.backend.block_backend.to_numpy(res)
-        assert res.shape == (self.shape[0],)
+        res = np.reshape(res, (self.shape[0],))
         return res
 
     def eigenvectors(
@@ -713,10 +742,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         cutoff = max(cutoff, 10 * kwargs.get('tol', 1.0e-16))
         A = np.real_if_close(A)
 
-        if self._charge_sector is not None:
-            vecs = [self.flat_array_to_tensor(A[:, j]) for j in range(A.shape[1])]
-        else:
-            raise NotImplementedError('charge_sector=None is not implemented')
+        vecs = [self.flat_array_to_tensor(A[:, j]) for j in range(A.shape[1])]
 
         perm = argsort(eta, which)
         return np.array(eta)[perm], [vecs[j] for j in perm]
