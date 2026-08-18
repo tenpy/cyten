@@ -16,7 +16,6 @@ these stubs.
    cpp/version
    cpp/warn
    cpp/tools
-   cpp/check
 
 .. toctree::
    :maxdepth: 2

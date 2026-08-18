@@ -33,8 +33,6 @@ shared `libtorch` / `libc10` as `torch._C`:
    `$ORIGIN/../torch/lib`).
 3. Do **not** ship a second copy of libtorch next to `_core`.
 
-Smoke-tested via `cyten._core.check_torch_array` and dual-import regression tests.
-
 ## Design notes
 
 1. **Block storage:** `torch::Tensor tensor_` plus cached `device_` string matching Python
