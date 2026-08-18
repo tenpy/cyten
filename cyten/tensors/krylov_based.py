@@ -18,6 +18,19 @@ from .sparse import (
 logger = logging.getLogger(__name__)
 
 
+def _to_number(value):
+    """Convert a cyten Scalar (or number) to a numpy scalar."""
+    to_numpy = getattr(value, 'to_numpy', None)
+    if callable(to_numpy):
+        return to_numpy()
+    return value
+
+
+def _abs_number(value):
+    """Absolute value as a Python/numpy float."""
+    return abs(_to_number(value))
+
+
 class KrylovBased(metaclass=ABCMeta):
     r"""Base class for iterative algorithms building a Krylov basis with cyten tensors.
 
@@ -119,19 +132,19 @@ class KrylovBased(metaclass=ABCMeta):
 
     def __init__(self, H: LinearOperator, psi0: Tensor, options):
         self.H = H
-        self.psi0 = psi0
+        self.psi0 = psi0.copy()
         self._psi0_norm = None
-        #  self.options = options = asConfig(options, self.__class__.__name__)
-        self.N_min = options.get('N_min', 2)
-        self.N_max = options.get('N_max', 20)
+        self.options = {} if options is None else options
+        self.N_min = self.options.get('N_min', 2)
+        self.N_max = self.options.get('N_max', 20)
         self.N_cache = self.N_max
-        self.P_tol = options.get('P_tol', 1.0e-14)
-        self.min_gap = options.get('min_gap', 1.0e-12)
-        self.reortho = options.get('reortho', False)
-        self.E_shift = options.get('E_shift', None)
+        self.P_tol = self.options.get('P_tol', 1.0e-14)
+        self.min_gap = self.options.get('min_gap', 1.0e-12)
+        self.reortho = self.options.get('reortho', False)
+        self.E_shift = self.options.get('E_shift', None)
         if self.N_min < 2:
             raise ValueError('Should perform at least 2 steps.')
-        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100)
+        self._cutoff = self.options.get('cutoff', psi0.dtype.eps * 100)
         if self.E_shift is not None:
             if isinstance(self.H, ProjectedLinearOperator):
                 self.H.original_operator = ShiftedLinearOperator(self.H.original_operator, self.E_shift)
@@ -150,6 +163,12 @@ class KrylovBased(metaclass=ABCMeta):
     @abstractmethod
     def _calc_result_krylov(self, k): ...
 
+    def _reset_krylov_state(self):
+        """Clear cached Krylov vectors and the projected Hessenberg matrix."""
+        self._cache = []
+        self._h_krylov[:] = 0.0
+        self.Es[:] = 0.0
+
     def _calc_result_full(self, N: int) -> Tensor:
         """Transform the :attr:`_result_krylov` from the Krylov ONB to the original basis.
 
@@ -163,13 +182,13 @@ class KrylovBased(metaclass=ABCMeta):
         len_cache = len(self._cache)
         # and the len_cache vectors have been cached
         for k in range(1, min(len_cache + 1, N)):
-            psif += vf[N - k] * self._cache[-k]
+            psif = psif + vf[N - k] * self._cache[-k]
         # other vectors are not cached, so we need to restart the Lanczos iteration.
         self._cache = []  # free memory: we need at least two more vectors
 
-        self._rebuild_krylov_for_result_full(psif, N - len_cache - 1)
+        psif = self._rebuild_krylov_for_result_full(psif, N - len_cache - 1)
 
-        psif_norm = norm(psif)
+        psif_norm = _abs_number(norm(psif))
         if abs(1.0 - psif_norm) > 1.0e-5:
             # One reason can be that `H` is not Hermitian
             # Otherwise, the matrix (even if small) might be ill conditioned.
@@ -184,6 +203,149 @@ class KrylovBased(metaclass=ABCMeta):
         cache.append(psi)
         if len(cache) > self.N_cache:
             cache.pop(0)  # remove *first* entry
+
+
+class GMRES:
+    """GMRES solver for ``A x = b`` with cyten tensors.
+
+    Parameters
+    ----------
+    A : :class:`~cyten.sparse.LinearOperator`
+        Linear operator. Must implement `matvec`.
+    x : :class:`~cyten.tensors.Tensor`
+        Initial guess. Copied; the caller's tensor is not modified.
+    b : :class:`~cyten.tensors.Tensor`
+        Right-hand side.
+    options : dict
+        Solver options.
+
+    Options
+    -------
+    N_min : int
+        Minimum number of Arnoldi steps per restart cycle before checking convergence.
+    N_max : int
+        Maximum Krylov dimension per restart cycle.
+    restart : int
+        Maximum number of restart cycles.
+    res : float
+        Relative residual tolerance ``|A x - b| / |b|``.
+
+    """
+
+    def __init__(self, A, x, b, options):
+        options = {} if options is None else options
+        self.options = options
+        self.N_min = options.get('N_min', 5)
+        self.N_max = options.get('N_max', 20)
+        self.restart = options.get('restart', 10)
+        self.res = options.get('res', 1.0e-8)
+        self.A = A
+        self.b = b.copy()
+        self.x = x.copy()
+        r0 = self.b - self.A.matvec(self.x)
+        self.rs = [r0]
+        self.b_norm = _abs_number(norm(self.b))
+        self.r_norm = _abs_number(norm(r0))
+        denom = self.b_norm if self.b_norm != 0 else 1.0
+        self.total_error = [[self.r_norm / denom]]
+        self.total_iters = []
+        if self.r_norm > 0:
+            self.qs = [scalar_multiply(1.0 / self.r_norm, r0)]
+        else:
+            self.qs = [r0]
+        self._init_hessenberg()
+
+    def _init_hessenberg(self):
+        self.sine = np.zeros(self.N_max, dtype=np.complex128)
+        self.cosine = np.zeros(self.N_max, dtype=np.complex128)
+        self.e1 = np.zeros(self.N_max + 1, dtype=np.complex128)
+        self.e1[0] = self.r_norm
+        self.H = np.zeros((self.N_max + 1, self.N_max), dtype=np.complex128)
+
+    def run(self):
+        if self.total_error[0][0] < self.res:
+            return self.x, self.total_error[0][0], self.total_error, self.total_iters
+        for _ in range(self.restart):
+            converged = False
+            for k in range(0, self.N_max):
+                self.arnoldi(k)
+                self.apply_givens_rotation(k)
+                self.e1[k + 1] = -self.sine[k] * self.e1[k]
+                self.e1[k] = self.cosine[k] * self.e1[k]
+                # The residual is the last element of the beta vector (see Wikipedia).
+                error = np.abs(self.e1[k + 1]) / (self.b_norm if self.b_norm != 0 else 1.0)
+                self.total_error[-1].append(error)
+                if error < self.res and k >= self.N_min:
+                    converged = True
+                    break
+            self.total_iters.append(k + 1)
+            self.backsolve(k + 1)
+            for i in range(k + 1):
+                self.x = self.x + self.y[i] * self.qs[i]
+            if not converged:
+                self.reset()
+            else:
+                break
+
+        rel = _abs_number(norm(self.A.matvec(self.x) - self.b))
+        if self.b_norm != 0:
+            rel = rel / self.b_norm
+        return self.x, rel, self.total_error, self.total_iters
+
+    def arnoldi(self, k):
+        # Iterative build orthogonal Krylov subspace and Hessenberg matrix.
+        q = self.A.matvec(self.qs[-1])
+        for i in range(k + 1):
+            hik = _to_number(inner(self.qs[i], q))
+            self.H[i, k] = hik
+            q = q - hik * self.qs[i]
+        self.H[k + 1, k] = _abs_number(norm(q))
+        if self.H[k + 1, k] > 0:  # avoid warning if norm(q)==0, error=0 in that case
+            q = scalar_multiply(1.0 / self.H[k + 1, k], q)
+        self.qs.append(q)
+
+    def apply_givens_rotation(self, k):
+        # Apply rotation to H so that it becomes upper triangular.
+        for i in range(k):
+            temp = self.cosine[i] * self.H[i, k] + self.sine[i] * self.H[i + 1, k]
+            self.H[i + 1, k] = -self.sine[i] * self.H[i, k] + self.cosine[i] * self.H[i + 1, k]
+            self.H[i, k] = temp
+
+        self.givens_rotation(k)
+        self.H[k, k] = self.cosine[k] * self.H[k, k] + self.sine[k] * self.H[k + 1, k]
+        self.H[k + 1, k] = 0
+
+    def givens_rotation(self, k):
+        # Find cosine and sine such that the element below the diagonal of kth column of H is removed.
+        v1, v2 = self.H[k, k], self.H[k + 1, k]
+        t = np.sqrt(v1**2 + v2**2)
+        self.cosine[k] = v1 / t
+        self.sine[k] = v2 / t
+
+    def backsolve(self, k):
+        # H is now upper triangular; backsolve to find y exactly.
+        H = self.H[:k, :k]
+        e2 = self.e1[:k]
+        y = np.zeros(k, dtype=np.complex128)
+        for i in range(k - 1, -1, -1):
+            y[i] = e2[i]
+            for j in range(i + 1, k):
+                y[i] -= H[i, j] * y[j]
+            y[i] /= H[i, i]
+        self.y = y
+
+    def reset(self):
+        # Restart GMRES using current x as initial guess.
+        r = self.b - self.A.matvec(self.x)
+        self.rs.append(r)
+        self.r_norm = _abs_number(norm(r))
+        denom = self.b_norm if self.b_norm != 0 else 1.0
+        self.total_error.append([self.r_norm / denom])
+        if self.r_norm > 0:
+            self.qs = [scalar_multiply(1.0 / self.r_norm, r)]
+        else:
+            self.qs = [r]
+        self._init_hessenberg()
 
 
 class Arnoldi(KrylovBased):
@@ -209,9 +371,9 @@ class Arnoldi(KrylovBased):
 
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
-        self.E_tol = self.options.get('E_tol', np.inf, 'real')
-        self.which = self.options.get('which', 'LM', str)
-        self.num_ev = self.options.get('num_ev', 1, int)  # number of desired eigenvectors
+        self.E_tol = self.options.get('E_tol', np.inf)
+        self.which = self.options.get('which', 'LM')
+        self.num_ev = self.options.get('num_ev', 1)  # number of desired eigenvectors
 
     def run(self):
         """Find the ground state of self.H.
@@ -221,7 +383,7 @@ class Arnoldi(KrylovBased):
         E0s : numpy array
             Best eigenvalue estimates, :cfg:option:`Arnoldi.num_ev` entries,
             sorted according to :cfg:option:`Arnoldi.which`.
-        psis : list of :class:`~cyten.np_conserved.Array`
+        psis : list of :class:`~cyten.tensors.Tensor`
             Corresponding best eigenvectors (estimates).
         N : int
             Used dimension of the Krylov space, i.e., how many iterations where performed.
@@ -243,7 +405,7 @@ class Arnoldi(KrylovBased):
         """
         h = self._h_krylov
         w = self.psi0  # initialize
-        w_norm = norm(w)
+        w_norm = _abs_number(norm(w))
         self.psi0 = w / w_norm
         for k in range(self.N_max):
             w = scalar_multiply(1.0 / w_norm, w)
@@ -251,9 +413,9 @@ class Arnoldi(KrylovBased):
             w = self.H.matvec(w)
             for i, v_i in enumerate(self._cache):
                 ov = inner(v_i, w)
-                h[i, k] = ov.to_numpy()
-                w += -ov * v_i
-            h[k + 1, k] = w_norm = norm(w).to_numpy()
+                h[i, k] = _to_number(ov)
+                w = w - ov * v_i
+            h[k + 1, k] = w_norm = _abs_number(norm(w))
             self._calc_result_krylov(k)
             if w_norm < self._cutoff or (k + 1 >= self.N_min and self._converged(k)):
                 break
@@ -291,9 +453,9 @@ class Arnoldi(KrylovBased):
             psi = vf[0] * krylov_basis[0]  # copy!
             # and the last len_cache vectors have been cached
             for k in range(1, N):
-                psi += vf[k] * krylov_basis[k]
+                psi = psi + vf[k] * krylov_basis[k]
 
-            psi_norm = norm(psi)
+            psi_norm = _abs_number(norm(psi))
             if abs(1.0 - psi_norm) > 1.0e-5:
                 # One reason can be that `H` is not Hermitian
                 # Otherwise, the matrix (even if small) might be ill conditioned.
@@ -317,6 +479,126 @@ class Arnoldi(KrylovBased):
         P_err = (RitzRes / gap) ** 2
         Delta_E0 = self.Es[k - 1, 0] - E[0]
         return P_err < self.P_tol and Delta_E0 < self.E_tol
+
+
+class ArnoldiEvolution(Arnoldi):
+    r"""Compute :math:`exp(\delta H) |\psi_0\rangle` using Arnoldi for non-Hermitian `H`.
+
+    Drop-in replacement for :class:`LanczosEvolution` when `H` is not Hermitian.
+    Builds an upper Hessenberg projection of `H` via full Gram-Schmidt orthogonalization
+    (Arnoldi iteration), then computes the matrix exponential of the small projected matrix
+    via eigendecomposition (``numpy.linalg.eig`` + pointwise scalar exponentials).
+
+    Parameters
+    ----------
+    H, psi0, options :
+        Same as :class:`Arnoldi`. Note that `H` need not be Hermitian.
+
+    Options
+    -------
+    .. cfg:config :: ArnoldiEvolution
+        :include: Arnoldi
+
+        E_tol, which, num_ev :
+            Inherited but ignored.
+
+    Attributes
+    ----------
+    delta : float/complex or None
+        Prefactor of H in the exponential.
+    _result_norm : float
+        Norm of the result vector.
+
+    """
+
+    def __init__(self, H, psi0, options):
+        super().__init__(H, psi0, options)
+        self._result_norm = 1.0
+        self.delta = None
+        # Arnoldi._build_krylov does not set _psi0_norm; do it here.
+        self._psi0_norm = _abs_number(norm(psi0))
+
+    def run(self, delta, normalize=None):
+        """Compute ``expm(delta * H).dot(psi0)`` using Arnoldi.
+
+        Parameters
+        ----------
+        delta : float/complex
+            Prefactor of H in the exponential. Note that the complex ``i`` is *not* included.
+        normalize : bool
+            Whether to normalize the result. Defaults to ``False``.
+            Unlike :class:`LanczosEvolution` (which defaults to ``np.real(delta) == 0``),
+            non-Hermitian evolution does not in general preserve the norm, so normalization
+            would strip physically meaningful decay or growth and is off by default.
+
+        Returns
+        -------
+        psi_f : :class:`~cyten.tensors.Tensor`
+            Best approximation for ``expm(delta * H).dot(psi0)``.
+        N : int
+            Krylov space dimension used.
+
+        """
+        assert self.N_cache >= self.N_max  # all basis vectors required for back-transform
+        self.delta = delta
+        # Arnoldi._to_cache does not pop old entries, so we must clear state between calls.
+        self._reset_krylov_state()
+        N = self._build_krylov()
+        if N > 1:
+            logger.debug('ArnoldiEvolution N=%d, |result[-1]|=%.3e', N, abs(self._result_krylov[N - 1, 0]))
+        else:
+            logger.debug('ArnoldiEvolution N=1, |h[0,0]|=%.3e', abs(self._h_krylov[0, 0]))
+        if N == 1:
+            result_full = self._result_krylov[0, 0] * self.psi0
+        else:
+            result_full = self._calc_result_full_evolution(N)
+        if normalize is None:
+            normalize = False
+        if normalize:
+            return result_full, N
+        return (self._psi0_norm * self._result_norm) * result_full, N
+
+    def _calc_result_krylov(self, k):
+        """Compute ``exp(delta * h[:k+1, :k+1]) @ e0`` via eigendecomposition.
+
+        For a general (non-Hermitian) matrix h with right eigenvectors V and eigenvalues E,
+        h = V diag(E) V^{-1}, so exp(delta h) e0 = V diag(exp(delta E)) (V^{-1} e0).
+        This mirrors :class:`LanczosEvolution` (which uses ``eigh`` and V^{-1}=V†),
+        but uses ``eig`` and an explicit solve instead of conjugate-transpose.
+        """
+        h = self._h_krylov
+        delta = self.delta
+        if k == 0:
+            exp_dE = np.exp(delta * h[0, 0])
+            self._result_norm = np.abs(exp_dE)
+            self._result_krylov = np.array([[exp_dE / self._result_norm]])
+        else:
+            E_kr, v_kr = np.linalg.eig(h[: k + 1, : k + 1])
+            # V^{-1} e0 = first column of V^{-1}; use solve for numerical stability
+            e0 = np.zeros(k + 1, dtype=complex)
+            e0[0] = 1.0
+            coeff = np.linalg.solve(v_kr, e0)
+            exp_dH_e0 = np.dot(v_kr, np.exp(E_kr * delta) * coeff)
+            self._result_norm = np.linalg.norm(exp_dH_e0)
+            # Shape (k+1, 1) to be compatible with Arnoldi._converged reading [:, 0].
+            self._result_krylov = (exp_dH_e0 / self._result_norm).reshape(-1, 1)
+
+    def _converged(self, k):
+        """Converged when the last coefficient of ``expm(delta*h)*e0`` is below `P_tol`."""
+        return np.abs(self._result_krylov[k, 0]) < self.P_tol
+
+    def _calc_result_full_evolution(self, N):
+        """Back-transform Krylov coefficients to the original basis."""
+        vf = self._result_krylov[:N, 0]  # 1-D coefficient array
+        cache = self._cache
+        assert len(cache) >= N
+        psif = vf[0] * cache[0]
+        for k in range(1, N):
+            psif = psif + vf[k] * cache[k]
+        psif_norm = _abs_number(norm(psif))
+        if abs(1.0 - psif_norm) > 1.0e-5:
+            logger.warning('poorly conditioned H in ArnoldiEvolution! |psi|=%f', psif_norm)
+        return scalar_multiply(1.0 / psif_norm, psif)
 
 
 class LanczosGroundState(KrylovBased):
@@ -345,8 +627,8 @@ class LanczosGroundState(KrylovBased):
 
     def __init__(self, H, psi0: Tensor, options):
         super().__init__(H=H, psi0=psi0, options=options)
-        self.E_tol = options.get('E_tol', np.inf)
-        self.N_cache = options.get('N_cache', self.N_max)
+        self.E_tol = self.options.get('E_tol', np.inf)
+        self.N_cache = self.options.get('N_cache', self.N_max)
         if self.N_cache < 2:
             raise ValueError('Need to cache at least two vectors.')
 
@@ -388,7 +670,9 @@ class LanczosGroundState(KrylovBased):
         """
         h = self._h_krylov
         w = self.psi0  # initialize
-        beta = norm(w)
+        beta = _abs_number(norm(w))
+        if beta < self._cutoff:
+            raise ValueError(f'Norm of self.psi0 too small: {beta}')
         self.psi0 = w / beta
         if self._psi0_norm is None:
             # this is only needed for normalization in LanczosEvolution
@@ -397,16 +681,16 @@ class LanczosGroundState(KrylovBased):
             w = scalar_multiply(1.0 / beta, w)
             self._to_cache(w)
             w = self.H.matvec(w)
-            alpha = inner(w, self._cache[-1]).real()
-            h[k, k] = alpha.to_numpy()
+            alpha = _to_number(inner(w, self._cache[-1]).real())
+            h[k, k] = alpha
             self._calc_result_krylov(k)
-            w -= alpha * self._cache[-1]
+            w = w - alpha * self._cache[-1]
             if self.reortho:
                 for c in self._cache[:-1]:
-                    w -= inner(c, w) * c
+                    w = w - inner(c, w) * c
             elif k > 0:
-                w -= beta * self._cache[-2]
-            beta = norm(w).real().to_numpy()
+                w = w - beta * self._cache[-2]
+            beta = _abs_number(norm(w))
             h[k, k + 1] = h[k + 1, k] = beta  # needed for the next step and convergence criteria
             if abs(beta) < self._cutoff or (k + 1 >= self.N_min and self._converged(k)):
                 break
@@ -425,20 +709,21 @@ class LanczosGroundState(KrylovBased):
         vf = self._result_krylov
         h = self._h_krylov
         w = self.psi0  # initialize
+        beta = None
         for k in range(0, N_max):
             self._to_cache(w)
             w = self.H.matvec(w)
             alpha = h[k, k]
-            w -= alpha * self._cache[-1]
+            w = w - alpha * self._cache[-1]
             if self.reortho:
                 for c in self._cache[:-1]:
-                    w -= inner(c, w) * c
+                    w = w - inner(c, w) * c
             elif k > 0:
-                w -= beta * self._cache[-2]  # noqa: F821
+                w = w - beta * self._cache[-2]
             beta = h[k, k + 1]  # = norm(w)
-            w = w._mul_scalar(1.0 / beta)
-            psif += vf[k + 1] * w
-        # continue in _calc_result_full
+            w = scalar_multiply(1.0 / beta, w)
+            psif = psif + vf[k + 1] * w
+        return psif
 
     def _calc_result_krylov(self, k):
         """Calculate ground state of _h_krylov[:k+1, :k+1]"""
@@ -515,6 +800,7 @@ class LanczosEvolution(LanczosGroundState):
 
         """
         self.delta = delta
+        self._reset_krylov_state()
         N = self._build_krylov()
         if N > 1:
             logger.debug('Lanczos N=%d, |result_krylov[-1]|=%.3e', N, abs(self._result_krylov[-1]))

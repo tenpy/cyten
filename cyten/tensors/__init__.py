@@ -126,7 +126,16 @@ from ._tensors import (
     truncated_svd,
     zero_like,
 )
-from .krylov_based import Arnoldi, KrylovBased, LanczosEvolution, LanczosGroundState, lanczos, lanczos_arpack
+from .krylov_based import (
+    Arnoldi,
+    ArnoldiEvolution,
+    GMRES,
+    KrylovBased,
+    LanczosEvolution,
+    LanczosGroundState,
+    lanczos,
+    lanczos_arpack,
+)
 from .planar import (
     ContractionTree,
     PlanarDiagram,
