@@ -47,6 +47,9 @@ void bind_tensors_decompositions(py::module_& m);
 void bind_tensors_sparse(py::module_& m);
 void bind_tensors_krylov_based(py::module_& m);
 void bind_tensors_planar(py::module_& m);
+void bind_models_degrees_of_freedom(py::module_& m);
+void bind_models_sites(py::module_& m);
+void bind_models_couplings(py::module_& m);
 void bind_check(py::module_& m);
 
 } // namespace cyten

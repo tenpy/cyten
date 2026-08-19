@@ -39,5 +39,9 @@ PYBIND11_MODULE(_core, m)
     bind_tensors_krylov_based(m);
     bind_tensors_planar(m);
 
+    bind_models_degrees_of_freedom(m);
+    bind_models_sites(m);
+    bind_models_couplings(m);
+
     bind_check(m); // TODO: remove check
 }
