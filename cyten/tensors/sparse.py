@@ -878,3 +878,15 @@ def gram_schmidt(vecs: list[VectorLike], rcond=1.0e-14) -> list[VectorLike]:
         if n > rcond:
             res.append(vec * (1.0 / float(n)))
     return res
+
+
+# Monkey-patch converted sparse classes/functions from C++ bindings.
+from .._core import (  # noqa: E402,F401
+    LinearOperator,
+    LinearOperatorWrapper,
+    ProjectedLinearOperator,
+    ShiftedLinearOperator,
+    SumLinearOperator,
+    TensorLinearOperator,
+    gram_schmidt,
+)

@@ -59,6 +59,7 @@ target_sources(cyten
   tensors/ops_algebra.cpp
   tensors/ops_legs.cpp
   tensors/decompositions.cpp
+  tensors/sparse.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp
