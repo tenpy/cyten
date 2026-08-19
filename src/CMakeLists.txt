@@ -60,6 +60,7 @@ target_sources(cyten
   tensors/ops_legs.cpp
   tensors/decompositions.cpp
   tensors/sparse.cpp
+  tensors/krylov_based.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp

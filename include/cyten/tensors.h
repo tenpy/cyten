@@ -6,6 +6,7 @@
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/direct_sum.h>
 #include <cyten/tensors/helpers.h>
+#include <cyten/tensors/krylov_based.h>
 #include <cyten/tensors/labels.h>
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/ops_algebra.h>
