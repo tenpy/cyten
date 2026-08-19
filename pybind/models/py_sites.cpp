@@ -331,7 +331,8 @@ Parameters
 )pydoc";
 
     ising_anyon_site
-      .def(py::init<TensorBackend::Ptr, std::optional<std::string>>(),
+      .def(py::init<int, TensorBackend::Ptr, std::optional<std::string>>(),
+           py::arg("nu") = 1,
            py::arg("backend") = nullptr,
            py::arg("default_device") = py::none())
       .def("__repr__", &IsingAnyonSite::repr);
@@ -348,7 +349,8 @@ handedness: Literal['left', 'right']
 )pydoc";
 
     golden_site
-      .def(py::init<TensorBackend::Ptr, std::optional<std::string>>(),
+      .def(py::init<std::string, TensorBackend::Ptr, std::optional<std::string>>(),
+           py::arg("handedness") = "left",
            py::arg("backend") = nullptr,
            py::arg("default_device") = py::none())
       .def("__repr__", &GoldenSite::repr);

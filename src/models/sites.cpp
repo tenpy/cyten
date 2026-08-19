@@ -690,13 +690,12 @@ build_clock_site(int64 q, std::optional<std::string> conserve)
 }
 
 ElementarySpace::Ptr
-build_golden_site_leg()
+build_golden_site_leg(std::string const& handedness = "left")
 {
-    auto cat = std::make_shared<FibonacciAnyonCategory>("left");
+    auto cat = std::make_shared<FibonacciAnyonCategory>(handedness);
     auto sym = std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ cat });
-    SectorArray defining;
-    defining.push_back(FibonacciAnyonCategory::tau);
-    return ElementarySpace::from_defining_sectors(sym, defining);
+    return ElementarySpace::from_defining_sectors(
+      sym, SectorArray::from_sector(FibonacciAnyonCategory::tau));
 }
 
 ElementarySpace::Ptr
@@ -710,9 +709,7 @@ build_su2k_spin1_leg(int64 k)
     if (!cat->spin_one) {
         throw std::runtime_error("SU2_kAnyonCategory spin_one sector is not defined.");
     }
-    SectorArray defining;
-    defining.push_back(*cat->spin_one);
-    return ElementarySpace::from_defining_sectors(sym, defining);
+    return ElementarySpace::from_defining_sectors(sym, SectorArray::from_sector(*cat->spin_one));
 }
 
 SpinSiteInit g_spin_site_init{};
@@ -763,10 +760,10 @@ prepare_fibonacci_symmetry()
 }
 
 Symmetry::Ptr
-prepare_ising_symmetry()
+prepare_ising_symmetry(int nu = 1)
 {
     return g_anyon_sym = std::make_shared<Symmetry>(
-             std::vector<SymmetryFactor::Ptr>{ std::make_shared<IsingAnyonCategory>(1) });
+             std::vector<SymmetryFactor::Ptr>{ std::make_shared<IsingAnyonCategory>(nu) });
 }
 
 ElementarySpace::Ptr
@@ -779,9 +776,9 @@ ElementarySpace::Ptr g_golden_leg{};
 ElementarySpace::Ptr g_su2k_leg{};
 
 ElementarySpace::Ptr
-prepare_golden_leg()
+prepare_golden_leg(std::string const& handedness = "left")
 {
-    return g_golden_leg = build_golden_site_leg();
+    return g_golden_leg = build_golden_site_leg(handedness);
 }
 
 ElementarySpace::Ptr
@@ -1160,9 +1157,10 @@ FibonacciAnyonSite::repr() const
     return std::format("FibonacciAnyonSite(handedness={})", cat ? cat->handedness : "left");
 }
 
-IsingAnyonSite::IsingAnyonSite(TensorBackend::Ptr backend,
+IsingAnyonSite::IsingAnyonSite(int nu,
+                               TensorBackend::Ptr backend,
                                std::optional<std::string> default_device)
-  : Site((prepare_anyon_leg(prepare_ising_symmetry()), g_anyon_leg),
+  : Site((prepare_anyon_leg(prepare_ising_symmetry(nu)), g_anyon_leg),
          {},
          {},
          backend,
@@ -1179,8 +1177,10 @@ IsingAnyonSite::repr() const
     return std::format("IsingAnyonSite(nu={})", cat ? cat->nu : 1);
 }
 
-GoldenSite::GoldenSite(TensorBackend::Ptr backend, std::optional<std::string> default_device)
-  : Site(prepare_golden_leg(), {}, {}, backend, default_device)
+GoldenSite::GoldenSite(std::string handedness,
+                       TensorBackend::Ptr backend,
+                       std::optional<std::string> default_device)
+  : Site((prepare_golden_leg(handedness), g_golden_leg), {}, {}, backend, default_device)
   , AnyonDOF(g_golden_leg, {}, {}, {}, backend, default_device)
 {
 }

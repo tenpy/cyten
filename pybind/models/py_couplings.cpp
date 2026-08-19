@@ -91,6 +91,15 @@ name : str, optional
       .def_readwrite("sites", &Coupling::sites)
       .def_readwrite("factorization", &Coupling::factorization)
       .def_readwrite("name", &Coupling::name)
+      .def_readwrite("_levels", &Coupling::_levels)
+      .def_property_readonly("_permuted",
+                             [](Coupling const& self) {
+                                 py::list out;
+                                 for (auto const& [perm, obj] : self._permuted_py) {
+                                     out.append(py::make_tuple(py::cast(perm), obj));
+                                 }
+                                 return out;
+                             })
       .def_static("from_dense_block",
                   &Coupling::from_dense_block,
                   py::arg("operator"),
@@ -184,12 +193,34 @@ Coupling
     Spans all_sites[coupling_positions[0] to coupling_positions[-1] + 1].
 
 )pydoc")
-      .def("permute",
-           &Coupling::permute,
-           py::arg("permutation"),
-           py::arg("levels") = py::none(),
-           py::arg("over_braid") = py::none(),
-           R"pydoc(
+      .def(
+        "permute",
+        [](Coupling& self,
+           std::vector<int64> const& permutation,
+           py::object levels,
+           py::object over_braid) -> py::object {
+            for (auto const& [key, obj] : self._permuted_py) {
+                if (key == permutation) {
+                    return obj;
+                }
+            }
+            std::optional<LevelsSpec> levels_spec;
+            if (!levels.is_none()) {
+                levels_spec = levels.cast<LevelsSpec>();
+            }
+            std::optional<std::vector<std::optional<bool>>> over_braid_spec;
+            if (!over_braid.is_none()) {
+                over_braid_spec = over_braid.cast<std::vector<std::optional<bool>>>();
+            }
+            Coupling result = self.permute(permutation, levels_spec, over_braid_spec);
+            py::object result_obj = py::cast(std::move(result));
+            self._permuted_py.emplace_back(permutation, result_obj);
+            return result_obj;
+        },
+        py::arg("permutation"),
+        py::arg("levels") = py::none(),
+        py::arg("over_braid") = py::none(),
+        R"pydoc(
 Permute the sites of this coupling, braiding through the (possibly anyonic) legs.
 
 Contracts `self` to a single tensor (:meth:`to_tensor`), realizes `permutation` as a

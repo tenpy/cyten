@@ -126,7 +126,8 @@ class IsingAnyonSite : public AnyonSite
   public:
     using Ptr = std::shared_ptr<IsingAnyonSite>;
 
-    IsingAnyonSite(TensorBackend::Ptr backend = nullptr,
+    IsingAnyonSite(int nu = 1,
+                   TensorBackend::Ptr backend = nullptr,
                    std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
@@ -137,7 +138,8 @@ class GoldenSite : public AnyonDOF
   public:
     using Ptr = std::shared_ptr<GoldenSite>;
 
-    GoldenSite(TensorBackend::Ptr backend = nullptr,
+    GoldenSite(std::string handedness = "left",
+               TensorBackend::Ptr backend = nullptr,
                std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;

@@ -268,10 +268,11 @@ Site::Site(ElementarySpace::Ptr leg,
   , backend(backend ? std::move(backend) : get_backend(leg_symmetry(this->leg)))
   , default_device(default_device.value_or("cpu"))
 {
-    add_onsite_operator(
-      "Id",
-      py::cast(Identity::from_eye(
-        this->leg, this->backend, pp_labels(), Dtype::Float64, this->default_device)));
+    auto const sym = leg_symmetry(this->leg);
+    Dtype id_dtype = sym->has_complex_topological_data ? Dtype::Complex128 : Dtype::Float64;
+    add_onsite_operator("Id",
+                        py::cast(Identity::from_eye(
+                          this->leg, this->backend, pp_labels(), id_dtype, this->default_device)));
     add_onsite_operators_from_map(*this, onsite_operators);
 }
 

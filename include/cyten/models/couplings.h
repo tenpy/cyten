@@ -69,9 +69,11 @@ class Coupling
 
     void test_sanity() const;
 
-  private:
-    mutable std::vector<std::pair<std::vector<int64>, Coupling>> _permuted;
     std::vector<int64> _levels;
+    mutable std::vector<std::pair<std::vector<int64>, Coupling>> _permuted;
+    mutable std::vector<std::pair<std::vector<int64>, py::object>> _permuted_py;
+
+  private:
 };
 
 [[nodiscard]] Coupling spin_spin_coupling(std::vector<Site::Ptr> sites,

@@ -938,7 +938,10 @@ aklt_coupling(std::vector<Site::Ptr> sites,
         throw std::invalid_argument("aklt_coupling requires SpinDOF sites");
     }
     auto np = numpy();
-    py::object S_dot_S = np.attr("tensordot")(spin0->spin_vector, spin1->spin_vector, 2);
+    py::object S_dot_S =
+      np.attr("tensordot")(spin0->spin_vector,
+                           spin1->spin_vector,
+                           py::make_tuple(py::make_tuple(2), py::make_tuple(2)));
     S_dot_S = np.attr("transpose")(S_dot_S, py::make_tuple(0, 2, 3, 1));
     py::object S_dot_S_square = np.attr("tensordot")(
       S_dot_S, S_dot_S, py::make_tuple(py::make_tuple(3, 2), py::make_tuple(0, 1)));
@@ -1105,19 +1108,21 @@ onsite_pairing(std::vector<Site::Ptr> sites,
     }
     py::tuple species_tuple =
       species.is_none() ? default_species_pair() : species.cast<py::tuple>();
-    py::list species_1 = species_tuple[0].cast<py::list>();
-    py::list species_2 = species_tuple[1].cast<py::list>();
+    py::list species_1;
+    py::list species_2;
     if (is_all_species(species_tuple[0].cast<py::object>())) {
-        species_1 = py::list();
         for (int64 k = 0; k < occ->num_species; ++k) {
             species_1.append(k);
         }
+    } else {
+        species_1 = py::list(species_tuple[0]);
     }
     if (is_all_species(species_tuple[1].cast<py::object>())) {
-        species_2 = py::list();
         for (int64 k = 0; k < occ->num_species; ++k) {
             species_2.append(k);
         }
+    } else {
+        species_2 = py::list(species_tuple[1]);
     }
 
     auto np = numpy();
