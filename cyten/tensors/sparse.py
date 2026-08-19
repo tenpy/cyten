@@ -27,8 +27,10 @@ from ..tools.math import speigs, speigsh
 from ..tools.misc import argsort
 from ._tensors import (
     ChargedTensor,
+    DirectSum,
     SymmetricTensor,
     Tensor,
+    VectorLike,
     combine_legs,
     combine_to_matrix,
     inner,
@@ -69,12 +71,12 @@ class LinearOperator(metaclass=ABCMeta):
         self.dtype = dtype
 
     @abstractmethod
-    def matvec(self, vec: Tensor) -> Tensor:
+    def matvec(self, vec: VectorLike) -> VectorLike:
         """Apply the linear operator to a "vector".
 
-        We consider as vectors all tensors with :attr:`vector_legs`,
-        and in particular allow multi-leg tensors as "vectors".
-        The result of `matvec` must be a tensor of the same shape.
+        We consider as vectors all :class:`~cyten.tensors.VectorLike` objects, including
+        :class:`~cyten.tensors.Tensor` (any rank) and :class:`~cyten.tensors.DirectSum`.
+        The result of `matvec` must live in the same vector space as `vec`.
         """
         ...
 
@@ -204,7 +206,7 @@ class SumLinearOperator(LinearOperatorWrapper):
         self.more_operators = more_operators
         self.dtype = Dtype.common(original_operator.dtype, *(op.dtype for op in more_operators))
 
-    def matvec(self, vec: Tensor) -> Tensor:
+    def matvec(self, vec: VectorLike) -> VectorLike:
         return sum((op.matvec(vec) for op in self.more_operators), self.original_operator.matvec(vec))
 
     def to_tensor(self, **kw) -> Tensor:
@@ -228,7 +230,7 @@ class ShiftedLinearOperator(LinearOperatorWrapper):
         if np.iscomplexobj(shift):
             self.dtype = original_operator.dtype.to_complex
 
-    def matvec(self, vec: Tensor) -> Tensor:
+    def matvec(self, vec: VectorLike) -> VectorLike:
         return self.original_operator.matvec(vec) + self.shift * vec
 
     def to_tensor(self, **kw) -> Tensor:
@@ -281,7 +283,7 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
     def __init__(
         self,
         original_operator: LinearOperator,
-        ortho_vecs: list[Tensor],
+        ortho_vecs: list[VectorLike],
         project_operator: bool = True,
         penalty: Number = None,
     ):
@@ -289,13 +291,20 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
             warnings.warn('empty ortho_vecs: no need for ProjectedLinearOperator', stacklevel=2)
         if not project_operator and penalty is None:
             warnings.warn('project_operator=False and penalty=None means ProjectedLinearOperator does not do anything')
+        ortho_vecs = list(ortho_vecs)
+        if ortho_vecs:
+            ref = ortho_vecs[0]
+            for o in ortho_vecs[1:]:
+                if not o.compatible_with(ref):
+                    raise ValueError('ortho_vecs must be mutually compatible VectorLike objects')
         super().__init__(original_operator=original_operator)
-        assert all(_same_legs(v.legs, original_operator.vector_legs) for v in ortho_vecs)
         self.ortho_vecs = gram_schmidt(ortho_vecs)
         self.project_operator = project_operator
         self.penalty = penalty
 
-    def matvec(self, vec: Tensor) -> Tensor:
+    def matvec(self, vec: VectorLike) -> VectorLike:
+        if self.ortho_vecs and not vec.compatible_with(self.ortho_vecs[0]):
+            raise ValueError('vec is not compatible with ortho_vecs')
         res = vec
         # 1: res = P vec
         if self.project_operator:
@@ -347,6 +356,41 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
             project_operator=self.project_operator,
             penalty=None if self.penalty is None else np.conj(self.penalty),
         )
+
+
+class DirectSumLinearOperator(LinearOperator):
+    """Block-diagonal operator acting componentwise on a :class:`~cyten.tensors.DirectSum`.
+
+    Parameters
+    ----------
+    operators : list of :class:`LinearOperator`
+        One operator per DirectSum component. ``matvec`` applies ``operators[i]`` to
+        ``vec.components[i]``.
+
+    """
+
+    def __init__(self, operators: list[LinearOperator]):
+        if len(operators) == 0:
+            raise ValueError('DirectSumLinearOperator needs at least one operator')
+        self.operators = list(operators)
+        super().__init__(
+            vector_legs=operators[0].vector_legs,
+            dtype=Dtype.common(*(op.dtype for op in operators)),
+            vector_labels=operators[0].vector_labels,
+        )
+
+    def matvec(self, vec: VectorLike) -> DirectSum:
+        if not isinstance(vec, DirectSum):
+            raise TypeError('DirectSumLinearOperator.matvec expects a DirectSum')
+        if len(vec) != len(self.operators):
+            raise ValueError(f'DirectSum has {len(vec)} components, operator has {len(self.operators)}')
+        return DirectSum([op.matvec(comp) for op, comp in zip(self.operators, vec.components)])
+
+    def to_tensor(self, **kw) -> Tensor:
+        raise NotImplementedError('DirectSumLinearOperator has no single-tensor representation')
+
+    def adjoint(self) -> DirectSumLinearOperator:
+        return DirectSumLinearOperator([op.adjoint() for op in self.operators])
 
 
 class NumpyArrayLinearOperator(ScipyLinearOperator):
@@ -412,13 +456,32 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     def __init__(
         self,
         cyten_matvec,
-        legs: TensorProduct | list[Space],
-        backend: TensorBackend,
-        dtype,
+        legs: TensorProduct | list[Space] | None = None,
+        backend: TensorBackend | None = None,
+        dtype=None,
         labels: list[str] = None,
         charge_sector: None | Sector | Literal['trivial'] = 'trivial',
+        component_converters: list[NumpyArrayLinearOperator] | None = None,
     ):
         self.cyten_matvec = cyten_matvec
+        self.component_converters = component_converters
+        self.matvec_count = 0
+        if component_converters is not None:
+            if len(component_converters) == 0:
+                raise ValueError('component_converters must be non-empty')
+            self.backend = component_converters[0].backend
+            self.legs = None
+            self.labels = None
+            self.domain = None
+            self.pipe = None
+            self.symmetry = component_converters[0].symmetry
+            sizes = [int(op.shape[0]) for op in component_converters]
+            self._component_sizes = sizes
+            n = sum(sizes)
+            self.shape = (n, n)
+            self._charge_sector = None
+            ScipyLinearOperator.__init__(self, dtype=dtype, shape=self.shape)
+            return
         self.backend = backend
         if not isinstance(legs, TensorProduct):
             self.legs = list(legs)
@@ -432,7 +495,6 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             self.pipe = self.legs[0]
         else:
             self.pipe = backend.make_pipe(self.legs, is_dual=False)
-        self.matvec_count = 0
         self.labels = labels
 
         self.shape = None  # set by charge_sector.setter
@@ -496,7 +558,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
 
     @classmethod
     def from_matvec_and_vector(
-        cls, cyten_matvec, vector: Tensor, dtype=None
+        cls, cyten_matvec, vector: Tensor | DirectSum, dtype=None
     ) -> tuple[NumpyArrayLinearOperator, np.ndarray]:
         """Create a :class:`NumpyArrayLinearOperator` from a matvec and a vector that it can act on.
 
@@ -509,13 +571,12 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         Parameters
         ----------
         cyten_matvec : callable
-            Function with signature ``cyten_matvec(vec: Tensor) -> Tensor``.
-            Has to return a tensor with the same leg and has to be linear.
-        vector : :class:`~cyten.tensors.Tensor` | :class:`~cyten.tensors.ChargedTensor`
-            A tensor that `cyten_matvec` can act on.
-            If a ChargedTensor with a single one-dimensional charge, that sector is used as
-            :attr:`charge_sector`. If it has a specified :attr:`~cyten.tensors.ChargedTensor.charged_state`
-            spanning multiple sectors, :attr:`charge_sector` is ``None``.
+            Function with signature ``cyten_matvec(vec) -> vec`` on :class:`~cyten.tensors.Tensor`
+            or :class:`~cyten.tensors.DirectSum`.
+        vector : :class:`~cyten.tensors.Tensor` | :class:`~cyten.tensors.DirectSum`
+            A vector that `cyten_matvec` can act on.
+            For a Tensor / ChargedTensor, the charge sector is inferred as before.
+            For a DirectSum, each component is flattened and concatenated.
         dtype
             The *numpy* dtype of the operator. Per default, the dtype of `vector` is used.
 
@@ -527,6 +588,18 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             Flat numpy vector representing `vector` within its charge sector.
 
         """
+        if isinstance(vector, DirectSum):
+            if dtype is None:
+                dtype = vector.dtype.to_numpy_dtype()
+            converters = []
+            flats = []
+            for comp in vector.components:
+                conv_i, flat_i = cls.from_matvec_and_vector(lambda v: v, comp, dtype=dtype)
+                converters.append(conv_i)
+                flats.append(flat_i)
+            op = cls(cyten_matvec, dtype=dtype, component_converters=converters)
+            return op, np.concatenate(flats)
+
         if isinstance(vector, ChargedTensor):
             charge = vector.charge_leg
             try:
@@ -621,9 +694,16 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             return tens
         return split_legs(tens, 0)
 
-    def flat_array_to_tensor(self, vec: np.ndarray) -> Tensor:
-        """Convert flat numpy data to a tensor in the selected charge sector."""
+    def flat_array_to_tensor(self, vec: np.ndarray) -> Tensor | DirectSum:
+        """Convert flat numpy data to a tensor (or DirectSum) in the selected charge sector."""
         assert vec.shape == (self.shape[1],)
+        if self.component_converters is not None:
+            parts = []
+            offset = 0
+            for conv, size in zip(self.component_converters, self._component_sizes):
+                parts.append(conv.flat_array_to_tensor(vec[offset : offset + size]))
+                offset += size
+            return DirectSum(parts)
         block = self.backend.block_backend.block_from_numpy(vec)
         if self._charge_sector is None:
             # The numpy vector is the full dense state on the parent space. Represent it as
@@ -650,8 +730,15 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             res.set_labels(self.labels)
         return res
 
-    def tensor_to_flat_array(self, tens: Tensor) -> np.ndarray:
-        """Convert a tensor in the selected charge sector to a flat numpy array."""
+    def tensor_to_flat_array(self, tens: Tensor | DirectSum) -> np.ndarray:
+        """Convert a tensor (or DirectSum) in the selected charge sector to a flat numpy array."""
+        if self.component_converters is not None:
+            if not isinstance(tens, DirectSum):
+                raise TypeError('Expected a DirectSum for this operator')
+            if len(tens) != len(self.component_converters):
+                raise ValueError('DirectSum component count does not match operator')
+            parts = [conv.tensor_to_flat_array(comp) for conv, comp in zip(self.component_converters, tens.components)]
+            return np.concatenate(parts)
         if (
             self.labels is not None
             and all(l is not None for l in self.labels)
@@ -676,7 +763,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         max_tol: float = 1.0e-12,
         which: str = 'LM',
         v0_np: np.ndarray = None,
-        v0_tensor: Tensor = None,
+        v0_tensor: Tensor | DirectSum = None,
         cutoff: float = 1.0e-10,
         hermitian: bool = False,
         **kwargs,
@@ -766,19 +853,19 @@ class HermitianNumpyArrayLinearOperator(NumpyArrayLinearOperator):
         return NumpyArrayLinearOperator.eigenvectors(self, *args, **kwargs)
 
 
-def gram_schmidt(vecs: list[Tensor], rcond=1.0e-14) -> list[Tensor]:
-    """Gram-Schmidt orthonormalization of a list of tensors.
+def gram_schmidt(vecs: list[VectorLike], rcond=1.0e-14) -> list[VectorLike]:
+    """Gram-Schmidt orthonormalization of a list of vectors.
 
     Parameters
     ----------
-    vecs : list of :class:`~cyten.tensors.Tensor`
-        The list of vectors to be orthogonalized. All with the same legs.
-    rcond : _type_, optional
+    vecs : list of :class:`~cyten.tensors.VectorLike`
+        The list of vectors to be orthogonalized. All must be mutually compatible.
+    rcond : float
         Vectors of ``norm < rcond`` (after projecting out previous vectors) are discarded.
 
     Returns
     -------
-    list of :class:`~cyten.tensors.Tensor`
+    list of :class:`~cyten.tensors.VectorLike`
         A list of orthonormal vectors which span the same space as `vecs`.
 
     """

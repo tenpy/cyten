@@ -22,7 +22,9 @@ PYBIND11_MODULE(_core, m)
     bind_fusion_tree_mapping(m);
     bind_backend_factory(m);
     bind_tensors_labels(m);
+    bind_tensors_vector_like(m);
     bind_tensors_tensor(m);
+    bind_tensors_direct_sum(m);
     bind_tensors_symmetric_tensor(m);
     bind_tensors_diagonal_tensor(m);
     bind_tensors_mask(m);

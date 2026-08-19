@@ -1,7 +1,9 @@
 #include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/direct_sum.h>
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/ops_algebra.h>
 #include <cyten/tensors/tensor.h>
+#include <cyten/tensors/vector_like.h>
 
 #include "../py_cyten_pybind11.h"
 
@@ -53,6 +55,22 @@ py::object
 py_from_tensor_or_scalar(std::variant<TensorPtr, BlockBackend::Scalar> const& v)
 {
     return std::visit([](auto const& x) -> py::object { return py::cast(x); }, v);
+}
+
+/// Downcast a VectorLike pointer so Tensor arithmetic still returns a Tensor.
+py::object
+py_cast_vector_like(VectorLikePtr p)
+{
+    if (!p) {
+        return py::none();
+    }
+    if (auto t = std::dynamic_pointer_cast<Tensor>(p)) {
+        return py::cast(std::move(t));
+    }
+    if (auto ds = std::dynamic_pointer_cast<DirectSum>(p)) {
+        return py::cast(std::move(ds));
+    }
+    return py::cast(std::move(p));
 }
 
 BlockBackend::Scalar
@@ -139,11 +157,11 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       R"pydoc(If the given tensors have the same device, return it. Raise otherwise.)pydoc");
 
     m.def("inner",
-          &inner,
+          static_cast<BlockBackend::Scalar (*)(VectorLikeCPtr, VectorLikeCPtr, bool)>(&inner),
           py::arg("A"),
           py::arg("B"),
           py::arg("do_dagger") = true,
-          R"pydoc(The Frobenius inner product of two tensors.)pydoc");
+          R"pydoc(The Frobenius inner product of two tensors or DirectSums.)pydoc");
 
     m.def(
       "is_scalar",
@@ -183,7 +201,7 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
 
     m.def(
       "linear_combination",
-      [](py::object a, TensorCPtr v, py::object b, TensorCPtr w) {
+      [](py::object a, VectorLikeCPtr v, py::object b, VectorLikeCPtr w) {
           auto is_ok = [](py::object o) {
               if (py::isinstance(o, py::module_::import("numbers").attr("Number"))) {
                   return true;
@@ -195,17 +213,23 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
                   return false;
               }
           };
+          if (!v || !w) {
+              throw py::type_error("linear_combination() v and w must be VectorLike");
+          }
           if (!is_ok(a) || !is_ok(b)) {
               throw py::type_error(
                 std::format("unsupported scalar types: {}, {}",
                             std::string(py::str(py::type::of(a).attr("__name__"))),
                             std::string(py::str(py::type::of(b).attr("__name__")))));
           }
-          auto sa =
-            py::cast(v->backend->block_backend).attr("as_scalar")(a).cast<BlockBackend::Scalar>();
-          auto sb =
-            py::cast(w->backend->block_backend).attr("as_scalar")(b).cast<BlockBackend::Scalar>();
-          return linear_combination(std::move(sa), std::move(v), std::move(sb), std::move(w));
+          auto sa = py::cast(v->vector_backend()->block_backend)
+                      .attr("as_scalar")(a)
+                      .cast<BlockBackend::Scalar>();
+          auto sb = py::cast(w->vector_backend()->block_backend)
+                      .attr("as_scalar")(b)
+                      .cast<BlockBackend::Scalar>();
+          return py_cast_vector_like(
+            linear_combination(std::move(sa), std::move(v), std::move(sb), std::move(w)));
       },
       py::arg("a").none(true),
       py::arg("v"),
@@ -213,7 +237,10 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       py::arg("w"),
       R"pydoc(The linear combination ``a * v + b * w``)pydoc");
 
-    m.def("norm", &norm, py::arg("tensor"), R"pydoc(The Frobenius norm of a Tensor.)pydoc");
+    m.def("norm",
+          static_cast<BlockBackend::Scalar (*)(VectorLikeCPtr)>(&norm),
+          py::arg("tensor"),
+          R"pydoc(The Frobenius norm of a Tensor or DirectSum.)pydoc");
 
     m.def("on_device",
           &on_device,
@@ -294,10 +321,10 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
     m.def(
       "scalar_multiply",
       [](py::object a, py::object v) {
-          if (!py::isinstance<Tensor>(v)) {
-              throw py::type_error("scalar_multiply() v must be a Tensor");
+          if (!py::isinstance<VectorLike>(v)) {
+              throw py::type_error("scalar_multiply() v must be VectorLike");
           }
-          auto tensor = v.cast<TensorCPtr>();
+          auto vec = v.cast<VectorLikeCPtr>();
           bool ok = py::isinstance(a, py::module_::import("numbers").attr("Number"));
           if (!ok) {
               try {
@@ -311,10 +338,10 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
                 std::format("unsupported scalar type: {}",
                             std::string(py::str(py::type::of(a).attr("__name__")))));
           }
-          auto s = py::cast(tensor->backend->block_backend)
+          auto s = py::cast(vec->vector_backend()->block_backend)
                      .attr("as_scalar")(a)
                      .cast<BlockBackend::Scalar>();
-          return scalar_multiply(std::move(s), std::move(tensor));
+          return py_cast_vector_like(scalar_multiply(std::move(s), std::move(vec)));
       },
       py::arg("a").none(true),
       py::arg("v"),

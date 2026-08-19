@@ -1,5 +1,6 @@
 #include <cyten/tensors/tensor.h>
 
+#include <cyten/tensors/ops_algebra.h>
 #include <cyten/tools.h>
 
 #include <algorithm>
@@ -7,6 +8,7 @@
 #include <cmath>
 #include <format>
 #include <iostream>
+#include <memory>
 #include <ranges>
 #include <sstream>
 #include <stdexcept>
@@ -918,6 +920,83 @@ Tensor::__str__() const
                          py::arg("valign") = "c",
                          py::arg("delim") = "   |  ")
       .cast<std::string>();
+}
+
+VectorLike::Ptr
+Tensor::clone() const
+{
+    return const_cast<Tensor*>(this)->copy();
+}
+
+Dtype
+Tensor::vector_dtype() const
+{
+    return dtype;
+}
+
+std::string
+Tensor::vector_device() const
+{
+    return device;
+}
+
+TensorBackend::Ptr
+Tensor::vector_backend() const
+{
+    return backend;
+}
+
+BlockBackend::Scalar
+Tensor::vector_norm() const
+{
+    return norm(shared_from_this());
+}
+
+BlockBackend::Scalar
+Tensor::vector_inner(VectorLike::CPtr other, bool do_dagger) const
+{
+    auto const t = std::dynamic_pointer_cast<Tensor const>(other);
+    if (!t) {
+        throw std::invalid_argument("inner: expected a Tensor, not a different VectorLike");
+    }
+    return inner(shared_from_this(), t, do_dagger);
+}
+
+VectorLike::Ptr
+Tensor::scaled(BlockBackend::Scalar const& a) const
+{
+    return scalar_multiply(a, shared_from_this());
+}
+
+VectorLike::Ptr
+Tensor::axpy(BlockBackend::Scalar const& a, VectorLike::CPtr other) const
+{
+    auto const t = std::dynamic_pointer_cast<Tensor const>(other);
+    if (!t) {
+        throw std::invalid_argument("add: expected a Tensor, not a different VectorLike");
+    }
+    auto one = backend->block_backend->as_scalar(1.0);
+    return linear_combination(a, shared_from_this(), one, t);
+}
+
+bool
+Tensor::compatible_with(VectorLike::CPtr other) const
+{
+    auto const t = std::dynamic_pointer_cast<Tensor const>(other);
+    if (!t) {
+        return false;
+    }
+    auto const legs1 = legs();
+    auto const legs2 = t->legs();
+    if (legs1.size() != legs2.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < legs1.size(); ++i) {
+        if (!(*legs1[i] == *legs2[i])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace cyten

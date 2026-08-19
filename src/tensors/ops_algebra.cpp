@@ -2107,6 +2107,15 @@ inner(TensorCPtr A, TensorCPtr B, bool do_dagger)
     return coerce_scalar(inner_py(py::cast(A), py::cast(B), do_dagger), A);
 }
 
+BlockBackend::Scalar
+inner(VectorLikeCPtr A, VectorLikeCPtr B, bool do_dagger)
+{
+    if (!A || !B) {
+        throw std::invalid_argument("inner() requires non-null VectorLike arguments");
+    }
+    return A->vector_inner(std::move(B), do_dagger);
+}
+
 bool
 is_scalar(TensorCPtr obj)
 {
@@ -2129,10 +2138,39 @@ linear_combination(BlockBackend::Scalar const& a,
       .cast<TensorPtr>();
 }
 
+VectorLikePtr
+linear_combination(BlockBackend::Scalar const& a,
+                   VectorLikeCPtr v,
+                   BlockBackend::Scalar const& b,
+                   VectorLikeCPtr w)
+{
+    if (!v || !w) {
+        throw std::invalid_argument("linear_combination() requires non-null VectorLike arguments");
+    }
+    if (auto tv = std::dynamic_pointer_cast<Tensor const>(v)) {
+        auto tw = std::dynamic_pointer_cast<Tensor const>(w);
+        if (!tw) {
+            throw std::invalid_argument(
+              "linear_combination: mixed Tensor / non-Tensor VectorLike arguments");
+        }
+        return linear_combination(a, std::move(tv), b, std::move(tw));
+    }
+    return v->axpy(a, w->scaled(b));
+}
+
 BlockBackend::Scalar
 norm(TensorCPtr tensor)
 {
     return coerce_scalar(norm_py(py::cast(tensor)), tensor);
+}
+
+BlockBackend::Scalar
+norm(VectorLikeCPtr vec)
+{
+    if (!vec) {
+        throw std::invalid_argument("norm() requires a non-null VectorLike");
+    }
+    return vec->vector_norm();
 }
 
 TensorPtr
@@ -2198,6 +2236,18 @@ TensorPtr
 scalar_multiply(BlockBackend::Scalar const& a, TensorCPtr v)
 {
     return scalar_multiply_py(py::cast(a), py::cast(v)).cast<TensorPtr>();
+}
+
+VectorLikePtr
+scalar_multiply(BlockBackend::Scalar const& a, VectorLikeCPtr v)
+{
+    if (!v) {
+        throw std::invalid_argument("scalar_multiply() requires a non-null VectorLike");
+    }
+    if (auto t = std::dynamic_pointer_cast<Tensor const>(v)) {
+        return scalar_multiply(a, std::move(t));
+    }
+    return v->scaled(a);
 }
 
 TensorPtr

@@ -66,11 +66,13 @@ I.e. viewing tensors as linear maps, combining legs or not, mention :func:`combi
 from ._tensors import (
     ChargedTensor,
     DiagonalTensor,
+    DirectSum,
     Identity,
     LabelledLegs,
     Mask,
     SymmetricTensor,
     Tensor,
+    VectorLike,
     add_trivial_leg,
     almost_equal,
     angle,
@@ -147,6 +149,7 @@ from .planar import (
     planar_permute_legs,
 )
 from .sparse import (
+    DirectSumLinearOperator,
     HermitianNumpyArrayLinearOperator,
     LinearOperator,
     NumpyArrayLinearOperator,

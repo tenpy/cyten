@@ -46,7 +46,9 @@ target_sources(cyten
   symmetries/trees.cpp
   symmetries/spaces.cpp
   tensors/labels.cpp
+  tensors/vector_like.cpp
   tensors/tensor.cpp
+  tensors/direct_sum.cpp
   tensors/symmetric_tensor.cpp
   tensors/diagonal_tensor.cpp
   tensors/mask.cpp

@@ -7,7 +7,7 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 
 from ..tools.misc import argsort  # TODO replace this?
-from ._tensors import Tensor, inner, norm, scalar_multiply
+from ._tensors import VectorLike, inner, norm, scalar_multiply
 from .sparse import (
     HermitianNumpyArrayLinearOperator,
     LinearOperator,
@@ -54,11 +54,11 @@ class KrylovBased(metaclass=ABCMeta):
         In order to use :class:`~cyten.tensors.Tensor`s or other
         :class:`~cyten.tensors.Tensor` types, see :class:`~cyten.sparse.TensorLinearOperator`.
         The operator must map tensors to tensors with the same legs.
-    psi0 : :class:`~cyten.tensors.Tensor`
+    psi0 : :class:`~cyten.tensors.VectorLike`
         The starting vector defining the Krylov basis.
         For finding the ground state, this should be the best guess available.
-        Note that it does not have to be a 1D "vector"; we are fine with viewing
-        higher-rank tensors as vectors.
+        A :class:`~cyten.tensors.Tensor` of any rank, or a :class:`~cyten.tensors.DirectSum`
+        of tensors, is allowed.
     options : dict
         Further optional parameters as described in :cfg:config:`Lanczos`.
         The algorithm stops if *both* criteria for `e_tol` and `p_tol` are met
@@ -101,7 +101,7 @@ class KrylovBased(metaclass=ABCMeta):
         Optional parameters.
     H : :class:`~cyten.sparse.LinearOperator`
         The linear operator used for building the Krylov space.
-    psi0 : :class:`~cyten.tensors.Tensor`
+    psi0 : :class:`~cyten.tensors.VectorLike`
         The *normalized* starting vector.
     N_min, N_max, P_tol, min_gap, _cutoff, E_shift:
         Parameters as described in the options.
@@ -130,7 +130,7 @@ class KrylovBased(metaclass=ABCMeta):
     _dtype_h_krylov = np.complex128
     _dtype_E = np.complex128
 
-    def __init__(self, H: LinearOperator, psi0: Tensor, options):
+    def __init__(self, H: LinearOperator, psi0: VectorLike, options):
         self.H = H
         self.psi0 = psi0.copy()
         self._psi0_norm = None
@@ -169,7 +169,7 @@ class KrylovBased(metaclass=ABCMeta):
         self._h_krylov[:] = 0.0
         self.Es[:] = 0.0
 
-    def _calc_result_full(self, N: int) -> Tensor:
+    def _calc_result_full(self, N: int) -> VectorLike:
         """Transform the :attr:`_result_krylov` from the Krylov ONB to the original basis.
 
         Construct the result ``psi_f = sum_k  _result_krylov[k] psi[k]``, where ``psi[k]``
@@ -178,7 +178,7 @@ class KrylovBased(metaclass=ABCMeta):
         # this implementation assumes there is a single state
         vf = self._result_krylov
         assert N == len(vf) > 1
-        psif: Tensor = vf[0] * self.psi0  # the start vector psi0 has been normalized by now
+        psif = vf[0] * self.psi0  # the start vector psi0 has been normalized by now
         len_cache = len(self._cache)
         # and the len_cache vectors have been cached
         for k in range(1, min(len_cache + 1, N)):
@@ -212,9 +212,9 @@ class GMRES:
     ----------
     A : :class:`~cyten.sparse.LinearOperator`
         Linear operator. Must implement `matvec`.
-    x : :class:`~cyten.tensors.Tensor`
-        Initial guess. Copied; the caller's tensor is not modified.
-    b : :class:`~cyten.tensors.Tensor`
+    x : :class:`~cyten.tensors.VectorLike`
+        Initial guess. Copied; the caller's vector is not modified.
+    b : :class:`~cyten.tensors.VectorLike`
         Right-hand side.
     options : dict
         Solver options.
@@ -434,7 +434,7 @@ class Arnoldi(KrylovBased):
             self.Es[k, : k + 1] = E_kr[sort]
             self._result_krylov = v_kr[:, sort]  # ground state of _h_krylov
 
-    def _calc_result_full(self, N: int) -> Tensor:
+    def _calc_result_full(self, N: int) -> list[VectorLike]:
         """Transform the :attr:`_result_krylov` from the Krylov ONB to the original basis.
 
         Construct the result ``psi_f = sum_k  _result_krylov[k] psi[k]``, where ``psi[k]``
@@ -625,7 +625,7 @@ class LanczosGroundState(KrylovBased):
     _dtype_h_krylov = np.float64
     _dtype_E = np.float64
 
-    def __init__(self, H, psi0: Tensor, options):
+    def __init__(self, H, psi0: VectorLike, options):
         super().__init__(H=H, psi0=psi0, options=options)
         self.E_tol = self.options.get('E_tol', np.inf)
         self.N_cache = self.options.get('N_cache', self.N_max)
@@ -639,7 +639,7 @@ class LanczosGroundState(KrylovBased):
         -------
         E0 : float
             Ground state energy (estimate).
-        psi0 : :class:`~cyten.tensors.Tensor`
+        psi0 : :class:`~cyten.tensors.VectorLike`
             Ground state vector (estimate).
         N : int
             Used dimension of the Krylov space, i.e., how many iterations where performed.

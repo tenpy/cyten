@@ -4,6 +4,7 @@
 #include <cyten/cyten.h>
 #include <cyten/tensors/forward_declare.h>
 #include <cyten/tensors/labels.h>
+#include <cyten/tensors/vector_like.h>
 
 #include <map>
 #include <optional>
@@ -49,6 +50,11 @@ using LevelsSpec = std::vector<std::optional<int64>>;
 /// The Frobenius inner product of two tensors.
 [[nodiscard]] BlockBackend::Scalar inner(TensorCPtr A, TensorCPtr B, bool do_dagger = true);
 
+/// Inner product of two :class:`VectorLike` objects (Tensor or DirectSum).
+[[nodiscard]] BlockBackend::Scalar inner(VectorLikeCPtr A,
+                                         VectorLikeCPtr B,
+                                         bool do_dagger = true);
+
 /// If the tensor is a scalar (single-sector, all multiplicities 1).
 [[nodiscard]] bool is_scalar(TensorCPtr obj);
 
@@ -61,8 +67,17 @@ using LevelsSpec = std::vector<std::optional<int64>>;
                                            BlockBackend::Scalar const& b,
                                            TensorCPtr w);
 
+/// Linear combination of two :class:`VectorLike` objects.
+[[nodiscard]] VectorLikePtr linear_combination(BlockBackend::Scalar const& a,
+                                               VectorLikeCPtr v,
+                                               BlockBackend::Scalar const& b,
+                                               VectorLikeCPtr w);
+
 /// The Frobenius norm of a Tensor.
 [[nodiscard]] BlockBackend::Scalar norm(TensorCPtr tensor);
+
+/// Norm of a :class:`VectorLike`.
+[[nodiscard]] BlockBackend::Scalar norm(VectorLikeCPtr vec);
 
 /// An equivalent tensor (with the same entries) on another device.
 [[nodiscard]] TensorPtr on_device(TensorCPtr tensor, std::string device, bool copy = true);
@@ -95,6 +110,9 @@ using LevelsSpec = std::vector<std::optional<int64>>;
 
 /// The scalar multiplication ``a * v``.
 [[nodiscard]] TensorPtr scalar_multiply(BlockBackend::Scalar const& a, TensorCPtr v);
+
+/// Scalar multiplication of a :class:`VectorLike`.
+[[nodiscard]] VectorLikePtr scalar_multiply(BlockBackend::Scalar const& a, VectorLikeCPtr v);
 
 /// Contract one `leg` of `tensor` with a diagonal tensor.
 [[nodiscard]] TensorPtr scale_axis(TensorCPtr tensor, DiagonalTensorCPtr diag, LegRef leg);
