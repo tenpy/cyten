@@ -34,8 +34,8 @@ class LinearOperator
 
     static py::object acts_on;
 
-    LinearOperator(std::vector<Leg::Ptr> vector_legs,
-                   Dtype dtype,
+    LinearOperator(std::vector<Leg::Ptr> vector_legs = {},
+                   Dtype dtype = Dtype::Float64,
                    VectorLabels vector_labels = std::nullopt);
     virtual ~LinearOperator() = default;
 

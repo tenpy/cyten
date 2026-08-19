@@ -140,8 +140,8 @@ acts_on : list of str
 
     linear_operator
       .def(py::init<std::vector<Leg::Ptr>, Dtype, std::optional<LegLabels>>(),
-           py::arg("vector_legs"),
-           py::arg("dtype"),
+           py::arg("vector_legs") = std::vector<Leg::Ptr>{},
+           py::arg("dtype") = Dtype::Float64,
            py::arg("vector_labels") = py::none())
       .def_readwrite("vector_legs", &LinearOperator::vector_legs)
       .def_property(

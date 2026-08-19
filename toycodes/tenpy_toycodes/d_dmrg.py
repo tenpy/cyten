@@ -51,6 +51,8 @@ class HEffective(ct.sparse.LinearOperator):
     """
 
     def __init__(self, LP, RP, W1, W2):
+        # C++ LinearOperator requires its __init__ when a Python subclass overrides __init__.
+        super().__init__(vector_legs=[], dtype=LP.dtype, vector_labels=None)
         # bend such that we can directly compose it with theta
         self.LP = ct.permute_legs(LP, ['vL', 'wL*'], ['vL*'], bend_right=True)  # vL wL* vL*
         self.RP = ct.permute_legs(
