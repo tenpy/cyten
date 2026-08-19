@@ -128,6 +128,17 @@ from ._tensors import (
     truncated_svd,
     zero_like,
 )
+from .sparse import (
+    DirectSumLinearOperator,
+    HermitianNumpyArrayLinearOperator,
+    LinearOperator,
+    NumpyArrayLinearOperator,
+    ProjectedLinearOperator,
+    ShiftedLinearOperator,
+    SumLinearOperator,
+    TensorLinearOperator,
+    gram_schmidt,
+)
 from .krylov_based import (
     Arnoldi,
     ArnoldiEvolution,
@@ -147,15 +158,4 @@ from .planar import (
     planar_contraction,
     planar_partial_trace,
     planar_permute_legs,
-)
-from .sparse import (
-    DirectSumLinearOperator,
-    HermitianNumpyArrayLinearOperator,
-    LinearOperator,
-    NumpyArrayLinearOperator,
-    ProjectedLinearOperator,
-    ShiftedLinearOperator,
-    SumLinearOperator,
-    TensorLinearOperator,
-    gram_schmidt,
 )
