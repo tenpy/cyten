@@ -60,4 +60,5 @@ target_sources(_core
   tensors/py_decompositions.cpp
   tensors/py_sparse.cpp
   tensors/py_krylov_based.cpp
+  tensors/py_planar.cpp
 )

@@ -12,6 +12,7 @@
 #include <cyten/tensors/ops_algebra.h>
 #include <cyten/tensors/ops_elementwise.h>
 #include <cyten/tensors/ops_legs.h>
+#include <cyten/tensors/planar.h>
 #include <cyten/tensors/sparse.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tensors/tensor.h>

@@ -37,6 +37,7 @@ PYBIND11_MODULE(_core, m)
     bind_tensors_decompositions(m);
     bind_tensors_sparse(m);
     bind_tensors_krylov_based(m);
+    bind_tensors_planar(m);
 
     bind_check(m); // TODO: remove check
 }
