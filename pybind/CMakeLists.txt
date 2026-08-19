@@ -45,7 +45,9 @@ target_sources(_core
   backends/py_fusion_tree_mapping.cpp
   backends/py_backend_factory.cpp
   tensors/py_labels.cpp
+  tensors/py_vector_like.cpp
   tensors/py_tensor.cpp
+  tensors/py_direct_sum.cpp
   tensors/py_symmetric_tensor.cpp
   tensors/py_diagonal_tensor.cpp
   tensors/py_mask.cpp
@@ -56,4 +58,7 @@ target_sources(_core
   tensors/py_ops_algebra.cpp
   tensors/py_ops_legs.cpp
   tensors/py_decompositions.cpp
+  tensors/py_sparse.cpp
+  tensors/py_krylov_based.cpp
+  tensors/py_planar.cpp
 )

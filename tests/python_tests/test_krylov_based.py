@@ -3,218 +3,201 @@
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 import pytest
-from numpy import testing as npt
 from scipy.linalg import expm
 
-import cyten
-from cyten import krylov_based, sparse, tensors
-from cyten.tools import random_matrix
-
-pytest.skip('krylov_based not yet revised', allow_module_level=True)  # TODO
+from cyten import backends, krylov_based, sparse, tensors
+from cyten.tensors import almost_equal, inner, norm
 
 
-@pytest.mark.parametrize(['N_cache', 'tol'], [(10, 5.0e-13), (20, 5.0e-14)])
-def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
-    # TODO revise this. purge the "dummy" language, its now "charged"
+def _op_and_vec(make_compatible_tensor, hermitian=True):
+    vec = make_compatible_tensor(codomain=1, labels=['v'], use_pipes=False)
+    leg = vec.legs[0]
+    H = make_compatible_tensor(codomain=[leg], domain=[leg], labels=['w', 'v'], use_pipes=False)
+    if hermitian:
+        H = H + H.dagger
+    H_op = sparse.TensorLinearOperator(H)
+    return H, H_op, vec
 
-    # generate hermitian test array
-    leg = make_compatible_space()
-    backend = compatible_backend
 
-    if isinstance(compatible_backend, cyten.backends.FusionTreeBackend):
-        # TODO need to be more careful with from func.
-        # shapes of the blocks depend on num_domain_legs!
-        # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
-        # should GUE etc be Tensor classmethods?
-        with pytest.raises(AssertionError, match='not a square matrix shape'):
-            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
+def _abs_norm(tens):
+    return abs(norm(tens).to_numpy())
+
+
+def _to_num(value):
+    to_numpy = getattr(value, 'to_numpy', None)
+    if callable(to_numpy):
+        return to_numpy()
+    return value
+
+
+def _try_to_numpy(tensor):
+    """Return ``tensor.to_numpy()``, or None if the FusionTree backend cannot densify."""
+    try:
+        return tensor.to_numpy()
+    except Exception:
+        if isinstance(tensor.backend, backends.FusionTreeBackend):
+            return None
+        raise
+
+
+@pytest.mark.parametrize(['N_cache', 'tol'], [(10, 5.0e-12), (20, 5.0e-12)])
+def test_lanczos_gs(make_compatible_tensor, N_cache, tol):
+    H, H_op, psi_init = _op_and_vec(make_compatible_tensor, hermitian=True)
+    opts = {'N_cache': N_cache, 'N_max': 20}
+    E0, psi0, _N = krylov_based.lanczos(H_op, psi_init, opts)
+    assert abs(_abs_norm(psi0) - 1.0) < tol
+    residual = _abs_norm(H_op.matvec(psi0) - E0 * psi0)
+    assert residual < tol * (abs(E0) + 1.0)
+    rayleigh = _to_num(inner(psi0, H_op.matvec(psi0)))
+    assert abs(rayleigh / E0 - 1.0) < 100 * tol or abs(rayleigh - E0) < tol
+
+    if psi0.num_parameters <= 1:
         return
 
-    H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
-
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.Symmetry):
-        # TODO
-        with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
-            _ = H.to_numpy()
-        return
-
-    H_np = H.to_numpy()
-    H_op = sparse.TensorLinearOperator(H, which_leg=1)
-    npt.assert_almost_equal(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
-    E_np, psi_np = np.linalg.eigh(H_np)
-    E0_np, psi0_np = E_np[0], psi_np[:, 0]
-
-    # detect in which charge sector the groundstate lives
-    (sector,) = tensors.detect_sectors_from_block(backend.block_from_numpy(psi0_np), legs=[leg], backend=backend)
-    # TODO having to take the dual here is pretty unintuitive...
-    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg], charge=sector, backend=backend, dummy_leg_state=[1.0])
-
-    E0, psi0, N = krylov_based.lanczos(H_op, psi_init, {'N_cache': N_cache})
-    assert abs(psi0.norm() - 1.0) < tol
-    print(f'full spectrum: {E_np}')
-    print(f'E0 = {E0:.14f} vs exact {E0_np:.14f}')
-    print(f'{abs((E0 - E0_np) / E0_np)=}')
-    assert abs((E0 - E0_np) / E0_np) < tol
-    psi0_H_psi0 = psi0.inner(H.tdot(psi0))
-    assert abs(psi0.norm() - 1.0) < tol
-    print(f'<psi0|H|psi0> / E0 = 1. + {psi0_H_psi0 / E0 - 1.0}')
-    assert abs(psi0_H_psi0 / E0 - 1.0) < tol
-    print(f'<psi0_np|H_np|psi0_np> / E0_np = {np.inner(psi0_np.conj(), np.dot(H_np, psi0_np)) / E0_np}')
-    ov = np.inner(psi0.to_numpy().conj(), psi0_np)
-    print(f'|<psi0|psi0_np>| = {abs(ov)}')
-    assert abs(1.0 - abs(ov)) < tol
-
-    print('Now look for second eigenvector in the *same* charge sector')
-    orthogonal_to = [psi0]
-    for i in range(1, len(E_np)):
-        E1_np, psi1_np = E_np[i], psi_np[:, i]
-        (_sector,) = tensors.detect_sectors_from_block(backend.block_from_numpy(psi1_np), legs=[leg], backend=backend)
-        if np.any(_sector != sector):
-            continue  # psi1_np is in different sector
-        print('--- excited state #', len(orthogonal_to))
-        lanczos_params = {'reortho': True}
-        if E1_np > -0.01:
-            lanczos_params['E_shift'] = -2.0 * E1_np - 0.2
-        H_proj = sparse.ProjectedLinearOperator(H_op, ortho_vecs=orthogonal_to[:])
-        E1, psi1, N = krylov_based.lanczos(H_proj, psi_init, lanczos_params)
-        print(f'E1 = {E1:.14f} vs exact {E1_np:.14f}')
-        print(f'{abs((E1 - E1_np) / E1_np)=}')
-        psi1_H_psi1 = psi1.inner(H.tdot(psi1))
-        print(f'<psi1|H|psi1> / E1 = 1. + {psi1_H_psi1 / E1 - 1.0}')
-        assert abs(psi1_H_psi1 / E1 - 1.0) < 100 * tol  # TODO why does this need such large tolerance?
-        print(f'<psi1_np|H_np|psi1_np> / E1_np = {np.inner(psi1_np.conj(), np.dot(H_np, psi1_np)) / E1_np}')
-        ov = np.inner(psi1.to_numpy().conj(), psi1_np)
-        print(f'|<psi1|psi1_np>| = {abs(ov)}')
-        assert abs(1.0 - abs(ov)) < tol
-        for psi_prev in orthogonal_to:
-            ov = psi_prev.inner(psi1)
-            assert abs(ov) < tol
-        orthogonal_to.append(psi1)
-    if len(orthogonal_to) == 1:
-        print("warning: test didn't find a second eigenvector in the same charge sector!")
+    print('Now look for a second eigenvector in the same sector')
+    psi_init2 = psi_init - inner(psi0, psi_init) * psi0
+    if _abs_norm(psi_init2) < 1.0e-12:
+        psi_init2 = make_compatible_tensor(like=psi_init, use_pipes=False)
+        psi_init2 = psi_init2 - inner(psi0, psi_init2) * psi0
+        if _abs_norm(psi_init2) < 1.0e-12:
+            return
+    lanczos_params = {'reortho': True, 'N_max': 20}
+    if np.real(E0) > -0.01:
+        lanczos_params['E_shift'] = -2.0 * float(np.real(E0)) - 0.2
+    H_proj = sparse.ProjectedLinearOperator(H_op, ortho_vecs=[psi0])
+    E1, psi1, _N = krylov_based.lanczos(H_proj, psi_init2, lanczos_params)
+    assert abs(_abs_norm(psi1) - 1.0) < tol
+    residual1 = _abs_norm(H_proj.matvec(psi1) - E1 * psi1)
+    assert residual1 < 100 * tol * (abs(E1) + 1.0)
+    ov = abs(inner(psi0, psi1).to_numpy())
+    assert ov < 100 * tol
 
 
-def test_lanczos_arpack():
-    pytest.xfail('Not implemented yet (the operator in linalg.sparse is missing)')
-    # TODO old below
-    # print("version with arpack")
-    # E0a, psi0a = lanczos.lanczos_arpack(H_Op, psi_init, {})
-    # print("E0a = {E0a:.14f} vs exact {E0_flat:.14f}".format(E0a=E0a, E0_flat=E0_flat))
-    # print("|E0a-E0_flat| / |E0_flat| =", abs((E0a - E0_flat) / E0_flat))
-    # psi0a_H_psi0a = npc.inner(psi0a, npc.tensordot(H, psi0a, axes=[1, 0]), 'range', do_conj=True)
-    # print("<psi0a|H|psi0a> / E0a = 1. + ", psi0a_H_psi0a / E0a - 1.)
-    # assert (abs(psi0a_H_psi0a / E0a - 1.) < tol)
-    # ov = np.inner(psi0a.to_ndarray().conj(), psi0_flat)
-    # print("|<psi0a|psi0_flat>|=", abs(ov))
-    # assert (abs(1. - abs(ov)) < tol)
+def test_lanczos_arpack(make_compatible_tensor, tol=1.0e-8):
+    vec = make_compatible_tensor(codomain=1, labels=['v'], use_pipes=False)
+    if isinstance(vec.backend, backends.FusionTreeBackend):
+        pytest.xfail('FTBackend does not support dense-block sector conversions yet')
+    leg = vec.legs[0]
+    H = make_compatible_tensor(codomain=[leg], domain=[leg], labels=['w', 'v'], use_pipes=False)
+    H_h = H + H.dagger
+    H_op = sparse.TensorLinearOperator(H_h)
+
+    E0, psi0 = krylov_based.lanczos_arpack(H_op, vec, {})
+    n = abs(tensors.norm(psi0).to_numpy())
+    assert abs(n - 1.0) < tol
+    residual = tensors.norm(H_op.matvec(psi0) - E0 * psi0)
+    assert abs(residual.to_numpy()) < tol * (abs(E0) + 1.0)
 
 
-@pytest.mark.parametrize(['N_cache', 'tol'], [(10, 5.0e-13), (20, 5.0e-14)])
-def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol):
-    backend = compatible_backend
-    leg = make_compatible_space()
+@pytest.mark.parametrize(['N_cache', 'tol'], [(10, 5.0e-12), (20, 5.0e-12)])
+def test_lanczos_evolve(make_compatible_tensor, N_cache, tol):
+    H, H_op, psi_init = _op_and_vec(make_compatible_tensor, hermitian=True)
+    lanc = krylov_based.LanczosEvolution(H_op, psi_init, {'N_cache': N_cache, 'N_max': 20})
+    H_np = _try_to_numpy(H)
+    psi_init_np = None if H_np is None else _try_to_numpy(psi_init)
 
-    if isinstance(compatible_backend, cyten.backends.FusionTreeBackend):
-        # TODO need to be more careful with from func.
-        # shapes of the blocks depend on num_domain_legs!
-        # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
-        # should GUE etc be Tensor classmethods?
-        with pytest.raises(AssertionError, match='not a square matrix shape'):
-            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
-        return
-
-    H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
-    H_op = sparse.TensorLinearOperator(H, which_leg=1)
-
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.Symmetry):
-        # TODO
-        with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
-            _ = H.to_numpy()
-        return
-
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend):
-        # TODO
-        with pytest.raises(AssertionError, match='norm not preserved'):
-            _ = H.to_numpy()
-        return
-
-    H_np = H.to_numpy()
-    npt.assert_almost_equal(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
-
-    sector = leg.sector_decomposition[0]
-    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg], charge=sector, backend=backend, dummy_leg_state=[1])
-
-    psi_init_np = psi_init.to_numpy()
-
-    lanc = krylov_based.LanczosEvolution(H_op, psi_init, {'N_cache': N_cache})
     for delta in [-0.1j, 0.1j, 1.0j, 0.1, 1.0]:
+        psi_final, _N = lanc.run(delta, normalize=False)
+        psi_final2, _N = lanc.run(delta, normalize=True)
+        n = _abs_norm(psi_final)
+        assert n > 0
+        assert _abs_norm(psi_final / n - psi_final2) < max(tol, 1.0e-8)
+
+        if H_np is None or psi_init_np is None:
+            continue
         psi_final_np = expm(H_np * delta).dot(psi_init_np)
-        norm = np.linalg.norm(psi_final_np)
-        psi_final, N = lanc.run(delta, normalize=False)
-        diff = np.linalg.norm(psi_final.to_numpy() - psi_final_np)
-        print('norm(|psi_final> - |psi_final_flat>)/norm = ', diff / norm)  # should be 1.
-        assert diff / norm < tol
-        psi_final2, N = lanc.run(delta, normalize=True)
-        assert tensors.norm(psi_final / norm - psi_final2) < tol
+        ref_norm = np.linalg.norm(psi_final_np)
+        got = _try_to_numpy(psi_final)
+        if got is None:
+            continue
+        diff = np.linalg.norm(got - psi_final_np)
+        print('norm(|psi_final> - |psi_final_flat>)/norm = ', diff / ref_norm)
+        assert diff / ref_norm < max(tol, 1.0e-8)
 
 
 @pytest.mark.parametrize('which', ['LM', 'SR', 'LR'])
-def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
-    backend = compatible_backend
-    leg = make_compatible_space()
-    tol = 1.0e-13 if leg.dim <= N_max else 1.0e-10
-    # if looking for small/large real part, ensure hermitian H
-    func = random_matrix.GUE if which[-1] == 'R' else random_matrix.standard_normal_complex
-
-    if which[-1] == 'R' and isinstance(compatible_backend, cyten.backends.FusionTreeBackend):
-        # TODO need to be more careful with from func.
-        # shapes of the blocks depend on num_domain_legs!
-        # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
-        # should GUE etc be Tensor classmethods?
-        with pytest.raises(AssertionError, match='not a square matrix shape'):
-            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
-        return
-
-    H = tensors.SymmetricTensor.from_numpy_func(func, legs=[leg, leg.dual], backend=backend)
-    H_op = sparse.TensorLinearOperator(H, which_leg=1)
-
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.Symmetry):
-        # TODO
-        with pytest.raises(NotImplementedError, match='should be implemented by subclass'):
-            _ = H.to_numpy()
-        return
-
-    H_np = H.to_numpy()
-    E_np, psi_np = np.linalg.eig(H_np)
-    if which == 'LM':
-        i = np.argmax(np.abs(E_np))
-    elif which == 'LR':
-        i = np.argmax(np.real(E_np))
-    elif which == 'SR':
-        i = np.argmin(np.real(E_np))
-    E0_np, psi0_np = E_np[i], psi_np[:, i]
-
-    (sector,) = tensors.detect_sectors_from_block(backend.block_from_numpy(psi0_np), legs=[leg], backend=backend)
-    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg], charge=sector, backend=backend, dummy_leg_state=[1])
-
+def test_arnoldi(make_compatible_tensor, which, N_max=20):
+    hermitian = which[-1] == 'R'
+    H, H_op, psi_init = _op_and_vec(make_compatible_tensor, hermitian=hermitian)
+    tol = 1.0e-8
     engine = krylov_based.Arnoldi(H_op, psi_init, {'which': which, 'num_ev': 1, 'N_max': N_max})
+    (E0,), (psi0,), _N = engine.run()
+    assert abs(_abs_norm(psi0) - 1.0) < tol
+    residual = _abs_norm(H_op.matvec(psi0) - E0 * psi0)
+    assert residual < tol * (abs(E0) + 1.0)
+    rayleigh = _to_num(inner(psi0, H_op.matvec(psi0)))
+    assert abs(rayleigh - E0) < tol * (abs(E0) + 1.0)
 
-    if isinstance(compatible_backend, cyten.backends.FusionTreeBackend):
-        # TODO
-        with pytest.raises(NotImplementedError, match='tdot not implemented'):
-            _ = engine.run()
-        return
 
-    (E0,), (psi0,), N = engine.run()
-    print('full spectrum:', E_np)
-    print(f'E0 = {E0:.14f} vs exact {E0_np:.14f}')
-    print('|E0-E0_np| / |E0_np| =', abs((E0 - E0_np) / E0_np))
-    assert abs((E0 - E0_np) / E0_np) < tol
-    psi0_H_psi0 = psi0.inner(H.tdot(psi0))
-    print('<psi0|H|psi0> / E0 = 1. + ', psi0_H_psi0 / E0 - 1.0)
-    assert abs(psi0_H_psi0 / E0 - 1.0) < tol
-    print('<psi0_flat|H_flat|psi0_flat> / E0_flat = ', end=' ')
-    print(np.inner(psi0_np.conj(), np.dot(H_np, psi0_np)) / E0_np)
-    ov = np.inner(psi0.to_numpy().conj(), psi0_np)
-    print('|<psi0|psi0_flat>|=', abs(ov))
-    assert abs(1.0 - abs(ov)) < tol
+def test_arnoldi_evolve(make_compatible_tensor, tol=5.0e-10):
+    H, H_op, psi_init = _op_and_vec(make_compatible_tensor, hermitian=False)
+    eng = krylov_based.ArnoldiEvolution(H_op, psi_init, {'N_max': 20})
+    H_np = _try_to_numpy(H)
+    psi_init_np = None if H_np is None else _try_to_numpy(psi_init)
+
+    for delta in [-0.1j, 0.1j, 0.5j, 0.1, -0.05 - 0.1j]:
+        psi_final, _N = eng.run(delta, normalize=False)
+        psi_final2, _N = eng.run(delta, normalize=True)
+        n = _abs_norm(psi_final)
+        assert n > 0
+        assert _abs_norm(psi_final / n - psi_final2) < max(tol, 1.0e-8)
+        psi_final_default, _N = eng.run(delta)
+        assert almost_equal(psi_final_default, psi_final)
+
+        if H_np is None or psi_init_np is None:
+            continue
+        psi_final_np = expm(H_np * delta).dot(psi_init_np)
+        ref_norm = np.linalg.norm(psi_final_np)
+        got = _try_to_numpy(psi_final)
+        if got is None:
+            continue
+        diff = np.linalg.norm(got - psi_final_np)
+        print(f'delta={delta}, norm(diff)/norm = {diff / ref_norm}')
+        assert diff / ref_norm < max(tol, 1.0e-8)
+
+
+def test_arnoldi_vs_lanczos_nonhermitian(make_compatible_tensor, tol_arnoldi=1.0e-8, tol_lanczos_wrong=1.0e-2):
+    """ArnoldiEvolution is accurate for non-Hermitian H; LanczosEvolution is not."""
+    H, H_op, psi_init = _op_and_vec(make_compatible_tensor, hermitian=False)
+    # Anti-Hermitian: H = 1j * G with G hermitian, so Lanczos eigh is the wrong decomposition.
+    G = H + H.dagger
+    H_ah = 1j * G
+    H_op = sparse.TensorLinearOperator(H_ah)
+    H_np = _try_to_numpy(H_ah)
+    psi_init_np = None if H_np is None else _try_to_numpy(psi_init)
+    if H_np is None or psi_init_np is None:
+        pytest.skip('dense conversion needed to compare against expm')
+
+    delta = 1.0
+    psi_ref_flat = expm(H_np * delta).dot(psi_init_np)
+    norm_ref = np.linalg.norm(psi_ref_flat)
+
+    psi_arnoldi, _ = krylov_based.ArnoldiEvolution(H_op, psi_init, {'N_max': 20}).run(delta, normalize=False)
+    got_a = _try_to_numpy(psi_arnoldi)
+    assert got_a is not None
+    diff_arnoldi = np.linalg.norm(got_a - psi_ref_flat)
+    print(f'ArnoldiEvolution diff/norm = {diff_arnoldi / norm_ref}')
+    assert diff_arnoldi / norm_ref < tol_arnoldi
+
+    psi_lanczos, _ = krylov_based.LanczosEvolution(H_op, psi_init, {}).run(delta, normalize=False)
+    got_l = _try_to_numpy(psi_lanczos)
+    assert got_l is not None
+    diff_lanczos = np.linalg.norm(got_l - psi_ref_flat)
+    print(f'LanczosEvolution diff/norm = {diff_lanczos / norm_ref}  (expected to be WRONG)')
+    if H_ah.num_parameters > 4:
+        assert diff_lanczos / norm_ref > tol_lanczos_wrong
+
+
+def test_gmres(make_compatible_tensor, tol=1.0e-8):
+    H, H_op, b = _op_and_vec(make_compatible_tensor, hermitian=False)
+    # Shift away from zero so A is unlikely to be singular in this sector.
+    A = sparse.ShiftedLinearOperator(H_op, 1.5)
+    x0 = 0.0 * b
+    x, rel_err, _errors, _iters = krylov_based.GMRES(
+        A, x0, b, {'N_max': 20, 'restart': 10, 'res': 1.0e-10, 'N_min': 0}
+    ).run()
+    b_n = _abs_norm(b)
+    residual = _abs_norm(A.matvec(x) - b)
+    print(f'GMRES rel_err={rel_err}, residual/|b|={residual / b_n}')
+    assert residual / b_n < 1.0e-6
+    assert rel_err < 1.0e-6

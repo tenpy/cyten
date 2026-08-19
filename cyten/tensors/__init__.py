@@ -66,11 +66,13 @@ I.e. viewing tensors as linear maps, combining legs or not, mention :func:`combi
 from ._tensors import (
     ChargedTensor,
     DiagonalTensor,
+    DirectSum,
     Identity,
     LabelledLegs,
     Mask,
     SymmetricTensor,
     Tensor,
+    VectorLike,
     add_trivial_leg,
     almost_equal,
     angle,
@@ -126,7 +128,27 @@ from ._tensors import (
     truncated_svd,
     zero_like,
 )
-from .krylov_based import Arnoldi, KrylovBased, LanczosEvolution, LanczosGroundState, lanczos, lanczos_arpack
+from .sparse import (
+    DirectSumLinearOperator,
+    HermitianNumpyArrayLinearOperator,
+    LinearOperator,
+    NumpyArrayLinearOperator,
+    ProjectedLinearOperator,
+    ShiftedLinearOperator,
+    SumLinearOperator,
+    TensorLinearOperator,
+    gram_schmidt,
+)
+from .krylov_based import (
+    Arnoldi,
+    ArnoldiEvolution,
+    GMRES,
+    KrylovBased,
+    LanczosEvolution,
+    LanczosGroundState,
+    lanczos,
+    lanczos_arpack,
+)
 from .planar import (
     ContractionTree,
     PlanarDiagram,
@@ -136,14 +158,4 @@ from .planar import (
     planar_contraction,
     planar_partial_trace,
     planar_permute_legs,
-)
-from .sparse import (
-    HermitianNumpyArrayLinearOperator,
-    LinearOperator,
-    NumpyArrayLinearOperator,
-    ProjectedLinearOperator,
-    ShiftedLinearOperator,
-    SumLinearOperator,
-    TensorLinearOperator,
-    gram_schmidt,
 )

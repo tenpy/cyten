@@ -49,7 +49,7 @@ as_leg_ref(py::handle obj)
 void
 bind_tensors_tensor(py::module_& m)
 {
-    py::class_<Tensor, LabelledLegs, PyTensor, py::smart_holder> cls(m, "Tensor");
+    py::class_<Tensor, LabelledLegs, VectorLike, PyTensor, py::smart_holder> cls(m, "Tensor");
     cls.doc() = R"pydoc(
 Common base class for tensors.
 

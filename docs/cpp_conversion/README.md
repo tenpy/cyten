@@ -114,9 +114,9 @@ Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`
 ### Layer 4 — Tensors
 
 - **cyten/tensors/_tensors.py** — **C++ + bindings + monkey-patched**; Python file is a `_core` re-export. Batches 1–17: [convert_tensors.md](convert_tensors.md). Typed C++ API (no leftover tensor/space/leg `py::object`): [convert_tensor_typed_api.md](convert_tensor_typed_api.md).
-- **cyten/tensors/planar.py** — Planar diagram utilities (~1.2k lines), depends on `_tensors` and tools.
-- **cyten/tensors/sparse.py** — `LinearOperator`, `ProjectedLinearOperator`, etc. (~627 lines).
-- **cyten/tensors/krylov_based.py** — `Arnoldi`, `LanczosEvolution`, etc. (~521 lines).
+- **cyten/tensors/planar.py** — Planar diagram utilities. **C++ + monkey-patched**; thin Python `PlanarLinearOperator` wrapper kept — [convert_planar.md](convert_planar.md).
+- **cyten/tensors/sparse.py** — `LinearOperator`, `ProjectedLinearOperator`, etc. **C++ + monkey-patched** (numpy/scipy helpers remain Python) — [convert_sparse.md](convert_sparse.md).
+- **cyten/tensors/krylov_based.py** — `KrylovBased`, `Arnoldi`, `Lanczos*`, `GMRES`, `lanczos` **C++ + monkey-patched**; `lanczos_arpack` remains Python — [convert_krylov_based.md](convert_krylov_based.md).
 
 ### Layer 5 — Models
 

@@ -46,7 +46,9 @@ target_sources(cyten
   symmetries/trees.cpp
   symmetries/spaces.cpp
   tensors/labels.cpp
+  tensors/vector_like.cpp
   tensors/tensor.cpp
+  tensors/direct_sum.cpp
   tensors/symmetric_tensor.cpp
   tensors/diagonal_tensor.cpp
   tensors/mask.cpp
@@ -57,6 +59,9 @@ target_sources(cyten
   tensors/ops_algebra.cpp
   tensors/ops_legs.cpp
   tensors/decompositions.cpp
+  tensors/sparse.cpp
+  tensors/krylov_based.cpp
+  tensors/planar.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp

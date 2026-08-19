@@ -78,7 +78,7 @@ class SymmetricTensor : public Tensor
 
     [[nodiscard]] static Ptr from_dense_block_trivial_sector(
       BlockBackend::BlockPtr vector,
-      Space::Ptr space,
+      Leg::Ptr space,
       TensorBackend::Ptr backend = nullptr,
       std::optional<std::string> device = std::nullopt,
       LegLabel label = std::nullopt);

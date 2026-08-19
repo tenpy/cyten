@@ -4,11 +4,16 @@
 #include <cyten/tensors/constructors.h>
 #include <cyten/tensors/decompositions.h>
 #include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/direct_sum.h>
 #include <cyten/tensors/helpers.h>
+#include <cyten/tensors/krylov_based.h>
 #include <cyten/tensors/labels.h>
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/ops_algebra.h>
 #include <cyten/tensors/ops_elementwise.h>
 #include <cyten/tensors/ops_legs.h>
+#include <cyten/tensors/planar.h>
+#include <cyten/tensors/sparse.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tensors/tensor.h>
+#include <cyten/tensors/vector_like.h>

@@ -208,17 +208,35 @@ ChargedTensor::from_dense_block(BlockBackend::BlockPtr block,
 }
 
 ChargedTensor::Ptr
-ChargedTensor::from_dense_block_single_sector(BlockBackend::BlockPtr /*vector*/,
-                                              Leg::Ptr /*space*/,
-                                              Sector /*sector*/,
-                                              TensorBackend::Ptr /*backend*/,
-                                              std::optional<std::string> /*label*/,
-                                              std::optional<std::string> /*device*/)
+ChargedTensor::from_dense_block_single_sector(BlockBackend::BlockPtr vector,
+                                              Leg::Ptr space,
+                                              Sector sector,
+                                              TensorBackend::Ptr backend,
+                                              std::optional<std::string> label,
+                                              std::optional<std::string> device)
 {
-    // --- hints from Python ChargedTensor.from_dense_block_single_sector ---
-    // how to handle multi-dim sectors? which dummy leg state to give?
-    // ---
-    throw NotImplemented("ChargedTensor::from_dense_block_single_sector");
+    assert(space);
+    if (!backend) {
+        backend = get_backend(space->symmetry);
+    }
+    if (space->symmetry->qdim(sector) > 1.) {
+        throw NotImplemented("from_dense_block_single_sector does not support higher-dim sectors");
+    }
+    auto charge_leg =
+      std::make_shared<ElementarySpace>(space->symmetry, SectorArray::from_sector(sector));
+    auto space_as_space = as_space(space);
+    auto data =
+      backend->inv_part_from_dense_block_single_sector(vector, space_as_space, charge_leg);
+    auto codomain =
+      std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ space }, space->symmetry);
+    auto inv_domain =
+      std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ charge_leg }, space->symmetry);
+    LegLabels inv_labels{ label, std::string(_CHARGE_LEG_LABEL) };
+    auto inv_part = std::make_shared<SymmetricTensor>(
+      data, codomain, inv_domain, backend, space->symmetry, std::move(inv_labels));
+    auto charged_state =
+      backend->block_backend->as_block(py::cast(std::vector<int64>{ 1 }), inv_part->dtype, device);
+    return std::make_shared<ChargedTensor>(inv_part, charged_state);
 }
 
 std::variant<ChargedTensor::Ptr, BlockBackend::Scalar>

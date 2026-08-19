@@ -13,6 +13,14 @@ import scipy.sparse.linalg
 from .misc import argsort
 
 
+def _as_dense_square(A, d):
+    """Dense ``(d, d)`` matrix from an ndarray or a scipy LinearOperator."""
+    if isinstance(A, np.ndarray):
+        return A
+    dtype = getattr(A, 'dtype', None)
+    return np.asarray(A @ np.eye(d, dtype=dtype))
+
+
 def speigs(A, k, *args, **kwargs):
     """Wrapper around :func:`scipy.sparse.linalg.eigs`, lifting the restriction ``k < rank(A)-1``.
 
@@ -45,10 +53,7 @@ def speigs(A, k, *args, **kwargs):
         if k > d:
             warnings.warn('trimming speigs k to smaller matrix dimension d', stacklevel=2)
             k = d
-        if isinstance(A, np.ndarray):
-            Amat = A
-        else:
-            raise NotImplementedError
+        Amat = _as_dense_square(A, d)
         ret_eigv = kwargs.get('return_eigenvectors', args[7] if len(args) > 7 else True)
         which = kwargs.get('which', args[2] if len(args) > 2 else 'LM')
         if ret_eigv:
@@ -93,10 +98,7 @@ def speigsh(A, k, *args, **kwargs):
         if k > d:
             warnings.warn('trimming speigsh k to smaller matrix dimension d', stacklevel=2)
             k = d
-        if isinstance(A, np.ndarray):
-            Amat = A
-        else:
-            raise NotImplementedError
+        Amat = _as_dense_square(A, d)
         ret_eigv = kwargs.get('return_eigenvectors', args[7] if len(args) > 7 else True)
         which = kwargs.get('which', args[2] if len(args) > 2 else 'LM')
         if ret_eigv:

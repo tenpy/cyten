@@ -10,12 +10,20 @@ namespace cyten {
 /// ``tensor_backend.h`` again). Backend ``.cpp`` files include the real headers
 /// and may access members.
 
+class VectorLike;
+class DirectSum;
 class Tensor;
 class SymmetricTensor;
 class DiagonalTensor;
 class Identity;
 class Mask;
 class ChargedTensor;
+
+using VectorLikePtr = std::shared_ptr<VectorLike>;
+using VectorLikeCPtr = std::shared_ptr<const VectorLike>;
+
+using DirectSumPtr = std::shared_ptr<DirectSum>;
+using DirectSumCPtr = std::shared_ptr<const DirectSum>;
 
 using TensorPtr = std::shared_ptr<Tensor>;
 using TensorCPtr = std::shared_ptr<const Tensor>;

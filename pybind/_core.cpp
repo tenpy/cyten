@@ -22,7 +22,9 @@ PYBIND11_MODULE(_core, m)
     bind_fusion_tree_mapping(m);
     bind_backend_factory(m);
     bind_tensors_labels(m);
+    bind_tensors_vector_like(m);
     bind_tensors_tensor(m);
+    bind_tensors_direct_sum(m);
     bind_tensors_symmetric_tensor(m);
     bind_tensors_diagonal_tensor(m);
     bind_tensors_mask(m);
@@ -33,6 +35,9 @@ PYBIND11_MODULE(_core, m)
     bind_tensors_ops_algebra(m);
     bind_tensors_ops_legs(m);
     bind_tensors_decompositions(m);
+    bind_tensors_sparse(m);
+    bind_tensors_krylov_based(m);
+    bind_tensors_planar(m);
 
     bind_check(m); // TODO: remove check
 }

@@ -10,6 +10,7 @@
 #include <cyten/symmetries/symmetry.h>
 #include <cyten/tensors/forward_declare.h>
 #include <cyten/tensors/labels.h>
+#include <cyten/tensors/vector_like.h>
 
 #include <memory>
 #include <optional>
@@ -29,6 +30,7 @@ namespace cyten {
 /// codomain (see :ref:`tensors_as_maps`).
 class Tensor
   : public LabelledLegs
+  , public VectorLike
   , public std::enable_shared_from_this<Tensor>
 {
   public:
@@ -239,6 +241,19 @@ class Tensor
 
     /// Python ``type(self).__name__`` for ``__repr__`` / ``__str__``.
     [[nodiscard]] virtual std::string class_name() const;
+
+    // VectorLike
+    [[nodiscard]] VectorLike::Ptr clone() const override;
+    [[nodiscard]] Dtype vector_dtype() const override;
+    [[nodiscard]] std::string vector_device() const override;
+    [[nodiscard]] TensorBackend::Ptr vector_backend() const override;
+    [[nodiscard]] BlockBackend::Scalar vector_norm() const override;
+    [[nodiscard]] BlockBackend::Scalar vector_inner(VectorLike::CPtr other,
+                                                    bool do_dagger = true) const override;
+    [[nodiscard]] VectorLike::Ptr scaled(BlockBackend::Scalar const& a) const override;
+    [[nodiscard]] VectorLike::Ptr axpy(BlockBackend::Scalar const& a,
+                                       VectorLike::CPtr other) const override;
+    [[nodiscard]] bool compatible_with(VectorLike::CPtr other) const override;
 };
 
 /// Convert a :class:`TensorProduct`, a sequence of legs, or ``None`` (empty product).

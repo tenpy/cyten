@@ -31,7 +31,9 @@ void bind_fusion_tree_backend(py::module_& m);
 void bind_fusion_tree_mapping(py::module_& m);
 void bind_backend_factory(py::module_& m);
 void bind_tensors_labels(py::module_& m);
+void bind_tensors_vector_like(py::module_& m);
 void bind_tensors_tensor(py::module_& m);
+void bind_tensors_direct_sum(py::module_& m);
 void bind_tensors_symmetric_tensor(py::module_& m);
 void bind_tensors_diagonal_tensor(py::module_& m);
 void bind_tensors_mask(py::module_& m);
@@ -42,6 +44,9 @@ void bind_tensors_ops_elementwise(py::module_& m);
 void bind_tensors_ops_algebra(py::module_& m);
 void bind_tensors_ops_legs(py::module_& m);
 void bind_tensors_decompositions(py::module_& m);
+void bind_tensors_sparse(py::module_& m);
+void bind_tensors_krylov_based(py::module_& m);
+void bind_tensors_planar(py::module_& m);
 void bind_check(py::module_& m);
 
 } // namespace cyten
