@@ -1279,6 +1279,17 @@ class PlanarLinearOperator(LinearOperator):
     def __init__(
         self, op_diagram: PlanarDiagram, matvec_diagram: PlanarDiagram, op_tensors: dict[str, Tensor], vec_name: str
     ):
+        # `LinearOperator` is exposed from C++ and requires its `__init__` to be called when a
+        # Python subclass overrides `__init__`.
+        #
+        # The actual vector legs/dtype are not strictly needed for evaluating `matvec`/`to_tensor`
+        # (they are validated when contracting with the concrete vector), so we initialize with
+        # empty legs and infer the dtype from the operator tensors.
+        if not op_tensors:
+            raise ValueError('PlanarLinearOperator requires at least one operator tensor')
+        dtype = next(iter(op_tensors.values())).dtype
+        super().__init__(vector_legs=[], dtype=dtype, vector_labels=None)
+
         self.op_diagram = op_diagram
         self.matvec_diagram = matvec_diagram
         self.op_tensors = op_tensors

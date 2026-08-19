@@ -34,11 +34,14 @@ same_legs(std::vector<Leg::Ptr> const& legs1, std::vector<Leg::Ptr> const& legs2
     return true;
 }
 
-LinearOperator::LinearOperator(std::vector<Leg::Ptr> vector_legs, Dtype dtype, VectorLabels vector_labels)
+LinearOperator::LinearOperator(std::vector<Leg::Ptr> vector_legs,
+                               Dtype dtype,
+                               VectorLabels vector_labels)
   : vector_legs(std::move(vector_legs))
   , vector_labels(std::move(vector_labels))
   , dtype(dtype)
-{}
+{
+}
 
 TensorPtr
 LinearOperator::to_matrix(TensorBackend::Ptr backend)
@@ -121,7 +124,8 @@ TensorLinearOperator::to_tensor(TensorBackend::Ptr)
     if (which_leg == 1) {
         return tensor;
     }
-    return permute_legs(tensor, std::vector<LegRef>{ LegRef(other_leg) }, std::vector<LegRef>{ LegRef(which_leg) });
+    return permute_legs(
+      tensor, std::vector<LegRef>{ LegRef(other_leg) }, std::vector<LegRef>{ LegRef(which_leg) });
 }
 
 LinearOperator::Ptr
@@ -190,7 +194,8 @@ SumLinearOperator::SumLinearOperator(LinearOperator::Ptr original_operator,
     dtypes.reserve(this->more_operators.size() + 1);
     for (auto const& op : this->more_operators) {
         if (!same_legs(op->vector_legs, this->original_operator->vector_legs)) {
-            throw std::invalid_argument("All operators in SumLinearOperator must act on same legs");
+            throw std::invalid_argument(
+              "All operators in SumLinearOperator must act on same legs");
         }
         dtypes.push_back(op->dtype);
     }
@@ -231,7 +236,8 @@ SumLinearOperator::adjoint()
     return std::make_shared<SumLinearOperator>(original_operator->adjoint(), std::move(others));
 }
 
-ShiftedLinearOperator::ShiftedLinearOperator(LinearOperator::Ptr original_operator, complex128 shift)
+ShiftedLinearOperator::ShiftedLinearOperator(LinearOperator::Ptr original_operator,
+                                             complex128 shift)
   : LinearOperatorWrapper(std::move(original_operator))
   , shift(std::move(shift))
 {
@@ -254,7 +260,8 @@ ShiftedLinearOperator::to_tensor(TensorBackend::Ptr backend)
     auto res = original_operator->to_tensor(backend);
     auto sym = vector_legs.empty() ? nullptr : vector_legs[0]->symmetry;
     auto tp = std::make_shared<TensorProduct>(vector_legs, sym);
-    auto identity = SymmetricTensor::from_eye(tp, res->backend, vector_labels, res->dtype, res->device);
+    auto identity =
+      SymmetricTensor::from_eye(tp, res->backend, vector_labels, res->dtype, res->device);
     auto one = res->backend->block_backend->as_scalar(1.0);
     auto s = res->backend->block_backend->as_scalar(shift);
     return linear_combination(one, TensorCPtr(res), s, TensorCPtr(identity));

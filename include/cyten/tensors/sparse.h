@@ -34,7 +34,9 @@ class LinearOperator
 
     static py::object acts_on;
 
-    LinearOperator(std::vector<Leg::Ptr> vector_legs, Dtype dtype, VectorLabels vector_labels = std::nullopt);
+    LinearOperator(std::vector<Leg::Ptr> vector_legs,
+                   Dtype dtype,
+                   VectorLabels vector_labels = std::nullopt);
     virtual ~LinearOperator() = default;
 
     [[nodiscard]] virtual VectorLike::Ptr matvec(VectorLike::CPtr vec) = 0;
@@ -53,7 +55,8 @@ class TensorLinearOperator : public LinearOperator
     int64 which_leg = 1;
     int64 other_leg = 0;
 
-    TensorLinearOperator(SymmetricTensorPtr tensor, std::variant<int64, std::string> which_leg = int64(-1));
+    TensorLinearOperator(SymmetricTensorPtr tensor,
+                         std::variant<int64, std::string> which_leg = int64(-1));
 
     [[nodiscard]] VectorLike::Ptr matvec(VectorLike::CPtr vec) override;
     [[nodiscard]] TensorPtr to_tensor(TensorBackend::Ptr backend = nullptr) override;
@@ -83,7 +86,8 @@ class SumLinearOperator : public LinearOperatorWrapper
 
     std::vector<LinearOperator::Ptr> more_operators;
 
-    SumLinearOperator(LinearOperator::Ptr original_operator, std::vector<LinearOperator::Ptr> more_operators = {});
+    SumLinearOperator(LinearOperator::Ptr original_operator,
+                      std::vector<LinearOperator::Ptr> more_operators = {});
 
     [[nodiscard]] VectorLike::Ptr matvec(VectorLike::CPtr vec) override;
     [[nodiscard]] TensorPtr to_tensor(TensorBackend::Ptr backend = nullptr) override;
