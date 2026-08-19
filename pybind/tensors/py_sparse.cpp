@@ -364,6 +364,20 @@ penalty : complex, optional
       .def("to_tensor", &ProjectedLinearOperator::to_tensor, py::arg("backend") = nullptr)
       .def("adjoint", &ProjectedLinearOperator::adjoint);
 
+    auto direct_sum_linear_operator_cls =
+      py::class_<DirectSumLinearOperator, LinearOperator, py::smart_holder>(
+        m, "DirectSumLinearOperator");
+    direct_sum_linear_operator_cls.doc() =
+      R"pydoc(Block-diagonal operator acting componentwise on a :class:`~cyten.tensors.DirectSum`.)pydoc";
+    direct_sum_linear_operator_cls
+      .def(py::init([](std::vector<LinearOperator::Ptr> operators) {
+               return std::make_shared<DirectSumLinearOperator>(std::move(operators));
+           }),
+           py::arg("operators"))
+      .def("matvec", &DirectSumLinearOperator::matvec, py::arg("vec"))
+      .def("to_tensor", &DirectSumLinearOperator::to_tensor, py::arg("backend") = nullptr)
+      .def("adjoint", &DirectSumLinearOperator::adjoint);
+
     m.def("gram_schmidt",
           &gram_schmidt,
           py::arg("vecs"),

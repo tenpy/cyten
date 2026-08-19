@@ -343,6 +343,80 @@ ProjectedLinearOperator::adjoint()
       original_operator->adjoint(), ortho_vecs, project_operator, p);
 }
 
+DirectSumLinearOperator::DirectSumLinearOperator(std::vector<LinearOperator::Ptr> operators)
+  : LinearOperator({}, Dtype::Float64, std::nullopt)
+  , operators(std::move(operators))
+{
+    if (this->operators.empty()) {
+        throw std::invalid_argument("DirectSumLinearOperator needs at least one operator");
+    }
+    for (auto const& op : this->operators) {
+        if (!op) {
+            throw std::invalid_argument(
+              "DirectSumLinearOperator operators must not contain null pointers");
+        }
+    }
+    for (auto const& op : this->operators) {
+        if (!same_legs(op->vector_legs, this->operators.front()->vector_legs)) {
+            throw std::invalid_argument(
+              "All operators in DirectSumLinearOperator must act on same legs");
+        }
+    }
+
+    std::vector<Dtype> dtypes;
+    dtypes.reserve(this->operators.size());
+    for (auto const& op : this->operators) {
+        dtypes.push_back(op->dtype);
+    }
+
+    this->vector_legs = this->operators.front()->vector_legs;
+    this->vector_labels = this->operators.front()->vector_labels;
+    this->dtype = dtype::common(dtypes);
+}
+
+VectorLike::Ptr
+DirectSumLinearOperator::matvec(VectorLike::CPtr vec)
+{
+    auto dvec = std::dynamic_pointer_cast<DirectSum const>(vec);
+    if (!dvec) {
+        throw std::invalid_argument("DirectSumLinearOperator.matvec expects a DirectSum input");
+    }
+    if (dvec->size() != operators.size()) {
+        throw std::invalid_argument(
+          "DirectSumLinearOperator.matvec expects matching component count");
+    }
+
+    std::vector<TensorPtr> res;
+    res.reserve(operators.size());
+    auto const& comps = dvec->components();
+    for (std::size_t i = 0; i < operators.size(); ++i) {
+        auto term = operators[i]->matvec(comps[i]);
+        auto tterm = std::dynamic_pointer_cast<Tensor>(term);
+        if (!tterm) {
+            throw std::runtime_error("DirectSumLinearOperator.matvec expected Tensor results");
+        }
+        res.push_back(std::move(tterm));
+    }
+    return std::make_shared<DirectSum>(std::move(res));
+}
+
+TensorPtr
+DirectSumLinearOperator::to_tensor(TensorBackend::Ptr)
+{
+    throw NotImplemented("DirectSumLinearOperator has no single-tensor representation");
+}
+
+LinearOperator::Ptr
+DirectSumLinearOperator::adjoint()
+{
+    std::vector<LinearOperator::Ptr> others;
+    others.reserve(operators.size());
+    for (auto const& op : operators) {
+        others.push_back(op->adjoint());
+    }
+    return std::make_shared<DirectSumLinearOperator>(std::move(others));
+}
+
 std::vector<VectorLike::Ptr>
 gram_schmidt(std::vector<VectorLike::Ptr> const& vecs, float64 rcond)
 {

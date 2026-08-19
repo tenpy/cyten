@@ -127,6 +127,21 @@ class ProjectedLinearOperator : public LinearOperatorWrapper
     [[nodiscard]] LinearOperator::Ptr adjoint() override;
 };
 
+/// Block-diagonal operator acting componentwise on a :class:`~cyten::DirectSum`.
+class DirectSumLinearOperator : public LinearOperator
+{
+  public:
+    using Ptr = std::shared_ptr<DirectSumLinearOperator>;
+
+    std::vector<LinearOperator::Ptr> operators;
+
+    explicit DirectSumLinearOperator(std::vector<LinearOperator::Ptr> operators);
+
+    [[nodiscard]] VectorLike::Ptr matvec(VectorLike::CPtr vec) override;
+    [[nodiscard]] TensorPtr to_tensor(TensorBackend::Ptr backend = nullptr) override;
+    [[nodiscard]] LinearOperator::Ptr adjoint() override;
+};
+
 /// Gram-Schmidt orthonormalization of a list of vectors.
 std::vector<VectorLike::Ptr> gram_schmidt(std::vector<VectorLike::Ptr> const& vecs,
                                           float64 rcond = kGramSchmidtDefaultRcond);

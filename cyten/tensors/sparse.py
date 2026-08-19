@@ -18,6 +18,7 @@ from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator
 
 # Monkey-patch converted sparse classes/functions from C++ bindings.
 from .._core import (  # noqa: E402,F401
+    DirectSumLinearOperator,
     LinearOperator,
     LinearOperatorWrapper,
     ProjectedLinearOperator,
@@ -36,47 +37,11 @@ from ._tensors import (
     DirectSum,
     SymmetricTensor,
     Tensor,
-    VectorLike,
     combine_legs,
     permute_legs,
     split_legs,
     tdot,
 )
-
-
-class DirectSumLinearOperator(LinearOperator):
-    """Block-diagonal operator acting componentwise on a :class:`~cyten.tensors.DirectSum`.
-
-    Parameters
-    ----------
-    operators : list of :class:`LinearOperator`
-        One operator per DirectSum component. ``matvec`` applies ``operators[i]`` to
-        ``vec.components[i]``.
-
-    """
-
-    def __init__(self, operators: list[LinearOperator]):
-        if len(operators) == 0:
-            raise ValueError('DirectSumLinearOperator needs at least one operator')
-        self.operators = list(operators)
-        super().__init__(
-            vector_legs=operators[0].vector_legs,
-            dtype=Dtype.common(*(op.dtype for op in operators)),
-            vector_labels=operators[0].vector_labels,
-        )
-
-    def matvec(self, vec: VectorLike) -> DirectSum:
-        if not isinstance(vec, DirectSum):
-            raise TypeError('DirectSumLinearOperator.matvec expects a DirectSum')
-        if len(vec) != len(self.operators):
-            raise ValueError(f'DirectSum has {len(vec)} components, operator has {len(self.operators)}')
-        return DirectSum([op.matvec(comp) for op, comp in zip(self.operators, vec.components)])
-
-    def to_tensor(self, **kw) -> Tensor:
-        raise NotImplementedError('DirectSumLinearOperator has no single-tensor representation')
-
-    def adjoint(self) -> DirectSumLinearOperator:
-        return DirectSumLinearOperator([op.adjoint() for op in self.operators])
 
 
 class NumpyArrayLinearOperator(ScipyLinearOperator):
