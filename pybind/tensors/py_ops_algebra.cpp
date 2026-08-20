@@ -5,7 +5,10 @@
 #include <cyten/tensors/tensor.h>
 #include <cyten/tensors/vector_like.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+
+#include "docstrings.h"
 
 #include <format>
 #include <map>
@@ -95,13 +98,7 @@ bind_tensors_ops_algebra(py::module_& m)
           py::arg("rtol") = 1e-5,
           py::arg("atol") = 1e-8,
           py::arg("allow_different_types") = false,
-          R"pydoc(
-Checks if two tensors are equal up to numerical tolerance.
-
-We compare the blocks, i.e. the free parameters of the tensors.
-The tensors count as almost equal if all block-entries, i.e. all their free parameters
-individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
-)pydoc");
+          DOC(cyten, almost_equal));
 
     m.def(
       "apply_mask",
@@ -123,10 +120,7 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       py::arg("leg"),
       R"pydoc(Apply an inclusion Mask to one leg of a tensor *embedding* it into a larger leg.)pydoc");
 
-    m.def("dagger",
-          &dagger,
-          py::arg("tensor"),
-          R"pydoc(The hermitian conjugate tensor, a.k.a the dagger of a tensor.)pydoc");
+    m.def("dagger", &dagger, py::arg("tensor"), DOC(cyten, dagger));
 
     m.def(
       "compose",
@@ -140,7 +134,13 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       py::arg("tensor2"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      R"pydoc(Tensor contraction as map composition. Requires ``tensor1.domain == tensor2.codomain``.)pydoc");
+      doc_plus(DOC(cyten, compose),
+               R"pydoc(
+Parameters
+----------
+relabel1, relabel2 : dict or None
+    Optional label maps applied before composition. ``None`` means no relabel.
+)pydoc"));
 
     m.def(
       "get_same_device",
@@ -156,12 +156,13 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       py::arg("error_msg") = "Incompatible devices.",
       R"pydoc(If the given tensors have the same device, return it. Raise otherwise.)pydoc");
 
+    // Bind the VectorLike overload (DOC(..., 2)); Tensor overload is DOC(cyten, inner).
     m.def("inner",
           static_cast<BlockBackend::Scalar (*)(VectorLikeCPtr, VectorLikeCPtr, bool)>(&inner),
           py::arg("A"),
           py::arg("B"),
           py::arg("do_dagger") = true,
-          R"pydoc(The Frobenius inner product of two tensors or DirectSums.)pydoc");
+          DOC(cyten, inner, 2));
 
     m.def(
       "is_scalar",
@@ -194,10 +195,7 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       py::arg("obj"),
       R"pydoc(If an object is a scalar.)pydoc");
 
-    m.def("item",
-          &item,
-          py::arg("tensor"),
-          R"pydoc(If the tensor is a scalar (with only trivial legs), convert to a Scalar.)pydoc");
+    m.def("item", &item, py::arg("tensor"), DOC(cyten, item));
 
     m.def(
       "linear_combination",
@@ -240,14 +238,14 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
     m.def("norm",
           static_cast<BlockBackend::Scalar (*)(VectorLikeCPtr)>(&norm),
           py::arg("tensor"),
-          R"pydoc(The Frobenius norm of a Tensor or DirectSum.)pydoc");
+          DOC(cyten, norm, 2));
 
     m.def("on_device",
           &on_device,
           py::arg("tensor"),
           py::arg("device"),
           py::arg("copy") = true,
-          R"pydoc(An equivalent tensor (with the same entries) on another device.)pydoc");
+          DOC(cyten, on_device));
 
     m.def(
       "outer",
@@ -261,7 +259,13 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       py::arg("tensor2"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      R"pydoc(The outer product, or tensor product.)pydoc");
+      doc_plus(DOC(cyten, outer),
+               R"pydoc(
+Parameters
+----------
+relabel1, relabel2 : dict or None
+    Optional label maps. ``None`` means no relabel.
+)pydoc"));
 
     m.def(
       "partial_compose",
@@ -312,11 +316,7 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       py::arg("levels") = py::none(),
       R"pydoc(Perform a partial trace.)pydoc");
 
-    m.def("pinv",
-          &pinv,
-          py::arg("tensor"),
-          py::arg("cutoff") = 1e-15,
-          R"pydoc(The Moore-Penrose pseudo-inverse of a tensor.)pydoc");
+    m.def("pinv", &pinv, py::arg("tensor"), py::arg("cutoff") = 1e-15, DOC(cyten, pinv));
 
     m.def(
       "scalar_multiply",
@@ -378,11 +378,19 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
       py::arg("legs2"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      R"pydoc(General tensor contraction, connecting arbitrary pairs of (matching!) legs.)pydoc");
+      doc_plus(DOC(cyten, tdot),
+               R"pydoc(
+Parameters
+----------
+legs1, legs2 : int, str, or sequence thereof
+    Matching legs of ``tensor1`` / ``tensor2`` to contract.
+relabel1, relabel2 : dict or None
+    Optional label maps. ``None`` means no relabel.
+)pydoc"));
 
-    m.def("trace", &trace, py::arg("tensor"), R"pydoc(Perform the trace.)pydoc");
+    m.def("trace", &trace, py::arg("tensor"), DOC(cyten, trace));
 
-    m.def("transpose", &transpose, py::arg("tensor"), R"pydoc(The transpose of a tensor.)pydoc");
+    m.def("transpose", &transpose, py::arg("tensor"), DOC(cyten, transpose));
 }
 
 } // namespace cyten

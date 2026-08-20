@@ -51,6 +51,8 @@ docbuild = [
     "sphinx-rtd-theme",
     "sphinxcontrib-bibtex",
     "sphinx_copybutton",
+    "clang",
+    "pybind11-mkdoc",
 ]
 # bundles
 dev = ["cyten[io, test, lint, docbuild]"]

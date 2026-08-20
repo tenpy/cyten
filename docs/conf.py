@@ -16,7 +16,7 @@ import cyten
 project = 'Cyten'
 copyright = '2024, Cyten developer team'
 author = 'Cyten developer team'
-release = '0.1'
+release = cyten.__version__
 
 GITHUBBASE = 'https://github.com/tenpy/cyten'
 
@@ -192,7 +192,7 @@ def linkcode_resolve(domain, info):
     if fn.startswith('..'):
         return None
 
-    if cyten.__version__ == cyten.__full_version__:
+    if 'dev' not in cyten.__version__:
         return f'{GITHUBBASE}/blob/v{cyten.__version__}/cyten/{fn}{linespec}'
     else:
         return f'{GITHUBBASE}/blob/main/cyten/{fn}{linespec}'

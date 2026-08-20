@@ -33,6 +33,9 @@ dependencies:
   - flake8
   - flake8-rst-docstrings
   - sphinx-lint
+  # libclang for pybind11_mkdoc (DOC() generation at build time)
+  - clangdev
+  - libclang
 
   # building docs
   # - doxygen
@@ -40,10 +43,15 @@ dependencies:
   # - sphinx_rtd_theme
   # - graphviz
   # - sphinx-copybutton
-  # - pip:
-  #   - breathe  # conda-forge version seems incompatible
+  # - breathe  # install via pip; conda-forge version seems incompatible
 
   # I/O
   - hdf5=2.1  # temporary pin to avoid incompatible version
   - h5py=3.16
   - pyyaml
+  - toml
+
+  # pip last: packages after a `pip:` block are ignored by conda
+  - pip:
+    - breathe  # conda-forge version seems incompatible
+    - pybind11-mkdoc

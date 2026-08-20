@@ -26,7 +26,6 @@ Pybind11 classes and functions (``R"pydoc(...)pydoc"`` docstrings from
     :toctree: reference
 
     models
-    version
 
 .. rubric:: Module description
 .. automodule:: cyten

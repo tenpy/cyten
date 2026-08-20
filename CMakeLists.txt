@@ -83,8 +83,29 @@ if(NOT CYTEN_TORCH_CMAKE_PREFIX_RESULT EQUAL 0 OR CYTEN_TORCH_CMAKE_PREFIX STREQ
     "Install the matching Python torch package in this environment.")
 endif()
 list(PREPEND CMAKE_PREFIX_PATH "${CYTEN_TORCH_CMAKE_PREFIX}")
+
+# Torch's Caffe2/mkl.cmake sets caffe2::mkl INTERFACE_LINK_DIRECTORIES to
+# ${MKL_ROOT}/lib/intel64 (etc.). When MKL_ROOT is unset those become the
+# bogus absolute paths /lib/intel64, and executables that link cyten (e.g.
+# CommonCppTests) fail to resolve libtorch_cpu's MKL/sleef/omp deps. Conda
+# ships those libs in $CONDA_PREFIX/lib.
+if(NOT MKL_ROOT AND DEFINED ENV{CONDA_PREFIX})
+  set(MKL_ROOT "$ENV{CONDA_PREFIX}")
+endif()
+
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
+# Belt-and-suspenders: overwrite any empty-MKL_ROOT stub dirs Torch still set.
+if(TARGET caffe2::mkl AND MKL_ROOT)
+  set_property(TARGET caffe2::mkl PROPERTY INTERFACE_LINK_DIRECTORIES
+    "${MKL_ROOT}/lib")
+  # Executables that link Torch (e.g. CommonCppTests) must resolve libtorch_cpu's
+  # DT_NEEDED deps (MKL, sleef, omp) at link time; -L alone is not enough for
+  # that — pass -rpath-link. Shared modules like _core do not need this.
+  target_link_options(caffe2::mkl INTERFACE "LINKER:-rpath-link=${MKL_ROOT}/lib")
+endif()
+
 cmake_print_variables(Torch_DIR)
 cmake_print_variables(TORCH_INSTALL_PREFIX)
 cmake_print_variables(TORCH_LIBRARIES)
@@ -126,10 +147,81 @@ pybind11_add_module(_core pybind/_core.cpp)
 
 target_include_directories(_core
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/pybind
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
   PUBLIC "${PROJECT_SOURCE_DIR}/include")
 add_subdirectory(pybind)  # adds source files to _core
 
 target_link_libraries(_core PUBLIC cyten)
+
+# #####################################################################
+# ## pybind11_mkdoc (pilot: ops_algebra.h → DOC macros)
+# #####################################################################
+# Requires pybind11_mkdoc, libclang, and clang on PATH (see environment.yml:
+# pybind11-mkdoc, libclang, clangdev).
+execute_process(
+  COMMAND ${Python_EXECUTABLE} -c "import pybind11_mkdoc"
+  RESULT_VARIABLE CYTEN_MKDOC_IMPORT_RESULT
+  OUTPUT_QUIET ERROR_QUIET
+)
+if(NOT CYTEN_MKDOC_IMPORT_RESULT EQUAL 0)
+  message(FATAL_ERROR
+    "pybind11_mkdoc is required to build cyten._core (DOC() macros). "
+    "Install it into the active environment (see environment.yml).")
+endif()
+
+execute_process(
+  COMMAND ${Python_EXECUTABLE} -c "import pybind11; print(pybind11.get_include())"
+  OUTPUT_VARIABLE CYTEN_PYBIND11_INCLUDE
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  COMMAND_ERROR_IS_FATAL ANY
+)
+
+# Builtin headers for libclang; clangdev puts `clang` on PATH.
+execute_process(
+  COMMAND clang -print-resource-dir
+  OUTPUT_VARIABLE CYTEN_CLANG_RESOURCE_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  RESULT_VARIABLE CYTEN_CLANG_RESOURCE_RESULT
+)
+if(NOT CYTEN_CLANG_RESOURCE_RESULT EQUAL 0 OR CYTEN_CLANG_RESOURCE_DIR STREQUAL "")
+  message(FATAL_ERROR
+    "clang is required for pybind11_mkdoc (builtin headers). "
+    "Install clangdev into the active environment (see environment.yml).")
+endif()
+
+set(CYTEN_MKDOC_RAW "${CMAKE_CURRENT_BINARY_DIR}/docstrings.raw.h")
+set(CYTEN_MKDOC_OUT "${CMAKE_CURRENT_BINARY_DIR}/docstrings.h")
+set(CYTEN_MKDOC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/tensors/ops_algebra.h")
+set(CYTEN_MKDOC_FIX "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fix_mkdoc_numpy_sections.py")
+
+# conda-forge libclang is under $CONDA_PREFIX/lib; mkdoc does not search there by default.
+set(_cyten_mkdoc_env "")
+if(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/lib/libclang.so")
+  list(APPEND _cyten_mkdoc_env "LIBCLANG_PATH=$ENV{CONDA_PREFIX}/lib/libclang.so")
+endif()
+
+add_custom_command(
+  OUTPUT ${CYTEN_MKDOC_OUT}
+  COMMAND ${CMAKE_COMMAND} -E env ${_cyten_mkdoc_env}
+          ${Python_EXECUTABLE} -m pybind11_mkdoc
+          -o ${CYTEN_MKDOC_RAW}
+          -std=c++23
+          -I${CMAKE_CURRENT_SOURCE_DIR}/include
+          -I${CYTEN_PYBIND11_INCLUDE}
+          -I${Python_INCLUDE_DIRS}
+          -I${CYTEN_CLANG_RESOURCE_DIR}/include
+          ${CYTEN_MKDOC_HEADER}
+  COMMAND ${Python_EXECUTABLE} ${CYTEN_MKDOC_FIX} ${CYTEN_MKDOC_RAW} -o ${CYTEN_MKDOC_OUT}
+  DEPENDS ${CYTEN_MKDOC_HEADER} ${CYTEN_MKDOC_FIX}
+  COMMENT "Generating DOC() macros from ops_algebra.h (pybind11_mkdoc)"
+  VERBATIM
+)
+add_custom_target(cyten_mkdoc_docstrings DEPENDS ${CYTEN_MKDOC_OUT})
+add_dependencies(_core cyten_mkdoc_docstrings)
+set_source_files_properties(
+  ${CMAKE_CURRENT_SOURCE_DIR}/pybind/tensors/py_ops_algebra.cpp
+  PROPERTIES OBJECT_DEPENDS ${CYTEN_MKDOC_OUT}
+)
 
 # Resolve libtorch/c10 from the same place as Python torch._C.
 # Installed layout: site-packages/cyten/_core*.so
