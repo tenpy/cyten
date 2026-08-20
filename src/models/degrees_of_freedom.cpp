@@ -236,7 +236,8 @@ add_onsite_operators_from_map(Site& site,
 py::object&
 all_species_sentinel()
 {
-    static py::object sentinel = py::module_::import("builtins").attr("object")();
+    static py::object& sentinel =
+      leak_py_object(py::module_::import("builtins").attr("object")());
     return sentinel;
 }
 

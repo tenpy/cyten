@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstdint>
 #include <stdfloat>
+#include <utility>
 
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
@@ -16,6 +17,18 @@ static_assert(std::numeric_limits<double>::is_iec559); // double is indeed 64 bi
 namespace cyten {
 
 namespace py = ::pybind11;
+
+/// Heap-allocate a pybind handle and never destroy it.
+///
+/// Function-local or global ``py::object`` destructors run from ``atexit`` *after*
+/// ``Py_Finalize``, and ``Py_DECREF`` then segfaults (Python 3.14: ``tstate == NULL``).
+template <typename T>
+[[nodiscard]] T&
+leak_py_object(T obj)
+{
+    return *new T(std::move(obj));
+}
+
 using int16 = std::int16_t;
 using int32 = std::int32_t;
 using int64 = std::int64_t;

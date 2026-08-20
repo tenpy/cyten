@@ -712,11 +712,13 @@ build_su2k_spin1_leg(int64 k)
     return ElementarySpace::from_defining_sectors(sym, SectorArray::from_sector(*cat->spin_one));
 }
 
-SpinSiteInit g_spin_site_init{};
-BosonSiteInit g_boson_site_init{};
-FermionSiteInit g_fermion_site_init{};
-SpinHalfFermionSiteInit g_spin_half_fermion_site_init{};
-ClockSiteInit g_clock_site_init{};
+// Heap-allocate and never destroy: these structs hold py::array, whose destructor
+// would Py_DECREF after Py_Finalize and segfault (Python 3.14: tstate == NULL).
+SpinSiteInit& g_spin_site_init = *new SpinSiteInit{};
+BosonSiteInit& g_boson_site_init = *new BosonSiteInit{};
+FermionSiteInit& g_fermion_site_init = *new FermionSiteInit{};
+SpinHalfFermionSiteInit& g_spin_half_fermion_site_init = *new SpinHalfFermionSiteInit{};
+ClockSiteInit& g_clock_site_init = *new ClockSiteInit{};
 
 SpinSiteInit&
 prepare_spin_site(float64 S, std::optional<std::string> conserve)
