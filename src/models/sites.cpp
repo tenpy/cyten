@@ -268,17 +268,10 @@ format_string_list(std::vector<std::string> const& items)
     return out.str();
 }
 
-struct SpinSiteInit
-{
-    ElementarySpace::Ptr leg;
-    py::array spin_vector;
-    std::map<std::string, int64> state_labels;
-    Symmetry::Ptr sym;
-    int64 two_S;
-};
+} // namespace
 
-SpinSiteInit
-build_spin_site(float64 S, std::optional<std::string> conserve)
+SpinSite::Prepared
+SpinSite::prepare(float64 S, std::optional<std::string> conserve)
 {
     auto np = numpy_module();
     float64 const spin_S = S;
@@ -311,18 +304,8 @@ build_spin_site(float64 S, std::optional<std::string> conserve)
     return { leg, spin_vector, state_labels, sym, two_S };
 }
 
-struct BosonSiteInit
-{
-    ElementarySpace::Ptr leg;
-    py::array Nmax_arr;
-    py::array creators;
-    py::array annihilators;
-    std::map<std::string, int64> state_labels;
-    int64 total_dim;
-};
-
-BosonSiteInit
-build_boson_site(py::object Nmax, py::object conserve)
+SpinlessBosonSite::Prepared
+SpinlessBosonSite::prepare(py::object Nmax, py::object conserve)
 {
     auto np = numpy_module();
     auto Nmax_arr =
@@ -446,16 +429,8 @@ build_boson_site(py::object Nmax, py::object conserve)
     return { leg, Nmax_arr, ops.first, ops.second, state_labels, total_dim };
 }
 
-struct FermionSiteInit
-{
-    ElementarySpace::Ptr leg;
-    py::array creators;
-    py::array annihilators;
-    std::map<std::string, int64> state_labels;
-};
-
-FermionSiteInit
-build_fermion_site(int64 num_species, py::object conserve)
+SpinlessFermionSite::Prepared
+SpinlessFermionSite::prepare(int64 num_species, py::object conserve)
 {
     if (num_species <= 0) {
         throw std::invalid_argument("Must have at least a single fermion species");
@@ -559,18 +534,8 @@ build_fermion_site(int64 num_species, py::object conserve)
     return { leg, ops.first, ops.second, state_labels };
 }
 
-struct SpinHalfFermionSiteInit
-{
-    ElementarySpace::Ptr leg;
-    py::array spin_vector;
-    py::array creators;
-    py::array annihilators;
-    std::map<std::string, int64> state_labels;
-    SymmetryFactor::Ptr sym_S_factor;
-};
-
-SpinHalfFermionSiteInit
-build_spin_half_fermion_site(std::string const& conserve_N,
+SpinHalfFermionSite::Prepared
+SpinHalfFermionSite::prepare(std::string const& conserve_N,
                              std::optional<std::string> const& conserve_S)
 {
     auto np = numpy_module();
@@ -644,15 +609,8 @@ build_spin_half_fermion_site(std::string const& conserve_N,
     return { leg, spin_vector, ops.first, ops.second, state_labels, sym_S_factor };
 }
 
-struct ClockSiteInit
-{
-    ElementarySpace::Ptr leg;
-    py::array clock_operators;
-    std::map<std::string, int64> state_labels;
-};
-
-ClockSiteInit
-build_clock_site(int64 q, std::optional<std::string> conserve)
+ClockSite::Prepared
+ClockSite::prepare(int64 q, std::optional<std::string> conserve)
 {
     auto np = numpy_module();
     ElementarySpace::Ptr leg;
@@ -689,8 +647,10 @@ build_clock_site(int64 q, std::optional<std::string> conserve)
     return { leg, clock_operators, state_labels };
 }
 
+namespace {
+
 ElementarySpace::Ptr
-build_golden_site_leg(std::string const& handedness = "left")
+build_golden_site_leg(std::string const& handedness)
 {
     auto cat = std::make_shared<FibonacciAnyonCategory>(handedness);
     auto sym = std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ cat });
@@ -712,147 +672,84 @@ build_su2k_spin1_leg(int64 k)
     return ElementarySpace::from_defining_sectors(sym, SectorArray::from_sector(*cat->spin_one));
 }
 
-// Heap-allocate and never destroy: these structs hold py::array, whose destructor
-// would Py_DECREF after Py_Finalize and segfault (Python 3.14: tstate == NULL).
-SpinSiteInit& g_spin_site_init = *new SpinSiteInit{};
-BosonSiteInit& g_boson_site_init = *new BosonSiteInit{};
-FermionSiteInit& g_fermion_site_init = *new FermionSiteInit{};
-SpinHalfFermionSiteInit& g_spin_half_fermion_site_init = *new SpinHalfFermionSiteInit{};
-ClockSiteInit& g_clock_site_init = *new ClockSiteInit{};
-
-SpinSiteInit&
-prepare_spin_site(float64 S, std::optional<std::string> conserve)
-{
-    return g_spin_site_init = build_spin_site(S, conserve);
-}
-
-BosonSiteInit&
-prepare_boson_site(py::object Nmax, py::object conserve)
-{
-    return g_boson_site_init = build_boson_site(Nmax, conserve);
-}
-
-FermionSiteInit&
-prepare_fermion_site(int64 num_species, py::object conserve)
-{
-    return g_fermion_site_init = build_fermion_site(num_species, conserve);
-}
-
-SpinHalfFermionSiteInit&
-prepare_spin_half_fermion_site(std::string const& conserve_N,
-                               std::optional<std::string> const& conserve_S)
-{
-    return g_spin_half_fermion_site_init = build_spin_half_fermion_site(conserve_N, conserve_S);
-}
-
-ClockSiteInit&
-prepare_clock_site(int64 q, std::optional<std::string> conserve)
-{
-    return g_clock_site_init = build_clock_site(q, conserve);
-}
-
-ElementarySpace::Ptr g_anyon_leg{};
-Symmetry::Ptr g_anyon_sym{};
-
-Symmetry::Ptr
-prepare_fibonacci_symmetry()
-{
-    return g_anyon_sym = std::make_shared<Symmetry>(
-             std::vector<SymmetryFactor::Ptr>{ std::make_shared<FibonacciAnyonCategory>("left") });
-}
-
-Symmetry::Ptr
-prepare_ising_symmetry(int nu = 1)
-{
-    return g_anyon_sym = std::make_shared<Symmetry>(
-             std::vector<SymmetryFactor::Ptr>{ std::make_shared<IsingAnyonCategory>(nu) });
-}
-
-ElementarySpace::Ptr
-prepare_anyon_leg(Symmetry::Ptr const& sym)
-{
-    return g_anyon_leg = ElementarySpace::from_defining_sectors(sym, sym->all_sectors());
-}
-
-ElementarySpace::Ptr g_golden_leg{};
-ElementarySpace::Ptr g_su2k_leg{};
-
-ElementarySpace::Ptr
-prepare_golden_leg(std::string const& handedness = "left")
-{
-    return g_golden_leg = build_golden_site_leg(handedness);
-}
-
-ElementarySpace::Ptr
-prepare_su2k_leg(int64 k)
-{
-    return g_su2k_leg = build_su2k_spin1_leg(k);
-}
-
 } // namespace
+
+FibonacciAnyonSite::Prepared
+FibonacciAnyonSite::prepare()
+{
+    auto symmetry = std::make_shared<Symmetry>(
+      std::vector<SymmetryFactor::Ptr>{ std::make_shared<FibonacciAnyonCategory>("left") });
+    auto leg = ElementarySpace::from_defining_sectors(symmetry, symmetry->all_sectors());
+    return { std::move(symmetry), std::move(leg) };
+}
+
+IsingAnyonSite::Prepared
+IsingAnyonSite::prepare(int nu)
+{
+    auto symmetry = std::make_shared<Symmetry>(
+      std::vector<SymmetryFactor::Ptr>{ std::make_shared<IsingAnyonCategory>(nu) });
+    auto leg = ElementarySpace::from_defining_sectors(symmetry, symmetry->all_sectors());
+    return { std::move(symmetry), std::move(leg) };
+}
 
 SpinSite::SpinSite(float64 S,
                    std::optional<std::string> conserve,
                    TensorBackend::Ptr backend,
                    std::optional<std::string> default_device)
-  : Site((prepare_spin_site(S, conserve), g_spin_site_init.leg),
-         (prepare_spin_site(S, conserve), g_spin_site_init.state_labels),
-         {},
-         backend,
-         default_device)
-  , SpinDOF((prepare_spin_site(S, conserve), g_spin_site_init.leg),
-            (prepare_spin_site(S, conserve), g_spin_site_init.spin_vector),
-            (prepare_spin_site(S, conserve), g_spin_site_init.state_labels),
-            {},
-            backend,
-            default_device)
+  : SpinSite(prepare(S, conserve), S, conserve, std::move(backend), std::move(default_device))
+{
+}
+
+SpinSite::SpinSite(Prepared&& prepared,
+                   float64 S,
+                   std::optional<std::string> conserve,
+                   TensorBackend::Ptr backend,
+                   std::optional<std::string> default_device)
+  : Site(prepared.leg, std::move(prepared.state_labels), {}, backend, default_device)
+  , SpinDOF(prepared.leg, std::move(prepared.spin_vector), {}, {}, backend, default_device)
 {
     this->S = S;
-    this->double_total_spin = g_spin_site_init.two_S;
-    this->conserve = conserve;
-    auto const& init = g_spin_site_init;
-    auto const factor = first_factor(init.sym);
+    this->double_total_spin = prepared.two_S;
+    this->conserve = std::move(conserve);
+    auto const factor = first_factor(prepared.sym);
     auto np = numpy_module();
     if (!factor_is_su2(factor)) {
         add_onsite_operator(
           "Sz",
-          init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 2)),
+          spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 2)),
           true);
-        if (init.two_S == 1) {
+        if (prepared.two_S == 1) {
             add_onsite_operator(
               "Sigmaz",
               np.attr("multiply")(
-                2.0,
-                init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 2))),
+                2.0, spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 2))),
               true);
         }
     }
     if (factor_is_no_symmetry(factor)) {
         add_onsite_operator(
-          "Sx", init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)));
+          "Sx", spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)));
         add_onsite_operator(
-          "Sy", init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)));
+          "Sy", spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)));
         add_onsite_operator(
           "Sp",
-          init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)) +
+          spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)) +
             py::cast(std::complex(0., 1.)) *
-              init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)));
+              spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)));
         add_onsite_operator(
           "Sm",
-          init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)) -
+          spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)) -
             py::cast(std::complex(0., 1.)) *
-              init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)));
-        if (init.two_S == 1) {
+              spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)));
+        if (prepared.two_S == 1) {
             add_onsite_operator(
               "Sigmax",
-              np.attr("multiply")(2.0,
-                                  init.spin_vector.attr("__getitem__")(
-                                    py::make_tuple(py::slice(), py::slice(), 0))));
+              np.attr("multiply")(
+                2.0, spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0))));
             add_onsite_operator(
               "Sigmay",
-              np.attr("multiply")(2.0,
-                                  init.spin_vector.attr("__getitem__")(
-                                    py::make_tuple(py::slice(), py::slice(), 1))));
+              np.attr("multiply")(
+                2.0, spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1))));
         }
     }
 }
@@ -882,27 +779,36 @@ SpinlessBosonSite::SpinlessBosonSite(py::object Nmax,
                                      std::optional<float64> filling,
                                      TensorBackend::Ptr backend,
                                      std::optional<std::string> default_device)
-  : Site((prepare_boson_site(Nmax, conserve), g_boson_site_init.leg),
-         (prepare_boson_site(Nmax, conserve), g_boson_site_init.state_labels),
-         {},
-         backend,
-         default_device)
-  , BosonicDOF((prepare_boson_site(Nmax, conserve), g_boson_site_init.leg),
-               (prepare_boson_site(Nmax, conserve), g_boson_site_init.Nmax_arr),
-               (prepare_boson_site(Nmax, conserve), g_boson_site_init.creators),
-               (prepare_boson_site(Nmax, conserve), g_boson_site_init.annihilators),
+  : SpinlessBosonSite(prepare(Nmax, conserve),
+                      conserve,
+                      filling,
+                      std::move(backend),
+                      std::move(default_device))
+{
+}
+
+SpinlessBosonSite::SpinlessBosonSite(Prepared&& prepared,
+                                     py::object conserve,
+                                     std::optional<float64> filling,
+                                     TensorBackend::Ptr backend,
+                                     std::optional<std::string> default_device)
+  : Site(prepared.leg, std::move(prepared.state_labels), {}, backend, default_device)
+  , BosonicDOF(prepared.leg,
+               std::move(prepared.Nmax_arr),
+               std::move(prepared.creators),
+               std::move(prepared.annihilators),
                {},
-               (prepare_boson_site(Nmax, conserve), g_boson_site_init.state_labels),
+               {},
                {},
                backend,
                default_device)
 {
-    this->conserve = conserve;
+    this->conserve = std::move(conserve);
     this->filling = filling;
     add_individual_occupation_ops();
     add_total_occupation_ops();
     if (filling) {
-        add_filling_ops(*this, n_tot, *filling, g_boson_site_init.total_dim);
+        add_filling_ops(*this, n_tot, *filling, prepared.total_dim);
     }
 }
 
@@ -920,22 +826,33 @@ SpinlessFermionSite::SpinlessFermionSite(int64 num_species,
                                          std::optional<float64> filling,
                                          TensorBackend::Ptr backend,
                                          std::optional<std::string> default_device)
-  : Site((prepare_fermion_site(num_species, conserve), g_fermion_site_init.leg),
-         (prepare_fermion_site(num_species, conserve), g_fermion_site_init.state_labels),
-         {},
-         backend,
-         default_device)
-  , FermionicDOF((prepare_fermion_site(num_species, conserve), g_fermion_site_init.leg),
-                 (prepare_fermion_site(num_species, conserve), g_fermion_site_init.creators),
-                 (prepare_fermion_site(num_species, conserve), g_fermion_site_init.annihilators),
+  : SpinlessFermionSite(prepare(num_species, conserve),
+                        num_species,
+                        conserve,
+                        filling,
+                        std::move(backend),
+                        std::move(default_device))
+{
+}
+
+SpinlessFermionSite::SpinlessFermionSite(Prepared&& prepared,
+                                         int64 num_species,
+                                         py::object conserve,
+                                         std::optional<float64> filling,
+                                         TensorBackend::Ptr backend,
+                                         std::optional<std::string> default_device)
+  : Site(prepared.leg, std::move(prepared.state_labels), {}, backend, default_device)
+  , FermionicDOF(prepared.leg,
+                 std::move(prepared.creators),
+                 std::move(prepared.annihilators),
                  {},
-                 (prepare_fermion_site(num_species, conserve), g_fermion_site_init.state_labels),
+                 {},
                  {},
                  backend,
                  default_device)
 {
     this->num_species = num_species;
-    this->conserve = conserve;
+    this->conserve = std::move(conserve);
     this->filling = filling;
     add_individual_occupation_ops();
     add_total_occupation_ops();
@@ -958,43 +875,40 @@ SpinHalfFermionSite::SpinHalfFermionSite(std::string conserve_N,
                                          std::optional<float64> filling,
                                          TensorBackend::Ptr backend,
                                          std::optional<std::string> default_device)
-  : Site(
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S), g_spin_half_fermion_site_init.leg),
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S),
-       g_spin_half_fermion_site_init.state_labels),
-      {},
-      backend,
-      default_device)
-  , SpinDOF(
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S), g_spin_half_fermion_site_init.leg),
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S),
-       g_spin_half_fermion_site_init.spin_vector),
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S),
-       g_spin_half_fermion_site_init.state_labels),
-      {},
-      backend,
-      default_device)
-  , FermionicDOF(
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S), g_spin_half_fermion_site_init.leg),
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S),
-       g_spin_half_fermion_site_init.creators),
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S),
-       g_spin_half_fermion_site_init.annihilators),
-      std::vector<std::optional<std::string>>{ std::optional<std::string>{ "up" },
-                                               std::optional<std::string>{ "down" } },
-      (prepare_spin_half_fermion_site(conserve_N, conserve_S),
-       g_spin_half_fermion_site_init.state_labels),
-      {},
-      backend,
-      default_device)
+  : SpinHalfFermionSite(prepare(conserve_N, conserve_S),
+                        conserve_N,
+                        conserve_S,
+                        filling,
+                        std::move(backend),
+                        std::move(default_device))
 {
-    this->conserve_N = conserve_N;
-    this->conserve_S = conserve_S;
+}
+
+SpinHalfFermionSite::SpinHalfFermionSite(Prepared&& prepared,
+                                         std::string conserve_N,
+                                         std::optional<std::string> conserve_S,
+                                         std::optional<float64> filling,
+                                         TensorBackend::Ptr backend,
+                                         std::optional<std::string> default_device)
+  : Site(prepared.leg, std::move(prepared.state_labels), {}, backend, default_device)
+  , SpinDOF(prepared.leg, std::move(prepared.spin_vector), {}, {}, backend, default_device)
+  , FermionicDOF(prepared.leg,
+                 std::move(prepared.creators),
+                 std::move(prepared.annihilators),
+                 std::vector<std::optional<std::string>>{ std::optional<std::string>{ "up" },
+                                                          std::optional<std::string>{ "down" } },
+                 {},
+                 {},
+                 backend,
+                 default_device)
+{
+    this->conserve_N = std::move(conserve_N);
+    this->conserve_S = std::move(conserve_S);
     this->filling = filling;
-    auto const& init = g_spin_half_fermion_site_init;
+    auto const& sym_S_factor = prepared.sym_S_factor;
     auto np = numpy_module();
 
-    if (!factor_is_su2(init.sym_S_factor)) {
+    if (!factor_is_su2(sym_S_factor)) {
         add_individual_occupation_ops();
         if (auto node = onsite_operators.extract("N0")) {
             onsite_operators["Nup"] = std::move(node.mapped());
@@ -1006,49 +920,48 @@ SpinHalfFermionSite::SpinHalfFermionSite(std::string conserve_N,
     add_total_occupation_ops();
 
     std::map<std::string, py::object> ops;
-    if (!factor_is_su2(init.sym_S_factor)) {
-        ops["Sz"] =
-          init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 2));
+    if (!factor_is_su2(sym_S_factor)) {
+        ops["Sz"] = spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 2));
         ops["Sigmaz"] = np.attr("multiply")(
-          2.0, init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 2)));
+          2.0, spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 2)));
     }
-    if (factor_is_no_symmetry(init.sym_S_factor)) {
+    if (factor_is_no_symmetry(sym_S_factor)) {
         add_onsite_operator(
           "Sx",
-          init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)),
+          spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)),
           std::nullopt,
           true);
         add_onsite_operator(
           "Sy",
-          init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)),
+          spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)),
           std::nullopt,
           true);
         add_onsite_operator(
           "Sp",
-          init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)) +
+          spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)) +
             py::cast(std::complex(0., 1.)) *
-              init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)),
+              spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)),
           std::nullopt,
           true);
         add_onsite_operator(
           "Sm",
-          init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)) -
+          spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0)) -
             py::cast(std::complex(0., 1.)) *
-              init.spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)),
+              spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)),
           std::nullopt,
           true);
-        add_onsite_operator("Sigmax",
-                            np.attr("multiply")(2.0,
-                                                init.spin_vector.attr("__getitem__")(
-                                                  py::make_tuple(py::slice(), py::slice(), 0))),
-                            std::nullopt,
-                            true);
-        add_onsite_operator("Sigmay",
-                            np.attr("multiply")(2.0,
-                                                init.spin_vector.attr("__getitem__")(
-                                                  py::make_tuple(py::slice(), py::slice(), 1))),
-                            std::nullopt,
-                            true);
+        add_onsite_operator(
+          "Sigmax",
+          np.attr("multiply")(
+            2.0, spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0))),
+          std::nullopt,
+          true);
+        add_onsite_operator(
+          "Sigmay",
+          np.attr("multiply")(
+            2.0, spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1))),
+          std::nullopt,
+          true);
     }
     if (filling) {
         auto dN_diag = np.attr("diag")(n_tot) - np.attr("multiply")(*filling, np.attr("ones")(4));
@@ -1080,20 +993,20 @@ ClockSite::ClockSite(int64 q,
                      std::optional<std::string> conserve,
                      TensorBackend::Ptr backend,
                      std::optional<std::string> default_device)
-  : Site((prepare_clock_site(q, conserve), g_clock_site_init.leg),
-         (prepare_clock_site(q, conserve), g_clock_site_init.state_labels),
-         {},
-         backend,
-         default_device)
-  , ClockDOF((prepare_clock_site(q, conserve), g_clock_site_init.leg),
-             (prepare_clock_site(q, conserve), g_clock_site_init.clock_operators),
-             (prepare_clock_site(q, conserve), g_clock_site_init.state_labels),
-             {},
-             backend,
-             default_device)
+  : ClockSite(prepare(q, conserve), q, conserve, std::move(backend), std::move(default_device))
+{
+}
+
+ClockSite::ClockSite(Prepared&& prepared,
+                     int64 q,
+                     std::optional<std::string> conserve,
+                     TensorBackend::Ptr backend,
+                     std::optional<std::string> default_device)
+  : Site(prepared.leg, std::move(prepared.state_labels), {}, backend, default_device)
+  , ClockDOF(prepared.leg, std::move(prepared.clock_operators), {}, {}, backend, default_device)
 {
     this->q = q;
-    this->conserve = conserve;
+    this->conserve = std::move(conserve);
     auto np = numpy_module();
     auto sym = leg_symmetry(leg);
     auto Xhc = np.attr("conj")(
@@ -1117,17 +1030,17 @@ ClockSite::repr() const
 AnyonSite::AnyonSite(Symmetry::Ptr symmetry,
                      TensorBackend::Ptr backend,
                      std::optional<std::string> default_device)
-  : Site(ElementarySpace::from_defining_sectors(symmetry, symmetry->all_sectors()),
-         {},
-         {},
-         backend,
-         default_device)
-  , AnyonDOF(ElementarySpace::from_defining_sectors(symmetry, symmetry->all_sectors()),
-             {},
-             {},
-             {},
-             backend,
-             default_device)
+  : AnyonSite(ElementarySpace::from_defining_sectors(symmetry, symmetry->all_sectors()),
+              std::move(backend),
+              std::move(default_device))
+{
+}
+
+AnyonSite::AnyonSite(ElementarySpace::Ptr leg,
+                     TensorBackend::Ptr backend,
+                     std::optional<std::string> default_device)
+  : Site(leg, {}, {}, backend, default_device)
+  , AnyonDOF(std::move(leg), {}, {}, {}, backend, default_device)
 {
 }
 
@@ -1141,12 +1054,15 @@ AnyonSite::repr() const
 
 FibonacciAnyonSite::FibonacciAnyonSite(TensorBackend::Ptr backend,
                                        std::optional<std::string> default_device)
-  : Site((prepare_anyon_leg(prepare_fibonacci_symmetry()), g_anyon_leg),
-         {},
-         {},
-         backend,
-         default_device)
-  , AnyonSite(g_anyon_sym, backend, default_device)
+  : FibonacciAnyonSite(prepare(), std::move(backend), std::move(default_device))
+{
+}
+
+FibonacciAnyonSite::FibonacciAnyonSite(Prepared&& prepared,
+                                       TensorBackend::Ptr backend,
+                                       std::optional<std::string> default_device)
+  : Site(prepared.leg, {}, {}, backend, default_device)
+  , AnyonSite(prepared.leg, backend, default_device)
 {
     add_anyon_projectors(*this, { "vac", "tau" }, backend, default_device);
 }
@@ -1162,12 +1078,15 @@ FibonacciAnyonSite::repr() const
 IsingAnyonSite::IsingAnyonSite(int nu,
                                TensorBackend::Ptr backend,
                                std::optional<std::string> default_device)
-  : Site((prepare_anyon_leg(prepare_ising_symmetry(nu)), g_anyon_leg),
-         {},
-         {},
-         backend,
-         default_device)
-  , AnyonSite(g_anyon_sym, backend, default_device)
+  : IsingAnyonSite(prepare(nu), std::move(backend), std::move(default_device))
+{
+}
+
+IsingAnyonSite::IsingAnyonSite(Prepared&& prepared,
+                               TensorBackend::Ptr backend,
+                               std::optional<std::string> default_device)
+  : Site(prepared.leg, {}, {}, backend, default_device)
+  , AnyonSite(prepared.leg, backend, default_device)
 {
     add_anyon_projectors(*this, { "vac", "sigma", "psi" }, backend, default_device);
 }
@@ -1182,8 +1101,15 @@ IsingAnyonSite::repr() const
 GoldenSite::GoldenSite(std::string handedness,
                        TensorBackend::Ptr backend,
                        std::optional<std::string> default_device)
-  : Site((prepare_golden_leg(handedness), g_golden_leg), {}, {}, backend, default_device)
-  , AnyonDOF(g_golden_leg, {}, {}, {}, backend, default_device)
+  : GoldenSite(build_golden_site_leg(handedness), std::move(backend), std::move(default_device))
+{
+}
+
+GoldenSite::GoldenSite(ElementarySpace::Ptr leg,
+                       TensorBackend::Ptr backend,
+                       std::optional<std::string> default_device)
+  : Site(leg, {}, {}, backend, default_device)
+  , AnyonDOF(std::move(leg), {}, {}, {}, backend, default_device)
 {
 }
 
@@ -1198,8 +1124,16 @@ GoldenSite::repr() const
 SU2kSpin1Site::SU2kSpin1Site(int64 k,
                              TensorBackend::Ptr backend,
                              std::optional<std::string> default_device)
-  : Site((prepare_su2k_leg(k), g_su2k_leg), {}, {}, backend, default_device)
-  , AnyonDOF(g_su2k_leg, {}, {}, {}, backend, default_device)
+  : SU2kSpin1Site(build_su2k_spin1_leg(k), k, std::move(backend), std::move(default_device))
+{
+}
+
+SU2kSpin1Site::SU2kSpin1Site(ElementarySpace::Ptr leg,
+                             int64 k,
+                             TensorBackend::Ptr backend,
+                             std::optional<std::string> default_device)
+  : Site(leg, {}, {}, backend, default_device)
+  , AnyonDOF(std::move(leg), {}, {}, {}, backend, default_device)
 {
     this->k = k;
 }

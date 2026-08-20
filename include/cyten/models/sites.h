@@ -2,6 +2,7 @@
 
 #include <cyten/models/degrees_of_freedom.h>
 
+#include <map>
 #include <optional>
 #include <string>
 
@@ -23,6 +24,23 @@ class SpinSite : public SpinDOF
 
     void test_sanity() override;
     [[nodiscard]] std::string repr() const;
+
+  private:
+    /// Temporary data for virtual-base initialization; lives only during construction.
+    struct Prepared
+    {
+        ElementarySpace::Ptr leg;
+        py::array spin_vector;
+        std::map<std::string, int64> state_labels;
+        Symmetry::Ptr sym;
+        int64 two_S;
+    };
+    static Prepared prepare(float64 S, std::optional<std::string> conserve);
+    SpinSite(Prepared&& prepared,
+             float64 S,
+             std::optional<std::string> conserve,
+             TensorBackend::Ptr backend,
+             std::optional<std::string> default_device);
 };
 
 class SpinlessBosonSite : public BosonicDOF
@@ -40,6 +58,23 @@ class SpinlessBosonSite : public BosonicDOF
                       std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+  private:
+    struct Prepared
+    {
+        ElementarySpace::Ptr leg;
+        py::array Nmax_arr;
+        py::array creators;
+        py::array annihilators;
+        std::map<std::string, int64> state_labels;
+        int64 total_dim;
+    };
+    static Prepared prepare(py::object Nmax, py::object conserve);
+    SpinlessBosonSite(Prepared&& prepared,
+                      py::object conserve,
+                      std::optional<float64> filling,
+                      TensorBackend::Ptr backend,
+                      std::optional<std::string> default_device);
 };
 
 class SpinlessFermionSite : public FermionicDOF
@@ -58,6 +93,22 @@ class SpinlessFermionSite : public FermionicDOF
                         std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+  private:
+    struct Prepared
+    {
+        ElementarySpace::Ptr leg;
+        py::array creators;
+        py::array annihilators;
+        std::map<std::string, int64> state_labels;
+    };
+    static Prepared prepare(int64 num_species, py::object conserve);
+    SpinlessFermionSite(Prepared&& prepared,
+                        int64 num_species,
+                        py::object conserve,
+                        std::optional<float64> filling,
+                        TensorBackend::Ptr backend,
+                        std::optional<std::string> default_device);
 };
 
 class SpinHalfFermionSite
@@ -80,6 +131,25 @@ class SpinHalfFermionSite
     void test_sanity() override;
 
     [[nodiscard]] std::string repr() const;
+
+  private:
+    struct Prepared
+    {
+        ElementarySpace::Ptr leg;
+        py::array spin_vector;
+        py::array creators;
+        py::array annihilators;
+        std::map<std::string, int64> state_labels;
+        SymmetryFactor::Ptr sym_S_factor;
+    };
+    static Prepared prepare(std::string const& conserve_N,
+                            std::optional<std::string> const& conserve_S);
+    SpinHalfFermionSite(Prepared&& prepared,
+                        std::string conserve_N,
+                        std::optional<std::string> conserve_S,
+                        std::optional<float64> filling,
+                        TensorBackend::Ptr backend,
+                        std::optional<std::string> default_device);
 };
 
 class ClockSite : public ClockDOF
@@ -96,6 +166,20 @@ class ClockSite : public ClockDOF
               std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+  private:
+    struct Prepared
+    {
+        ElementarySpace::Ptr leg;
+        py::array clock_operators;
+        std::map<std::string, int64> state_labels;
+    };
+    static Prepared prepare(int64 q, std::optional<std::string> conserve);
+    ClockSite(Prepared&& prepared,
+              int64 q,
+              std::optional<std::string> conserve,
+              TensorBackend::Ptr backend,
+              std::optional<std::string> default_device);
 };
 
 class AnyonSite : public AnyonDOF
@@ -108,6 +192,12 @@ class AnyonSite : public AnyonDOF
               std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+  protected:
+    /// Initialize from an already-built local space (shared by Site and AnyonDOF).
+    AnyonSite(ElementarySpace::Ptr leg,
+              TensorBackend::Ptr backend,
+              std::optional<std::string> default_device);
 };
 
 class FibonacciAnyonSite : public AnyonSite
@@ -119,6 +209,17 @@ class FibonacciAnyonSite : public AnyonSite
                        std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+  private:
+    struct Prepared
+    {
+        Symmetry::Ptr symmetry;
+        ElementarySpace::Ptr leg;
+    };
+    static Prepared prepare();
+    FibonacciAnyonSite(Prepared&& prepared,
+                       TensorBackend::Ptr backend,
+                       std::optional<std::string> default_device);
 };
 
 class IsingAnyonSite : public AnyonSite
@@ -131,6 +232,17 @@ class IsingAnyonSite : public AnyonSite
                    std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+  private:
+    struct Prepared
+    {
+        Symmetry::Ptr symmetry;
+        ElementarySpace::Ptr leg;
+    };
+    static Prepared prepare(int nu);
+    IsingAnyonSite(Prepared&& prepared,
+                   TensorBackend::Ptr backend,
+                   std::optional<std::string> default_device);
 };
 
 class GoldenSite : public AnyonDOF
@@ -143,6 +255,11 @@ class GoldenSite : public AnyonDOF
                std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+  private:
+    GoldenSite(ElementarySpace::Ptr leg,
+               TensorBackend::Ptr backend,
+               std::optional<std::string> default_device);
 };
 
 class SU2kSpin1Site : public AnyonDOF
@@ -157,6 +274,12 @@ class SU2kSpin1Site : public AnyonDOF
                   std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+  private:
+    SU2kSpin1Site(ElementarySpace::Ptr leg,
+                  int64 k,
+                  TensorBackend::Ptr backend,
+                  std::optional<std::string> default_device);
 };
 
 } // namespace cyten
