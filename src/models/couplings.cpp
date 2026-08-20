@@ -6,6 +6,7 @@
 #include <cyten/tensors/constructors.h>
 #include <cyten/tensors/ops_algebra.h>
 #include <cyten/tensors/planar.h>
+#include <cyten/tools.h>
 
 #include <algorithm>
 #include <format>
@@ -683,7 +684,9 @@ Coupling::permute(std::vector<int64> const& permutation,
     int64 const n = static_cast<int64>(sites.size());
     if (!is_permutation(permutation)) {
         throw std::invalid_argument(
-          std::format("`permutation` must be a permutation of range({}), got {}", n, permutation));
+          std::format("`permutation` must be a permutation of range({}), got {}",
+                      n,
+                      format_like_list(py::cast(permutation))));
     }
 
     LevelsSpec levels_state;
