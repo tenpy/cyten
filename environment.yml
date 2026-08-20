@@ -33,7 +33,7 @@ dependencies:
   - flake8
   - flake8-rst-docstrings
   - sphinx-lint
-  # libclang for pybind11_mkdoc (DOC() generation at build time)
+  # libclang for optional pybind11_mkdoc regeneration of pybind/docstrings.h
   - clangdev
   - libclang
 

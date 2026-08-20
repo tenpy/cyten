@@ -38,5 +38,3 @@ Pybind11 classes and functions (``R"pydoc(...)pydoc"`` docstrings from
     show_config
 
 .. autodata:: __version__
-
-.. autodata:: __full_version__

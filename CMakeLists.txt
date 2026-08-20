@@ -32,6 +32,12 @@ endif()
 option(BUILD_DOC "Build API documentation" OFF)
 option(LINTING "Use clang-tidy for linting" OFF)
 option(BUILD_TESTING "Build ctest tests" ON)
+# Checked-in pybind/docstrings.h is always used. Regeneration is optional and
+# only enabled when pybind11_mkdoc + clang/libclang are available (see
+# environment.yml). Without them, builds succeed with possibly stale DOC().
+option(CYTEN_GENERATE_DOCSTRINGS
+  "Regenerate pybind/docstrings.h with pybind11_mkdoc when tools are available"
+  ON)
 
 
 # #####################################################################
@@ -147,81 +153,98 @@ pybind11_add_module(_core pybind/_core.cpp)
 
 target_include_directories(_core
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/pybind
-  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
   PUBLIC "${PROJECT_SOURCE_DIR}/include")
 add_subdirectory(pybind)  # adds source files to _core
 
 target_link_libraries(_core PUBLIC cyten)
 
 # #####################################################################
-# ## pybind11_mkdoc (pilot: ops_algebra.h → DOC macros)
+# ## pybind11_mkdoc (optional: ops_algebra.h → pybind/docstrings.h)
 # #####################################################################
-# Requires pybind11_mkdoc, libclang, and clang on PATH (see environment.yml:
-# pybind11-mkdoc, libclang, clangdev).
-execute_process(
-  COMMAND ${Python_EXECUTABLE} -c "import pybind11_mkdoc"
-  RESULT_VARIABLE CYTEN_MKDOC_IMPORT_RESULT
-  OUTPUT_QUIET ERROR_QUIET
-)
-if(NOT CYTEN_MKDOC_IMPORT_RESULT EQUAL 0)
-  message(FATAL_ERROR
-    "pybind11_mkdoc is required to build cyten._core (DOC() macros). "
-    "Install it into the active environment (see environment.yml).")
+
+set(CYTEN_MKDOC_OUT "${CMAKE_CURRENT_SOURCE_DIR}/pybind/docstrings.h")
+set(CYTEN_CAN_GENERATE_DOCSTRINGS FALSE)
+
+if(CYTEN_GENERATE_DOCSTRINGS)
+  execute_process(
+    COMMAND ${Python_EXECUTABLE} -c "import pybind11_mkdoc"
+    RESULT_VARIABLE _cyten_mkdoc_import
+    OUTPUT_QUIET ERROR_QUIET
+  )
+  execute_process(
+    COMMAND clang -print-resource-dir
+    OUTPUT_VARIABLE CYTEN_CLANG_RESOURCE_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _cyten_clang_res
+  )
+  set(_cyten_libclang "")
+  if(DEFINED ENV{LIBCLANG_PATH} AND EXISTS "$ENV{LIBCLANG_PATH}")
+    set(_cyten_libclang "$ENV{LIBCLANG_PATH}")
+  elseif(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/lib/libclang.so")
+    set(_cyten_libclang "$ENV{CONDA_PREFIX}/lib/libclang.so")
+  endif()
+
+  if(_cyten_mkdoc_import EQUAL 0
+     AND _cyten_clang_res EQUAL 0
+     AND NOT CYTEN_CLANG_RESOURCE_DIR STREQUAL ""
+     AND NOT _cyten_libclang STREQUAL "")
+    set(CYTEN_CAN_GENERATE_DOCSTRINGS TRUE)
+  else()
+    message(STATUS
+      "CYTEN_GENERATE_DOCSTRINGS: tools missing (pybind11_mkdoc / clang / "
+      "libclang); using checked-in ${CYTEN_MKDOC_OUT}")
+  endif()
 endif()
 
-execute_process(
-  COMMAND ${Python_EXECUTABLE} -c "import pybind11; print(pybind11.get_include())"
-  OUTPUT_VARIABLE CYTEN_PYBIND11_INCLUDE
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  COMMAND_ERROR_IS_FATAL ANY
-)
+if(CYTEN_CAN_GENERATE_DOCSTRINGS)
+  execute_process(
+    COMMAND ${Python_EXECUTABLE} -c "import pybind11; print(pybind11.get_include())"
+    OUTPUT_VARIABLE CYTEN_PYBIND11_INCLUDE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+  set(CYTEN_MKDOC_RAW "${CMAKE_CURRENT_BINARY_DIR}/docstrings.raw.h")
+  set(CYTEN_MKDOC_GEN "${CMAKE_CURRENT_BINARY_DIR}/docstrings.generated.h")
+  set(CYTEN_MKDOC_STAMP "${CMAKE_CURRENT_BINARY_DIR}/docstrings.stamp")
+  set(CYTEN_MKDOC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/tensors/ops_algebra.h")
+  set(CYTEN_MKDOC_FIX "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fix_mkdoc_numpy_sections.py")
 
-# Builtin headers for libclang; clangdev puts `clang` on PATH.
-execute_process(
-  COMMAND clang -print-resource-dir
-  OUTPUT_VARIABLE CYTEN_CLANG_RESOURCE_DIR
-  OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE CYTEN_CLANG_RESOURCE_RESULT
-)
-if(NOT CYTEN_CLANG_RESOURCE_RESULT EQUAL 0 OR CYTEN_CLANG_RESOURCE_DIR STREQUAL "")
-  message(FATAL_ERROR
-    "clang is required for pybind11_mkdoc (builtin headers). "
-    "Install clangdev into the active environment (see environment.yml).")
+  # Stamp lives in the build tree so `ninja clean` does not delete the
+  # checked-in pybind/docstrings.h. copy_if_different updates git when comments change.
+  add_custom_command(
+    OUTPUT ${CYTEN_MKDOC_STAMP}
+    COMMAND ${CMAKE_COMMAND} -E env "LIBCLANG_PATH=${_cyten_libclang}"
+            ${Python_EXECUTABLE} -m pybind11_mkdoc
+            -o ${CYTEN_MKDOC_RAW}
+            -std=c++23
+            -I${CMAKE_CURRENT_SOURCE_DIR}/include
+            -I${CYTEN_PYBIND11_INCLUDE}
+            -I${Python_INCLUDE_DIRS}
+            -I${CYTEN_CLANG_RESOURCE_DIR}/include
+            ${CYTEN_MKDOC_HEADER}
+    COMMAND ${Python_EXECUTABLE} ${CYTEN_MKDOC_FIX} ${CYTEN_MKDOC_RAW} -o ${CYTEN_MKDOC_GEN}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CYTEN_MKDOC_GEN} ${CYTEN_MKDOC_OUT}
+    COMMAND ${CMAKE_COMMAND} -E touch ${CYTEN_MKDOC_STAMP}
+    DEPENDS ${CYTEN_MKDOC_HEADER} ${CYTEN_MKDOC_FIX}
+    COMMENT "Regenerating pybind/docstrings.h (pybind11_mkdoc)"
+    VERBATIM
+  )
+  add_custom_target(cyten_mkdoc_docstrings DEPENDS ${CYTEN_MKDOC_STAMP})
+  add_dependencies(_core cyten_mkdoc_docstrings)
+  message(STATUS "CYTEN_GENERATE_DOCSTRINGS: ON (will refresh pybind/docstrings.h)")
+else()
+  add_custom_target(cyten_mkdoc_docstrings
+    COMMENT "cyten_mkdoc_docstrings skipped (checked-in pybind/docstrings.h; install tools and CYTEN_GENERATE_DOCSTRINGS=ON to refresh)"
+  )
+  if(NOT EXISTS "${CYTEN_MKDOC_OUT}")
+    message(FATAL_ERROR
+      "Missing ${CYTEN_MKDOC_OUT}. Either commit/restore that file or install "
+      "pybind11-mkdoc + clangdev + libclang and configure with "
+      "CYTEN_GENERATE_DOCSTRINGS=ON.")
+  endif()
+  message(STATUS "CYTEN_GENERATE_DOCSTRINGS: OFF (using checked-in docstrings.h)")
 endif()
 
-set(CYTEN_MKDOC_RAW "${CMAKE_CURRENT_BINARY_DIR}/docstrings.raw.h")
-set(CYTEN_MKDOC_OUT "${CMAKE_CURRENT_BINARY_DIR}/docstrings.h")
-set(CYTEN_MKDOC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/tensors/ops_algebra.h")
-set(CYTEN_MKDOC_FIX "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fix_mkdoc_numpy_sections.py")
-
-# conda-forge libclang is under $CONDA_PREFIX/lib; mkdoc does not search there by default.
-set(_cyten_mkdoc_env "")
-if(DEFINED ENV{CONDA_PREFIX} AND EXISTS "$ENV{CONDA_PREFIX}/lib/libclang.so")
-  list(APPEND _cyten_mkdoc_env "LIBCLANG_PATH=$ENV{CONDA_PREFIX}/lib/libclang.so")
-endif()
-
-add_custom_command(
-  OUTPUT ${CYTEN_MKDOC_OUT}
-  COMMAND ${CMAKE_COMMAND} -E env ${_cyten_mkdoc_env}
-          ${Python_EXECUTABLE} -m pybind11_mkdoc
-          -o ${CYTEN_MKDOC_RAW}
-          -std=c++23
-          -I${CMAKE_CURRENT_SOURCE_DIR}/include
-          -I${CYTEN_PYBIND11_INCLUDE}
-          -I${Python_INCLUDE_DIRS}
-          -I${CYTEN_CLANG_RESOURCE_DIR}/include
-          ${CYTEN_MKDOC_HEADER}
-  COMMAND ${Python_EXECUTABLE} ${CYTEN_MKDOC_FIX} ${CYTEN_MKDOC_RAW} -o ${CYTEN_MKDOC_OUT}
-  DEPENDS ${CYTEN_MKDOC_HEADER} ${CYTEN_MKDOC_FIX}
-  COMMENT "Generating DOC() macros from ops_algebra.h (pybind11_mkdoc)"
-  VERBATIM
-)
-add_custom_target(cyten_mkdoc_docstrings DEPENDS ${CYTEN_MKDOC_OUT})
-add_dependencies(_core cyten_mkdoc_docstrings)
-set_source_files_properties(
-  ${CMAKE_CURRENT_SOURCE_DIR}/pybind/tensors/py_ops_algebra.cpp
-  PROPERTIES OBJECT_DEPENDS ${CYTEN_MKDOC_OUT}
-)
 
 # Resolve libtorch/c10 from the same place as Python torch._C.
 # Installed layout: site-packages/cyten/_core*.so
