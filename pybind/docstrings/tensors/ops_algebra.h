@@ -6,6 +6,8 @@
     cmake --build <build-dir> --target cyten_mkdoc_docstrings
  */
 
+#ifndef CYTEN_MKDOC_DOC_MACROS
+#define CYTEN_MKDOC_DOC_MACROS
 #define MKD_EXPAND(x) x
 #define MKD_COUNT(_1, _2, _3, _4, _5, _6, _7, COUNT, ...) COUNT
 #define MKD_VA_SIZE(...) MKD_EXPAND(MKD_COUNT(__VA_ARGS__, 7, 6, 5, 4, 3, 2, 1, 0))
@@ -19,6 +21,7 @@
 #define MKD_DOC6(n1, n2, n3, n4, n5, n6) mkd_doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6
 #define MKD_DOC7(n1, n2, n3, n4, n5, n6, n7) mkd_doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6##_##n7
 #define DOC(...) MKD_EXPAND(MKD_EXPAND(MKD_CAT2(MKD_DOC, MKD_VA_SIZE(__VA_ARGS__)))(__VA_ARGS__))
+#endif /* CYTEN_MKDOC_DOC_MACROS */
 
 #if defined(__GNUG__)
 #pragma GCC diagnostic push

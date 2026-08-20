@@ -8,7 +8,7 @@
 #include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
 
-#include "docstrings.h"
+#include "docstrings/tensors/ops_algebra.h"
 
 #include <format>
 #include <map>

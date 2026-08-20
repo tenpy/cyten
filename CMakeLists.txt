@@ -32,11 +32,11 @@ endif()
 option(BUILD_DOC "Build API documentation" OFF)
 option(LINTING "Use clang-tidy for linting" OFF)
 option(BUILD_TESTING "Build ctest tests" ON)
-# Checked-in pybind/docstrings.h is always used. Regeneration is optional and
-# only enabled when pybind11_mkdoc + clang/libclang are available (see
-# environment.yml). Without them, builds succeed with possibly stale DOC().
+# Checked-in pybind/docstrings/<path>.h mirrors include/cyten/<path>.h.
+# Regeneration is optional and only enabled when pybind11_mkdoc + clang/libclang
+# are available (see environment.yml). Without them, builds use checked-in files.
 option(CYTEN_GENERATE_DOCSTRINGS
-  "Regenerate pybind/docstrings.h with pybind11_mkdoc when tools are available"
+  "Regenerate pybind/docstrings/*.h with pybind11_mkdoc when tools are available"
   ON)
 
 
@@ -159,10 +159,18 @@ add_subdirectory(pybind)  # adds source files to _core
 target_link_libraries(_core PUBLIC cyten)
 
 # #####################################################################
-# ## pybind11_mkdoc (optional: ops_algebra.h → pybind/docstrings.h)
+# ## pybind11_mkdoc (optional: one docstring header per include/cyten/*.h)
 # #####################################################################
+# Layout: include/cyten/<rel>  →  pybind/docstrings/<rel>
+# Each pybind TU includes only the docstring headers it needs, so regenerating
+# one include does not force recompiling unrelated py_*.cpp files.
+#
+# Pilot list — extend as more bindings switch to DOC(...):
+set(CYTEN_MKDOC_HEADERS
+  tensors/ops_algebra.h
+)
 
-set(CYTEN_MKDOC_OUT "${CMAKE_CURRENT_SOURCE_DIR}/pybind/docstrings.h")
+set(CYTEN_DOCSTRINGS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pybind/docstrings")
 set(CYTEN_CAN_GENERATE_DOCSTRINGS FALSE)
 
 if(CYTEN_GENERATE_DOCSTRINGS)
@@ -192,10 +200,11 @@ if(CYTEN_GENERATE_DOCSTRINGS)
   else()
     message(STATUS
       "CYTEN_GENERATE_DOCSTRINGS: tools missing (pybind11_mkdoc / clang / "
-      "libclang); using checked-in ${CYTEN_MKDOC_OUT}")
+      "libclang); using checked-in ${CYTEN_DOCSTRINGS_DIR}/")
   endif()
 endif()
 
+set(_cyten_mkdoc_stamps "")
 if(CYTEN_CAN_GENERATE_DOCSTRINGS)
   execute_process(
     COMMAND ${Python_EXECUTABLE} -c "import pybind11; print(pybind11.get_include())"
@@ -203,46 +212,64 @@ if(CYTEN_CAN_GENERATE_DOCSTRINGS)
     OUTPUT_STRIP_TRAILING_WHITESPACE
     COMMAND_ERROR_IS_FATAL ANY
   )
-  set(CYTEN_MKDOC_RAW "${CMAKE_CURRENT_BINARY_DIR}/docstrings.raw.h")
-  set(CYTEN_MKDOC_GEN "${CMAKE_CURRENT_BINARY_DIR}/docstrings.generated.h")
-  set(CYTEN_MKDOC_STAMP "${CMAKE_CURRENT_BINARY_DIR}/docstrings.stamp")
-  set(CYTEN_MKDOC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/tensors/ops_algebra.h")
   set(CYTEN_MKDOC_FIX "${CMAKE_CURRENT_SOURCE_DIR}/scripts/fix_mkdoc_numpy_sections.py")
+endif()
 
-  # Stamp lives in the build tree so `ninja clean` does not delete the
-  # checked-in pybind/docstrings.h. copy_if_different updates git when comments change.
-  add_custom_command(
-    OUTPUT ${CYTEN_MKDOC_STAMP}
-    COMMAND ${CMAKE_COMMAND} -E env "LIBCLANG_PATH=${_cyten_libclang}"
-            ${Python_EXECUTABLE} -m pybind11_mkdoc
-            -o ${CYTEN_MKDOC_RAW}
-            -std=c++23
-            -I${CMAKE_CURRENT_SOURCE_DIR}/include
-            -I${CYTEN_PYBIND11_INCLUDE}
-            -I${Python_INCLUDE_DIRS}
-            -I${CYTEN_CLANG_RESOURCE_DIR}/include
-            ${CYTEN_MKDOC_HEADER}
-    COMMAND ${Python_EXECUTABLE} ${CYTEN_MKDOC_FIX} ${CYTEN_MKDOC_RAW} -o ${CYTEN_MKDOC_GEN}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CYTEN_MKDOC_GEN} ${CYTEN_MKDOC_OUT}
-    COMMAND ${CMAKE_COMMAND} -E touch ${CYTEN_MKDOC_STAMP}
-    DEPENDS ${CYTEN_MKDOC_HEADER} ${CYTEN_MKDOC_FIX}
-    COMMENT "Regenerating pybind/docstrings.h (pybind11_mkdoc)"
-    VERBATIM
-  )
-  add_custom_target(cyten_mkdoc_docstrings DEPENDS ${CYTEN_MKDOC_STAMP})
-  add_dependencies(_core cyten_mkdoc_docstrings)
-  message(STATUS "CYTEN_GENERATE_DOCSTRINGS: ON (will refresh pybind/docstrings.h)")
-else()
-  add_custom_target(cyten_mkdoc_docstrings
-    COMMENT "cyten_mkdoc_docstrings skipped (checked-in pybind/docstrings.h; install tools and CYTEN_GENERATE_DOCSTRINGS=ON to refresh)"
-  )
-  if(NOT EXISTS "${CYTEN_MKDOC_OUT}")
+foreach(_cyten_hdr_rel IN LISTS CYTEN_MKDOC_HEADERS)
+  set(_cyten_doc_out "${CYTEN_DOCSTRINGS_DIR}/${_cyten_hdr_rel}")
+  if(NOT EXISTS "${_cyten_doc_out}" AND NOT CYTEN_CAN_GENERATE_DOCSTRINGS)
     message(FATAL_ERROR
-      "Missing ${CYTEN_MKDOC_OUT}. Either commit/restore that file or install "
+      "Missing ${_cyten_doc_out}. Either commit/restore that file or install "
       "pybind11-mkdoc + clangdev + libclang and configure with "
       "CYTEN_GENERATE_DOCSTRINGS=ON.")
   endif()
-  message(STATUS "CYTEN_GENERATE_DOCSTRINGS: OFF (using checked-in docstrings.h)")
+
+  if(CYTEN_CAN_GENERATE_DOCSTRINGS)
+    set(_cyten_src_hdr "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/${_cyten_hdr_rel}")
+    set(_cyten_safe_rel "${_cyten_hdr_rel}")
+    string(REPLACE "/" "_" _cyten_safe_rel "${_cyten_safe_rel}")
+    string(REPLACE "." "_" _cyten_safe_rel "${_cyten_safe_rel}")
+    set(_cyten_raw "${CMAKE_CURRENT_BINARY_DIR}/docstrings_${_cyten_safe_rel}.raw.h")
+    set(_cyten_gen "${CMAKE_CURRENT_BINARY_DIR}/docstrings_${_cyten_safe_rel}.generated.h")
+    set(_cyten_stamp "${CMAKE_CURRENT_BINARY_DIR}/docstrings_${_cyten_safe_rel}.stamp")
+    get_filename_component(_cyten_doc_outdir "${_cyten_doc_out}" DIRECTORY)
+
+    # Stamp in the build tree so `ninja clean` does not delete checked-in files.
+    add_custom_command(
+      OUTPUT ${_cyten_stamp}
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_doc_outdir}
+      COMMAND ${CMAKE_COMMAND} -E env "LIBCLANG_PATH=${_cyten_libclang}"
+              ${Python_EXECUTABLE} -m pybind11_mkdoc
+              -o ${_cyten_raw}
+              -std=c++23
+              -I${CMAKE_CURRENT_SOURCE_DIR}/include
+              -I${CYTEN_PYBIND11_INCLUDE}
+              -I${Python_INCLUDE_DIRS}
+              -I${CYTEN_CLANG_RESOURCE_DIR}/include
+              ${_cyten_src_hdr}
+      COMMAND ${Python_EXECUTABLE} ${CYTEN_MKDOC_FIX} ${_cyten_raw}
+              -o ${_cyten_gen}
+              --source-rel ${_cyten_hdr_rel}
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_cyten_gen} ${_cyten_doc_out}
+      COMMAND ${CMAKE_COMMAND} -E touch ${_cyten_stamp}
+      DEPENDS ${_cyten_src_hdr} ${CYTEN_MKDOC_FIX}
+      COMMENT "Regenerating pybind/docstrings/${_cyten_hdr_rel}"
+      VERBATIM
+    )
+    list(APPEND _cyten_mkdoc_stamps ${_cyten_stamp})
+  endif()
+endforeach()
+
+if(CYTEN_CAN_GENERATE_DOCSTRINGS)
+  add_custom_target(cyten_mkdoc_docstrings DEPENDS ${_cyten_mkdoc_stamps})
+  add_dependencies(_core cyten_mkdoc_docstrings)
+  message(STATUS
+    "CYTEN_GENERATE_DOCSTRINGS: ON (${CYTEN_MKDOC_HEADERS})")
+else()
+  add_custom_target(cyten_mkdoc_docstrings
+    COMMENT "cyten_mkdoc_docstrings skipped (using checked-in pybind/docstrings/)"
+  )
+  message(STATUS "CYTEN_GENERATE_DOCSTRINGS: OFF (using checked-in pybind/docstrings/)")
 endif()
 
 
