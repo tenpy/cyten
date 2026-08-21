@@ -12,7 +12,18 @@ namespace cyten {
 
 /// Product symmetry: composition of one or more `SymmetryFactor`s.
 ///
-/// Always use this product structure, even for zero or one factors.
+/// Always use this product structure, even if there are no factors at all (trivial symmetry),
+/// or just a single factor.
+///
+/// The prototypical example of a symmetry comes from the (representation of) a `Group`
+/// and leads to conserved quantities. For a concrete example, we could have a `U1`
+/// that represents the @f$ S^z @f$ conservation of a spin chain.
+/// The framework of symmetries, however, is more general and extends to fermionic or anyonic
+/// grading, see e.g. `FermionParity` or `FibonacciAnyonCategory`.
+///
+/// @param factors The factors that comprise this symmetry. If any are already `Symmetry`s,
+///     the nesting is flattened, i.e. ``[*others, symm]`` is translated to
+///     ``[*others, *symm.factors]``.
 class Symmetry : public BaseSymmetry
 {
   public:
@@ -83,6 +94,8 @@ class Symmetry : public BaseSymmetry
 /// If it is not, the results may be nonsensical. We do this for optimization purposes
     int64 _n_symbol(Sector a, Sector b, Sector c) const override;
 /// Assume there are finitely many sectors, return all of them.
+///
+/// @warning Do not perform inplace operations on the output. That may invalidate caches.
     SectorArray all_sectors() const override;
 
 /// The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).

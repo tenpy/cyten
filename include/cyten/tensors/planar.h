@@ -218,19 +218,115 @@ class ContractionTree
     [[nodiscard]] std::string str() const;
 };
 
-/// Create a new planar diagram with an additional tensor.
+/// Abstract representation for the contraction of multiple tensors without any braids.
 ///
-/// The new planar diagram arises from the old one by adding a single tensor and contracting
-/// (some of) its legs with open legs of the old planar diagram. It is in particular not
-/// possible to change tensor contractions involving two tensors of the old planar diagram.
+/// The tensors in a planar diagram are represented using placeholders that have the same leg
+/// labels as the actual tensors for which the diagram is to be evaluated. The tensor contractions
+/// of the planar diagram, as well as its open (non-contracted) legs, are specified using only the
+/// leg labels of the tensors / placeholders. The full diagram must be both planar and connected,
+/// meaning that the tensor legs must not braid with each other and that the full diagram is
+/// contractible to a single tensor. Disconnected tensors can nevertheless be considered by
+/// combining them with another tensor using `outer` before adding them to the diagram.
+/// When specifying the leg labels of the tensors, their order must coincide with the conventional
+/// (counter-clockwise) leg ordering of tensors. The leg labels may however be cyclically permuted
+/// since such permutations are planar. It is further irrelevant how the legs are distributed among
+/// the codomain and domain (as long as the order is correct).
 ///
-/// TODO should we allow to reference the existing diagram as a whole, instead of its
-///      individual tensors?
+/// The contractions specified by a planar diagram can be performed for a concrete set of tensors
+/// by using `evaluate` or directly calling the planar diagram instance with the
+/// corresponding tensors as argument. The result is only specified up to cyclic leg permutations.
 ///
-/// @param tensor Same as the parameter to `PlanarDiagram`, but expect only a single tensor to be added to the diagram.
-/// @param extra_definition Same as the parameter to `PlanarDiagram`. Should define for each leg of the new tensor whether it is an open leg or contracted with another leg. The new `definition` is given by this extra definition together with the old definition, except for entries that correspond to legs that were open in the original diagram and are now contracted with the new tensor.
-/// @param extra_dims Same as the parameter to `PlanarDiagram`, but applies only to the new `tensor`.
-/// @param order Same as the parameter to `PlanarDiagram`, applies to the entire new diagram.
+/// In general, optimizing the contraction order of the tensors is expensive and should be done
+/// once during development and then hard-coded. Alternatively, a greedy optimization can be run
+/// during the instantiation. The intended use case is to create instances of planar diagrams on
+/// module level, such that the instantiation happens at import time.
+///
+/// It is possible to use a planar diagram for creating a new one by adding or removing a tensor,
+/// see `add_tensor` and `remove_tensor`, respectively.
+///
+/// It is possible to create planar diagrams that contract `ChargedTensor` by adding the
+/// corresponding charge leg labels (`'!'`) to the tensor placeholders, where a ChargedTensor
+/// is allowed. Still, plain `SymmetricTensor` are accepted for such placeholders during evaluation,
+/// in which case the charge leg label is ignored.
+/// The result of a planar diagram containing open charge legs is always a `ChargedTensor`,
+/// and any remaining open charge legs need to be contiguous after the contractions.
+///
+/// If multiple ChargedTensor placeholders with `'!'` label are specified
+/// (and `allow_multiple_charged_tensors` is set to True),
+/// one can also specify contractions between the charge legs, as is done for
+/// regular legs, just using the `'!'` leg label.
+/// Again, these contractions are ignored during evaluation if the
+/// corresponding tensors are `SymmetricTensor` without charge and corresponding charge legs.
+/// If both tensors are `ChargedTensor`, the charge leg will be contracted (and has to match!),
+/// potentially resulting in a SymmetricTensor for the result.
+/// This is useful e.g. for infinite MPS with non-zero charge in the unit cell,
+/// where we contract the charge legs when applying the transfer matrix.
+///
+/// @param tensors Specifies the tensors in the planar diagram, each with leg labels and a unique name. Syntax for string input: a comma (`,`) separated list of entries, each for one tensor. The entry for a tensor is its name, followed by comma separated leg labels enclosed in brackets. Example: ``'theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]'``. The same format as the attribute `tensors` (dict) is accepted as well.
+/// @param definition Specifies the planar diagram, i.e., how the `tensors` are contracted. Syntax for string input: a comma (`,`) separated list of instructions, each either a contraction or an open leg. Contractions are of the form ``'{tensorA}:{legA} @ {tensorB}:{legB}'``. Open legs are of the form ``'{tensorA}:{legA} -> {new_label}``. The same format as the attribute `definition` (list of tuples) is accepted as well.
+/// @param dims Specifies a symbol for the dimension of each leg, used to show or optimize the contraction cost in terms of a `BigOPolynomial`. A dictionary with pairs ``{dim: labels}`` indicating that the legs with ``labels`` have a dimension represented by the symbol ``dim``. If given, *all* labels in the diagram should be assigned to a symbol. Legs with the same label must have the same dimension.
+/// @param order Specifies the contraction order, or how to determine it. If ``'greedy'`` (default) or ``'optimal'``, it is optimized via `optimize_order`. If ``'definition'``, it is taken from the order of the `definition`, with minimal extra optimizations (always do traces first and when contracting two tensors, contract all shared legs at once). If a single string, expect a comma separated list of instructions ``'{tensorA} @ {tensorB}'`` which indicate the order of pairwise contractions. If nested tuples of strings, interpret those strings as tensor names, and interpret the bracketing as the order of pairwise contractions, contracting innermost tuples first. The same format as the attribute `order` (``ContractionTree``) is accepted as well.
+/// @param allow_multiple_charged_tensors Whether multiple `ChargedTensor` are allowed to be part of the planar diagram. When there are multiple open charge legs, they must be contiguous after the contractions, such that the individual charge legs can be combined to a single one. When there is a specified contraction between two charge legs, this contraction must also be planar. It is allowed to evaluate a planar diagram containing tensor placeholders for `ChargedTensor` (placeholders containing the label `'!'`) with `SymmetricTensor`. In this case, the `SymmetricTensor` must have the same leg labels except for the charge leg label. The contraction between the charge legs is then ignored.
+///
+/// Attributes:
+///
+/// tensors : {str: TensorPlaceholder}
+///     The tensors in the planar diagram, as a dictionary from name to its placeholder, which
+///     stores leg labels and dims.
+/// definition : list of (str, str, str | None, str)
+///     Defines the contractions in the planar diagram.
+///     An entry ``(t1, l1, t2, l2)`` indicates to contract leg ``l1`` of ``tensors[t1]`` with
+///     leg ``l2`` of ``tensors[t2]``.
+///     An entry ``(t1, l1, None, new_l)`` indicates that leg ``l1`` of ``tensors[t1]`` is an open
+///     leg of the planar diagram and should have label ``new_l`` in the result.
+/// order : ContractionTree
+///     Specifies the order for the tensor contractions during `evaluate`.
+/// open_legs : list of str
+///     The open legs of the planar diagram, up to cyclical permutation.
+///     This is such that the result of `evaluate` has these leg labels (up to cycl. perm.).
+///     Charge legs (``'!'``) are not included; remaining open charge legs make the result a
+///     `ChargedTensor`.
+/// allow_multiple_charged_tensors : bool
+///     Whether multiple `ChargedTensor` are allowed to be part of the planar diagram.
+///
+/// Examples:
+///
+/// 1. For a local two-site MPS tensor `theta` with legs ``vL, p0, p1, vR`` and a two-site operator
+/// `op` with legs ``p0, p1, p1*, p0*``, the expectation value of `op` can be expressed as the
+/// following planar diagram::
+///
+///     exp_val_diagram = PlanarDiagram(
+///         tensors='theta[vL, p0, p1, vR], theta_hc[vR*, p1*, p0*, vL*], op[p0, p1, p1*, p0*]',
+///         definition='theta:p0 @ op:p0*, theta:p1 @ op:p1*, '
+///         'theta:vL @ theta_hc:vL*, theta:vR @ theta_hc:vR*, '
+///         'op:p0 @ theta_hc:p0*, op:p1 @ theta_hc:p1*',
+///         dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], d=['p0', 'p0*', 'p1', 'p1*']),
+///     )
+///     exp_val = exp_val_diagram.evaluate(dict(theta=theta, theta_hc=theta.hc, op=op))
+///
+/// 2. For a local two-site MPS tensor `theta` with legs ``vL, p0, p1, vR`` and a two-site unitary
+/// operator `U` with legs ``p0, p1, p1*, p0*`` that is applied to `theta` (as done in TEBD), the
+/// updated tensor expressed as the following planar diagram::
+///
+///     TEBD_diagram = PlanarDiagram(
+///         tensors='theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]',
+///         definition='theta:p0 @ U:p0*, theta:p1 @ U:p1*, theta:vL -> vL, theta:vR -> vR, U:p0 -> p0, U:p1 -> p1',
+///         dims=dict(chi=['vR', 'vL'], d=['p0', 'p0*', 'p1', 'p1*']),
+///     )
+///     theta_updated = TEBD_diagram.evaluate(dict(theta=theta, U=U))
+///
+/// 3. The two examples above (`exp_val_diagram` and `TEBD_diagram`) can be related using
+/// `add_tensor` and `remove_tensor` (note the correspondence between `op` and `U`)
+/// as::
+///
+///     TEBD_diagram2 = exp_val_diagram.remove_tensor(
+///         name='theta_hc',
+///         extra_definition='theta:vL -> vL, theta:vR -> vR, '
+///         'op:p0 -> p0, op:p1 -> p1',
+///     )
+///     theta_updated2 = TEBD_diagram2.evaluate(dict(theta=theta, op=U))
+///     assert planar_almost_equal(theta_updated, theta_updated2)
+///
 ///     exp_val_diagram2 = TEBD_diagram.add_tensor(
 ///         tensor='theta_hc[vR*, p1*, p0*, vL*]'
 ///         extra_definition='theta:vL @ theta_hc:vL*, theta:vR @ theta_hc:vR*, '
@@ -276,6 +372,24 @@ class PlanarDiagram
     [[nodiscard]] std::vector<std::string> const& tensor_names() const { return tensor_names_; }
 
 /// Create a new planar diagram with an additional tensor.
+///
+/// The new planar diagram arises from the old one by adding a single tensor and contracting
+/// (some of) its legs with open legs of the old planar diagram. It is in particular not
+/// possible to change tensor contractions involving two tensors of the old planar diagram.
+///
+/// TODO should we allow to reference the existing diagram as a whole, instead of its
+///      individual tensors?
+///
+/// @param tensor Same as the parameter to `PlanarDiagram`, but expect only a single tensor
+///     to be added to the diagram.
+/// @param extra_definition Same as the parameter to `PlanarDiagram`. Should define for each
+///     leg of the new tensor whether it is an open leg or contracted with another leg.
+///     The new `definition` is given by this extra definition together with the old
+///     definition, except for entries that correspond to legs that were open in the original
+///     diagram and are now contracted with the new tensor.
+/// @param extra_dims Same as the parameter to `PlanarDiagram`, but applies only to the new
+///     `tensor`.
+/// @param order Same as the parameter to `PlanarDiagram`, applies to the entire new diagram.
     [[nodiscard]] PlanarDiagram add_tensor(TensorPlaceholderMap extra_tensors,
                                            std::vector<DiagramInstruction> extra_definition,
                                            std::string const& order = "definition") const;
@@ -357,6 +471,11 @@ class PlanarDiagram
 };
 
 /// Base class for `LinearOperator`\ s defined in terms of `PlanarDiagram`\ s.
+///
+/// @warning Instantiating a `PlanarDiagram` may be expensive if the order is optimized.
+///     Make sure to either hard-code the order, or make the planar diagram instance as early as
+///     possible, e.g., as a *class* variable of the parent class instead of during its
+///     construction.
 ///
 /// @param op_diagram The diagram that defines the operator (without acting on a vector).
 /// @param matvec_diagram The diagram that defines the action of the operator on a vector. Must have the same tensor names as the `op_diagram` in addition to a single tensor with `vec_name`.

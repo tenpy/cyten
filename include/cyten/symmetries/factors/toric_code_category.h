@@ -8,6 +8,8 @@
 namespace cyten {
 
 /// Toric code anyon category (@f$ D(Z_2) @f$).
+///
+/// Essentially equivalent to `QuantumDoubleZNAnyonCategory` with ``N=2``.
 class ToricCodeCategory : public QuantumDoubleZNAnyonCategory
 {
   public:

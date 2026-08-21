@@ -99,6 +99,10 @@ class TensorLinearOperator : public LinearOperator
 /// The wrapped operator is stored as `original_operator`.
 /// Use `unwrapped` to recover the innermost operator.
 ///
+/// @warning If there are multiple levels of wrapping operators, the order might be critical
+///     to get correct results; e.g. `ProjectedLinearOperator` needs to be the outer-most
+///     wrapper to produce correct results and/or be efficient.
+///
 /// @param original_operator The original operator implementing the `matvec`.
 class LinearOperatorWrapper : public LinearOperator
 {

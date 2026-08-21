@@ -29,9 +29,42 @@ namespace cyten {
 /// This is **not** done here: when we use these classes, we usually have an explicit outer loop
 /// performed until convergence, e.g., the "sweeps" in DMRG.
 ///
-/// Constructed with a hermitian linear operator `H`, starting vector `psi0`, and an
-/// options dict. The algorithm stops if both criteria for `e_tol` and `p_tol` are met
-/// or if the maximum number of steps was reached.
+/// @param H A hermitian linear operator. To use tensors, see `TensorLinearOperator`.
+///     The operator must map tensors to tensors with the same legs.
+/// @param psi0 The starting vector defining the Krylov basis. For finding the ground state,
+///     this should be the best guess available. A `Tensor` of any rank, or a `DirectSum`
+///     of tensors, is allowed.
+/// @param options Further optional parameters as described below. The algorithm stops if
+///     *both* criteria for `E_tol` and `P_tol` are met or if the maximum number of steps
+///     was reached.
+///
+/// Options:
+///
+/// N_min : int
+///     Minimum number of steps to perform.
+/// N_max : int
+///     Maximum number of steps to perform.
+/// P_tol : float
+///     Tolerance for the error estimate from the Ritz Residual,
+///     stop if ``(RitzRes/gap)**2 < P_tol``
+/// min_gap : float
+///     Lower cutoff for the gap estimate used in the P_tol criterion.
+/// cutoff : float
+///     Cutoff to abort if the norm of the new Krylov vector is too small.
+///     This is necessary if the rank of `H` is smaller than `N_max`, but it's *not* the error
+///     tolerance for final values!
+/// E_shift : float
+///     Shift the energy (=eigenvalues) by that amount *during* the Lanczos run by using the
+///     `ShiftedLinearOperator`.
+///     The ground state energy `E0` returned by `run` is made independent of the shift.
+///     This option is useful if the `ProjectedLinearOperator` is used: the orthogonal vectors
+///     are *exact* eigenvectors with eigenvalue 0 independent of the shift, so you can use it
+///     to ensure that the energy is smaller than zero to avoid getting those.
+/// reortho : bool
+///     For poorly conditioned matrices, one can quickly lose orthogonality of the
+///     generated Krylov basis.
+///     If `reortho` is True, we re-orthogonalize against all the
+///     vectors kept in cache to avoid that problem.
 ///
 /// Attributes:
 ///
@@ -186,6 +219,17 @@ class GMRES
 /// Generalization of `LanczosGroundState`, allowing general, square matrices.
 ///
 /// Options:
+///
+/// Also accepts `KrylovBased` options.
+///
+/// E_tol : float
+///     Stop if energy difference per step < `E_tol`
+/// which : ``'LM' | 'LR' | 'SR'``
+///     Determines which (extremal) eigenvalues to look for, namely
+///     largest magnitude (in absolute value, ``'LM'``), or
+///     largest or smallest real part (``'LR'`` and ``'SR'``, respectively).
+/// num_ev : int
+///     Number of eigenvectors to look for/return in `run`.
 class Arnoldi : public KrylovBased
 {
   public:
@@ -199,7 +243,10 @@ class Arnoldi : public KrylovBased
 
 /// Find the ground state of self.H.
 ///
-/// @returns E0s : numpy array Best eigenvalue estimates, `num_ev` entries, sorted according to `which`. psis : list of `Tensor` Corresponding best eigenvectors (estimates). N : int Used dimension of the Krylov space, i.e., how many iterations where performed.
+/// @returns
+///     E0s : Best eigenvalue estimates, `num_ev` entries, sorted according to `which`.
+///     psis : Corresponding best eigenvectors (estimates).
+///     N : Used dimension of the Krylov space, i.e., how many iterations were performed.
     std::tuple<std::vector<complex128>, std::vector<VectorLike::Ptr>, int64> run();
     int64 _build_krylov() override;
     void _calc_result_krylov(int64 k) override;
@@ -219,6 +266,11 @@ class Arnoldi : public KrylovBased
 /// @param H, psi0, options Same as `Arnoldi`. Note that `H` need not be Hermitian.
 ///
 /// Options:
+///
+/// Also accepts `Arnoldi` options.
+///
+/// E_tol, which, num_ev :
+///     Inherited but ignored.
 ///
 /// Attributes:
 ///
@@ -240,7 +292,9 @@ class ArnoldiEvolution : public Arnoldi
 ///
 /// @param delta Prefactor of H in the exponential. Note that the complex ``i`` is *not* included.
 /// @param normalize Whether to normalize the result. Defaults to ``False``. Unlike `LanczosEvolution` (which defaults to ``np.real(delta) == 0``), non-Hermitian evolution does not in general preserve the norm, so normalization would strip physically meaningful decay or growth and is off by default.
-/// @returns psi_f : `Tensor` Best approximation for ``expm(delta * H).dot(psi0)``. N : int Krylov space dimension used.
+/// @returns
+///     psi_f : Best approximation for ``expm(delta * H).dot(psi0)``.
+///     N : Krylov space dimension used.
     std::tuple<VectorLike::Ptr, int64> run(complex128 delta,
                                            std::optional<bool> normalize = std::nullopt);
     void _calc_result_krylov(int64 k) override;
@@ -253,6 +307,17 @@ class ArnoldiEvolution : public Arnoldi
 /// **Assumes** that `H` is hermitian.
 ///
 /// Options:
+///
+/// Also accepts `KrylovBased` options.
+///
+/// E_tol : float
+///     Stop if energy difference per step < `E_tol`
+/// N_cache : int
+///     The maximum number of `psi` to keep in memory during the first iteration.
+///     By default, we keep all states (up to N_max).
+///     Set this to a number >= 2 if you are short on memory.
+///     The penalty is that one needs another Lanczos iteration to
+///     determine the ground state in the end, i.e., runtime is large.
 class LanczosGroundState : public KrylovBased
 {
   public:
@@ -264,7 +329,10 @@ class LanczosGroundState : public KrylovBased
 
 /// Find the ground state of H.
 ///
-/// @returns E0 : float Ground state energy (estimate). psi0 : `VectorLike` Ground state vector (estimate). N : int Used dimension of the Krylov space, i.e., how many iterations where performed.
+/// @returns
+///     E0 : Ground state energy (estimate).
+///     psi0 : Ground state vector (estimate).
+///     N : Used dimension of the Krylov space, i.e., how many iterations were performed.
     std::tuple<float64, VectorLike::Ptr, int64> run();
     int64 _build_krylov() override;
     bool _converged(int64 k) override;
@@ -279,9 +347,18 @@ class LanczosGroundState : public KrylovBased
 /// ground state, we now calculate ``exp(delta h) e_0`` in the Krylov ONB, where
 /// ``e_0 = (1, 0, 0, ...)`` corresponds to ``psi0`` in the original basis.
 ///
-/// @param H, psi0, options Hamiltonian, starting vector and parameters as defined in `LanczosGroundState`. The option :cfg:option`LanczosEvolution.P_tol` defines when convergence is reached, see `_converged` for details.
+/// @param H, psi0, options Hamiltonian, starting vector and parameters as defined in
+///     `LanczosGroundState`. The option `P_tol` defines when convergence is reached,
+///     see `_converged` for details.
 ///
 /// Options:
+///
+/// Also accepts `LanczosGroundState` options.
+///
+/// E_tol :
+///     Ignored.
+/// min_gap :
+///     Ignored.
 ///
 /// Attributes:
 ///
@@ -303,7 +380,10 @@ class LanczosEvolution : public LanczosGroundState
 ///
 /// @param delta Time step by which we should evolve psi0: prefactor of H in the exponential. Note that the complex `i` is *not* included!
 /// @param normalize Whether to normalize the resulting state. Defaults to ``np.real(delta) == 0``.
-/// @returns psi_f : `Tensor` Best approximation for ``expm(delta H).dot(psi0)``. If `E_shift` is used, it's an approximation for ``expm(delta (H + E_shift)).dot(psi)``. N : int Krylov space dimension used.
+/// @returns
+///     psi_f : Best approximation for ``expm(delta H).dot(psi0)``. If `E_shift` is used,
+///     it's an approximation for ``expm(delta (H + E_shift)).dot(psi)``.
+///     N : Krylov space dimension used.
     std::tuple<VectorLike::Ptr, int64> run(complex128 delta,
                                            std::optional<bool> normalize = std::nullopt);
     void _calc_result_krylov(int64 k) override;
@@ -311,10 +391,9 @@ class LanczosEvolution : public LanczosGroundState
 };
 
 /// Simple wrapper calling ``LanczosGroundState(H, psi, options).run()``.
-/// Simple wrapper calling ``LanczosGroundState(H, psi, options).run()``
 ///
 /// @param H, psi, options See `LanczosGroundState`.
-/// @returns E0, psi0, N : See `run`.
+/// @returns E0, psi0, N : See `LanczosGroundState::run`.
 std::tuple<float64, VectorLike::Ptr, int64> lanczos(LinearOperator::Ptr H,
                                                     VectorLike::Ptr psi,
                                                     py::object options = py::none());

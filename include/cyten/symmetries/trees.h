@@ -149,6 +149,8 @@ class FusionTree
 ///     |   ┡━━━━━━━━━━━━━┛             ┡━━━━━━━━━━━━━┛
 ///     |   │                           │
 ///
+/// @warning When braiding splitting trees (daggers of fusion trees), consider the notes below.
+///
 /// @param j The index for the braid. We braid ``uncoupled[j]`` with ``uncoupled[j + 1]``.
 /// @param overbraid If we apply an overbraid or an underbraid (see graphic above).
 /// @param cutoff We skip contributions with a prefactor below this.

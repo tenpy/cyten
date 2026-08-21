@@ -43,26 +43,35 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 
     // --- properties (Python @property) ---
 
-/// If the symmetry always has unique fusion channels, i.e. if N symbols are 0 or 1.
+/// If the symmetry supports converting tensors to/from numpy.
     virtual bool can_be_dropped() const;
     virtual bool has_symmetric_braid() const;
     virtual bool has_trivial_braid() const;
-    /// If FusionStyle.single (all sectors one-dimensional). Not necessarily a group.
+    /// If the symmetry is Abelian.
+    ///
+    /// An Abelian symmetry is characterized by `FusionStyle.single`, which implies that all
+    /// sectors are one-dimensional.
+    /// Note that this does *not* imply that it is a group, as the braiding may not be bosonic!
     virtual bool is_abelian() const;
     /// If N symbols are only 0 or 1.
     virtual bool has_unique_fusion() const;
 
     // --- abstract / must override ---
 
-/// Internal implementation of `f_symbol`. Can assume that inputs are valid.
+    /// The sector dual to `a`, such that @f$ N^{a,\mathrm{dual}(a)}_u = 1 @f$.
+    ///
+    /// Note that the dual space @f$ a^\star @f$ to a sector @f$ a @f$ may not itself be one of
+    /// the sectors, but it must be isomorphic to one of the sectors. This method returns that
+    /// representative @f$ \bar{a} @f$ of the equivalence class.
     virtual Sector dual_sector(Sector a) const = 0;
-    /// Optimized n_symbol assuming c is a valid fusion outcome.
+    /// Optimized version of `n_symbol` that assumes that `c` is a valid fusion outcome.
+    ///
+    /// If it is not, the results may be nonsensical. We do this for optimization purposes.
     virtual int64 _n_symbol(Sector a, Sector b, Sector c) const = 0;
-    /// Internal F symbol; inputs assumed valid.
+    /// Internal implementation of `f_symbol`. Can assume that inputs are valid.
     virtual FusionSymbol _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
       const = 0;
-    /// Internal R symbol; inputs assumed valid.
-/// Internal implementation of `r_symbol`. Can assume that inputs are valid.
+    /// Internal implementation of `r_symbol`. Can assume that inputs are valid.
     virtual FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const = 0;
     /// Wrap as a product `Symmetry` (identity if already a product).
     /// Returns a Python object until `Symmetry` is converted to C++.
@@ -113,8 +122,9 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 /// @param a Note that this is the target sector of the map, not its subscript!
 /// @returns The matrix elements as a [d_a, d_a] numpy array.
     virtual FusionSymbol Z_iso(Sector a) const;
-    /// All sectors if finitely many.
 /// Assume there are finitely many sectors, return all of them.
+///
+/// @warning Do not perform inplace operations on the output. That may invalidate caches.
     virtual SectorArray all_sectors() const;
 
 /// The N-symbol N^{ab}_c, i.e. how often c appears in the fusion of a and b.
@@ -131,6 +141,8 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 /// The F symbol is unitary as a matrix from indices @f$ (f\kappa\lambda) @f$
 /// to @f$ (e\mu\nu) @f$.
 ///
+/// @warning Do not perform inplace operations on the output. That may invalidate caches.
+///
 /// @param a, b, c, d, e, f Sectors. Must be compatible with the fusion described above.
 /// @returns F : 4D array The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
     FusionSymbol f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
@@ -145,6 +157,8 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 ///
 /// The related A-symbol for bending left legs is not needed, since we always
 /// work with fusion trees in form
+///
+/// @warning Do not perform inplace operations on the output. That may invalidate caches.
 ///
 /// @param a, b, c Sectors. Must be compatible with the fusion described above.
 /// @returns B : 2D array The B symbol as an array of the multiplicity indices [μ,ν]
@@ -165,6 +179,8 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 ///
 /// to enforce that the R symbol is diagonal.
 ///
+/// @warning Do not perform inplace operations on the output. That may invalidate caches.
+///
 /// @param a, b, c Sectors. Must be compatible with the fusion described above.
 /// @returns R : 1D array The diagonal entries of the R symbol as an array of the multiplicity index [μ].
     FusionSymbol r_symbol(Sector a, Sector b, Sector c) const;
@@ -177,12 +193,16 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 ///
 /// such that @f$ m_1 = \sum_{f\kappa\lambda} C^{e\mu\nu}_{f\kappa\lambda} m_2 @f$.
 ///
+/// @warning Do not perform inplace operations on the output. That may invalidate caches.
+///
 /// @param a, b, c, d, e, f Sectors. Must be compatible with the fusion described above.
 /// @returns C : 4D array The C symbol as an array of the multiplicity indices [μ,ν,κ,λ]
     FusionSymbol c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
 /// Matrix elements of the fusion tensor @f$ X^{ab}_{c,\mu} @f$ for all @f$ \mu @f$.
 ///
 /// May not be well defined for anyons.
+///
+/// @warning Do not perform inplace operations on the output. That may invalidate caches.
 ///
 /// @param a, b, c Sectors. Must be compatible with the fusion described above.
 /// @param Z_a If we should include a Z isomorphism @f$ Z_{\bar{a}} : \bar{a}^* -> a @f$ below the sector a. If so, the composite is a map from @f$ \bar{a}^* \otimes b \to c @f$.

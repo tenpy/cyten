@@ -10,8 +10,15 @@ namespace cyten {
 
 /// SU(N) group symmetry.
 ///
-/// Sectors are length-``N`` arrays (first rows of normalized Gelfand–Tsetlin patterns).
-/// Clebsch–Gordan / F / R data are loaded from HDF5 files (``h5py.File`` objects).
+/// Sectors are arrays of length `N` which correspond to first rows of normalized
+/// Gelfand–Tsetlin patterns (see https://arxiv.org/pdf/1009.0437).
+/// E.g. for SU(3) the 8-dimensional irrep is ``[2, 1, 0]``.
+/// Clebsch–Gordan coefficients and F/R symbols need to be calculated with the
+/// ``clebsch_gordan_coefficients`` package and exported as HDF5 files.
+///
+/// @param CGfile HDF5 file containing the Clebsch–Gordan coefficients.
+/// @param Ffile HDF5 file containing the F symbols.
+/// @param Rfile HDF5 file containing the R symbols.
 class SUN : public Group
 {
   public:

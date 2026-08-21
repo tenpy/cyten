@@ -14,15 +14,43 @@
 
 namespace cyten {
 
+/// Instruction to braid two neighboring legs.
+///
+/// Notes:
+///
+/// Examples for over-braids::
+///
+///     |    │    ╲ ╱    │                      │   │   │   │
+///     |    │     ╱     │                     ┏┷━━━┷━━━┷━━━┷┓
+///     |    │    ╱ ╲    │                     ┃             ┃
+///     |   ┏┷━━━┷━━━┷━━━┷┓                    ┗━━┯━━━┯━━━┯━━┛
+///     |   ┃             ┃         OR             ╲ ╱    │
+///     |   ┗━━┯━━━┯━━━┯━━┛                         ╱     │
+///     |      │   │   │                           ╱ ╲    │
+///
+/// Examples for under-braids::
+///
+///     |    │    ╲ ╱    │                      │   │   │   │
+///     |    │     ╲     │                     ┏┷━━━┷━━━┷━━━┷┓
+///     |    │    ╱ ╲    │                     ┃             ┃
+///     |   ┏┷━━━┷━━━┷━━━┷┓                    ┗━━┯━━━┯━━━┯━━┛
+///     |   ┃             ┃         OR             ╲ ╱    │
+///     |   ┗━━┯━━━┯━━━┯━━┛                         ╲     │
+///     |      │   │   │                           ╱ ╲    │
 struct BraidInstruction
 {
+    /// If the braid is in the codomain, otherwise in the domain.
     bool codomain = false;
+    /// Which leg of the (co-)domain braids. We braid ``(co)domain[idx]`` with ``(co)domain[idx + 1]``.
     int64 idx = 0;
+    /// Chirality of the braid. An overbraid is a braid where the leg that goes
+    /// from bottom left to top right is on top, see notes below.
     bool overbraid = false;
 
     bool operator==(BraidInstruction const&) const = default;
 };
 
+/// Instruction to bend the rightmost leg of the codomain down (of the domain up).
 struct BendInstruction
 {
     bool bend_down = false;
@@ -30,6 +58,61 @@ struct BendInstruction
     bool operator==(BendInstruction const&) const = default;
 };
 
+/// Instruction to apply a twist on one or more contiguous legs.
+///
+/// Attributes:
+///
+/// codomain : bool
+///     If the twist is in the codomain, otherwise in the domain.
+/// idcs : list of int
+///     Which legs of the (co-)domain are twisted; we twist ``(co)domain[idcs]``.
+///     Must be contiguous.
+/// overtwist : bool
+///     Specifies the chirality of the twist. An overtwist (undertwist) has an overbraid
+///     (underbraid) at the center, and a cup and cap.
+///
+/// Notes:
+///
+/// Let us first illustrate how the chirality is given by `overtwist`.
+/// For simplicity, we always show ``idcs=[-1]``.
+/// Example for over-twists::
+///
+///     |    │   │   │   │   ╭─╮             │   │   │   │
+///     |    │   │   │    ╲ ╱  │            ┏┷━━━┷━━━┷━━━┷┓
+///     |    │   │   │     ╱   │            ┃             ┃
+///     |    │   │   │    ╱ ╲  │            ┗━━┯━━━┯━━━┯━━┛╭─╮
+///     |   ┏┷━━━┷━━━┷━━━┷┓  ╰─╯               │   │    ╲ ╱  │
+///     |   ┃             ┃         OR         │   │     ╱   │
+///     |   ┗━━┯━━━┯━━━┯━━┛                    │   │    ╱ ╲  │
+///     |      │   │   │                       │   │   │   ╰─╯
+///
+/// Examples for under-twists::
+///
+///     |    │   │   │   │   ╭─╮             │   │   │   │
+///     |    │   │   │    ╲ ╱  │            ┏┷━━━┷━━━┷━━━┷┓
+///     |    │   │   │     ╲   │            ┃             ┃
+///     |    │   │   │    ╱ ╲  │            ┗━━┯━━━┯━━━┯━━┛╭─╮
+///     |   ┏┷━━━┷━━━┷━━━┷┓  ╰─╯               │   │    ╲ ╱  │
+///     |   ┃             ┃         OR         │   │     ╲   │
+///     |   ┗━━┯━━━┯━━━┯━━┛                    │   │    ╱ ╲  │
+///     |      │   │   │                       │   │   │   ╰─╯
+///
+/// For multiple legs (``len(idcs) > 1``), we twist them together, e.g.::
+///
+///     |
+///     |
+///     |    │   │   │   │   ╭──────╮
+///     |    │   │    ╲   ╲ ╱       │
+///     |    │   │     ╲   ╱   ╭─╮  │
+///     |    │   │      ╲ ╱ ╲ ╱  │  │
+///     |    │   │       ╱   ╱   │  │
+///     |    │   │      ╱ ╲ ╱ ╲  │  │
+///     |    │   │     ╱   ╱   ╰─╯  │
+///     |    │   │    ╱   ╱ ╲       │
+///     |   ┏┷━━━┷━━━┷━━━┷┓  ╰──────╯
+///     |   ┃             ┃
+///     |   ┗━━┯━━━┯━━━┯━━┛
+///     |      │   │   │
 struct TwistInstruction
 {
     bool codomain = false;
