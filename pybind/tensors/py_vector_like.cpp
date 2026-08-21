@@ -3,9 +3,12 @@
 #include <cyten/tensors/tensor.h>
 #include <cyten/tensors/vector_like.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
 
 #include <pybind11/operators.h>
+
+#include "docstrings/tensors/vector_like.h"
 
 #include <string>
 
@@ -92,13 +95,7 @@ void
 bind_tensors_vector_like(py::module_& m)
 {
     py::class_<VectorLike, PyVectorLike, py::smart_holder> cls(m, "VectorLike");
-    cls.doc() = R"pydoc(
-Abstract vector for Krylov / sparse linear algebra.
-
-Supports copy, inner product, norm, scalar multiplication and addition.
-:class:`~cyten.tensors.Tensor` and :class:`~cyten.tensors.DirectSum` are the built-in
-implementations.
-)pydoc";
+    cls.doc() = DOC(cyten, VectorLike);
 
     cls.attr("__array_ufunc__") = py::none();
     cls.def(py::init<>());
@@ -106,20 +103,27 @@ implementations.
     cls.def(
       "copy",
       [](VectorLike const& self) { return py_cast_vector_like(self.clone()); },
-      R"pydoc(Independent copy of this vector.)pydoc");
-    cls.def_property_readonly("dtype", &VectorLike::vector_dtype);
-    cls.def_property_readonly("device", &VectorLike::vector_device);
-    cls.def_property_readonly("backend", &VectorLike::vector_backend);
+      DOC(cyten, VectorLike, clone));
+    cls.def_property_readonly("dtype",
+                              &VectorLike::vector_dtype,
+                              DOC(cyten, VectorLike, vector_dtype));
+    cls.def_property_readonly("device",
+                              &VectorLike::vector_device,
+                              DOC(cyten, VectorLike, vector_device));
+    cls.def_property_readonly("backend",
+                              &VectorLike::vector_backend,
+                              DOC(cyten, VectorLike, vector_backend));
     cls.def("compatible_with",
             &VectorLike::compatible_with,
             py::arg("other"),
-            R"pydoc(Whether `other` lives in the same vector space.)pydoc");
+            DOC(cyten, VectorLike, compatible_with));
     cls.def(
       "scaled",
       [](VectorLike const& self, py::object a) {
           return py_cast_vector_like(self.scaled(as_scalar_for(self, a)));
       },
-      py::arg("a"));
+      py::arg("a"),
+      DOC(cyten, VectorLike, scaled));
     cls.def(
       "axpy",
       [](VectorLike const& self, py::object a, VectorLike::CPtr other) {
@@ -127,7 +131,7 @@ implementations.
       },
       py::arg("a"),
       py::arg("other"),
-      R"pydoc(Return ``a * self + other`` (BLAS-style axpy).)pydoc");
+      DOC(cyten, VectorLike, axpy));
 
     cls
       .def(

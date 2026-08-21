@@ -1,6 +1,9 @@
 #include <cyten/tensors/labels.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+
+#include "docstrings/tensors/labels.h"
 
 #include <variant>
 #include <vector>
@@ -77,13 +80,13 @@ bind_tensors_labels(py::module_& m)
           return is_valid_leg_label(LegLabel{ label.cast<std::string>() });
       },
       py::arg("label"),
-      R"pydoc(If the given string is a valid leg label.)pydoc");
+      DOC(cyten, is_valid_leg_label));
 
     m.def("_combine_leg_labels",
           &_combine_leg_labels,
           py::arg("labels"),
           py::arg("offset") = 0,
-          R"pydoc(The label that a combined leg should have)pydoc");
+          DOC(cyten, _combine_leg_labels));
 
     m.def(
       "_split_leg_label",
@@ -96,18 +99,18 @@ bind_tensors_labels(py::module_& m)
       },
       py::arg("label"),
       py::arg("num") = py::none(),
-      R"pydoc(Undo _combine_leg_labels, i.e. recover the original labels)pydoc");
+      DOC(cyten, _split_leg_label));
 
     m.def(
       "_dual_leg_label",
       [](py::object label) { return _dual_leg_label(as_leg_label(label)); },
       py::arg("label"),
-      R"pydoc(The label that a leg should have after conjugation)pydoc");
+      DOC(cyten, _dual_leg_label));
 
     m.def("_dual_label_list",
           &_dual_label_list,
           py::arg("labels"),
-          R"pydoc(Dual labels in reversed order.)pydoc");
+          DOC(cyten, _dual_label_list));
 
     m.def(
       "_get_matching_labels",
@@ -117,33 +120,25 @@ bind_tensors_labels(py::module_& m)
       py::arg("labels1"),
       py::arg("labels2"),
       py::arg("stacklevel") = 1,
-      R"pydoc(
-Utility function to combine two lists of labels that should match.
-
-Per pair of labels::
-    - If one is ``None``, use the other.
-    - If they are equal, use that label.
-    - If they are different, emit DEBUG message to the logger and choose ``None``.
-      ``stacklevel=1`` refers to the line that calls this function. Increment to skip to
-      higher frames.
-)pydoc");
+      doc_plus(DOC(cyten, _get_matching_labels),
+               R"pydoc(
+The ``stacklevel`` argument is Python-only (accepted for API compatibility; unused).
+In Python, ``None`` labels correspond to C++ ``nullopt``.
+)pydoc"));
 
     py::class_<LabelledLegs, py::smart_holder> labelled_legs(m, "LabelledLegs");
-    labelled_legs.doc() = R"pydoc(Base class that implements handling of labelled legs.)pydoc";
+    labelled_legs.doc() = DOC(cyten, LabelledLegs);
 
     labelled_legs.def(py::init<LegLabels>(), py::arg("labels"))
       .def_readwrite("num_legs", &LabelledLegs::num_legs)
-      .def_property_readonly("is_fully_labelled", &LabelledLegs::is_fully_labelled)
+      .def_property_readonly("is_fully_labelled",
+                             &LabelledLegs::is_fully_labelled,
+                             DOC(cyten, LabelledLegs, is_fully_labelled))
       .def_property(
         "labels",
         &LabelledLegs::labels,
         [](LabelledLegs& self, LegLabels labels) { self.set_labels(std::move(labels)); },
-        R"pydoc(
-The labels that refer to the :attr:`legs`.
-
-Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are the
-``domain_labels`` where ``K == num_codomain_legs``.
-)pydoc")
+        DOC(cyten, LabelledLegs, labels))
       // Python free functions often access ``_labels``; keep as alias until those are converted.
       .def_property(
         "_labels",
@@ -159,11 +154,11 @@ Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are th
                                  }
                                  return out;
                              })
-      .def("test_sanity", &LabelledLegs::test_sanity, R"pydoc(Perform sanity checks.)pydoc")
+      .def("test_sanity", &LabelledLegs::test_sanity, DOC(cyten, LabelledLegs, test_sanity))
       .def("get_leg_idcs",
            &py_get_leg_idcs,
            py::arg("idcs"),
-           R"pydoc(Parse leg-idcs of leg-labels to leg-idcs (i.e. indices of :attr:`legs`).)pydoc")
+           DOC(cyten, LabelledLegs, get_leg_idcs))
       .def(
         "has_label",
         [](LabelledLegs const& self, py::args args) {
@@ -172,20 +167,20 @@ Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are th
             }
             return self.has_label(args_as_strings(args));
         },
-        R"pydoc(True if all given labels are present.)pydoc")
+        DOC(cyten, LabelledLegs, has_label))
       .def(
         "labels_are",
         [](LabelledLegs const& self, py::args args) {
             return self.labels_are(args_as_strings(args));
         },
-        R"pydoc(If the given labels and the :attr:`labels` are the same, up to permutation.)pydoc")
+        DOC(cyten, LabelledLegs, labels_are))
       .def(
         "relabel",
         [](LabelledLegs& self, std::map<std::string, std::string> const& mapping)
           -> LabelledLegs& { return self.relabel(mapping); },
         py::arg("mapping"),
         py::return_value_policy::reference,
-        R"pydoc(Apply mapping to labels. In-place.)pydoc")
+        DOC(cyten, LabelledLegs, relabel))
       .def(
         "set_label",
         [](LabelledLegs& self, int64 pos, py::object label) -> LabelledLegs& {
@@ -194,7 +189,7 @@ Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are th
         py::arg("pos"),
         py::arg("label"),
         py::return_value_policy::reference,
-        R"pydoc(Set a single label at given position, in-place. Return the modified instance.)pydoc")
+        DOC(cyten, LabelledLegs, set_label))
       .def(
         "set_labels",
         [](LabelledLegs& self, LegLabels labels) -> LabelledLegs& {
@@ -202,7 +197,7 @@ Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are th
         },
         py::arg("labels"),
         py::return_value_policy::reference,
-        R"pydoc(Set the given labels, in-place. Return the modified instance.)pydoc");
+        DOC(cyten, LabelledLegs, set_labels));
 }
 
 } // namespace cyten

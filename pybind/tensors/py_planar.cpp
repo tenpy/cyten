@@ -6,7 +6,10 @@
 #include <cyten/tools.h>
 #include <cyten/tools/cost_polynomials.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+
+#include "docstrings/tensors/planar.h"
 
 #include <map>
 #include <memory>
@@ -426,19 +429,7 @@ bind_tensors_planar(py::module_& m)
 {
     py::class_<TensorPlaceholder, LabelledLegs, py::smart_holder> tensor_placeholder(
       m, "TensorPlaceholder");
-    tensor_placeholder.doc() = R"pydoc(
-Placeholder for a tensor used to define :class:`PlanarDiagram` s.
-
-Attributes
-----------
-labels : list of str
-    The labels of the tensor (up to cyclic permutation). This means that as long as we go
-    clockwise around the shape, any starting point can be chosen for the labels.
-dims : list of (str | None)
-    For each of the legs, an optional symbol to represent its dimension.
-cost_to_make : :class:`BigOPolynomial`
-    Algorithmic cost of creating the tensor.
-)pydoc";
+    tensor_placeholder.doc() = DOC(cyten, TensorPlaceholder);
 
     tensor_placeholder
       .def(py::init([](py::object labels, py::object dims, py::object cost_to_make) {
@@ -460,48 +451,7 @@ cost_to_make : :class:`BigOPolynomial`
 
     py::class_<ContractionTreeNode, py::smart_holder> contraction_tree_node(m,
                                                                             "ContractionTreeNode");
-    contraction_tree_node.doc() = R"pydoc(
-Node in a :class:`ContractionTree`.
-
-Represents a single tensor contraction in a contraction tree, where the left and
-right child (if not `None`) may correspond a single tensor or contractions of
-multiple tensors. The result of the represented tensor contraction can be part of
-subsequent contractions represented by the parent (if not `None`).
-If both children are `None`, the node only represents a tensor.
-
-A node must not be trivial, that is, it must either represent a tensor contraction
-(i.e., have a left and right child; value is optional) or have a value different
-from `None` when representing a tensor.
-
-Graphically::
-
-    |            parent
-    |              │                   parent━value
-    |            value            ==            ┣━left_child
-    |       ┏━━━━━━┷━━━━━━┓                     ┗━right_child
-    |   left_child   right_child
-
-The RHS above corresponds to the graphic representation of the node in the full
-contraction tree, as constructed in :meth:`show_whole_tree`.
-
-Parameters
-----------
-parent : :class:`ContractionTreeNode` or None
-    Node representing a subsequent tensor contraction for which the result of the
-    contraction represented by `self` is a left or right child.
-left_child : :class:`ContractionTreeNode` or None
-    Represents the left tensor to be contracted.
-    May itself be the result of a tensor contraction.
-    May be `None` if `self` represents a single tensor rather than a tensor
-    contraction. In such a case, `right_child` must also be `None`.
-right_child : :class:`ContractionTreeNode` or None
-    Represents the right tensor to be contracted.
-    May itself be the result of a tensor contraction.
-    May be `None` if `self` represents a single tensor rather than a tensor
-    contraction. In such a case, `left_child` must also be `None`.
-value : str or None
-    Value describing the contraction tree node.
-)pydoc";
+    contraction_tree_node.doc() = DOC(cyten, ContractionTreeNode);
 
     contraction_tree_node
       .def(
@@ -567,21 +517,7 @@ value : str or None
            "Return a graphic representation of the full contraction tree.");
 
     py::class_<ContractionTree, py::smart_holder> contraction_tree(m, "ContractionTree");
-    contraction_tree.doc() = R"pydoc(
-Representation of the contraction order in a :class:`PlanarDiagram` as a tree structure.
-
-The leaf nodes represent the tensor names in a diagram and the tree structure indicates an
-order of pairwise contractions.
-
-The values of non-leaf nodes currently have no meaning and are always set to ``None``,
-but may cary extra information about leg handling during a pairwise contraction in the future.
-
-Parameters
-----------
-root : :class:`ContractionTreeNode`
-    Node representing the root of the contraction tree, i.e., the upper-most node that does not
-    have a parent.
-)pydoc";
+    contraction_tree.doc() = DOC(cyten, ContractionTree);
 
     contraction_tree.def(py::init<ContractionTreeNode::Ptr>(), py::arg("root"))
       .def_readwrite("root", &ContractionTree::root)
@@ -602,45 +538,8 @@ root : :class:`ContractionTreeNode`
         },
         py::arg("other"),
         py::arg("value") = py::none(),
-        R"pydoc(
-        Fuse two trees. In-place on both trees.
-
-        Graphically::
-
-            |                                        value
-            |                                       /     \
-            |       a             b                a        b
-            |      / \     ,     / \      ->      / \      / \
-            |    ... ...       ... ...          ... ...  ... ...
-
-        Parameters
-        ----------
-        other : :class:ContractionTree
-            The contraction tree that will become the right child of the resulting
-            combined contraction tree; `self` becomes the left child.
-        value : str or None
-            The value of the new root node at which `self` and `other` are fused.
-        )pydoc")
-      .def("pop_contraction", &ContractionTree::pop_contraction, R"pydoc(
-          Replace a bottom node (where both children are leaves) with a single leaf, in-place.
-
-          Graphically::
-
-              |    ...              ...
-              |     |                |
-              |     X       ->    new_value
-              |    / \
-              |   a   b
-
-          Returns
-          -------
-          X : str or None
-              The value at the non-leaf node that is replaced
-          a, b : str or None
-              The values of the leaf nodes that are removed
-          new_value : str
-              The value of the new leaf, conventionally ``'a @ b'``.
-          )pydoc")
+        DOC(cyten, ContractionTree, fuse))
+      .def("pop_contraction", &ContractionTree::pop_contraction, DOC(cyten, ContractionTree, pop_contraction))
       .def("__str__", &ContractionTree::str)
       .def_static(
         "from_contraction_order", &ContractionTree::from_contraction_order, py::arg("order"))
@@ -654,174 +553,7 @@ root : :class:`ContractionTreeNode`
         py::arg("tree"));
 
     py::class_<PlanarDiagram, py::smart_holder> planar_diagram(m, "PlanarDiagram");
-    planar_diagram.doc() = R"pydoc(
-Abstract representation for the contraction of multiple tensors without any braids.
-
-The tensors in a planar diagram are represented using placeholders that have the same leg
-labels as the actual tensors for which the diagram is to be evaluated. The tensor contractions
-of the planar diagram, as well as its open (non-contracted) legs, are specified using only the
-leg labels of the tensors / placeholders. The full diagram must be both planar and connected,
-meaning that the tensor legs must not braid with each other and that the full diagram is
-contractible to a single tensor. Disconnected tensors can nevertheless be considered by
-combining them with another tensor using :func:`outer` before adding them to the diagram.
-When specifying the leg labels of the tensors, their order must coincide with the conventional
-(counter-clockwise) leg ordering of tensors. The leg labels may however be cyclically permuted
-since such permutations are planar. It is further irrelevant how the legs are distributed among
-the codomain and domain (as long as the order is correct).
-
-The contractions specified by a planar diagram can be performed for a concrete set of tensors
-by using :meth:`evaluate` or directly calling the planar diagram instance with the
-corresponding tensors as argument. The result is only specified up to cyclic leg permutations.
-
-In general, optimizing the contraction order of the tensors is expensive and should be done
-once during development and then hard-coded. Alternatively, a greedy optimization can be run
-during the instantiation. The intended use case is to create instances of planar diagrams on
-module level, such that the instantiation happens at import time.
-
-It is possible to use a planar diagram for creating a new one by adding or removing a tensor,
-see :meth:`add_tensor` and :meth:`remove_tensor`, respectively.
-
-It is possible to create planar diagrams that contract `ChargedTensor` by adding the
-corresponding charge leg labels (`'!'`) to the tensor placeholders, where a ChargedTensor
-is allowed. Still, plain `SymmetricTensor` are accepted for such placeholders during evaluation,
-in which case the charge leg label is ignored.
-The result of a planar diagram containing open charge legs is always a `ChargedTensor`,
-and any remaining open charge legs need to be contiguous after the contractions.
-
-If multiple ChargedTensor placeholders with `'!'` label are specified
-(and `allow_multiple_charged_tensors` is set to True),
-one can also specify contractions between the charge legs, as is done for
-regular legs, just using the `'!'` leg label.
-Again, these contractions are ignored during evaluation if the
-corresponding tensors are `SymmetricTensor` without charge and corresponding charge legs.
-If both tensors are `ChargedTensor`, the charge leg will be contracted (and has to match!),
-potentially resulting in a SymmetricTensor for the result.
-This is useful e.g. for infinite MPS with non-zero charge in the unit cell,
-where we contract the charge legs when applying the transfer matrix.
-
-
-Parameters
-----------
-tensors : str or {str: TensorPlaceholder}
-    Specifies the tensors in the planar diagram, each with leg labels and a unique name.
-    Syntax for string input: a comma (`,`) separated list of entries, each for one tensor.
-    The entry for a tensor is its name, followed by comma separated leg labels enclosed in
-    brackets. Example: ``'theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]'``.
-    The same format as the attribute :attr:`tensors` (dict) is accepted as well.
-definition : str or list of (str, str, str | None, str)
-    Specifies the planar diagram, i.e., how the `tensors` are contracted.
-    Syntax for string input: a comma (`,`) separated list of instructions, each either
-    a contraction or an open leg.
-    Contractions are of the form ``'{tensorA}:{legA} @ {tensorB}:{legB}'``.
-    Open legs are of the form ``'{tensorA}:{legA} -> {new_label}``.
-    The same format as the attribute :attr:`definition` (list of tuples) is accepted as well.
-dims : {str: list of str}, optional
-    Specifies a symbol for the dimension of each leg, used to show or optimize the contraction
-    cost in terms of a :class:`BigOPolynomial`.
-    A dictionary with pairs ``{dim: labels}`` indicating that the legs with ``labels`` have
-    a dimension represented by the symbol ``dim``. If given, *all* labels in the diagram should
-    be assigned to a symbol. Legs with the same label must have the same dimension.
-order : 'greedy' | 'optimal' | 'definition' | str | nested tuples of str | ContractionTree
-    Specifies the contraction order, or how to determine it.
-    If ``'greedy'`` (default) or ``'optimal'``, it is optimized via :meth:`optimize_order`.
-    If ``'definition'``, it is taken from the order of the `definition`, with minimal extra
-    optimizations (always do traces first and when contracting two tensors, contract all shared
-    legs at once).
-    If a single string, expect a comma separated list of instructions
-    ``'{tensorA} @ {tensorB}'`` which indicate the order of pairwise contractions.
-    If nested tuples of strings, interpret those strings as tensor names, and interpret
-    the bracketing as the order of pairwise contractions, contracting innermost tuples first.
-    The same format as the attribute :attr:`order` (``ContractionTree``) is accepted as well.
-allow_multiple_charged_tensors : bool
-    Whether multiple `ChargedTensor` are allowed to be part of the planar diagram.
-    When there are multiple open charge legs, they must be contiguous after the contractions,
-    such that the individual charge legs can be combined to a single one.
-    When there is a specified contraction between two charge legs, this contraction must also
-    be planar.
-    It is allowed to evaluate a planar diagram containing tensor placeholders for
-    `ChargedTensor` (placeholders containing the label `'!'`) with `SymmetricTensor`. In this
-    case, the `SymmetricTensor` must have the same leg labels except for the charge leg label.
-    The contraction between the charge legs is then ignored.
-
-Attributes
-----------
-tensors : {str: TensorPlaceholder}
-    The tensors in the planar diagram, as a dictionary from name to its placeholder, which
-    stores leg labels and dims.
-definition : list of (str, str, str | None, str)
-    Defines the contractions in the planar diagram.
-    An entry ``(t1, l1, t2, l2)`` indicates to contract leg ``l1`` of ``tensors[t1]`` with
-    leg ``l2`` of ``tensors[t2]``.
-    An entry ``(t1, l1, None, new_l)`` indicates that leg ``l1`` of ``tensors[t1]`` is an open
-    leg of the planar diagram and should have label ``new_l`` in the result.
-order : ContractionTree
-    Specifies the order for the tensor contractions during :meth:`evaluate`.
-open_legs : list of str
-    The open legs of the planar diagram, up to cyclical permutation.
-    This is such that the result of :meth:`evaluate` has these leg labels (up to cycl. perm.).
-    Charge legs (``'!'``) are not included; remaining open charge legs make the result a
-    :class:`~cyten.tensors.ChargedTensor`.
-allow_multiple_charged_tensors : bool
-    Whether multiple `ChargedTensor` are allowed to be part of the planar diagram.
-
-Examples
---------
-1. For a local two-site MPS tensor `theta` with legs ``vL, p0, p1, vR`` and a two-site operator
-`op` with legs ``p0, p1, p1*, p0*``, the expectation value of `op` can be expressed as the
-following planar diagram::
-
-    exp_val_diagram = PlanarDiagram(
-        tensors='theta[vL, p0, p1, vR], theta_hc[vR*, p1*, p0*, vL*], op[p0, p1, p1*, p0*]',
-        definition='theta:p0 @ op:p0*, theta:p1 @ op:p1*, '
-        'theta:vL @ theta_hc:vL*, theta:vR @ theta_hc:vR*, '
-        'op:p0 @ theta_hc:p0*, op:p1 @ theta_hc:p1*',
-        dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], d=['p0', 'p0*', 'p1', 'p1*']),
-    )
-    exp_val = exp_val_diagram.evaluate(dict(theta=theta, theta_hc=theta.hc, op=op))
-
-2. For a local two-site MPS tensor `theta` with legs ``vL, p0, p1, vR`` and a two-site unitary
-operator `U` with legs ``p0, p1, p1*, p0*`` that is applied to `theta` (as done in TEBD), the
-updated tensor expressed as the following planar diagram::
-
-    TEBD_diagram = PlanarDiagram(
-        tensors='theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]',
-        definition='theta:p0 @ U:p0*, theta:p1 @ U:p1*, theta:vL -> vL, theta:vR -> vR, U:p0 -> p0, U:p1 -> p1',
-        dims=dict(chi=['vR', 'vL'], d=['p0', 'p0*', 'p1', 'p1*']),
-    )
-    theta_updated = TEBD_diagram.evaluate(dict(theta=theta, U=U))
-
-3. The two examples above (`exp_val_diagram` and `TEBD_diagram`) can be related using
-:meth:`add_tensor` and :meth:`remove_tensor` (note the correspondence between `op` and `U`)
-as::
-
-    TEBD_diagram2 = exp_val_diagram.remove_tensor(
-        name='theta_hc',
-        extra_definition='theta:vL -> vL, theta:vR -> vR, '
-        'op:p0 -> p0, op:p1 -> p1',
-    )
-    theta_updated2 = TEBD_diagram2.evaluate(dict(theta=theta, op=U))
-    assert planar_almost_equal(theta_updated, theta_updated2)
-
-    exp_val_diagram2 = TEBD_diagram.add_tensor(
-        tensor='theta_hc[vR*, p1*, p0*, vL*]'
-        extra_definition='theta:vL @ theta_hc:vL*, theta:vR @ theta_hc:vR*, '
-        'U:p0 @ theta_hc:p0*, U:p1 @ theta_hc:p1*',
-        extra_dims='dict(chi=['vR*', 'vL*'], d=['p0*', 'p1*'])'
-    )
-    exp_val2 = exp_val_diagram2.evaluate(dict(theta=theta, theta_hc=theta.hc, U=op))
-    assert np.isclose(exp_val, exp_val2)  # number, not a tensor
-
-4. Contraction of a left MPS environment with the transfer matrix, where the MPS tensors may
-have a charge leg::
-
-    TM_diagram = PlanarDiagram(
-        tensors='LP[vR*, vR], ket[vL, p, vR, !], bra[vR*, p*, vL*, !]',
-        definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:! @ bra:!, ket:vR -> vR, bra:vR* -> vR*',
-        dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*']),
-        allow_multiple_charged_tensors=True,
-    )
-    LP = TM_diagram.evaluate(dict(LP=LP, ket=ket, bra=bra))
-)pydoc";
+    planar_diagram.doc() = DOC(cyten, PlanarDiagram);
 
     planar_diagram
       .def(py::init([](py::object tensors,
@@ -878,33 +610,7 @@ have a charge leg::
         py::arg("extra_definition"),
         py::arg("extra_dims") = py::none(),
         py::arg("order") = "definition",
-        R"pydoc(
-        Create a new planar diagram with an additional tensor.
-
-        The new planar diagram arises from the old one by adding a single tensor and contracting
-        (some of) its legs with open legs of the old planar diagram. It is in particular not
-        possible to change tensor contractions involving two tensors of the old planar diagram.
-
-        TODO should we allow to reference the existing diagram as a whole, instead of its
-             individual tensors?
-
-        Parameters
-        ----------
-        tensor : str (or {str: TensorPlaceholder})
-            Same as the parameter to :class:`PlanarDiagram`, but expect only a single tensor
-            to be added to the diagram.
-        extra_definition : str (or list of (str, str, str | None, str))
-            Same as the parameter to :class:`PlanarDiagram`.
-            Should define for each leg of the new tensor whether it is an open leg or contracted
-            with another leg.
-            The new :attr:`definition` is given by this extra definition together with the old
-            definition, except for entries that correspond to legs that were open in the original
-            diagram and are now contracted with the new tensor.
-        extra_dims : {str: list of str}, optional
-            Same as the parameter to :class:`PlanarDiagram`, but applies only to the new `tensor`.
-        order : 'greedy' | 'optimal' | 'definition' | str | nested tuples of str
-            Same as the parameter to :class:`PlanarDiagram`, applies to the entire new diagram.
-        )pydoc")
+        DOC(cyten, PlanarDiagram, add_tensor))
       .def(
         "remove_tensor",
         [](PlanarDiagram const& self,
@@ -921,25 +627,7 @@ have a charge leg::
         py::arg("name"),
         py::arg("extra_definition") = py::list(),
         py::arg("order") = "greedy",
-        R"pydoc(
-        Create a new planar diagram by removing one tensor.
-
-        The new planar diagram arises from the old one by removing a single tensor and leaving the
-        legs that were previously contracted with this tensor open. It is in particular not
-        possible to change any tensor contractions in the planar diagram.
-
-        Parameters
-        ----------
-        name : str
-            The name of the tensor to be removed.
-        extra_definition : str (or list of (str, str, None, str))
-            Extra instructions to be added to the :attr:`definition`. Expected to only contain
-            instructions for the legs that were contracted with `name` in the old planar diagram
-            and are now open legs.
-            Same format as the `definition` parameter to :class:`PlanarDiagram`.
-        order : 'greedy' | 'optimal' | 'definition' | str | nested tuples of str
-            Same as the parameter to :class:`PlanarDiagram`, applies to the entire new diagram.
-        )pydoc")
+        DOC(cyten, PlanarDiagram, remove_tensor))
       .def(
         "evaluate",
         [](PlanarDiagram const& self, py::object tensors) {
@@ -954,13 +642,7 @@ have a charge leg::
       .def("optimize_order",
            &PlanarDiagram::optimize_order,
            py::arg("strategy"),
-           R"pydoc(
-           Find the optimal contraction order for the given planar diagram.
-
-           TODO make it easy to print what you need to hard-code.
-           TODO allow relations like ``d < w < chi``, or ``d^2 < chi`` to simplify the polynomials.
-           TODO support cost as polynomials or with concrete numbers
-           )pydoc")
+           DOC(cyten, PlanarDiagram, optimize_order))
       .def_static(
         "parse_definition",
         [](py::object definition) { return definition_to_py(parse_definition_py(definition)); },
@@ -991,45 +673,14 @@ have a charge leg::
         py::arg("tensors"),
         py::arg("dims") = py::none(),
         "Parse the input format for the ``tensors`` arg to :class:`PlanarDiagram`.")
-      .def("verify_diagram", &PlanarDiagram::verify_diagram, R"pydoc(
-          Verify the definition of the planar diagram. Returns the :attr:`open_legs`.
-
-          Returns
-          -------
-          open_legs : list of str
-              The leg labels of a result of :meth:`evaluate`.
-          cost : BigOPolynomial
-              The cost to contract the diagram, as a polynomial in terms of the dims.
-          )pydoc");
+      .def("verify_diagram", &PlanarDiagram::verify_diagram, DOC(cyten, PlanarDiagram, verify_diagram));
 
     // `py::dynamic_attr` plus no data descriptors for `op_diagram` / `matvec_diagram`: subclasses
     // are documented to store those as *class* variables, and `self.op_diagram` in an
     // uninitialized C++ instance would otherwise hit `def_readwrite` and crash.
     py::class_<PlanarLinearOperator, LinearOperator, PyPlanarLinearOperator, py::smart_holder>
       planar_linear_operator(m, "PlanarLinearOperator", py::dynamic_attr());
-    planar_linear_operator.doc() = R"pydoc(
-Base class for :class:`LinearOperator`\ s defined in terms of :class:`PlanarDiagram`\ s.
-
-.. warning ::
-    Instantiating a :class:`PlanarDiagram` may be expensive if the order is optimized.
-    Make sure to either hard-code the order, or make the planar diagram instance as early as
-    possible, e.g., as a *class* variable of the parent class instead of during its
-    ``__init__``.
-
-Parameters
-----------
-op_diagram : :class:`PlanarDiagram`
-    The diagram that defines the operator (without acting on a vector).
-matvec_diagram : :class:`PlanarDiagram`
-    The diagram that defines the action of the operator on a vector.
-    Must have the same tensor names as the `op_diagram` in addition to a single tensor
-    with `vec_name`.
-op_tensors : {str : :class:`Tensor`}
-    The concrete tensors that define the operator, see `op_diagram`.
-vec_name : str
-    The name of the "vector", i.e., the tensor that the linear operator acts on in the
-    `matvec_diagram`.
-)pydoc";
+    planar_linear_operator.doc() = DOC(cyten, PlanarLinearOperator);
 
     planar_linear_operator
       .def(py::init<PlanarDiagram const&,
@@ -1049,30 +700,7 @@ vec_name : str
           &parse_leg_bipartition,
           py::arg("legs"),
           py::arg("num_legs"),
-          R"pydoc(
-          Parse a planar bipartition of legs into two subsets.
-
-          We view the indices on a circle with length `num_legs`, i.e., ``0`` comes after ``num_legs - 1``.
-          We verify that the ``legs`` form a single contiguous subset on that circle.
-          Note that "on the circle" means that it may "wrap around", e.g., ``[7, 8, 0, 1, 2]`` is
-          contiguous if ``num_legs=9``.
-
-          Parameters
-          ----------
-          legs : list of int
-              A subset of legs, in any order. Is explicitly checked to be contiguous on the circle.
-          num_legs : int
-              The total number of legs, such that we look at subsets of ``range(num_legs)``.
-
-          Returns
-          -------
-          legs : list of int
-              The `legs`, sorted in order around the circle.
-              Note that this may include a jump, e.g., ``[7, 8, 0, 1, 2]`` is sorted if ``num_legs=9``.
-          other_legs : list of int
-              The complementary subset, sorted in order around the circle.
-              Note that this may include a jump, e.g., ``[7, 8, 0, 1, 2]`` is sorted if ``num_legs=9``.
-          )pydoc");
+          DOC(cyten, parse_leg_bipartition));
 
     m.def(
       "planar_contraction",
@@ -1104,53 +732,7 @@ vec_name : str
       py::arg("legs2"),
       py::arg("relabel1") = std::map<std::string, std::string>{},
       py::arg("relabel2") = std::map<std::string, std::string>{},
-      R"pydoc(
-      Planar version of :func:`~cyten.tensors.tdot`.
-
-      Here, planar means that the contraction diagram can be drawn in a plane without any braids.
-
-      We do not make assumptions about the leg arrangement of the result.
-      It is constrained by the planar requirement, but otherwise arbitrary.
-      That is, it is the leg arrangement of the result of :func:`~cyten.tensors.tdot` up to
-      braid-free :func:`~cyten.tensors.permute_legs`, i.e., up to arbitrary leg bendings.
-
-      For example::
-
-          |    ╭───╮   │   │
-          |    │   4   3   2
-          |    │  ┏┷━━━┷━━━┷┓
-          |    │  ┃    B    ┃
-          |    │  ┗━━┯━━━┯━━┛
-          |    │     0   1
-          |    │     │   ╰─────╮
-          |    │     ╰───╮     │       ==    planar_contraction(A, B, [2, 3, 4], [1, 0, 4])
-          |    ╰─────╮   │     │
-          |          4   3     │
-          |       ┏━━┷━━━┷━━┓  │
-          |       ┃    A    ┃  │
-          |       ┗┯━━━┯━━━┯┛  │
-          |        0   1   2   │
-          |        │   │   ╰───╯
-
-      Parameters
-      ----------
-      tensor1, tensor2 : :class:`Tensor`
-          The two tensors to contract.
-      legs1, legs2
-          Which legs to contract: ``legs1[n]`` on `tensor1` is contracted with ``legs2[n]`` on
-          `tensor2`.
-      relabel1, relabel2 : dict[str, str], optional
-          A mapping of labels for each of the tensors. The result has labels as if the
-          input tensors were relabelled accordingly before contraction.
-
-      Returns
-      -------
-      Tensor given by the contraction whose legs may be cyclically permuted.
-
-      See Also
-      --------
-      tdot, compose, partial_compose, apply_mask, scale_axis
-      )pydoc");
+      DOC(cyten, planar_contraction));
 
     m.def(
       "planar_partial_trace",
@@ -1167,44 +749,7 @@ vec_name : str
           return eval_result_to_py(planar_partial_trace(tensor.cast<TensorCPtr>(), std::move(ps)));
       },
       py::arg("tensor"),
-      R"pydoc(
-      Planar version of :func:`~cyten.tensors.partial_trace`.
-
-      Here, planar means that the trace can be drawn as a diagram in a plane, without any braids.
-
-      For example::
-
-          |    ╭───╮   │   │   ╭───╮
-          |    │   7   6   5   4   │
-          |    │  ┏┷━━━┷━━━┷━━━┷┓  │
-          |    │  ┃      A      ┃  │    ==   planar_partial_trace(A, (0, 1), (2, -1), (3, 4))
-          |    │  ┗┯━━━┯━━━┯━━━┯┛  │
-          |    │   0   1   2   3   │
-          |    │   ╰───╯   │   ╰───╯
-          |    ╰───────────╯
-
-      Parameters
-      ----------
-      tensor : :class:`Tensor`
-          The tensor to act on.
-      *pairs : list of str or int
-          A number of pairs, each describing two legs via index or via label.
-          Each pair is connected, realizing a partial trace.
-          By definition, we create loops between the legs in a planar way by connecting them over
-          the left or right side of the tensor. If both a connecting loop over the left and the
-          right side are planar, the result is independent of this choice.
-          Must be compatible ``tensor.get_leg(pair[0]) == tensor.get_leg(pair[1]).dual``.
-
-      Returns
-      -------
-      If all legs are traced, a python scalar.
-      If legs are left open, a tensor with the same type as `tensor`.
-
-      See Also
-      --------
-      partial_trace
-          Non-planar partial trace which may include braiding of legs with specified levels.
-      )pydoc");
+      DOC(cyten, planar_partial_trace));
 
     m.def(
       "planar_permute_legs",
@@ -1216,24 +761,7 @@ vec_name : str
       py::kw_only(),
       py::arg("codomain") = py::none(),
       py::arg("domain") = py::none(),
-      R"pydoc(
-      Planar special case of :func:`~cyten.permute_legs`, without braids.
-
-      It permutes the :attr:`Tensor.legs` only cyclically, and bends them to the proper codomain / domain.
-
-      A planar permutation consists only of leg bends, either to the left or right of the tensor.
-      It leaves the :attr:`cyten.Tensor.legs` unchanged up to cyclical permutation.
-      It is fully specified by assigning each leg to either the new codomain or the new domain.
-
-      Parameters
-      ----------
-      tensor : :class:`Tensor`
-          The tensor whose legs are to be permuted.
-      codomain, domain : list of {str | int}
-          The legs that should be in the new (co)domain, in the correct order.
-          Only one of `codomain`, `domain` is required when the other can be unambiguously inferred.
-          This is the case when the specified `codomain` or `domain` contains at least one leg.
-      )pydoc");
+      DOC(cyten, planar_permute_legs));
 
     m.def(
       "planar_combine_legs",
@@ -1252,56 +780,7 @@ vec_name : str
       py::kw_only(),
       py::arg("pipe_dualities") = false,
       py::arg("pipes") = py::none(),
-      R"pydoc(
-      Planar special case of :func:`~cyten.combine_legs`, without braids.
-
-      The legs to be combined must be contiguous, but they do not need to be ordered within each of
-      the groups. In the general case, the legs are bent up / down before combining. The combined leg
-      is the codomain (domain) if the first leg of the group is in the codomain (domain).
-
-      For example::
-
-          |       ║       ║    │
-          |    ╭──╨╮   ╭──╨╮   │   ╭───╮
-          |    │   9   8   7   6   5   │
-          |    │  ┏┷━━━┷━━━┷━━━┷━━━┷┓  │
-          |    │  ┃        T        ┃  │    ==   planar_combine_legs(T, [-1, 0], [3, 4, 5], [7, 8])
-          |    │  ┗┯━━━┯━━━┯━━━┯━━━┯┛  │
-          |    │   0   1   2   3   4   │
-          |    ╰───╯   │   │   ╰╥──┴───╯
-          |            │   │    ║
-
-      In the above example, choosing the group ``[-1, 0]`` means that the combined leg is in the
-      domain, whereas it would end up in the codomain when specifying ``[0, -1]`` instead.
-      Similarly, the combined leg corresponding to the group ``[3, 4, 5]`` would be in the domain
-      when specifying this group as ``[5, 3, 4]`` or ``[5, 4, 3]``.
-
-      Parameters
-      ----------
-      T : :class:`Tensor`
-          The tensor whose legs should be combined.
-      *which_legs : list of {int | str}
-          One or more groups of legs to combine.
-      pipe_dualities : list of bool, optional
-          Can optionally specify the :attr:`LegPipe.is_dual` attribute of each resulting pipe.
-          This is an arbitrary choice for each pipe.
-          The pipes are formed such that ``result.legs.[pipe_idx].is_dual == pipe_dualities[i]``.
-          Defaults to all ``False``.
-      pipes : list of {LegPipe | None}, optional
-          For each ``group = which_legs[i]`` of legs, the resulting pipe can be passed to
-          avoid recomputation. If we group to the codomain (``group[0] < tensor.num_codomain_legs``),
-          we expect ``LegPipe([tensor._as_codomain_leg(i) for i in group])``.
-          Otherwise we expect ``LegPipe([tensor._as_domain_leg(i) for i in reversed(group)])``.
-          Note the reverse order in the latter case!
-          In the intended use case, when another tensor with the same legs has already been combined,
-          obtain those pipes simply via :meth:`Tensor.get_leg_co_domain`.
-          It is possible to pass only some of the pipes, use ``None`` as filler.
-
-      See Also
-      --------
-      combine_legs
-          Non-planar version that automatically braids legs in order to combine them.
-      )pydoc");
+      DOC(cyten, planar_combine_legs));
 
     m.def(
       "planar_eigh",
@@ -1324,77 +803,7 @@ vec_name : str
       py::arg("new_labels") = py::none(),
       py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
-      R"pydoc(
-      Planar eigen-decomposition of a hermitian tensor.
-
-      A :ref:`tensor decomposition <decompositions>` ``tensor ~ V @ W @ dagger(V)`` with
-      the following properties:
-
-      - ``V`` is unitary.
-      - ``W`` is a :class:`DiagonalTensor` with the real eigenvalues of ``tensor``.
-
-      This planar decomposition differs from :func:`~cyten.tensors.eigh` in the sense that
-      it decomposes a tensor into more general left and right parts rather than into codomain
-      and domain.
-
-      *Assumes* that `tensor` is hermitian with respect to the legs specified by
-      `codomain_cut` and `domain_cut`. If `T` is obtained from `tensor` by bending legs
-      s.t. all legs on the left (right) are in the codomain (domain), or, equivalently,
-      ``T = planar_permute_legs(tensor, domain=[*range(codomain_cut, tensor.num_legs - domain_cut))][::-1])``,
-      then ``dagger(T) ~ T``, which requires in particular that ``T.domain == T.codomain``.
-
-      Graphically, here with ``codomain_cut=3, domain_cut=1``::
-
-          |                                  │    │   │   │
-          |                                  │   ┏┷━━━┷━━━┷┓
-          |                                  │   ┃dagger(V)┃
-          |        │   │   │   │             │   ┗━┯━━━━━┯━┛
-          |       ┏┷━━━┷━━━┷━━━┷┓            │   ┏━┷━┓   │
-          |       ┃   tensor    ┃    ==      │   ┃ W ┃   │
-          |       ┗┯━━━┯━━━┯━━━┯┛            │   ┗━┯━┛   │
-          |        │   │   │   │           ┏━┷━━━━━┷━┓   │
-          |                                ┃    V    ┃   │
-          |                                ┗┯━━━┯━━━┯┛   │
-          |                                 │   │   │    │
-
-      Parameters
-      ----------
-      tensor: :class:`Tensor`
-          The hermitian tensor to decompose.
-      codomain_cut: int
-          The first `codomain_cut` legs from the codomain end up in the codomain of `V`,
-          the rest of the codomain ends up in the codomain of `dagger(V)`.
-      domain_cut: int
-          The first `domain_cut` legs from the domain end up in the domain of `V`, the rest
-          of the domain ends up in the domain of `dagger(V)`.
-      new_labels: (list of) str, optional
-          The labels for the new legs can be specified in the following three ways;
-          Three labels ``[a, b, c]`` result in ``V.labels[-1 - domain_cut] == a`` and
-          ``W.labels == [b, c]``.
-          Two labels ``[a, b]`` are equivalent to ``[a, b, a]``.
-          A single label ``a`` is equivalent to ``[a, a*, a]``.
-          The new legs are unlabelled by default.
-      new_leg_dual: bool
-          If the new leg should be a ket space (``False``) or bra space (``True``).
-      sort: {'m>', 'm<', '>', '<', 'LI', 'SI', ``None``}
-          How the eigenvalues should are sorted *within* each charge block.
-          Defaults to ``None``, which is same as '<'. See :meth:`BlockBackend.argsort` for
-          details.
-
-      Returns
-      -------
-      W: :class:`DiagonalTensor`
-          The real eigenvalues.
-      V: :class:`SymmetricTensor`
-          The orthonormal eigenvectors.
-
-      See Also
-      --------
-      eigh
-          Eigen decomposition with respect to codomain and domain. Corresponds to this
-          function with parameters ``codomain_cut=tensor.num_codomain_legs``,
-          ``domain_cut=0``.
-      )pydoc");
+      DOC(cyten, planar_eigh));
 
     m.def(
       "planar_lq",
@@ -1411,56 +820,7 @@ vec_name : str
       py::arg("domain_cut"),
       py::arg("new_labels") = py::none(),
       py::arg("new_leg_dual") = false,
-      R"pydoc(
-      Planar LQ decomposition of a tensor.
-
-      A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
-      properties:
-
-      - ``L`` has a lower triangular structure *in the coupled basis*.
-      - ``Q`` is an isometry.
-
-      This planar decomposition differs from :func:`~cyten.tensors.lq` in the sense that it
-      decomposes a tensor into more general left and right parts rather than into codomain
-      and domain.
-
-      Graphically, here with ``codomain_cut=2, domain_cut=1``::
-
-          |                                  │  │  │  │
-          |                                  │ ┏┷━━┷━━┷┓
-          |        │   │   │   │             │ ┃   Q   ┃
-          |       ┏┷━━━┷━━━┷━━━┷┓            │ ┗━┯━━━┯━┛
-          |       ┃   tensor    ┃    ==      │   │   │
-          |       ┗━━┯━━━┯━━━┯━━┛          ┏━┷━━━┷━┓ │
-          |          │   │   │             ┃   L   ┃ │
-          |                                ┗━┯━━━┯━┛ │
-          |                                  │   │   │
-
-      We always compute the "reduced", a.k.a. "economic" version.
-
-      Parameters
-      ----------
-      tensor: :class:`Tensor`
-          The tensor to decompose.
-      codomain_cut: int
-          The first `codomain_cut` legs from the codomain end up in the codomain of `L`,
-          the rest of the codomain ends up in the codomain of `Q`.
-      domain_cut: int
-          The first `domain_cut` legs from the domain end up in the domain of `L`, the rest
-          of the domain ends up in the domain of `Q`.
-      new_labels: (list of) str
-          Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1 - domain_cut] == a``
-          and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
-      new_leg_dual: bool
-          If the new leg should be a ket space (``False``) or bra space (``True``).
-
-      See Also
-      --------
-      lq
-          LQ decomposition with respect to codomain and domain. Corresponds to this
-          function with parameters ``codomain_cut=tensor.num_codomain_legs``,
-          ``domain_cut=0``.
-      )pydoc");
+      DOC(cyten, planar_lq));
 
     m.def(
       "planar_qr",
@@ -1477,56 +837,7 @@ vec_name : str
       py::arg("domain_cut"),
       py::arg("new_labels") = py::none(),
       py::arg("new_leg_dual") = false,
-      R"pydoc(
-      Planar QR decomposition of a tensor.
-
-      A :ref:`tensor decomposition <decompositions>` ``tensor ~ Q @ R`` with the following
-      properties:
-
-      - ``Q`` is an isometry.
-      - ``R`` has an upper triangular structure *in the coupled basis*.
-
-      This planar decomposition differs from :func:`~cyten.tensors.qr` in the sense that it
-      decomposes a tensor into more general left and right parts rather than into codomain
-      and domain.
-
-      Graphically, here with ``codomain_cut=2, domain_cut=1``::
-
-          |                                  │  │  │  │
-          |                                  │ ┏┷━━┷━━┷┓
-          |        │   │   │   │             │ ┃   R   ┃
-          |       ┏┷━━━┷━━━┷━━━┷┓            │ ┗━┯━━━┯━┛
-          |       ┃   tensor    ┃    ==      │   │   │
-          |       ┗━━┯━━━┯━━━┯━━┛          ┏━┷━━━┷━┓ │
-          |          │   │   │             ┃   Q   ┃ │
-          |                                ┗━┯━━━┯━┛ │
-          |                                  │   │   │
-
-      We always compute the "reduced", a.k.a. "economic" version.
-
-      Parameters
-      ----------
-      tensor: :class:`Tensor`
-          The tensor to decompose.
-      codomain_cut: int
-          The first `codomain_cut` legs from the codomain end up in the codomain of `Q`,
-          the rest of the codomain ends up in the codomain of `R`.
-      domain_cut: int
-          The first `domain_cut` legs from the domain end up in the domain of `Q`, the rest
-          of the domain ends up in the domain of `R`.
-      new_labels: (list of) str
-          Labels for the new legs. Either two legs ``[a, b]`` s.t. ``Q.labels[-1 - domain_cut] == a``
-          and ``R.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
-      new_leg_dual: bool
-          If the new leg should be a ket space (``False``) or bra space (``True``).
-
-      See Also
-      --------
-      qr
-          QR decomposition with respect to codomain and domain. Corresponds to this
-          function with parameters ``codomain_cut=tensor.num_codomain_legs``,
-          ``domain_cut=0``.
-      )pydoc");
+      DOC(cyten, planar_qr));
 
     m.def(
       "planar_svd",
@@ -1549,78 +860,7 @@ vec_name : str
       py::arg("new_labels") = py::none(),
       py::arg("new_leg_dual") = false,
       py::arg("algorithm") = py::none(),
-      R"pydoc(
-      Planar singular value decomposition (SVD) of a tensor.
-
-      A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
-      properties:
-
-      - ``Vh`` and ``U`` are isometries.
-      - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
-      - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
-        reproduces the usual matrix SVD.
-
-      .. note ::
-          The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
-          e.g., :func:`numpy.linalg.svd`, it is not guaranteed that ``S.diag_numpy`` is sorted.
-
-      This planar decomposition differs from :func:`~cyten.tensors.svd` in the sense that it
-      decomposes a tensor into more general left and right parts rather than into codomain and
-      domain.
-
-      Graphically, here with ``codomain_cut=2, domain_cut=1``::
-
-          |                                  │    │   │   │
-          |                                  │   ┏┷━━━┷━━━┷┓
-          |                                  │   ┃   Vh    ┃
-          |        │   │   │   │             │   ┗━┯━━━━━┯━┛
-          |       ┏┷━━━┷━━━┷━━━┷┓            │   ┏━┷━┓   │
-          |       ┃   tensor    ┃    ==      │   ┃ S ┃   │
-          |       ┗━━┯━━━┯━━━┯━━┛            │   ┗━┯━┛   │
-          |          │   │   │             ┏━┷━━━━━┷━┓   │
-          |                                ┃    U    ┃   │
-          |                                ┗━┯━━━━━┯━┛   │
-          |                                  │     │     │
-
-      We always compute the "reduced", a.k.a. "economic" version of SVD, where the
-      isometries are (in general) not full unitaries.
-
-      Parameters
-      ----------
-      tensor: :class:`Tensor`
-          The tensor to decompose.
-      codomain_cut: int
-          The first `codomain_cut` legs from the codomain end up in the codomain of `U`,
-          the rest of the codomain ends up in the codomain of `Vh`.
-      domain_cut: int
-          The first `domain_cut` legs from the domain end up in the domain of `U`, the rest
-          of the domain ends up in the domain of `Vh`.
-      new_labels: (list of) str, optional
-          The labels for the new legs can be specified in the following three ways;
-          Four labels ``[a, b, c, d]`` result in ``U.labels[-1 - domain_cut] == a``,
-          ``S.labels == [b, c]`` and ``Vh.labels[0] == d``.
-          Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
-          A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
-          The new legs are unlabelled by default.
-      new_leg_dual: bool
-          If the new leg should be a ket space (``False``) or bra space (``True``).
-      algorithm: str, optional
-          The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
-          See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
-
-      Returns
-      -------
-      U: SymmetricTensor
-      S: DiagonalTensor
-      Vh: SymmetricTensor
-
-      See Also
-      --------
-      svd
-          SVD decomposition with respect to codomain and domain. Corresponds to this
-          function with parameters ``codomain_cut=tensor.num_codomain_legs``,
-          ``domain_cut=0``.
-      )pydoc");
+      DOC(cyten, planar_svd));
 
     m.def(
       "planar_truncated_svd",
@@ -1661,41 +901,7 @@ vec_name : str
       py::arg("degeneracy_tol") = 0.,
       py::arg("trunc_cut") = 0.,
       py::arg("svd_min") = 0.,
-      R"pydoc(
-      Truncated version of :func:`planar_svd`.
-
-      Parameters
-      ----------
-      tensor, codomain_cut, domain_cut, new_labels, new_leg_dual, algorithm
-          Same as for the non-truncated :func:`planar_svd`.
-      normalize_to: float or None
-          If ``None`` (default), the resulting singular values are not renormalized,
-          resulting in an approximation in terms of ``U, S, Vh`` which has smaller norm than `a`.
-          If a ``float``, the singular values are scaled such that ``norm(S) == normalize_to``.
-      chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min
-          Options for truncations, see documentation of :func:`tensors.truncate_singular_values`.
-
-      Returns
-      -------
-      U, S, Vh
-          The tensors U, S, Vh that form the truncated SVD, such that
-          ``U @ S @ Vh`` is *approximately* equal to `a`.
-      err : float
-          The relative 2-norm truncation error ``norm(a - U_S_Vh) / norm(a)``.
-          This is the (relative) 2-norm weight of the discarded singular values.
-      renormalize : float
-          Factor, by which `S` was renormalized, i.e., ``norm(S) / norm(a)``, such that
-          ``U @ S @ Vh / renormalize`` has the same norm as `a`.
-
-      See Also
-      --------
-      planar_svd
-          Planar SVD decomposition without truncation.
-      truncated_svd
-          Truncated SVD decomposition with respect to codomain and domain. Corresponds to
-          this function with parameters ``codomain_cut=tensor.num_codomain_legs``,
-          ``domain_cut=0``.
-      )pydoc");
+      DOC(cyten, planar_truncated_svd));
 
     m.def("planar_almost_equal",
           &planar_almost_equal,
@@ -1703,34 +909,7 @@ vec_name : str
           py::arg("tensor_2"),
           py::arg("rtol") = 1e-5,
           py::arg("atol") = 1e-8,
-          R"pydoc(
-          Checks if two tensors are equal up to numerical tolerance and planar permutation.
-
-          We first permute the legs of `tensor_1` to the configuration of `tensor_2` and then
-          compare the blocks, i.e., the free parameters of the tensors.
-          The tensors count as almost equal if all block entries, i.e., all their free parameters
-          individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
-          Note that this is a basis-dependent and backend-dependent notion of distance, which does
-          not come from a norm in the strict mathematical sense.
-
-          Parameters
-          ----------
-          tensor_1, tensor_2 : :class:`Tensor`
-              The tensors to compare. The legs of both tensors need to be labelled with the same
-              leg labels in order to find the planar permutation between them.
-          atol, rtol : float
-              Absolute and relative tolerance, see above.
-
-          Notes
-          -----
-          Unlike `almost_equal`, this function does not have the argument `allow_different_types`
-          since permuting legs may change the tensor type.
-
-          See Also
-          --------
-          almost_equal
-              Comparison between two tensors without planar permutations.
-          )pydoc");
+          DOC(cyten, planar_almost_equal));
 
     m.def(
       "horizontal_factorization",
@@ -1750,61 +929,7 @@ vec_name : str
       py::arg("domain_cut"),
       py::arg("new_labels") = py::none(),
       py::arg("cutoff_singular_values") = py::none(),
-      R"pydoc(
-      Factorize a tensor into left and right parts.
-
-      Graphically, here with ``codomain_cut=3, domain_cut=1``::
-
-          |      │   │   │               │           │   │             │   ╭──────╮    │   │
-          |   ┏━━┷━━━┷━━━┷━━┓         ┏━━┷━━━━━━┓   ┏┷━━━┷┓         ┏━━┷━━━┷━━┓   │   ┏┷━━━┷┓
-          |   ┃   tensor    ┃    =    ┃    A    ┠───┨  B  ┃   :=    ┃    A    ┃   │   ┃  B  ┃
-          |   ┗┯━━━┯━━━┯━━━┯┛         ┗┯━━━┯━━━┯┛   ┗━━━━┯┛         ┗┯━━━┯━━━┯┛   │   ┗┯━━━┯┛
-          |    │   │   │   │           │   │   │         │           │   │   │    ╰────╯   │
-
-      Parameters
-      ----------
-      tensor: Tensor
-          The tensor to factorize
-      codomain_cut: int
-          The first `codomain_cut` legs from the codomain end up in the codomain of `A`, the rest
-          of the codomain ends up in the codomain of `B`.
-      domain_cut: int
-          The first `domain_cut` legs from the domain end up in the domain of `A`, the rest
-          of the domain ends up in the domain of `B`.
-      new_labels: (list of) str
-          The labels for the new legs.
-          Two entries ``[a, b]`` result in ``A.labels[-1 - domain_cut] == a`` and ``B.labels[0] == b``
-          and a single entry ``a`` is equivalent to ``[a, a*]``.
-      cutoff_singular_values: float, optional
-          If ``None`` (default), we factorize using :func:`qr` without truncation. If given, we use a
-          truncated SVD and truncate by discarding singular values below this threshold.
-
-      Returns
-      -------
-      A, B: Tensor
-          A factorization of the `tensor`, such that ``tdot(A, B, -1 - domain_cut, 1)`` reproduces
-          the `tensor`, up to bending and possibly up to truncation if `cutoff_singular_values` is
-          given.
-
-      Notes
-      -----
-      This is achieved by bending legs such that we can do the factorization as a QR or SVD,
-      then bend back, that is for the example case depicted above::
-
-          |                                             │    │   │   ╭────╮         │   │   │
-          |             │           │   │    ╭──╮       │ ┏━━┷━━━┷━━━┷━━┓ │         │  ┏┷━━━┷┓
-          |             │  ╭────╮   │   │    │  │       │ ┃      B'     ┃ │         │  ┃  B  ┃
-          |             │  │ ┏━━┷━━━┷━━━┷━━┓ │  │       │ ┗━━━━━━┯━━━━━━┛ │         │  ┗┯━━━┯┛
-          |   LHS   =   │  │ ┃   tensor    ┃ │  │   =   │        │        │   =     │   │   │   =  RHS
-          |             │  │ ┗┯━━━┯━━━┯━━━┯┛ │  │       │ ┏━━━━━━┷━━━━━━┓ │      ┏━━┷━━━┷━━┓│
-          |             │  │  │   │   │   ╰──╯  │       │ ┃      A'     ┃ │      ┃    A    ┃│
-          |             ╰──╯  │   │   │         │       │ ┗┯━━━┯━━━┯━━━┯┛ │      ┗┯━━━┯━━━┯┛│
-          |                                             ╰──╯   │   │   │  │       │   │   │ │
-
-
-      Note how we bend some legs to the left, to avoid any braids, such that the operation does not
-      need to specify any braid chiralities.
-      )pydoc");
+      DOC(cyten, horizontal_factorization));
 
     m.def(
       "planar_decomposition",

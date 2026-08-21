@@ -1,4 +1,6 @@
 #include "py_cyten_pybind11.h"
+#include "../../doc_plus.h"
+#include "docstrings/symmetries/factors/fibonacci_anyon_category.h"
 
 #include "symmetries/casters.hpp"
 
@@ -14,9 +16,7 @@ bind_fibonacci_anyon_category(py::module_& m)
     py::class_<FibonacciAnyonCategory, SymmetryFactor, py::smart_holder> cls(
       m,
       "FibonacciAnyonCategory",
-      R"pydoc(
-      Category describing Fibonacci anyons.
-      )pydoc");
+      DOC(cyten, FibonacciAnyonCategory));
     cls.def(py::init<std::string>(), py::arg("handedness") = "left")
       .def_static("from_hdf5",
                   &FibonacciAnyonCategory::from_hdf5,

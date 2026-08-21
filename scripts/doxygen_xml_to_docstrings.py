@@ -417,8 +417,65 @@ def _cpp_ref_marker(sym: Symbol, *, has_overloads: bool) -> str:
     return '\n' + '\n'.join(lines) + '\n'
 
 
+def _sanitize_ident(part: str) -> str:
+    """Make a Doxygen/C++ symbol fragment safe as a C identifier piece."""
+    # Common operators first (order matters for multi-char).
+    replacements = [
+        ('operator<=>', 'operator_spaceship'),
+        ('operator==', 'operator_eq'),
+        ('operator!=', 'operator_ne'),
+        ('operator<=', 'operator_le'),
+        ('operator>=', 'operator_ge'),
+        ('operator<<', 'operator_lshift'),
+        ('operator>>', 'operator_rshift'),
+        ('operator+=', 'operator_iadd'),
+        ('operator-=', 'operator_isub'),
+        ('operator*=', 'operator_imul'),
+        ('operator/=', 'operator_idiv'),
+        ('operator%=', 'operator_imod'),
+        ('operator&=', 'operator_iand'),
+        ('operator|=', 'operator_ior'),
+        ('operator^=', 'operator_ixor'),
+        ('operator&&', 'operator_land'),
+        ('operator||', 'operator_lor'),
+        ('operator++', 'operator_inc'),
+        ('operator--', 'operator_dec'),
+        ('operator->', 'operator_arrow'),
+        ('operator()', 'operator_call'),
+        ('operator[]', 'operator_index'),
+        ('operator+', 'operator_plus'),
+        ('operator-', 'operator_minus'),
+        ('operator*', 'operator_star'),
+        ('operator/', 'operator_slash'),
+        ('operator%', 'operator_percent'),
+        ('operator^', 'operator_xor'),
+        ('operator&', 'operator_bitand'),
+        ('operator|', 'operator_bitor'),
+        ('operator~', 'operator_bitnot'),
+        ('operator!', 'operator_not'),
+        ('operator=', 'operator_assign'),
+        ('operator<', 'operator_lt'),
+        ('operator>', 'operator_gt'),
+        ('operator,', 'operator_comma'),
+    ]
+    for src, dst in replacements:
+        if part == src:
+            part = dst
+            break
+    out: list[str] = []
+    for ch in part:
+        if ch.isalnum() or ch == '_':
+            out.append(ch)
+        else:
+            out.append('_')
+    s = ''.join(out)
+    if not s or s[0].isdigit():
+        s = 'x_' + s
+    return s
+
+
 def _macro_name(parts: list[str], overload_suffix: int | None) -> str:
-    base = '_'.join(parts)
+    base = '_'.join(_sanitize_ident(p) for p in parts)
     if overload_suffix is None:
         return f'mkd_doc_{base}'
     return f'mkd_doc_{base}_{overload_suffix}'

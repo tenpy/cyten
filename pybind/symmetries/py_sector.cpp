@@ -1,4 +1,6 @@
 #include "py_cyten_pybind11.h"
+#include "../doc_plus.h"
+#include "docstrings/symmetries/sector.h"
 
 #include <cyten/symmetries/sector.h>
 #include <cyten/symmetries/sector_numpy.h>
@@ -174,9 +176,7 @@ sector_array_repr(SectorArray const& a)
 void
 bind_sector(py::module_& m)
 {
-    py::class_<Sector>(m, "Sector", R"pydoc(
-        A single charge sector: length ``sector_ind_len`` integer labels.
-        )pydoc")
+    py::class_<Sector>(m, "Sector", DOC(cyten, Sector))
       .def(py::init<>())
       .def(py::init([](py::object values) { return sector_from_numpy(values); }),
            py::arg("values"),
@@ -253,9 +253,7 @@ bind_sector(py::module_& m)
 
     py::implicitly_convertible<py::array, Sector>();
 
-    py::class_<SectorArray>(m, "SectorArray", R"pydoc(
-        A batch of sectors with shape ``(num_sectors, sector_ind_len)``.
-        )pydoc")
+    py::class_<SectorArray>(m, "SectorArray", DOC(cyten, SectorArray))
       .def(py::init<>())
       .def(py::init([](py::object values) { return sector_array_from_numpy(values); }),
            py::arg("values"),

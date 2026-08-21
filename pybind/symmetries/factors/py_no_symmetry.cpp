@@ -1,4 +1,6 @@
 #include "py_cyten_pybind11.h"
+#include "../../doc_plus.h"
+#include "docstrings/symmetries/factors/no_symmetry.h"
 
 #include "symmetries/casters.hpp"
 
@@ -11,11 +13,7 @@ bind_no_symmetry(py::module_& m)
 {
     py::class_<NoSymmetry, AbelianGroup, py::smart_holder>(m,
                                                            "NoSymmetry",
-                                                           R"pydoc(
-                                                           Trivial symmetry group that doesn't do anything.
-
-                                                           The only allowed sector is ``[0]``.
-                                                           )pydoc")
+                                                           DOC(cyten, NoSymmetry))
       .def(py::init<>())
       .def_static("from_hdf5",
                   &NoSymmetry::from_hdf5,

@@ -17,3 +17,8 @@ Headers in ``include/cyten/tensors/``.
    tensors/ops_legs
    tensors/decompositions
    tensors/helpers
+   tensors/vector_like
+   tensors/direct_sum
+   tensors/sparse
+   tensors/planar
+   tensors/krylov_based

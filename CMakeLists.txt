@@ -163,6 +163,64 @@ target_link_libraries(_core PUBLIC cyten)
 set(CYTEN_MKDOC_HEADERS
   tensors/ops_algebra.h
   tensors/constructors.h
+  tensors/ops_elementwise.h
+  tensors/ops_legs.h
+  tensors/decompositions.h
+  tensors/helpers.h
+  tensors/labels.h
+  tensors/vector_like.h
+  tensors/direct_sum.h
+  tensors/tensor.h
+  tensors/symmetric_tensor.h
+  tensors/diagonal_tensor.h
+  tensors/mask.h
+  tensors/charged_tensor.h
+  tensors/sparse.h
+  tensors/planar.h
+  tensors/krylov_based.h
+  symmetries/factors/fermion_number.h
+  symmetries/factors/fermion_parity.h
+  symmetries/factors/fibonacci_anyon_category.h
+  symmetries/factors/ising_anyon_category.h
+  symmetries/factors/no_symmetry.h
+  symmetries/factors/quantum_double_zn_anyon_category.h
+  symmetries/factors/su2.h
+  symmetries/factors/su2_k_anyon_category.h
+  symmetries/factors/su3_3_anyon_category.h
+  symmetries/factors/sun.h
+  symmetries/factors/toric_code_category.h
+  symmetries/factors/u1.h
+  symmetries/factors/zn.h
+  symmetries/factors/zn_anyon_category.h
+  symmetries/factors/zn_anyon_category2.h
+  symmetries/abelian_group.h
+  symmetries/base_symmetry.h
+  symmetries/exceptions.h
+  symmetries/group.h
+  symmetries/sector.h
+  symmetries/spaces.h
+  symmetries/styles.h
+  symmetries/symmetry.h
+  symmetries/symmetry_factor.h
+  symmetries/trees.h
+  backends/abelian.h
+  backends/backend_factory.h
+  backends/block_inds.h
+  backends/fusion_tree_backend.h
+  backends/fusion_tree_mapping.h
+  backends/no_symmetry.h
+  backends/tensor_backend.h
+  block_backend/array_api.h
+  block_backend/block_backend.h
+  block_backend/dtypes.h
+  block_backend/numpy.h
+  block_backend/torch.h
+  tools/cost_polynomials.h
+  tools/mappings.h
+  models/couplings.h
+  models/degrees_of_freedom.h
+  models/sites.h
+  tools.h
 )
 
 find_program(CYTEN_DOXYGEN_EXECUTABLE NAMES doxygen REQUIRED)

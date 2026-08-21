@@ -3,7 +3,10 @@
 #include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/tensor.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+
+#include "docstrings/tensors/ops_legs.h"
 
 #include <optional>
 #include <string>
@@ -72,31 +75,6 @@ py_slice_leg(TensorCPtr tensor, py::object leg, py::object idx_or_sector, py::ob
     }
     return slice_leg(std::move(tensor), std::move(l), idx_or_sector.cast<int64>());
 }
-
-char const* slice_leg_doc =
-  R"pydoc(Contract one multiplicity of one sector on a leg, as a ChargedTensor.
-
-The leftover space is an :class:`~cyten.symmetries.ElementarySpace` with that
-sector and multiplicity 1. It becomes the charge leg (``"!"``) of the result,
-with ``charged_state=None``. This does not require a droppable symmetry.
-
-Two ways to name the kept copy:
-
-- ``slice_leg(tensor, leg, idx)`` — public-basis index. Requires
-  ``symmetry.can_be_dropped``. Uses :meth:`~cyten.symmetries.ElementarySpace.parse_index`,
-  then the reduced multiplicity index of that sector.
-- ``slice_leg(tensor, leg, sector, multiplicity=0)`` — always valid.
-  ``sector`` must appear on that leg; ``multiplicity`` in
-  ``range(leg.sector_multiplicity(sector))``.
-
-``leg`` is an integer index or a label, as for :func:`apply_mask`.
-Slicing a :class:`ChargedTensor` (a second charge leg) is not supported.
-
-After ``E, V = eigh(H)``::
-
-    i0 = E.argmin()
-    psi = V.slice_leg('a', i0)
-)pydoc";
 
 int64
 py_leg_idx(TensorCPtr const& tensor, py::object key)
@@ -238,13 +216,16 @@ bind_tensors_ops_legs(py::module_& m)
       py::arg("tensor"),
       py::arg("num_codomain_legs") = py::none(),
       py::arg("num_domain_legs") = py::none(),
-      R"pydoc(Move legs between codomain and domain without changing the order of ``tensor.legs``.)pydoc");
+      doc_plus(DOC(cyten, bend_legs),
+               R"pydoc(
+In Python, ``num_codomain_legs`` / ``num_domain_legs`` are ``int | None`` (``None`` = unspecified).
+)pydoc"));
 
     m.def("check_same_legs",
           &check_same_legs,
           py::arg("t1"),
           py::arg("t2"),
-          R"pydoc(Check if two tensors have the same legs.)pydoc");
+          DOC(cyten, check_same_legs));
 
     m.def(
       "combine_legs",
@@ -272,7 +253,11 @@ bind_tensors_ops_legs(py::module_& m)
       py::arg("pipe_dualities") = false,
       py::arg("pipes") = py::none(),
       py::arg("levels") = py::none(),
-      R"pydoc(Combine (multiple) groups of legs, each to a :class:`LegPipe`.)pydoc");
+      doc_plus(DOC(cyten, combine_legs),
+               R"pydoc(
+In Python, groups are passed as ``*which_legs`` (each a sequence of ``int | str``);
+``pipes`` / ``levels`` use ``None`` for unspecified; ``levels`` may also be a ``dict``.
+)pydoc"));
 
     m.def(
       "combine_to_matrix",
@@ -286,7 +271,11 @@ bind_tensors_ops_legs(py::module_& m)
       py::arg("codomain") = py::none(),
       py::arg("domain") = py::none(),
       py::arg("levels") = py::none(),
-      R"pydoc(Combine legs of a tensor into two combined LegPipes.)pydoc");
+      doc_plus(DOC(cyten, combine_to_matrix),
+               R"pydoc(
+In Python, ``codomain`` / ``domain`` are ``int``, ``str``, a sequence thereof, or ``None``;
+``levels`` may be a ``list``, ``dict``, or ``None``.
+)pydoc"));
 
     m.def(
       "move_leg",
@@ -320,7 +309,11 @@ bind_tensors_ops_legs(py::module_& m)
       py::arg("domain_pos") = py::none(),
       py::arg("levels") = py::none(),
       py::arg("bend_right") = py::none(),
-      R"pydoc(Move one leg of a tensor to a specified position.)pydoc");
+      doc_plus(DOC(cyten, move_leg),
+               R"pydoc(
+In Python, ``which_leg`` is ``int | str``; optional args use ``None``; ``levels`` /
+``bend_right`` may also be a ``dict``.
+)pydoc"));
 
     m.def(
       "permute_legs",
@@ -342,7 +335,11 @@ bind_tensors_ops_legs(py::module_& m)
       py::arg("domain") = py::none(),
       py::arg("levels") = py::none(),
       py::arg("bend_right") = py::none(),
-      R"pydoc(Permute the legs of a tensor by braiding legs and bending lines.)pydoc");
+      doc_plus(DOC(cyten, permute_legs),
+               R"pydoc(
+In Python, ``codomain`` / ``domain`` are ``int``, ``str``, a sequence thereof, or ``None``;
+``levels`` / ``bend_right`` may be a ``list``, ``dict``, or ``None``.
+)pydoc"));
 
     m.def(
       "split_legs",
@@ -355,7 +352,17 @@ bind_tensors_ops_legs(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("legs") = py::none(),
-      R"pydoc(Split legs that were previously combined using :func:`combine_legs`.)pydoc");
+      doc_plus(DOC(cyten, split_legs),
+               R"pydoc(
+In Python, ``legs`` is ``int``, ``str``, a sequence thereof, or ``None`` (split all pipes).
+)pydoc"));
+
+    char const* slice_leg_py_doc = doc_plus(DOC(cyten, slice_leg),
+                                            R"pydoc(
+In Python, both overloads are exposed as one function:
+``slice_leg(tensor, leg, idx_or_sector, multiplicity=None)``.
+``leg`` is ``int | str``; pass a public-basis index or a :class:`~cyten.symmetries.Sector`.
+)pydoc");
 
     m.def("slice_leg",
           &py_slice_leg,
@@ -363,7 +370,7 @@ bind_tensors_ops_legs(py::module_& m)
           py::arg("leg"),
           py::arg("idx_or_sector"),
           py::arg("multiplicity") = py::none(),
-          slice_leg_doc);
+          slice_leg_py_doc);
 
     py::object tensor_cls = m.attr("Tensor");
     tensor_cls.attr("slice_leg") = py::cpp_function(
@@ -376,7 +383,7 @@ bind_tensors_ops_legs(py::module_& m)
       py::arg("leg"),
       py::arg("idx_or_sector"),
       py::arg("multiplicity") = py::none(),
-      slice_leg_doc);
+      slice_leg_py_doc);
 
     m.def(
       "squeeze_legs",
@@ -389,7 +396,10 @@ bind_tensors_ops_legs(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("legs") = py::none(),
-      R"pydoc(Remove trivial legs.)pydoc");
+      doc_plus(DOC(cyten, squeeze_legs),
+               R"pydoc(
+In Python, ``legs`` is ``int``, ``str``, a sequence thereof, or ``None`` (squeeze all trivial).
+)pydoc"));
 }
 
 } // namespace cyten

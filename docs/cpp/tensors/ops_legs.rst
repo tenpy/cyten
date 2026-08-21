@@ -29,3 +29,9 @@ Free functions
 
 .. doxygenfunction:: cyten::squeeze_legs
    :project: cyten
+
+.. doxygenfunction:: cyten::slice_leg(TensorCPtr, LegRef, int64)
+   :project: cyten
+
+.. doxygenfunction:: cyten::slice_leg(TensorCPtr, LegRef, Sector const &, int64)
+   :project: cyten

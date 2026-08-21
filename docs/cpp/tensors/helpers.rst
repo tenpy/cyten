@@ -6,7 +6,10 @@ Declared in ``include/cyten/tensors/helpers.h``.
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::_check_compatible_legs
+.. doxygenfunction:: cyten::_check_compatible_legs(std::vector<Leg::Ptr> const &, std::vector<Leg::Ptr> const &, bool)
+   :project: cyten
+
+.. doxygenfunction:: cyten::_check_compatible_legs(std::vector<Space::Ptr> const &, std::vector<Space::Ptr> const &, bool)
    :project: cyten
 
 .. doxygenfunction:: cyten::_compose_with_Mask

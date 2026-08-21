@@ -144,6 +144,7 @@ class Sector
 
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
+/// A batch of sectors with shape ``(num_sectors, sector_ind_len)``.
     static Sector from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 
   private:

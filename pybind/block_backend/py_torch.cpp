@@ -1,3 +1,5 @@
+#include "../doc_plus.h"
+#include "docstrings/block_backend/torch.h"
 // NOTE: this file is #included from py_block_backend.cpp
 
 #include <cyten/block_backend/torch.h>
@@ -9,12 +11,7 @@ bind_block_backend_torch(py::module_& m)
 {
     py::class_<TorchBlockBackend, BlockBackend, py::smart_holder> torch_block_backend(
       m, "TorchBlockBackend");
-    torch_block_backend.doc() = R"pydoc(
-        A block-backend using PyTorch.
-
-        No constructor available, use from_factory instead.
-        Not to be subclassed.
-        )pydoc";
+    torch_block_backend.doc() = DOC(cyten, TorchBlockBackend);
     torch_block_backend.def_static(
       "from_factory",
       &TorchBlockBackend::from_factory,

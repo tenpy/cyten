@@ -27,13 +27,35 @@ class Group : public SymmetryFactor
           bool trivial_shift = true);
     ~Group() override = default;
 
-    /// Subclasses must implement; for groups it is always possible.
+/// The quantum dimension ``Tr(id_a)`` of a sector
     FusionSymbol _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override =
       0;
 
     FusionSymbol swap_gate(Sector a, Sector b) const override;
     float64 qdim(Sector a) const override;
+/// Quantum dimension of every sector (row) in `a`
     std::vector<float64> batch_qdim(SectorArray const& a) const override;
+/// The prefactor that relates the twist on a single sector to the identity.
+///
+/// Graphically::
+///
+///     |   │   ╭─╮                |
+///     |    ╲ ╱  │                |
+///     |     ╱   │   =   theta_a  |
+///     |    ╱ ╲  │                |
+///     |   │   ╰─╯                |
+///     |   a                      a
+///
+/// Notes:
+///
+/// For a twist with opposite chirality, the prefactor is conjugated.
+///
+///     |   │   ╭─╮                      |
+///     |    ╲ ╱  │                      |
+///     |     ╲   │   =   conj(theta_a)  |
+///     |    ╱ ╲  │                      |
+///     |   │   ╰─╯                      |
+///     |   a                            a
     complex128 topological_twist(Sector a) const override;
 };
 

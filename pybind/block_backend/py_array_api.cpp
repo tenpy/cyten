@@ -1,3 +1,5 @@
+#include "../doc_plus.h"
+#include "docstrings/block_backend/array_api.h"
 // NOTE: this file is #included from py_block_backend.cpp
 
 #include "py_trampolines.hpp"
@@ -10,12 +12,7 @@ bind_block_backend_array_api(py::module_& m)
 {
     py::class_<ArrayApiBlockBackend, BlockBackend, PyArrayApiBlockBackend, py::smart_holder>
       array_api_block_backend(m, "ArrayApiBlockBackend");
-    array_api_block_backend.doc() = R"pydoc(
-        A block-backend based on a generic Array API compliant library.
-
-        Construct with an Array-API namespace (e.g. ``numpy``) and optional default device.
-        Intended to be subclassed from Python to fill in missing operations.
-        )pydoc";
+    array_api_block_backend.doc() = DOC(cyten, ArrayApiBlockBackend);
     array_api_block_backend.def(py::init<py::object, std::string>(),
                                 py::arg("api_namespace"),
                                 py::arg("default_device") = "cpu");

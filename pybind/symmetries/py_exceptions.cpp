@@ -1,4 +1,6 @@
 #include "py_cyten_pybind11.h"
+#include "../doc_plus.h"
+#include "docstrings/symmetries/exceptions.h"
 
 #include <cyten/symmetries/exceptions.h>
 
@@ -11,17 +13,11 @@ bind_symmetries_exceptions(py::module_& m)
     // 3).
     auto& symmetry_error =
       py::register_exception<SymmetryError>(m, "SymmetryError", PyExc_Exception);
-    symmetry_error.doc() =
-      R"pydoc(
-      An exception that is raised whenever something is not possible or not allowed due to symmetry
-      )pydoc";
+    symmetry_error.doc() = DOC(cyten, SymmetryError);
 
     auto& braid_err = py::register_exception<BraidChiralityUnspecifiedError>(
       m, "BraidChiralityUnspecifiedError", symmetry_error);
-    braid_err.doc() =
-      R"pydoc(
-      An exception that is raised whenever a braid chirality should be specified but wasn't.
-      )pydoc";
+    braid_err.doc() = DOC(cyten, BraidChiralityUnspecifiedError);
 }
 
 } // namespace cyten

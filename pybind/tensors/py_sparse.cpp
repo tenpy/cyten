@@ -3,7 +3,10 @@
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tensors/tensor.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+
+#include "docstrings/tensors/sparse.h"
 
 #include <pybind11/stl.h>
 
@@ -123,19 +126,7 @@ bind_tensors_sparse(py::module_& m)
 {
     py::class_<LinearOperator, PyLinearOperator, py::smart_holder> linear_operator(
       m, "LinearOperator");
-    linear_operator.doc() = R"pydoc(Base class for a linear operator acting on cyten tensors.
-
-Attributes
-----------
-vector_legs : list of Space
-    The legs of tensors that this operator can act on.
-vector_labels : list of str or None
-    Labels of the vectors that this operator can act on, or ``None``.
-dtype : Dtype
-    The dtype of a full representation of the operator
-acts_on : list of str
-    Labels of the state on which the operator can act. NB: Class attribute.
-)pydoc";
+    linear_operator.doc() = DOC(cyten, LinearOperator);
     linear_operator.attr("acts_on") = LinearOperator::acts_on;
 
     linear_operator
@@ -159,52 +150,23 @@ acts_on : list of str
       .def("matvec",
            &LinearOperator::matvec,
            py::arg("vec"),
-           R"pydoc(Apply the linear operator to a "vector".
-
-We consider as vectors all :class:`~cyten.tensors.VectorLike` objects, including
-:class:`~cyten.tensors.Tensor` (any rank) and :class:`~cyten.tensors.DirectSum`.
-The result of `matvec` must live in the same vector space as `vec`.
-)pydoc")
+           DOC(cyten, LinearOperator, matvec))
       .def("to_tensor",
            &LinearOperator::to_tensor,
            py::arg("backend") = nullptr,
-           R"pydoc(Compute a full tensor representation of the linear operator.
-
-Returns
--------
-A tensor `t` with ``2 * N`` legs ``[a1, a2, ..., aN, aN*, ..., a2*, a1*]``, where
-``[a1, a2, ..., aN]`` are the legs of the vectors this operator acts on.
-S.t. ``self.matvec(vec)`` is equivalent to ``tdot(t, vec, [N, ..., 2*N-1], [N-1,...,0])``.
-)pydoc")
+           DOC(cyten, LinearOperator, to_tensor))
       .def("to_matrix",
            &LinearOperator::to_matrix,
            py::arg("backend") = nullptr,
-           R"pydoc(The tensor representation of self, reshaped to a matrix.)pydoc")
+           DOC(cyten, LinearOperator, to_matrix))
       .def("adjoint",
            &LinearOperator::adjoint,
-           R"pydoc(Return the hermitian conjugate operator.
-
-If `self` is hermitian, subclasses *can* choose to implement this to define
-the adjoint operator of `self` to be `self`.
-)pydoc");
+           DOC(cyten, LinearOperator, adjoint));
 
     auto tensor_linear_operator_cls =
       py::class_<TensorLinearOperator, LinearOperator, py::smart_holder>(m,
                                                                          "TensorLinearOperator");
-    tensor_linear_operator_cls.doc() =
-      R"pydoc(Linear operator defined by a two-leg tensor with contractible legs.
-
-The matvec is defined by contracting one of the two legs of this tensor with the vector.
-This class is effectively a thin wrapper around tensors that allows them to be used as inputs
-for sparse linear algebra routines, such as lanczos.
-
-Parameters
-----------
-tensor :
-    The tensor that is contracted with the vector on matvec
-which_leg : int or str
-    Which leg of `tensor` is to be contracted on matvec
-)pydoc";
+    tensor_linear_operator_cls.doc() = DOC(cyten, TensorLinearOperator);
     tensor_linear_operator_cls
       .def(py::init<SymmetricTensorPtr, std::variant<int64, std::string>>(),
            py::arg("tensor"),
@@ -219,31 +181,13 @@ which_leg : int or str
     auto linear_operator_wrapper_cls =
       py::class_<LinearOperatorWrapper, LinearOperator, py::smart_holder>(m,
                                                                           "LinearOperatorWrapper");
-    linear_operator_wrapper_cls.doc() =
-      R"pydoc(Base class for wrapping around another :class:`LinearOperator`.
-
-The wrapped operator is stored as :attr:`original_operator`.
-Use :meth:`unwrapped` to recover the innermost operator.
-
-.. warning ::
-    If there are multiple levels of wrapping operators, the order might be critical to get
-    correct results; e.g. :class:`ProjectedLinearOperator` needs to be the outer-most
-    wrapper to produce correct results and/or be efficient.
-
-Parameters
-----------
-original_operator : :class:`LinearOperator`
-    The original operator implementing the `matvec`.
-)pydoc";
+    linear_operator_wrapper_cls.doc() = DOC(cyten, LinearOperatorWrapper);
     linear_operator_wrapper_cls.def(py::init<LinearOperator::Ptr>(), py::arg("original_operator"))
       .def_readwrite("original_operator", &LinearOperatorWrapper::original_operator)
       .def("unwrapped",
            &LinearOperatorWrapper::unwrapped,
            py::arg("recursive") = true,
-           R"pydoc(Return the original :class:`LinearOperator`
-
-By default, unwrapping is done recursively, such that the result is *not* a `LinearOperatorWrapper`.
-)pydoc")
+           DOC(cyten, LinearOperatorWrapper, unwrapped))
       .def("__getattr__",
            [](LinearOperatorWrapper const& self, std::string const& name) {
                return py::getattr(py::cast(self.original_operator), name.c_str());
@@ -255,7 +199,7 @@ By default, unwrapping is done recursively, such that the result is *not* a `Lin
     auto sum_linear_operator_cls =
       py::class_<SumLinearOperator, LinearOperatorWrapper, py::smart_holder>(m,
                                                                              "SumLinearOperator");
-    sum_linear_operator_cls.doc() = R"pydoc(The sum of multiple operators.)pydoc";
+    sum_linear_operator_cls.doc() = DOC(cyten, SumLinearOperator);
     sum_linear_operator_cls
       .def(py::init([](LinearOperator::Ptr original_operator, py::args more_ops) {
                std::vector<LinearOperator::Ptr> more;
@@ -275,10 +219,7 @@ By default, unwrapping is done recursively, such that the result is *not* a `Lin
     auto shifted_linear_operator_cls =
       py::class_<ShiftedLinearOperator, LinearOperatorWrapper, py::smart_holder>(
         m, "ShiftedLinearOperator");
-    shifted_linear_operator_cls.doc() =
-      R"pydoc(A shifted operator, i.e. ``original_operator + shift * identity``.
-
-This can be useful e.g. for better Lanczos convergence.)pydoc";
+    shifted_linear_operator_cls.doc() = DOC(cyten, ShiftedLinearOperator);
     shifted_linear_operator_cls
       .def(py::init([](py::object original_operator, py::object shift) {
                return std::make_shared<ShiftedLinearOperator>(
@@ -294,40 +235,7 @@ This can be useful e.g. for better Lanczos convergence.)pydoc";
     auto projected_linear_operator_cls =
       py::class_<ProjectedLinearOperator, LinearOperatorWrapper, py::smart_holder>(
         m, "ProjectedLinearOperator");
-    projected_linear_operator_cls.doc() =
-      R"pydoc(Projected version ``P H P + penalty * (1 - P)`` of an original operator ``H``.
-
-The projector ``P = 1 - sum_o |o> <o|`` is given in terms of a set :attr:`ortho_vecs` of vectors
-``|o>``.
-
-The result is that all vectors from the subspace spanned by the :attr:`ortho_vecs` are eigenvectors
-with eigenvalue `penalty`, while the eigensystem in the "rest" (i.e. in the orthogonal complement
-to that subspace) remains unchanged.
-
-This can be used to exclude the :attr:`ortho_vecs` from extremal eigensolvers, i.e. to find
-the extremal eigenvectors among those that are orthogonal to the :attr:`ortho_vecs`.
-In previous versions of tenpy, this behavior was achieved by an argument called `orthogonal_to`.
-If this is done, at least for krylov-based eigensolvers such as lanczos, the penalty should be chosen
-such that the `ortho_vecs` are somewhere in the bulk of the spectrum.
-This is because lanczos has best convergence for the extremal eigenvalues and we want to converge
-the solutions well, not the `ortho_vecs`.
-E.g. for a typical Hamiltonian with a spectrum symmetric around zero, ``project_operator=True``
-and ``penalty=None`` shifts the `ortho_vecs` to eigenvalue zero, thus fulfilling this criterion.
-However, for operators with e.g. strictly positive spectrum, this prescription might fail.
-
-Parameters
-----------
-original_operator : :class:`LinearOperator`-like
-    The original operator, denoted ``H`` in the summary above.
-ortho_vecs : list of :class:`~cyten.tensors.Tensor`
-    The list of vectors spanning the projected space.
-    They need not be orthonormal, as Gram-Schmidt is performed on them explicitly.
-project_operator: bool
-    If False (True per default), the projection of the operator ``H -> P H P`` is skipped
-    and ``H + penalty * (1 - P)`` is represented instead.
-penalty : complex, optional
-    See summary above. Defaults to ``None``, which is equivalent to ``0.``.
-)pydoc";
+    projected_linear_operator_cls.doc() = DOC(cyten, ProjectedLinearOperator);
     projected_linear_operator_cls
       .def(py::init([](py::object original_operator,
                        std::vector<VectorLike::Ptr> ortho_vecs,
@@ -367,8 +275,7 @@ penalty : complex, optional
     auto direct_sum_linear_operator_cls =
       py::class_<DirectSumLinearOperator, LinearOperator, py::smart_holder>(
         m, "DirectSumLinearOperator");
-    direct_sum_linear_operator_cls.doc() =
-      R"pydoc(Block-diagonal operator acting componentwise on a :class:`~cyten.tensors.DirectSum`.)pydoc";
+    direct_sum_linear_operator_cls.doc() = DOC(cyten, DirectSumLinearOperator);
     direct_sum_linear_operator_cls
       .def(py::init([](std::vector<LinearOperator::Ptr> operators) {
                return std::make_shared<DirectSumLinearOperator>(std::move(operators));
@@ -382,20 +289,7 @@ penalty : complex, optional
           &gram_schmidt,
           py::arg("vecs"),
           py::arg("rcond") = kGramSchmidtDefaultRcond,
-          R"pydoc(Gram-Schmidt orthonormalization of a list of vectors.
-
-Parameters
-----------
-vecs : list of :class:`~cyten.tensors.VectorLike`
-    The list of vectors to be orthogonalized. All must be mutually compatible.
-rcond : float
-    Vectors of ``norm < rcond`` (after projecting out previous vectors) are discarded.
-
-Returns
--------
-list of :class:`~cyten.tensors.VectorLike`
-    A list of orthonormal vectors which span the same space as `vecs`.
-)pydoc");
+          DOC(cyten, gram_schmidt));
 }
 
 } // namespace cyten

@@ -9,7 +9,7 @@
 
 namespace cyten {
 
-/// Abelian anyon category :math:`Z_N^{(n)}` (fusion rules of ``Z_N``).
+/// Abelian anyon category @f$ Z_N^{(n)} @f$ (fusion rules of ``Z_N``).
 ///
 /// Allowed sectors are 1D arrays with a single integer in ``[0, N-1]``.
 class ZNAnyonCategory : public SymmetryFactor

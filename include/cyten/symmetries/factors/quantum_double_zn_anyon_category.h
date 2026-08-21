@@ -9,7 +9,7 @@
 
 namespace cyten {
 
-/// Doubled abelian anyon category :math:`D(Z_N)` (fusion rules of ``Z_N × Z_N``).
+/// Doubled abelian anyon category @f$ D(Z_N) @f$ (fusion rules of ``Z_N × Z_N``).
 ///
 /// Allowed sectors are 1D arrays with two integers in ``[0, N-1]``.
 class QuantumDoubleZNAnyonCategory : public SymmetryFactor

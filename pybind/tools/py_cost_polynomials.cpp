@@ -1,6 +1,8 @@
 #include <cyten/tools/cost_polynomials.h>
 
 #include "../py_cyten_pybind11.h"
+#include "../doc_plus.h"
+#include "docstrings/tools/cost_polynomials.h"
 
 namespace py = pybind11;
 namespace cyten {
@@ -65,16 +67,7 @@ bind_cost_polynomials(py::module_& m)
     py::class_<BigOMonomial> big_omonomial(m, "BigOMonomial");
     py::class_<BigOPolynomial> big_opolynomial(m, "BigOPolynomial");
 
-    big_omonomial.doc() = R"pydoc(
-        A symbolic representation of an algorithmic cost as a monomial.
-
-        A monomial is of the form ``x^a y^b z^c``, i.e. a product of integer powers.
-
-        Attributes
-        ----------
-        factors : dict {str: int}
-            The factor, where an entry ``{'x': n}`` represents the symbol factor ``x^n``.
-        )pydoc";
+    big_omonomial.doc() = doc_cpp_ref(R"pydoc(BigOPolynomial)pydoc", "cyten::BigOPolynomial");
 
     big_omonomial.def(py::init<std::map<std::string, int64>>(), py::arg("factors"))
       .def_readwrite("factors", &BigOMonomial::factors)
@@ -130,26 +123,9 @@ bind_cost_polynomials(py::module_& m)
                 ovec.push_back(item.cast<BigOMonomial>());
             return self.is_negligible(ovec, optional_relations(relations));
         },
-        R"pydoc(
-        If the given monomial is negligible compared to `others`, s.t. ``O(self + x) = O(x)``.
-        )pydoc");
+        doc_cpp_ref(R"pydoc(is_negligible)pydoc", "cyten::BigOPolynomial::is_negligible()"));
 
-    big_opolynomial.doc() = R"pydoc(
-        A symbolic representation of an algorithmic cost as a monomial.
-
-        A polynomial is a sum of :class:`BigOMonomials`\ s, i.e. it is of the form::
-
-            x^a y^b + y^c z^d
-
-        i.e. a sum of terms, which consist of integer powers of symbols.
-
-        Polynomials can be added and multiplied and compared via :meth:`is_negligible`.
-
-        Attributes
-        ----------
-        terms : set of BigOMonomial
-            The terms such that the polynomial is their sum.
-        )pydoc";
+    big_opolynomial.doc() = doc_cpp_ref(R"pydoc(BigOPolynomial)pydoc", "cyten::BigOPolynomial");
 
     big_opolynomial
       .def(py::init([](py::object terms) {

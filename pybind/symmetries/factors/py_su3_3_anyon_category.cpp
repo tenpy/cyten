@@ -1,4 +1,6 @@
 #include "py_cyten_pybind11.h"
+#include "../../doc_plus.h"
+#include "docstrings/symmetries/factors/su3_3_anyon_category.h"
 
 #include "symmetries/casters.hpp"
 
@@ -11,9 +13,7 @@ bind_su3_3_anyon_category(py::module_& m)
 {
     py::class_<SU3_3AnyonCategory, SymmetryFactor, py::smart_holder> cls(m,
                                                                          "SU3_3AnyonCategory",
-                                                                         R"pydoc(
-                                                                         :math:`SU(3)_3` anyon category.
-                                                                         )pydoc");
+                                                                         DOC(cyten, SU3_3AnyonCategory));
     cls.def(py::init<>())
       .def_static("from_hdf5",
                   &SU3_3AnyonCategory::from_hdf5,

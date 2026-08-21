@@ -15,6 +15,53 @@
 namespace cyten {
 
 /// Base class for iterative algorithms building a Krylov basis with cyten tensors.
+///
+/// Algorithms like `LanczosGroundState` and `Arnoldi`
+/// are based on iteratively building an orthonormal basis of the Krylov space spanned by
+/// ``|psi0>, H|psi0>, H^2|psi0>, ... H^N |psi0>``, where `N` is the number of iterations
+/// performed so far, and ``|psi0>`` is an initial guess and starting vector.
+/// During that iteration, the projection of `H` into the Krylov space is built, where it can
+/// be solved effectively (with `H` being just a N by N matrix), yielding the "Ritz" eigenvalues/
+/// eigenvectors. Finally, the solution can be translated back into the original space using the
+/// basis.
+///
+/// An important strategy is also to (implicitly) restart the algorithm after some number of steps.
+/// This is **not** done here: when we use these classes, we usually have an explicit outer loop
+/// performed until convergence, e.g., the "sweeps" in DMRG.
+///
+/// Constructed with a hermitian linear operator `H`, starting vector `psi0`, and an
+/// options dict. The algorithm stops if both criteria for `e_tol` and `p_tol` are met
+/// or if the maximum number of steps was reached.
+///
+/// Attributes:
+///
+/// options : dict_like
+///     Optional parameters.
+/// H : `LinearOperator`
+///     The linear operator used for building the Krylov space.
+/// psi0 : `VectorLike`
+///     The *normalized* starting vector.
+/// N_min, N_max, P_tol, min_gap, _cutoff, E_shift:
+///     Parameters as described in the options.
+/// Es : ndarray, shape(N_max, N_max)
+///     ``Es[n, :]`` contains the energies of ``_h_krylov[:n+1, :n+1]`` in step `n`.
+/// _h_krylov : ndarray, shape (N_max + 1, N_max +1)
+///     The matrix representing `H` projected onto the orthonormalized Krylov basis.
+/// _psi0_norm : float
+///     Initial norm of the `psi0` parameter. Note that ``self.psi0`` gets normalized.
+/// _cache : list of psi0-like vectors
+///     The ONB of the Krylov space generated during the iteration.
+///     FIFO (first in first out) cache of at most `N_cache` vectors.
+/// _result_krylov : ndarray
+///     Result in the ONB of the Krylov space, e.g. the ground state of `_h_krylov`.
+///     What exactly this is depends on the subclass.
+///
+/// Notes:
+///
+/// The Ritz residual `RitzRes` is computed according to
+/// http://web.eecs.utk.edu/~dongarra/etemplates/node103.html#estimate_residual.
+/// Given the gap, the Ritz residual gives a bound on the error in the wavefunction,
+/// ``err < (RitzRes/gap)**2``. The gap is estimated from the full Lanczos spectrum.
 class KrylovBased
 {
   public:
@@ -78,6 +125,22 @@ class KrylovBased
 };
 
 /// GMRES solver for ``A x = b`` with cyten tensors.
+///
+/// @param A Linear operator. Must implement `matvec`.
+/// @param x Initial guess. Copied; the caller's vector is not modified.
+/// @param b Right-hand side.
+/// @param options Solver options.
+///
+/// Options:
+///
+/// N_min : int
+///     Minimum number of Arnoldi steps per restart cycle before checking convergence.
+/// N_max : int
+///     Maximum Krylov dimension per restart cycle.
+/// restart : int
+///     Maximum number of restart cycles.
+/// res : float
+///     Relative residual tolerance ``|A x - b| / |b|``.
 class GMRES
 {
   public:
@@ -119,6 +182,10 @@ class GMRES
 };
 
 /// Arnoldi method for diagonalizing square, non-hermitian/symmetric matrices.
+///
+/// Generalization of `LanczosGroundState`, allowing general, square matrices.
+///
+/// Options:
 class Arnoldi : public KrylovBased
 {
   public:
@@ -130,7 +197,9 @@ class Arnoldi : public KrylovBased
 
     Arnoldi(LinearOperator::Ptr H, VectorLike::Ptr psi0, py::object options);
 
-    /// Find extremal eigenpairs of ``H``. Returns ``(E0s, psis, N)``.
+/// Find the ground state of self.H.
+///
+/// @returns E0s : numpy array Best eigenvalue estimates, `num_ev` entries, sorted according to `which`. psis : list of `Tensor` Corresponding best eigenvectors (estimates). N : int Used dimension of the Krylov space, i.e., how many iterations where performed.
     std::tuple<std::vector<complex128>, std::vector<VectorLike::Ptr>, int64> run();
     int64 _build_krylov() override;
     void _calc_result_krylov(int64 k) override;
@@ -140,7 +209,23 @@ class Arnoldi : public KrylovBased
     bool _converged(int64 k) override;
 };
 
-/// Compute :math:`exp(\delta H) |\psi_0\rangle` using Arnoldi for non-Hermitian `H`.
+/// Compute @f$ exp(\delta H) |\psi_0\rangle @f$ using Arnoldi for non-Hermitian `H`.
+///
+/// Drop-in replacement for `LanczosEvolution` when `H` is not Hermitian.
+/// Builds an upper Hessenberg projection of `H` via full Gram-Schmidt orthogonalization
+/// (Arnoldi iteration), then computes the matrix exponential of the small projected matrix
+/// via eigendecomposition (``numpy.linalg.eig`` + pointwise scalar exponentials).
+///
+/// @param H, psi0, options Same as `Arnoldi`. Note that `H` need not be Hermitian.
+///
+/// Options:
+///
+/// Attributes:
+///
+/// delta : float/complex or None
+///     Prefactor of H in the exponential.
+/// _result_norm : float
+///     Norm of the result vector.
 class ArnoldiEvolution : public Arnoldi
 {
   public:
@@ -151,7 +236,11 @@ class ArnoldiEvolution : public Arnoldi
 
     ArnoldiEvolution(LinearOperator::Ptr H, VectorLike::Ptr psi0, py::object options);
 
-    /// Compute ``expm(delta * H).dot(psi0)``. Returns ``(psi_f, N)``.
+/// Compute ``expm(delta * H).dot(psi0)`` using Arnoldi.
+///
+/// @param delta Prefactor of H in the exponential. Note that the complex ``i`` is *not* included.
+/// @param normalize Whether to normalize the result. Defaults to ``False``. Unlike `LanczosEvolution` (which defaults to ``np.real(delta) == 0``), non-Hermitian evolution does not in general preserve the norm, so normalization would strip physically meaningful decay or growth and is off by default.
+/// @returns psi_f : `Tensor` Best approximation for ``expm(delta * H).dot(psi0)``. N : int Krylov space dimension used.
     std::tuple<VectorLike::Ptr, int64> run(complex128 delta,
                                            std::optional<bool> normalize = std::nullopt);
     void _calc_result_krylov(int64 k) override;
@@ -159,7 +248,11 @@ class ArnoldiEvolution : public Arnoldi
     [[nodiscard]] VectorLike::Ptr _calc_result_full_evolution(int64 N);
 };
 
-/// Lanczos algorithm to find the ground state. Assumes `H` is hermitian.
+/// Lanczos algorithm to find the ground state.
+///
+/// **Assumes** that `H` is hermitian.
+///
+/// Options:
 class LanczosGroundState : public KrylovBased
 {
   public:
@@ -169,7 +262,9 @@ class LanczosGroundState : public KrylovBased
 
     LanczosGroundState(LinearOperator::Ptr H, VectorLike::Ptr psi0, py::object options);
 
-    /// Find the ground state of H. Returns ``(E0, psi0, N)``.
+/// Find the ground state of H.
+///
+/// @returns E0 : float Ground state energy (estimate). psi0 : `VectorLike` Ground state vector (estimate). N : int Used dimension of the Krylov space, i.e., how many iterations where performed.
     std::tuple<float64, VectorLike::Ptr, int64> run();
     int64 _build_krylov() override;
     bool _converged(int64 k) override;
@@ -177,7 +272,23 @@ class LanczosGroundState : public KrylovBased
     void _calc_result_krylov(int64 k) override;
 };
 
-/// Calculate :math:`exp(delta H) |psi0>` using Lanczos.
+/// Calculate @f$ exp(delta H) |psi0> @f$ using Lanczos.
+///
+/// It turns out that the Lanczos algorithm is also good for calculating the matrix exponential
+/// applied to the starting vector. Instead of diagonalizing the tri-diagonal `h` and taking the
+/// ground state, we now calculate ``exp(delta h) e_0`` in the Krylov ONB, where
+/// ``e_0 = (1, 0, 0, ...)`` corresponds to ``psi0`` in the original basis.
+///
+/// @param H, psi0, options Hamiltonian, starting vector and parameters as defined in `LanczosGroundState`. The option :cfg:option`LanczosEvolution.P_tol` defines when convergence is reached, see `_converged` for details.
+///
+/// Options:
+///
+/// Attributes:
+///
+/// delta : float/complex
+///     Prefactor of H in the exponential.
+/// _result_norm : float
+///     Norm of the resulting vector.
 class LanczosEvolution : public LanczosGroundState
 {
   public:
@@ -188,7 +299,11 @@ class LanczosEvolution : public LanczosGroundState
 
     LanczosEvolution(LinearOperator::Ptr H, VectorLike::Ptr psi0, py::object options);
 
-    /// Calculate ``expm(delta H).dot(psi0)``. Returns ``(psi_f, N)``.
+/// Calculate ``expm(delta H).dot(psi0)`` using Lanczos.
+///
+/// @param delta Time step by which we should evolve psi0: prefactor of H in the exponential. Note that the complex `i` is *not* included!
+/// @param normalize Whether to normalize the resulting state. Defaults to ``np.real(delta) == 0``.
+/// @returns psi_f : `Tensor` Best approximation for ``expm(delta H).dot(psi0)``. If `E_shift` is used, it's an approximation for ``expm(delta (H + E_shift)).dot(psi)``. N : int Krylov space dimension used.
     std::tuple<VectorLike::Ptr, int64> run(complex128 delta,
                                            std::optional<bool> normalize = std::nullopt);
     void _calc_result_krylov(int64 k) override;
@@ -196,6 +311,10 @@ class LanczosEvolution : public LanczosGroundState
 };
 
 /// Simple wrapper calling ``LanczosGroundState(H, psi, options).run()``.
+/// Simple wrapper calling ``LanczosGroundState(H, psi, options).run()``
+///
+/// @param H, psi, options See `LanczosGroundState`.
+/// @returns E0, psi0, N : See `run`.
 std::tuple<float64, VectorLike::Ptr, int64> lanczos(LinearOperator::Ptr H,
                                                     VectorLike::Ptr psi,
                                                     py::object options = py::none());

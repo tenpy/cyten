@@ -15,10 +15,10 @@
 
 namespace cyten {
 
-/// Data stored in a Tensor for :class:`FusionTreeBackend`.
+/// Data stored in a Tensor for `FusionTreeBackend`.
 ///
-/// Attributes
-/// ----------
+/// Attributes:
+///
 /// block_inds : BlockInds
 ///     Indices that specify the coupled sectors of the non-zero blocks.
 ///     Shape ``(N, 2)``. ``block_inds[n] == [i, j]`` indicates that the coupled sector for
@@ -31,11 +31,11 @@ namespace cyten {
 /// device : str
 ///     The device on which the blocks are currently stored.
 ///     We currently only support tensors which have all blocks on a single device.
-///     Should be the device returned by :func:`BlockBackend.as_device`.
-///
-/// If ``is_sorted`` is ``False`` (default) in the constructor, we permute `blocks` and
-/// `block_inds` according to ``np.lexsort(block_inds.T)``. If ``True``, we assume they are
-/// sorted *without* checking.
+///     Should be the device returned by `as_device`.
+/// is_sorted : bool
+///     If ``False`` (default), we permute `blocks` and `block_inds` according to
+///     ``np.lexsort(block_inds.T)``.
+///     If ``True``, we assume they are sorted *without* checking.
 class FusionTreeData : public TensorBackend::Data
 {
   public:
@@ -57,14 +57,25 @@ class FusionTreeData : public TensorBackend::Data
     ///
     /// This is such that ``domain.sector_decomposition[block_inds[res][1]] == coupled``.
     ///
-    /// Note: we use the domain (and not the codomain), since only the :attr:`block_inds[:, 1]`
+    /// Note: we use the domain (and not the codomain), since only the `block_inds[:, 1]`
     /// are sorted.
+/// Return `ind` such that ``blocks[ind]`` is associated with the `coupled` sector.
+///
+/// This is such that ``domain.sector_decomposition[block_inds[res][1]] == coupled``.
+///
+/// Note: we use the domain (and not the codomain), since only the `block_inds[:, 1]`
+/// are sorted.
+/// Return `ind` such that ``block_inds[ind, 1] == domain_sector_ind``
+///
+/// Note: we use the domain (and not the codomain), since only the `block_inds[:, 1]`
+/// are sorted.
+/// Discard blocks whose norm is below the threshold `eps`
     [[nodiscard]] std::optional<int64> block_ind_from_coupled(Sector coupled,
                                                               TensorProduct::Ptr domain) const;
 
     /// Return `ind` such that ``block_inds[ind, 1] == domain_sector_ind``.
     ///
-    /// Note: we use the domain (and not the codomain), since only the :attr:`block_inds[:, 1]`
+    /// Note: we use the domain (and not the codomain), since only the `block_inds[:, 1]`
     /// are sorted.
     [[nodiscard]] std::optional<int64> block_ind_from_domain_sector_ind(
       int64 domain_sector_ind) const;
@@ -79,9 +90,9 @@ class FusionTreeData : public TensorBackend::Data
 
 /// A backend based on fusion trees.
 ///
-/// Notes
-/// -----
-/// Data is :class:`FusionTreeData` (coupled-sector ``block_inds`` + forest blocks).
+/// Notes:
+///
+/// Data is `FusionTreeData` (coupled-sector ``block_inds`` + forest blocks).
 class FusionTreeBackend : public TensorBackend
 {
   public:
@@ -280,6 +291,9 @@ class FusionTreeBackend : public TensorBackend
                             TensorProduct::Ptr new_codomain,
                             TensorProduct::Ptr new_domain) override;
 
+/// Perform an arbitrary number of traces. Pairs are converted to leg idcs.
+///
+/// Returns ``data, codomain, domain``.
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> partial_trace(
       SymmetricTensorCPtr tensor,
       std::vector<std::pair<int64, int64>> pairs,
@@ -356,7 +370,8 @@ class FusionTreeBackend : public TensorBackend
 
     DataPtr zero_mask_data(Space::Ptr large_leg, std::string device) override;
 
-    /// Apply a sequence of braid/bend/twist instructions (used by :meth:`permute_legs`).
+    /// Apply a sequence of braid/bend/twist instructions (used by `permute_legs`).
+/// Apply a sequence of braid/bend/twist instructions (used by `permute_legs`).
     DataPtr apply_instructions(TensorCPtr tensor,
                                py::object instructions,
                                std::vector<int64> codomain_idcs,
@@ -371,7 +386,7 @@ class FusionTreeBackend : public TensorBackend
                                                                                int64 leg_idx,
                                                                                bool large_leg);
 
-    /// Helper for :meth:`to_dense_block` — contribution of one forest block.
+    /// Helper for `to_dense_block` — contribution of one forest block.
     std::tuple<BlockBackend::BlockPtr, int64, int64> _get_forest_block_contribution(
       BlockBackend::BlockPtr block,
       Symmetry::Ptr sym,
@@ -390,7 +405,7 @@ class FusionTreeBackend : public TensorBackend
       std::vector<int64> n_mults,
       Dtype dtype) const;
 
-    /// Helper for :meth:`from_dense_block` — accumulate one forest block into ``block``.
+    /// Helper for `from_dense_block` — accumulate one forest block into ``block``.
     /// Returns ``(num_alpha_trees, num_beta_trees)``.
     std::tuple<int64, int64> _add_forest_block_entries(BlockBackend::BlockPtr block,
                                                        BlockBackend::BlockPtr entries,

@@ -1,4 +1,6 @@
 #include "py_cyten_pybind11.h"
+#include "../../doc_plus.h"
+#include "docstrings/symmetries/factors/ising_anyon_category.h"
 
 #include "symmetries/casters.hpp"
 
@@ -11,9 +13,7 @@ bind_ising_anyon_category(py::module_& m)
 {
     py::class_<IsingAnyonCategory, SymmetryFactor, py::smart_holder> cls(m,
                                                                          "IsingAnyonCategory",
-                                                                         R"pydoc(
-                                                                         Category describing Ising anyons.
-                                                                         )pydoc");
+                                                                         DOC(cyten, IsingAnyonCategory));
     cls.def(py::init<int>(), py::arg("nu") = 1)
       .def_static("from_hdf5",
                   &IsingAnyonCategory::from_hdf5,

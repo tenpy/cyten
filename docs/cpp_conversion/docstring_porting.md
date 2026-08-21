@@ -261,7 +261,21 @@ Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
 | --- | --- |
 | Algebra free functions (`ops_algebra.h`) | Pilot: headers + `DOC` / `doc_plus` / lambdas |
 | Constructors (`constructors.h`) | Pilot: headers + `DOC` / `doc_plus` on wrappers |
-| Other modules | Still mostly hand-written `R"pydoc"` from conversion; migrate incrementally via `CYTEN_MKDOC_HEADERS` |
+| Elementwise (`ops_elementwise.h`) | Done: headers + `DOC` / `doc_plus`; Tensor/Scalar overloads signed in RST |
+| Legs (`ops_legs.h`) | Done: headers + `DOC` / `doc_plus`; `slice_leg` overloads signed |
+| Decompositions (`decompositions.h`) | Done: headers + `DOC` / `doc_plus` |
+| Helpers (`helpers.h`) | Done: headers + `DOC` / `doc_plus`; `_check_compatible_legs` overloads signed |
+| Labels (`labels.h`) | Done: headers + `DOC` / `doc_plus` on free fns + `LabelledLegs` |
+| Tensor classes (`tensor.h`, `symmetric_tensor.h`, `diagonal_tensor.h`, `mask.h`, `charged_tensor.h`) | Done: headers + `DOC`; Python-only aliases use related `DOC` / `R"pydoc"` |
+| VectorLike / DirectSum | Done: headers + `DOC` |
+| Sparse / planar / krylov | Done: headers + `DOC`; `planar_decomposition` stays Python-only `R"pydoc"` |
+| Symmetries (spaces, base/symmetry/factor, factors, trees, styles, …) | Done: headers + `DOC` / `doc_cpp_ref`; generator sanitizes `operator==` macro names |
+| Backends (`tensor_backend`, concrete backends, factory) | Done: headers + `DOC` / `doc_cpp_ref`; `get_backend` overloads signed in RST |
+| Block backend (`block_backend`, `dtypes`, numpy/torch/array_api) | Done: headers + `DOC` |
+| Tools (`mappings`, `cost_polynomials`, `tools.h`) | Done: headers + `DOC` / `doc_cpp_ref` |
+| Models (`degrees_of_freedom`, `couplings`, `sites`) | Done: headers + `DOC` / `doc_cpp_ref` (LaTeX `\\frac` escaped for Doxygen) |
+| Config / warn RST | Overloads already signed in `config.rst`; `warn` is a single free function |
+| Leftover `R"pydoc"` | Only intentional `doc_plus` appendices and Python-only wrappers (e.g. `planar_decomposition`) |
 
 Near term remains **Python-first**: full user-facing NumPy docs stay available
 through pybind; headers carry shared semantics (and briefs at minimum). When a

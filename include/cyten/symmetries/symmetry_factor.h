@@ -34,12 +34,16 @@ class SymmetryFactor : public BaseSymmetry
     virtual std::string repr() const = 0;
 
     /// Whether self and other describe the same mathematical structure (ignore descriptive_name).
+/// Whether self and other describe the same mathematical structure.
+///
+/// In particular, `descriptive_name` is ignored.
     virtual bool _is_equivalent_factor(SymmetryFactor const& other) const = 0;
 
     bool is_equivalent_to(BaseSymmetry const& other) const;
 
-    /// Convert to a product :class:`Symmetry` with this single factor (via Python until
+    /// Convert to a product `Symmetry` with this single factor (via Python until
     /// converted).
+/// Convert any `SymmetryFactor` to a `Symmetry` with that single factor.
     py::object as_Symmetry() override;
 
     std::string str() const;

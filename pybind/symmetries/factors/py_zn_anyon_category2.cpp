@@ -1,4 +1,6 @@
 #include "py_cyten_pybind11.h"
+#include "../../doc_plus.h"
+#include "docstrings/symmetries/factors/zn_anyon_category2.h"
 
 #include "symmetries/casters.hpp"
 
@@ -14,10 +16,7 @@ bind_zn_anyon_category2(py::module_& m)
 {
     py::class_<ZNAnyonCategory2, SymmetryFactor, py::smart_holder>(m,
                                                                    "ZNAnyonCategory2",
-                                                                   R"pydoc(
-                                                                   Abelian anyon category with fusion rules corresponding to the Z_N group;
-                                                                   also written as :math:`Z_N^{(n+1/2)}`. `N` must be even.
-                                                                   )pydoc")
+                                                                   DOC(cyten, ZNAnyonCategory2))
       .def(py::init<int, int, std::optional<std::string>>(),
            py::arg("N"),
            py::arg("n"),

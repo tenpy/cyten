@@ -17,9 +17,9 @@
 
 namespace cyten {
 
-/// Data stored in a Tensor for :class:`AbelianBackend`.
+/// Data stored in a Tensor for `AbelianBackend`.
 ///
-/// The :attr:`block_inds` can be visualized as follows::
+/// The `block_inds` can be visualized as follows::
 ///
 ///     |           ---- codomain ---->  <--- domain ----
 ///     |
@@ -33,21 +33,31 @@ namespace cyten {
 ///     |      |    x  x  x  x  x  x  x  x  x  x  x  x  x
 ///     |      v
 ///
-/// Attributes
-/// ----------
+/// Attributes:
+///
 /// dtype : Dtype
 ///     The dtype of the data
 /// device : str
 ///     The device on which the blocks are currently stored.
 ///     We currently only support tensors which have all blocks on a single device.
-///     Should be the device returned by :func:`BlockBackend.as_device`.
+///     Should be the device returned by `as_device`.
 /// blocks : list of block
 ///     A list of blocks containing the actual entries of the tensor.
 ///     Leg order is ``[*codomain, *reversed(domain()]``, like ``Tensor.legs``.
 /// block_inds : BlockInds
 ///     A 2D array of positive integers with shape (len(blocks), num_legs).
-///     The block `blocks[n]` belongs to the `block_inds[n, m]`-th sector of ``leg``.
-///     By convention, ``np.lexsort(block_inds.T)`` is sorted.
+///     The block `blocks[n]` belongs to the `block_inds[n, m]`-th sector of ``leg``,
+///     that is to ``leg.sector_decomposition[block_inds[n, m]]``, where::
+///
+///         leg == (codomain.spaces[m] if m < len(codomain) else domain.spaces[-1 - m])
+///             == tensor.get_leg_co_domain(m)
+///
+///     Thus, the columns of `block_inds` follow the same ordering convention as `legs`.
+///     By convention, we store `blocks` and `block_inds` such that ``np.lexsort(block_inds.T)``
+///     is sorted.
+///
+/// @param dtype, device, blocks, block_inds like attributes above, but not necessarily sorted
+/// @param is_sorted If ``False`` (default), we permute `blocks` and `block_inds` according to ``np.lexsort(block_inds.T)``. If ``True``, we assume they are sorted *without* checking.
 class AbelianBackendData : public TensorBackend::Data
 {
   public:
@@ -72,6 +82,15 @@ class AbelianBackendData : public TensorBackend::Data
     /// Return the index ``n`` of the block which matches ``block_inds``,
     /// i.e. such that ``all(self.block_inds[n, :] == block_inds)``.
     /// Return ``nullopt`` if no such ``n`` exists.
+/// Return the index ``n`` of the block which matches the block_inds.
+///
+/// I.e. such that ``all(self.block_inds[n, :] == block_inds)``.
+/// Return None if no such ``n`` exists.
+/// Get the block at given block indices.
+///
+/// Return the block in `blocks` matching the given block_inds,
+/// i.e. `self.blocks[n]` such that `all(self.block_inds[n, :] == blocks_inds)`
+/// or None if no such block exists
     std::optional<int64> get_block_num(BlockInds const& block_inds) const;
 
     /// Get the block at given block indices, or ``nullptr`` if none exists.
@@ -83,24 +102,24 @@ class AbelianBackendData : public TensorBackend::Data
 };
 
 /// Charge-allowed block index combinations for ``codomain`` / ``domain``, lexsorted.
+/// Charge-allowed block index combinations for ``codomain`` / ``domain``, lexsorted.
 BlockInds valid_block_inds(TensorProduct::Ptr codomain, TensorProduct::Ptr domain);
 
 /// Backend for Abelian group symmetries.
 ///
-/// Notes
-/// -----
+/// Notes:
+///
 /// The data stored for the various tensor classes defined in ``cyten.tensors`` is::
 ///
 ///     - ``SymmetricTensor``:
-///         An ``AbelianBackendData`` instance whose blocks have as many axes as the tensor has
-///         legs.
+///         An ``AbelianBackendData`` instance whose blocks have as many axes as the tensor has legs.
 ///
 ///     - ``DiagonalTensor`` :
 ///         An ``AbelianBackendData`` instance whose blocks have only a single axis.
+///         This is the diagonal of the corresponding 2D block in a ``Tensor``.
 ///
 ///     - ``Mask`` :
-///         An ``AbelianBackendData`` instance whose blocks have only a single axis and bool
-///         values.
+///         An ``AbelianBackendData`` instance whose blocks have only a single axis and bool values.
 class AbelianBackend : public TensorBackend
 {
   public:
@@ -302,6 +321,9 @@ class AbelianBackend : public TensorBackend
                             TensorProduct::Ptr new_codomain,
                             TensorProduct::Ptr new_domain) override;
 
+/// Perform an arbitrary number of traces. Pairs are converted to leg idcs.
+///
+/// Returns ``data, codomain, domain``.
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> partial_trace(
       SymmetricTensorCPtr tensor,
       std::vector<std::pair<int64, int64>> pairs,
@@ -379,6 +401,13 @@ class AbelianBackend : public TensorBackend
     DataPtr zero_mask_data(Space::Ptr large_leg, std::string device) override;
 
     /// Map incoming multi-leg block indices through a pipe ``block_ind_map``.
+/// Map incoming block indices to indices of `block_ind_map`.
+///
+/// Needed for `combine_legs`.
+///
+/// @param pipe The pipe which indices are to be mapped
+/// @param incoming_block_inds Rows are block indices @f$ (i_1, i_2, ... i_{nlegs}) @f$ for incoming legs.
+/// @returns block_inds: 1D array For each row j of `incoming_block_inds` an index `J` such that ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
     BlockInds leg_pipe_map_incoming_block_inds(AbelianLegPipe const& pipe,
                                                BlockInds const& incoming_block_inds) const;
 

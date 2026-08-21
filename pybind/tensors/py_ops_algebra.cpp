@@ -108,9 +108,7 @@ bind_tensors_ops_algebra(py::module_& m)
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg"),
-      doc_cpp_ref(
-        R"pydoc(Apply a projection Mask to one leg of a tensor, *projecting* it to a smaller leg.)pydoc",
-        "cyten::apply_mask()"));
+      DOC(cyten, apply_mask));
 
     m.def(
       "enlarge_leg",
@@ -120,9 +118,7 @@ bind_tensors_ops_algebra(py::module_& m)
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg"),
-      doc_cpp_ref(
-        R"pydoc(Apply an inclusion Mask to one leg of a tensor *embedding* it into a larger leg.)pydoc",
-        "cyten::enlarge_leg()"));
+      DOC(cyten, enlarge_leg));
 
     m.def("dagger", &dagger, py::arg("tensor"), DOC(cyten, dagger));
 
@@ -155,9 +151,7 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       },
       py::kw_only(),
       py::arg("error_msg") = "Incompatible devices.",
-      doc_cpp_ref(
-        R"pydoc(If the given tensors have the same device, return it. Raise otherwise.)pydoc",
-        "cyten::get_same_device()"));
+      DOC(cyten, get_same_device));
 
     // Bind the VectorLike overload (DOC(..., 2)); Tensor overload is DOC(cyten, inner).
     m.def("inner",
@@ -196,7 +190,10 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
           return py::isinstance(obj, py::module_::import("numbers").attr("Number"));
       },
       py::arg("obj"),
-      R"pydoc(If an object is a scalar.)pydoc");
+      doc_plus(DOC(cyten, is_scalar),
+               R"pydoc(
+Also accepts Python numbers and duck-typed tensors with ``domain`` / ``codomain``.
+)pydoc"));
 
     m.def("item", &item, py::arg("tensor"), DOC(cyten, item));
 
@@ -318,7 +315,7 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       py::arg("tensor"),
       py::kw_only(),
       py::arg("levels") = py::none(),
-      doc_cpp_ref(R"pydoc(Perform a partial trace.)pydoc", "cyten::partial_trace()"));
+      DOC(cyten, partial_trace));
 
     m.def("pinv", &pinv, py::arg("tensor"), py::arg("cutoff") = 1e-15, DOC(cyten, pinv));
 
@@ -360,8 +357,7 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       py::arg("tensor"),
       py::arg("diag"),
       py::arg("leg"),
-      doc_cpp_ref(R"pydoc(Contract one `leg` of  `tensor` with a diagonal tensor.)pydoc",
-                  "cyten::scale_axis()"));
+      DOC(cyten, scale_axis));
 
     m.def(
       "tdot",

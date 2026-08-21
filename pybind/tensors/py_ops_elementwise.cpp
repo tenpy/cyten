@@ -2,7 +2,10 @@
 #include <cyten/tensors/ops_elementwise.h>
 #include <cyten/tensors/tensor.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+
+#include "docstrings/tensors/ops_elementwise.h"
 
 #include <format>
 
@@ -59,12 +62,10 @@ bind_tensors_ops_elementwise(py::module_& m)
             [](py::object n) { return numpy().attr("angle")(n); });
       },
       py::arg("x"),
-      R"pydoc(
-The angle of a complex number, :ref:`elementwise <diagonal_elementwise>`.
-
-The counterclockwise angle from the positive real axis on the complex plane in the
-range (-pi, pi] with a real dtype. The angle of `0.` is `0.`.
-)pydoc");
+      doc_plus(DOC(cyten, angle),
+               R"pydoc(
+In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+)pydoc"));
 
     m.def(
       "cutoff_inverse",
@@ -82,11 +83,10 @@ range (-pi, pi] with a real dtype. The angle of `0.` is `0.`.
       },
       py::arg("x"),
       py::arg("cutoff") = 1e-15,
-      R"pydoc(
-The :ref:`elementwise <diagonal_elementwise>` cutoff inverse.
-
-The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise ``0``.
-)pydoc");
+      doc_plus(DOC(cyten, cutoff_inverse),
+               R"pydoc(
+In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+)pydoc"));
 
     m.def(
       "complex_conj",
@@ -97,7 +97,10 @@ The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, othe
             [](py::object n) { return numpy().attr("conj")(n); });
       },
       py::arg("x"),
-      R"pydoc(Complex conjugation, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
+      doc_plus(DOC(cyten, complex_conj),
+               R"pydoc(
+In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+)pydoc"));
 
     m.def(
       "imag",
@@ -108,7 +111,10 @@ The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, othe
             [](py::object n) { return numpy().attr("imag")(n); });
       },
       py::arg("x"),
-      R"pydoc(The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
+      doc_plus(DOC(cyten, imag),
+               R"pydoc(
+In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+)pydoc"));
 
     m.def(
       "real",
@@ -119,7 +125,10 @@ The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, othe
             [](py::object n) { return numpy().attr("real")(n); });
       },
       py::arg("x"),
-      R"pydoc(The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
+      doc_plus(DOC(cyten, real),
+               R"pydoc(
+In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+)pydoc"));
 
     m.def(
       "real_if_close",
@@ -133,21 +142,10 @@ The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, othe
       },
       py::arg("x"),
       py::arg("tol") = 100.,
-      R"pydoc(
-If close to real, return the :func:`real` part, :ref:`elementwise <diagonal_elementwise>`.
-
-Parameters
-----------
-x : :class:`DiagonalTensor` | Number
-    The input complex number(s)
-tol : float
-    The precision for considering the imaginary part "close to zero".
-    Multiples of machine epsilon for the dtype of `x`.
-
-Returns
--------
-If `x` is close to real, the real part of `x`. Otherwise the original complex `x`.
-)pydoc");
+      doc_plus(DOC(cyten, real_if_close),
+               R"pydoc(
+In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+)pydoc"));
 
     m.def(
       "sqrt",
@@ -158,7 +156,10 @@ If `x` is close to real, the real part of `x`. Otherwise the original complex `x
             [](py::object n) { return numpy().attr("sqrt")(n); });
       },
       py::arg("x"),
-      R"pydoc(The square root of a number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
+      doc_plus(DOC(cyten, sqrt),
+               R"pydoc(
+In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+)pydoc"));
 
     m.def(
       "stable_log",
@@ -173,12 +174,10 @@ If `x` is close to real, the real part of `x`. Otherwise the original complex `x
       },
       py::arg("x"),
       py::arg("cutoff") = 1e-30,
-      R"pydoc(
-Stabilized logarithm, :ref:`elementwise <diagonal_elementwise>`.
-
-For values ``> cutoff``, this is the standard natural logarithm. For values smaller than the
-cutoff, return 0.
-)pydoc");
+      doc_plus(DOC(cyten, stable_log),
+               R"pydoc(
+In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+)pydoc"));
 
     m.def(
       "exp",
@@ -189,13 +188,10 @@ cutoff, return 0.
           return numpy().attr("exp")(obj);
       },
       py::arg("obj"),
-      R"pydoc(
-The exponential function.
-
-For a tensor, viewed as a linear map from its domain to its codomain, the exponential
-function is defined via its power series. For a diagonal tensor, this is equivalent to
-the :ref:`elementwise <diagonal_elementwise>` exponential function.
-)pydoc");
+      doc_plus(DOC(cyten, exp),
+               R"pydoc(
+In Python, non-tensor inputs are forwarded to ``numpy.exp``.
+)pydoc"));
 }
 
 } // namespace cyten

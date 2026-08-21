@@ -1,4 +1,6 @@
 #include "../py_cyten_pybind11.h"
+#include "../doc_plus.h"
+#include "docstrings/backends/abelian.h"
 
 #include "backends/casters.hpp"
 
@@ -42,55 +44,7 @@ bind_abelian_backend_data(py::module_& m)
 {
     py::class_<AbelianBackendData, TensorBackend::Data, py::smart_holder> cls(
       m, "AbelianBackendData");
-    cls.doc() = R"pydoc(
-Data stored in a Tensor for :class:`AbelianBackend`.
-
-The :attr:`block_inds` can be visualized as follows::
-
-    |           ---- codomain ---->  <--- domain ----
-    |
-    |      |    x  x  x  x  x  x  x  x  x  x  x  x  x
-    |    b |    x  x  x  x  x  x  x  x  x  x  x  x  x
-    |    l |    x  x  x  x  x  x  x  x  x  x  x  x  x
-    |    o |    x  x  x  x  x  x  x  x  x  x  x  x  x
-    |    c |    x  x  x  x  x  x  x  x  x  x  x  x  x
-    |    k |    x  x  x  x  x  x  x  x  x  x  x  x  x
-    |    s |    x  x  x  x  x  x  x  x  x  x  x  x  x
-    |      |    x  x  x  x  x  x  x  x  x  x  x  x  x
-    |      v
-
-Attributes
-----------
-dtype : Dtype
-    The dtype of the data
-device : str
-    The device on which the blocks are currently stored.
-    We currently only support tensors which have all blocks on a single device.
-    Should be the device returned by :func:`BlockBackend.as_device`.
-blocks : list of block
-    A list of blocks containing the actual entries of the tensor.
-    Leg order is ``[*codomain, *reversed(domain()]``, like ``Tensor.legs``.
-block_inds : BlockInds
-    A 2D array of positive integers with shape (len(blocks), num_legs).
-    The block `blocks[n]` belongs to the `block_inds[n, m]`-th sector of ``leg``,
-    that is to ``leg.sector_decomposition[block_inds[n, m]]``, where::
-
-        leg == (codomain.spaces[m] if m < len(codomain) else domain.spaces[-1 - m])
-            == tensor.get_leg_co_domain(m)
-
-    Thus, the columns of `block_inds` follow the same ordering convention as :attr:`Tensor.legs`.
-    By convention, we store `blocks` and `block_inds` such that ``np.lexsort(block_inds.T)``
-    is sorted.
-
-Parameters
-----------
-dtype, device, blocks, block_inds
-    like attributes above, but not necessarily sorted
-is_sorted : bool
-    If ``False`` (default), we permute `blocks` and `block_inds` according to
-    ``np.lexsort(block_inds.T)``.
-    If ``True``, we assume they are sorted *without* checking.
-)pydoc";
+    cls.doc() = DOC(cyten, AbelianBackendData);
 
     cls.def(py::init([](Dtype dtype,
                         std::string device,
@@ -118,22 +72,11 @@ is_sorted : bool
       .def("get_block_num",
            &AbelianBackendData::get_block_num,
            py::arg("block_inds"),
-           R"pydoc(
-Return the index ``n`` of the block which matches the block_inds.
-
-I.e. such that ``all(self.block_inds[n, :] == block_inds)``.
-Return None if no such ``n`` exists.
-)pydoc")
+           DOC(cyten, AbelianBackendData, get_block_num))
       .def("get_block",
            &AbelianBackendData::get_block,
            py::arg("block_inds"),
-           R"pydoc(
-Get the block at given block indices.
-
-Return the block in :attr:`blocks` matching the given block_inds,
-i.e. `self.blocks[n]` such that `all(self.block_inds[n, :] == blocks_inds)`
-or None if no such block exists
-)pydoc")
+           DOC(cyten, AbelianBackendData, get_block))
       .def("save_hdf5",
            &AbelianBackendData::save_hdf5,
            py::arg("hdf5_saver"),
@@ -151,23 +94,7 @@ bind_abelian_backend(py::module_& m)
 {
     // AbelianBackendData must already be registered (bind_abelian_backend_data).
     py::class_<AbelianBackend, TensorBackend, py::smart_holder> cls(m, "AbelianBackend");
-    cls.doc() = R"pydoc(
-Backend for Abelian group symmetries.
-
-Notes
------
-The data stored for the various tensor classes defined in ``cyten.tensors`` is::
-
-    - ``SymmetricTensor``:
-        An ``AbelianBackendData`` instance whose blocks have as many axes as the tensor has legs.
-
-    - ``DiagonalTensor`` :
-        An ``AbelianBackendData`` instance whose blocks have only a single axis.
-        This is the diagonal of the corresponding 2D block in a ``Tensor``.
-
-    - ``Mask`` :
-        An ``AbelianBackendData`` instance whose blocks have only a single axis and bool values.
-)pydoc";
+    cls.doc() = DOC(cyten, AbelianBackend);
 
     cls.def(py::init([](py::object block_backend) {
                 return std::make_shared<AbelianBackend>(as_shared_block_backend(block_backend));
@@ -181,24 +108,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
             &AbelianBackend::leg_pipe_map_incoming_block_inds,
             py::arg("pipe"),
             py::arg("incoming_block_inds"),
-            R"pydoc(
-            Map incoming block indices to indices of :attr:`block_ind_map`.
-
-            Needed for `combine_legs`.
-
-            Parameters
-            ----------
-            pipe : AbelianLegPipe
-                The pipe which indices are to be mapped
-            incoming_block_inds : 2D array
-                Rows are block indices :math:`(i_1, i_2, ... i_{nlegs})` for incoming legs.
-
-            Returns
-            -------
-            block_inds: 1D array
-                For each row j of `incoming_block_inds` an index `J` such that
-                ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
-            )pydoc");
+            DOC(cyten, AbelianBackend, leg_pipe_map_incoming_block_inds));
 
     cls.def(
       "partial_trace",
@@ -225,20 +135,14 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("tensor"),
       py::arg("pairs"),
       py::arg("levels") = py::none(),
-      R"pydoc(
-      Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-
-      Returns ``data, codomain, domain``.
-      )pydoc");
+      DOC(cyten, AbelianBackend, partial_trace));
 
     // Expose under both the C++ name and the Python private name.
     m.def("valid_block_inds",
           &valid_block_inds,
           py::arg("codomain"),
           py::arg("domain"),
-          R"pydoc(
-Charge-allowed block index combinations for ``codomain`` / ``domain``, lexsorted.
-)pydoc");
+          doc_cpp_ref(R"pydoc(valid_block_inds)pydoc", "cyten::AbelianBackend::valid_block_inds()"));
     m.attr("_valid_block_inds") = m.attr("valid_block_inds");
 }
 
