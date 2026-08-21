@@ -1,7 +1,7 @@
-#include "../py_cyten_pybind11.h"
 #include "../doc_plus.h"
-#include "docstrings/backends/no_symmetry.h"
+#include "../py_cyten_pybind11.h"
 #include "../tensors/py_callbacks.hpp"
+#include "docstrings/backends/no_symmetry.h"
 
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/block_backend/numpy.h>

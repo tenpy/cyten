@@ -280,9 +280,9 @@ class FusionTreeBackend : public TensorBackend
                             TensorProduct::Ptr new_codomain,
                             TensorProduct::Ptr new_domain) override;
 
-/// Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-///
-/// Returns ``data, codomain, domain``.
+    /// Perform an arbitrary number of traces. Pairs are converted to leg idcs.
+    ///
+    /// Returns ``data, codomain, domain``.
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> partial_trace(
       SymmetricTensorCPtr tensor,
       std::vector<std::pair<int64, int64>> pairs,

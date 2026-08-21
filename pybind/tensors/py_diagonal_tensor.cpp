@@ -198,13 +198,9 @@ bind_tensors_diagonal_tensor(py::module_& m)
           }
       });
 
-    cls.def_property_readonly("leg",
-                              &DiagonalTensor::leg,
-                              DOC(cyten, DiagonalTensor, leg));
+    cls.def_property_readonly("leg", &DiagonalTensor::leg, DOC(cyten, DiagonalTensor, leg));
 
-    cls.def("test_sanity",
-            &DiagonalTensor::test_sanity,
-            DOC(cyten, DiagonalTensor, test_sanity));
+    cls.def("test_sanity", &DiagonalTensor::test_sanity, DOC(cyten, DiagonalTensor, test_sanity));
     cls.def("verify_dtype", &DiagonalTensor::verify_dtype);
 
     cls.def_static(
@@ -503,12 +499,8 @@ bind_tensors_diagonal_tensor(py::module_& m)
             &DiagonalTensor::_get_item,
             py::arg("idx"),
             DOC(cyten, DiagonalTensor, _get_item));
-    cls.def("all",
-            &DiagonalTensor::all,
-            DOC(cyten, DiagonalTensor, all));
-    cls.def("any",
-            &DiagonalTensor::any,
-            DOC(cyten, DiagonalTensor, any));
+    cls.def("all", &DiagonalTensor::all, DOC(cyten, DiagonalTensor, all));
+    cls.def("any", &DiagonalTensor::any, DOC(cyten, DiagonalTensor, any));
     cls.def("max", &DiagonalTensor::max);
     cls.def("min", &DiagonalTensor::min);
     cls.def("argmin",
@@ -618,9 +610,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
                py::arg("device") = py::none(),
                py::arg("labels") = py::none());
 
-    id_cls.def("test_sanity",
-               &Identity::test_sanity,
-               DOC(cyten, Identity, test_sanity));
+    id_cls.def("test_sanity", &Identity::test_sanity, DOC(cyten, Identity, test_sanity));
 
     auto bind_unsupported = [&](char const* name) {
         id_cls.def_static(name, [name](py::args, py::kwargs) {
@@ -662,10 +652,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
                       py::arg("subpath"),
                       DOC(cyten, Identity, from_hdf5));
 
-    id_cls.def("as_dtype",
-               &Identity::as_dtype,
-               py::arg("dtype"),
-               DOC(cyten, Identity, as_dtype));
+    id_cls.def("as_dtype", &Identity::as_dtype, py::arg("dtype"), DOC(cyten, Identity, as_dtype));
     id_cls.def("as_SymmetricTensor",
                &Identity::as_SymmetricTensor,
                py::arg("guarantee_copy") = false,
@@ -688,22 +675,13 @@ bind_tensors_diagonal_tensor(py::module_& m)
     id_cls.def("diagonal_as_block", &Identity::diagonal_as_block, py::arg("dtype") = py::none());
     id_cls.def(
       "diagonal_as_numpy", &Identity::diagonal_as_numpy, py::arg("numpy_dtype") = py::none());
-    id_cls.def("_get_item",
-               &Identity::_get_item,
-               py::arg("idx"),
-               DOC(cyten, Identity, _get_item));
-    id_cls.def("all",
-               &Identity::all,
-               DOC(cyten, Identity, all));
-    id_cls.def("any",
-               &Identity::any,
-               DOC(cyten, Identity, any));
+    id_cls.def("_get_item", &Identity::_get_item, py::arg("idx"), DOC(cyten, Identity, _get_item));
+    id_cls.def("all", &Identity::all, DOC(cyten, Identity, all));
+    id_cls.def("any", &Identity::any, DOC(cyten, Identity, any));
     id_cls.def("max", &Identity::max);
     id_cls.def("min", &Identity::min);
-    id_cls.def("argmin",
-               &Identity::argmin,
-               py::arg("s") = py::none(),
-               DOC(cyten, Identity, argmin));
+    id_cls.def(
+      "argmin", &Identity::argmin, py::arg("s") = py::none(), DOC(cyten, Identity, argmin));
     id_cls.def("move_to_device",
                &Identity::move_to_device,
                py::arg("device"),

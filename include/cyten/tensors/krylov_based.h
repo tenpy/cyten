@@ -241,12 +241,12 @@ class Arnoldi : public KrylovBased
 
     Arnoldi(LinearOperator::Ptr H, VectorLike::Ptr psi0, py::object options);
 
-/// Find the ground state of self.H.
-///
-/// @returns
-///     E0s : Best eigenvalue estimates, `num_ev` entries, sorted according to `which`.
-///     psis : Corresponding best eigenvectors (estimates).
-///     N : Used dimension of the Krylov space, i.e., how many iterations were performed.
+    /// Find the ground state of self.H.
+    ///
+    /// @returns
+    ///     E0s : Best eigenvalue estimates, `num_ev` entries, sorted according to `which`.
+    ///     psis : Corresponding best eigenvectors (estimates).
+    ///     N : Used dimension of the Krylov space, i.e., how many iterations were performed.
     std::tuple<std::vector<complex128>, std::vector<VectorLike::Ptr>, int64> run();
     int64 _build_krylov() override;
     void _calc_result_krylov(int64 k) override;
@@ -288,13 +288,17 @@ class ArnoldiEvolution : public Arnoldi
 
     ArnoldiEvolution(LinearOperator::Ptr H, VectorLike::Ptr psi0, py::object options);
 
-/// Compute ``expm(delta * H).dot(psi0)`` using Arnoldi.
-///
-/// @param delta Prefactor of H in the exponential. Note that the complex ``i`` is *not* included.
-/// @param normalize Whether to normalize the result. Defaults to ``False``. Unlike `LanczosEvolution` (which defaults to ``np.real(delta) == 0``), non-Hermitian evolution does not in general preserve the norm, so normalization would strip physically meaningful decay or growth and is off by default.
-/// @returns
-///     psi_f : Best approximation for ``expm(delta * H).dot(psi0)``.
-///     N : Krylov space dimension used.
+    /// Compute ``expm(delta * H).dot(psi0)`` using Arnoldi.
+    ///
+    /// @param delta Prefactor of H in the exponential. Note that the complex ``i`` is *not*
+    /// included.
+    /// @param normalize Whether to normalize the result. Defaults to ``False``. Unlike
+    /// `LanczosEvolution` (which defaults to ``np.real(delta) == 0``), non-Hermitian evolution
+    /// does not in general preserve the norm, so normalization would strip physically meaningful
+    /// decay or growth and is off by default.
+    /// @returns
+    ///     psi_f : Best approximation for ``expm(delta * H).dot(psi0)``.
+    ///     N : Krylov space dimension used.
     std::tuple<VectorLike::Ptr, int64> run(complex128 delta,
                                            std::optional<bool> normalize = std::nullopt);
     void _calc_result_krylov(int64 k) override;
@@ -327,12 +331,12 @@ class LanczosGroundState : public KrylovBased
 
     LanczosGroundState(LinearOperator::Ptr H, VectorLike::Ptr psi0, py::object options);
 
-/// Find the ground state of H.
-///
-/// @returns
-///     E0 : Ground state energy (estimate).
-///     psi0 : Ground state vector (estimate).
-///     N : Used dimension of the Krylov space, i.e., how many iterations were performed.
+    /// Find the ground state of H.
+    ///
+    /// @returns
+    ///     E0 : Ground state energy (estimate).
+    ///     psi0 : Ground state vector (estimate).
+    ///     N : Used dimension of the Krylov space, i.e., how many iterations were performed.
     std::tuple<float64, VectorLike::Ptr, int64> run();
     int64 _build_krylov() override;
     bool _converged(int64 k) override;
@@ -376,14 +380,16 @@ class LanczosEvolution : public LanczosGroundState
 
     LanczosEvolution(LinearOperator::Ptr H, VectorLike::Ptr psi0, py::object options);
 
-/// Calculate ``expm(delta H).dot(psi0)`` using Lanczos.
-///
-/// @param delta Time step by which we should evolve psi0: prefactor of H in the exponential. Note that the complex `i` is *not* included!
-/// @param normalize Whether to normalize the resulting state. Defaults to ``np.real(delta) == 0``.
-/// @returns
-///     psi_f : Best approximation for ``expm(delta H).dot(psi0)``. If `E_shift` is used,
-///     it's an approximation for ``expm(delta (H + E_shift)).dot(psi)``.
-///     N : Krylov space dimension used.
+    /// Calculate ``expm(delta H).dot(psi0)`` using Lanczos.
+    ///
+    /// @param delta Time step by which we should evolve psi0: prefactor of H in the exponential.
+    /// Note that the complex `i` is *not* included!
+    /// @param normalize Whether to normalize the resulting state. Defaults to ``np.real(delta) ==
+    /// 0``.
+    /// @returns
+    ///     psi_f : Best approximation for ``expm(delta H).dot(psi0)``. If `E_shift` is used,
+    ///     it's an approximation for ``expm(delta (H + E_shift)).dot(psi)``.
+    ///     N : Krylov space dimension used.
     std::tuple<VectorLike::Ptr, int64> run(complex128 delta,
                                            std::optional<bool> normalize = std::nullopt);
     void _calc_result_krylov(int64 k) override;

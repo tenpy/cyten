@@ -175,7 +175,8 @@ class IdentityMapping
 
 /// Sparse mapping with `FusionTree` keys and ``complex128`` coefficients.
 using SparseMappingFusionTree = SparseMapping<FusionTree, complex128>;
-/// Sparse mapping with ``(FusionTree, FusionTree)`` keys (tree pairs) and ``complex128`` coefficients.
+/// Sparse mapping with ``(FusionTree, FusionTree)`` keys (tree pairs) and ``complex128``
+/// coefficients.
 using SparseMappingFusionTreePair = SparseMapping<std::pair<FusionTree, FusionTree>, complex128>;
 using IdentityMappingFusionTree = IdentityMapping<FusionTree, complex128>;
 using IdentityMappingFusionTreePair =

@@ -51,7 +51,8 @@ class PermuteLegsInstructionEngine
     /// braid chiralities.
     /// TODO should we?
     ///
-    /// @param num_codomain_legs, num_domain_legs The leg numbers of the original non-permuted tensor.
+    /// @param num_codomain_legs, num_domain_legs The leg numbers of the original non-permuted
+    /// tensor.
     /// @param codomain_idcs, domain_idcs The target permutations.
     void verify(int64 num_codomain_legs_,
                 int64 num_domain_legs_,

@@ -222,13 +222,13 @@ class BlockBackend
         Scalar imag() const;
         Scalar abs() const;
         Scalar sqrt() const;
-/// The *elementwise* exponential.
-///
-/// Not to be confused with `matrix_exp`, the *matrix* exponential.
+        /// The *elementwise* exponential.
+        ///
+        /// Not to be confused with `matrix_exp`, the *matrix* exponential.
         Scalar exp() const;
-/// The *elementwise* natural logarithm.
-///
-/// Not to be confused with the matrix logarithm (not implemented).
+        /// The *elementwise* natural logarithm.
+        ///
+        /// Not to be confused with the matrix logarithm (not implemented).
         Scalar log() const;
         Scalar pow(const Scalar& exponent) const;
 
@@ -333,7 +333,15 @@ class BlockBackend
     /// Return the permutation that would sort a block along one axis.
     ///
     /// @param block The block to sort.
-    /// @param sort Specify how the arguments should be sorted.  ==================== ============================= `sort`               order ==================== ============================= ``'m>', 'LM'``       Largest magnitude first -------------------- ----------------------------- ``'m<', 'SM'``       Smallest magnitude first -------------------- ----------------------------- ``'>', 'LR', 'LA'``  Largest real part first -------------------- ----------------------------- ``'<', 'SR', 'SA'``  Smallest real part first -------------------- ----------------------------- ``'LI'``             Largest imaginary part first -------------------- ----------------------------- ``'SI'``             Smallest imaginary part first ==================== =============================
+    /// @param sort Specify how the arguments should be sorted.  ====================
+    /// ============================= `sort`               order ====================
+    /// ============================= ``'m>', 'LM'``       Largest magnitude first
+    /// -------------------- ----------------------------- ``'m<', 'SM'``       Smallest magnitude
+    /// first -------------------- ----------------------------- ``'>', 'LR', 'LA'``  Largest real
+    /// part first -------------------- ----------------------------- ``'<', 'SR', 'SA'``  Smallest
+    /// real part first -------------------- ----------------------------- ``'LI'`` Largest
+    /// imaginary part first -------------------- ----------------------------- ``'SI'`` Smallest
+    /// imaginary part first ==================== =============================
     /// @param axis The axis along which to sort
     /// @returns The indices that would sort the block
     BlockPtr argsort(const BlockCPtr& block,
@@ -357,8 +365,8 @@ class BlockBackend
     /// Create a new, independent block with the same data
     ///
     /// @param a The block to copy
-    /// @param device The device for the new block. Per default, use the same device as the old block.
-    /// as_block
+    /// @param device The device for the new block. Per default, use the same device as the old
+    /// block. as_block
     ///     Function to guarantee dtype and device, without forcing copies.
     virtual BlockPtr copy_block(const BlockCPtr& a,
                                 std::optional<std::string> device = std::nullopt) = 0;
@@ -392,7 +400,8 @@ class BlockBackend
     /// Convert a mask to a full block.
     ///
     /// Return a (N, M) of numbers (float or complex dtype) from a 1D bool-valued block shape (M,)
-    /// where N is the number of True entries. The result is the coefficient matrix of the projection map.
+    /// where N is the number of True entries. The result is the coefficient matrix of the
+    /// projection map.
     virtual BlockPtr block_from_mask(const BlockCPtr& mask, Dtype dtype) = 0;
     virtual BlockPtr block_from_numpy(const py::array& a,
                                       std::optional<Dtype> dtype = std::nullopt,
@@ -443,8 +452,11 @@ class BlockBackend
     virtual BlockPtr mul(complex128 a, const BlockCPtr& b);
     /// The p-norm vector-norm of a block.
     ///
-    /// @param order The order @f$ p @f$ of the norm. Unlike numpy, we always compute vector norms, never matrix norms. We only support p-norms @f$ \Vert x \Vert = \sqrt[p]{\sum_i \abs{x_i}^p} @f$.
-    /// @param axis ``axis=None`` means "all axes", i.e. norm of the flattened block. An integer means to broadcast the norm over all other axes.
+    /// @param order The order @f$ p @f$ of the norm. Unlike numpy, we always compute vector norms,
+    /// never matrix norms. We only support p-norms @f$ \Vert x \Vert = \sqrt[p]{\sum_i
+    /// \abs{x_i}^p} @f$.
+    /// @param axis ``axis=None`` means "all axes", i.e. norm of the flattened block. An integer
+    /// means to broadcast the norm over all other axes.
     virtual Scalar norm(const BlockCPtr& a,
                         float64 order = 2,
                         std::optional<int64> axis = std::nullopt) = 0;
@@ -457,10 +469,14 @@ class BlockBackend
     ///
     /// @param a A matrix with combined axes ``[(m1.m2...mJ), (n1.n2...nK)]``.
     /// @param dims1 The dimensions of the subindices ``[m1, m2, ..., mJ]``.
-    /// @param idcs1 Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the first multi-index of the result.
+    /// @param idcs1 Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the
+    /// first multi-index of the result.
     /// @param dims2 The dimensions of the subindices ``[n1, n2, ..., nK]``.
-    /// @param idcs2 Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the second multi-index of the result.
-    /// @returns A matrix with the same entries as `a`, but rearranged to the new axis order, e.g. ``[M, N]``, where ``M == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs1])`` and ``N == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``.
+    /// @param idcs2 Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the
+    /// second multi-index of the result.
+    /// @returns A matrix with the same entries as `a`, but rearranged to the new axis order, e.g.
+    /// ``[M, N]``, where ``M == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs1])`` and ``N ==
+    /// combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``.
     ///
     /// permute_combined_idx
     BlockPtr permute_combined_matrix(const BlockCPtr& block,
@@ -470,11 +486,14 @@ class BlockBackend
                                      const std::vector<int64>& idcs2);
     /// For a matrix `a` with a single combined multi-index, permute sub-indices.
     ///
-    /// @param a A matrix with axes ``[M, N]``, where either ``M = (m1.m2...mJ)`` or ``N = (n1.n2...nK)`` is a multi-index *but not both*.
+    /// @param a A matrix with axes ``[M, N]``, where either ``M = (m1.m2...mJ)`` or ``N =
+    /// (n1.n2...nK)`` is a multi-index *but not both*.
     /// @param axis Which of the two axes has the multi-indices
     /// @param dims The dimensions of the sub-indices, e.g. ``[m1, m2, ..., mJ]``.
-    /// @param idcs The order of the sub-indices in the results, such that the result has axes ``[[m1, m2, ..., mJ][i] for i in idcs]``.
-    /// @returns A matrix with the same entries as `a`, but rearranged to the new axis order, i.e. ``[M_new, N_new]`` where e.g. ``M_new = combined([m1, m2, ..., mJ][idcs])``.
+    /// @param idcs The order of the sub-indices in the results, such that the result has axes
+    /// ``[[m1, m2, ..., mJ][i] for i in idcs]``.
+    /// @returns A matrix with the same entries as `a`, but rearranged to the new axis order, i.e.
+    /// ``[M_new, N_new]`` where e.g. ``M_new = combined([m1, m2, ..., mJ][idcs])``.
     ///
     /// permute_combined_matrix
     BlockPtr permute_combined_idx(const BlockCPtr& block,
@@ -574,7 +593,9 @@ class BlockBackend
     ///
     /// @param a The mask block
     /// @param large_leg_idx, small_leg_idx The block indices
-    /// @param sum_block Number of `True` entries in the block, i.e., ``sum_block == self.sum_all(a)``. Agrees with the sector multiplicity of the small leg. (Only important if the sector dimension is larger than 1.)
+    /// @param sum_block Number of `True` entries in the block, i.e., ``sum_block ==
+    /// self.sum_all(a)``. Agrees with the sector multiplicity of the small leg. (Only important if
+    /// the sector dimension is larger than 1.)
     virtual Scalar get_block_mask_element(const BlockCPtr& a,
                                           int64 large_leg_idx,
                                           int64 small_leg_idx,

@@ -34,18 +34,18 @@ namespace cyten {
 ///     A SectorArray with no sectors, shape ``(0, sector_ind_len)``.
 /// has_complex_topological_data : bool
 ///     If any of the topological data (F, R, C, B symbols, twist) for any sectors is complex.
-///     If so, tensors with that symmetry must have a complex dtype (except DiagonalTensor or Mask),
-///     since real blocks become complex under leg manipulations.
-///     Note: for a group (and for fermions), the topo data must be real if the fusion tensors
-///     are real. This is because the associator, the braid, and the cup are all real for groups.
+///     If so, tensors with that symmetry must have a complex dtype (except DiagonalTensor or
+///     Mask), since real blocks become complex under leg manipulations. Note: for a group (and for
+///     fermions), the topo data must be real if the fusion tensors are real. This is because the
+///     associator, the braid, and the cup are all real for groups.
 ///
 /// Notes:
 ///
 /// Some symmetries can be dropped to `NoSymmetry`, see `can_be_dropped`.
-/// It implies that all operations that may be carried out on symmetric objects have a corresponding
-/// operation on a non-symmetric counterpart. For example, a symmetric space @f$ A @f$ has a
-/// corresponding space @f$ \mathbb{C}^{n_A} @f$, without further structure.
-/// It "corresponds" to @f$ A @f$ in the sense that it has the same properties, e.g. same dimension,
+/// It implies that all operations that may be carried out on symmetric objects have a
+/// corresponding operation on a non-symmetric counterpart. For example, a symmetric space @f$ A
+/// @f$ has a corresponding space @f$ \mathbb{C}^{n_A} @f$, without further structure. It
+/// "corresponds" to @f$ A @f$ in the sense that it has the same properties, e.g. same dimension,
 /// and that there are compatible operations (tensor product, direct sum, ...) such that::
 ///
 ///     symmetric A  -------- (operation) --->   symmetric B
@@ -58,8 +58,8 @@ namespace cyten {
 /// commutes.
 /// The same goes for tensors, i.e. for symmetric tensors there are corresponding non-symmetric
 /// tensors which we may manipulate instead. This means that if *and only if* the symmetry has this
-/// property does it make sense to convert between symmetric tensors and e.g. numpy arrays, which we
-/// can think of as tensors with `NoSymmetry`. Additionally, the concept of a basis only makes
+/// property does it make sense to convert between symmetric tensors and e.g. numpy arrays, which
+/// we can think of as tensors with `NoSymmetry`. Additionally, the concept of a basis only makes
 /// sense in exactly these cases.
 class SymmetryFactor : public BaseSymmetry
 {

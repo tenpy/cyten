@@ -72,9 +72,7 @@ bind_tensors_charged_tensor(py::module_& m)
       });
     cls.def_readonly("charge_leg", &ChargedTensor::charge_leg);
 
-    cls.def("test_sanity",
-            &ChargedTensor::test_sanity,
-            DOC(cyten, ChargedTensor, test_sanity));
+    cls.def("test_sanity", &ChargedTensor::test_sanity, DOC(cyten, ChargedTensor, test_sanity));
 
     cls.def_static(
       "_parse_inv_domain",
@@ -269,10 +267,8 @@ bind_tensors_charged_tensor(py::module_& m)
             py::arg("subpath"),
             DOC(cyten, ChargedTensor, save_hdf5));
 
-    cls.def("as_dtype",
-            &ChargedTensor::as_dtype,
-            py::arg("dtype"),
-            DOC(cyten, ChargedTensor, as_dtype));
+    cls.def(
+      "as_dtype", &ChargedTensor::as_dtype, py::arg("dtype"), DOC(cyten, ChargedTensor, as_dtype));
     cls.def("as_SymmetricTensor",
             &ChargedTensor::as_SymmetricTensor,
             py::arg("guarantee_copy") = false,
@@ -286,12 +282,8 @@ bind_tensors_charged_tensor(py::module_& m)
             py::arg("dtype") = py::none(),
             DOC(cyten, ChargedTensor, copy));
 
-    cls.def_property_readonly("dagger",
-                              &ChargedTensor::dagger,
-                              DOC(cyten, ChargedTensor, dagger));
-    cls.def_property_readonly("hc",
-                              &ChargedTensor::dagger,
-                              DOC(cyten, ChargedTensor, dagger));
+    cls.def_property_readonly("dagger", &ChargedTensor::dagger, DOC(cyten, ChargedTensor, dagger));
+    cls.def_property_readonly("hc", &ChargedTensor::dagger, DOC(cyten, ChargedTensor, dagger));
 
     cls.def("_get_item",
             &ChargedTensor::_get_item,

@@ -21,9 +21,8 @@ bind_tensors_direct_sum(py::module_& m)
     py::class_<DirectSum, VectorLike, py::smart_holder> cls(m, "DirectSum");
     cls.doc() = DOC(cyten, DirectSum);
 
-    cls.def(py::init<std::vector<TensorPtr>>(),
-            py::arg("components"),
-            DOC(cyten, DirectSum, DirectSum));
+    cls.def(
+      py::init<std::vector<TensorPtr>>(), py::arg("components"), DOC(cyten, DirectSum, DirectSum));
 
     cls.def_property_readonly(
       "components",
@@ -33,10 +32,7 @@ bind_tensors_direct_sum(py::module_& m)
     cls.def_property_readonly("device", &DirectSum::device);
     cls.def_property_readonly("backend", &DirectSum::backend);
 
-    cls.def("copy",
-            &DirectSum::copy,
-            py::arg("deep") = true,
-            DOC(cyten, DirectSum, copy));
+    cls.def("copy", &DirectSum::copy, py::arg("deep") = true, DOC(cyten, DirectSum, copy));
     cls.def("__len__", &DirectSum::size);
     cls.def(
       "__getitem__", [](DirectSum const& self, int64 i) { return self.at(i); }, py::arg("i"));

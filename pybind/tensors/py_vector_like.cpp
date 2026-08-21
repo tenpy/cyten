@@ -104,15 +104,12 @@ bind_tensors_vector_like(py::module_& m)
       "copy",
       [](VectorLike const& self) { return py_cast_vector_like(self.clone()); },
       DOC(cyten, VectorLike, clone));
-    cls.def_property_readonly("dtype",
-                              &VectorLike::vector_dtype,
-                              DOC(cyten, VectorLike, vector_dtype));
-    cls.def_property_readonly("device",
-                              &VectorLike::vector_device,
-                              DOC(cyten, VectorLike, vector_device));
-    cls.def_property_readonly("backend",
-                              &VectorLike::vector_backend,
-                              DOC(cyten, VectorLike, vector_backend));
+    cls.def_property_readonly(
+      "dtype", &VectorLike::vector_dtype, DOC(cyten, VectorLike, vector_dtype));
+    cls.def_property_readonly(
+      "device", &VectorLike::vector_device, DOC(cyten, VectorLike, vector_device));
+    cls.def_property_readonly(
+      "backend", &VectorLike::vector_backend, DOC(cyten, VectorLike, vector_backend));
     cls.def("compatible_with",
             &VectorLike::compatible_with,
             py::arg("other"),

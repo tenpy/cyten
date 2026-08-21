@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../doc_plus.h"
 #include "docstrings/symmetries/exceptions.h"
+#include "py_cyten_pybind11.h"
 
 #include <cyten/symmetries/exceptions.h>
 

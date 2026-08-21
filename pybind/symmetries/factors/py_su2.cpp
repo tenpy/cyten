@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/su2.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
@@ -14,9 +14,7 @@ namespace cyten {
 void
 bind_su2(py::module_& m)
 {
-    py::class_<SU2, Group, py::smart_holder> cls(m,
-                                                 "SU2",
-                                                 DOC(cyten, SU2));
+    py::class_<SU2, Group, py::smart_holder> cls(m, "SU2", DOC(cyten, SU2));
 
     cls.def(py::init<std::optional<std::string>>(), py::arg("descriptive_name") = py::none())
       .def_static(

@@ -57,7 +57,8 @@ namespace cyten {
 ///     is sorted.
 ///
 /// @param dtype, device, blocks, block_inds like attributes above, but not necessarily sorted
-/// @param is_sorted If ``False`` (default), we permute `blocks` and `block_inds` according to ``np.lexsort(block_inds.T)``. If ``True``, we assume they are sorted *without* checking.
+/// @param is_sorted If ``False`` (default), we permute `blocks` and `block_inds` according to
+/// ``np.lexsort(block_inds.T)``. If ``True``, we assume they are sorted *without* checking.
 class AbelianBackendData : public TensorBackend::Data
 {
   public:
@@ -102,14 +103,16 @@ BlockInds valid_block_inds(TensorProduct::Ptr codomain, TensorProduct::Ptr domai
 /// The data stored for the various tensor classes defined in ``cyten.tensors`` is::
 ///
 ///     - ``SymmetricTensor``:
-///         An ``AbelianBackendData`` instance whose blocks have as many axes as the tensor has legs.
+///         An ``AbelianBackendData`` instance whose blocks have as many axes as the tensor has
+///         legs.
 ///
 ///     - ``DiagonalTensor`` :
 ///         An ``AbelianBackendData`` instance whose blocks have only a single axis.
 ///         This is the diagonal of the corresponding 2D block in a ``Tensor``.
 ///
 ///     - ``Mask`` :
-///         An ``AbelianBackendData`` instance whose blocks have only a single axis and bool values.
+///         An ``AbelianBackendData`` instance whose blocks have only a single axis and bool
+///         values.
 class AbelianBackend : public TensorBackend
 {
   public:
@@ -311,9 +314,9 @@ class AbelianBackend : public TensorBackend
                             TensorProduct::Ptr new_codomain,
                             TensorProduct::Ptr new_domain) override;
 
-/// Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-///
-/// Returns ``data, codomain, domain``.
+    /// Perform an arbitrary number of traces. Pairs are converted to leg idcs.
+    ///
+    /// Returns ``data, codomain, domain``.
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> partial_trace(
       SymmetricTensorCPtr tensor,
       std::vector<std::pair<int64, int64>> pairs,
@@ -395,8 +398,10 @@ class AbelianBackend : public TensorBackend
     /// Needed for `combine_legs`.
     ///
     /// @param pipe The pipe which indices are to be mapped
-    /// @param incoming_block_inds Rows are block indices @f$ (i_1, i_2, ... i_{nlegs}) @f$ for incoming legs.
-    /// @returns block_inds: 1D array For each row j of `incoming_block_inds` an index `J` such that ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
+    /// @param incoming_block_inds Rows are block indices @f$ (i_1, i_2, ... i_{nlegs}) @f$ for
+    /// incoming legs.
+    /// @returns block_inds: 1D array For each row j of `incoming_block_inds` an index `J` such
+    /// that ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
     BlockInds leg_pipe_map_incoming_block_inds(AbelianLegPipe const& pipe,
                                                BlockInds const& incoming_block_inds) const;
 

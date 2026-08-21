@@ -128,14 +128,10 @@ bind_tensors_tensor(py::module_& m)
 
     cls.def("test_sanity", &Tensor::test_sanity, DOC(cyten, Tensor, test_sanity));
 
-    cls.def_property_readonly("ascii_diagram",
-                              &Tensor::ascii_diagram,
-                              DOC(cyten, Tensor, ascii_diagram));
+    cls.def_property_readonly(
+      "ascii_diagram", &Tensor::ascii_diagram, DOC(cyten, Tensor, ascii_diagram));
 
-    cls.def("as_dtype",
-            &Tensor::as_dtype,
-            py::arg("dtype"),
-            DOC(cyten, Tensor, as_dtype));
+    cls.def("as_dtype", &Tensor::as_dtype, py::arg("dtype"), DOC(cyten, Tensor, as_dtype));
 
     cls.def(
       "as_SymmetricTensor",
@@ -200,29 +196,24 @@ bind_tensors_tensor(py::module_& m)
       py::arg("understood_braiding") = false,
       DOC(cyten, Tensor, to_dense_block));
 
-    cls.def_property_readonly("codomain_labels",
-                              &Tensor::codomain_labels,
-                              DOC(cyten, Tensor, codomain_labels));
+    cls.def_property_readonly(
+      "codomain_labels", &Tensor::codomain_labels, DOC(cyten, Tensor, codomain_labels));
     cls.def_property_readonly(
       "dagger",
       [](py::object self) {
           return py::module_::import("cyten.tensors._tensors").attr("dagger")(self);
       },
       DOC(cyten, Tensor, dagger));
-    cls.def_property_readonly("domain_labels",
-                              &Tensor::domain_labels,
-                              DOC(cyten, Tensor, domain_labels));
     cls.def_property_readonly(
-      "has_pipes", &Tensor::has_pipes, DOC(cyten, Tensor, has_pipes));
+      "domain_labels", &Tensor::domain_labels, DOC(cyten, Tensor, domain_labels));
+    cls.def_property_readonly("has_pipes", &Tensor::has_pipes, DOC(cyten, Tensor, has_pipes));
     cls.def_property_readonly(
       "hc",
       [](py::object self) {
           return py::module_::import("cyten.tensors._tensors").attr("dagger")(self);
       },
       DOC(cyten, Tensor, dagger));
-    cls.def_property_readonly("legs",
-                              &Tensor::legs,
-                              DOC(cyten, Tensor, legs));
+    cls.def_property_readonly("legs", &Tensor::legs, DOC(cyten, Tensor, legs));
 
     cls.def("move_to_device",
             &Tensor::move_to_device,
@@ -230,13 +221,9 @@ bind_tensors_tensor(py::module_& m)
             DOC(cyten, Tensor, move_to_device));
 
     cls.def_property_readonly(
-      "num_codomain_legs",
-      &Tensor::num_codomain_legs,
-      DOC(cyten, Tensor, num_codomain_legs));
+      "num_codomain_legs", &Tensor::num_codomain_legs, DOC(cyten, Tensor, num_codomain_legs));
     cls.def_property_readonly(
-      "num_domain_legs",
-      &Tensor::num_domain_legs,
-      DOC(cyten, Tensor, num_domain_legs));
+      "num_domain_legs", &Tensor::num_domain_legs, DOC(cyten, Tensor, num_domain_legs));
     cls.def_property_readonly("num_codomain_flat_legs",
                               &Tensor::num_codomain_flat_legs,
                               DOC(cyten, Tensor, num_codomain_flat_legs));
@@ -245,12 +232,9 @@ bind_tensors_tensor(py::module_& m)
                               DOC(cyten, Tensor, num_domain_flat_legs));
     cls.def_property_readonly(
       "num_flat_legs", &Tensor::num_flat_legs, DOC(cyten, Tensor, num_flat_legs));
-    cls.def_property_readonly("num_parameters",
-                              &Tensor::num_parameters,
-                              DOC(cyten, Tensor, num_parameters));
-    cls.def_property_readonly("size",
-                              &Tensor::size,
-                              DOC(cyten, Tensor, size));
+    cls.def_property_readonly(
+      "num_parameters", &Tensor::num_parameters, DOC(cyten, Tensor, num_parameters));
+    cls.def_property_readonly("size", &Tensor::size, DOC(cyten, Tensor, size));
     cls.def_property_readonly(
       "T",
       [](py::object self) {
@@ -358,10 +342,7 @@ bind_tensors_tensor(py::module_& m)
         py::arg("idx"),
         DOC(cyten, Tensor, _as_codomain_leg))
       .def("dbg", &Tensor::dbg)
-      .def("_get_item",
-           &Tensor::_get_item,
-           py::arg("idx"),
-           DOC(cyten, Tensor, _as_codomain_leg))
+      .def("_get_item", &Tensor::_get_item, py::arg("idx"), DOC(cyten, Tensor, _as_codomain_leg))
       .def(
         "_parse_leg_idx",
         [](Tensor const& self, py::object which_leg) {

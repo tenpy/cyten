@@ -107,10 +107,7 @@ bind_tensors_labels(py::module_& m)
       py::arg("label"),
       DOC(cyten, _dual_leg_label));
 
-    m.def("_dual_label_list",
-          &_dual_label_list,
-          py::arg("labels"),
-          DOC(cyten, _dual_label_list));
+    m.def("_dual_label_list", &_dual_label_list, py::arg("labels"), DOC(cyten, _dual_label_list));
 
     m.def(
       "_get_matching_labels",
@@ -155,10 +152,8 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
                                  return out;
                              })
       .def("test_sanity", &LabelledLegs::test_sanity, DOC(cyten, LabelledLegs, test_sanity))
-      .def("get_leg_idcs",
-           &py_get_leg_idcs,
-           py::arg("idcs"),
-           DOC(cyten, LabelledLegs, get_leg_idcs))
+      .def(
+        "get_leg_idcs", &py_get_leg_idcs, py::arg("idcs"), DOC(cyten, LabelledLegs, get_leg_idcs))
       .def(
         "has_label",
         [](LabelledLegs const& self, py::args args) {

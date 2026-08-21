@@ -77,7 +77,7 @@ class FusionTree
                SectorArray inner_sectors,
                std::optional<std::vector<int64>> multiplicities = std::nullopt);
 
-/// The empty tree with no uncoupled sectors.
+    /// The empty tree with no uncoupled sectors.
     void test_sanity() const;
 
     /// Assume an abelian symmetry and build the unique tree with the given `uncoupled`.
@@ -91,7 +91,7 @@ class FusionTree
     /// A tree with a single uncoupled sector and no nodes.
     static FusionTree from_sector(Symmetry::Ptr symmetry, Sector sector, bool is_dual);
 
-/// The uncoupled sectors *above* any Z isomorphisms.
+    /// The uncoupled sectors *above* any Z isomorphisms.
     [[nodiscard]] SectorArray pre_Z_uncoupled() const;
 
     [[nodiscard]] std::size_t hash() const;
@@ -121,10 +121,16 @@ class FusionTree
     ///     |   ┡━━━┯━━━┯━━━┯━┛  │                    ┡━━━┯━━━┯━━━┯━┛  │
     ///     |   │   │   │   │    │                    │   │   │   ╰────╯
     ///
-    /// @param X, Y The original tree pair, such that we modify ``hconj(X) @ Y``. Note that `X` is a fusion tree that represents the splitting tree ``hconj(X)``.
-    /// @param bend_downward Whether the rightmost leg of `Y` is bent down (``bend_downward == True``) or the rightmost leg of ``hconj(X)`` is bent up (``bend_downward == False``).
+    /// @param X, Y The original tree pair, such that we modify ``hconj(X) @ Y``. Note that `X` is
+    /// a fusion tree that represents the splitting tree ``hconj(X)``.
+    /// @param bend_downward Whether the rightmost leg of `Y` is bent down (``bend_downward ==
+    /// True``) or the rightmost leg of ``hconj(X)`` is bent up (``bend_downward == False``).
     /// @param do_conj If ``True``, return the conjugate of the coefficients instead.
-    /// @returns linear_combination : dict {FusionTree: complex} The bent tree pair is a linear combination ``bent = sum_i a_i hconj(Y_i) @ X_i`` of tree pairs (where ``Y_i`` is a fusion tree and thus ``hconj(Y_i)`` a splitting tree). The returned dictionary has entries ``linear_combination[Y_i, X_i] = a_i`` for the contributions to this linear combination (i.e. tree pairs for which the coefficient vanishes are omitted).
+    /// @returns linear_combination : dict {FusionTree: complex} The bent tree pair is a linear
+    /// combination ``bent = sum_i a_i hconj(Y_i) @ X_i`` of tree pairs (where ``Y_i`` is a fusion
+    /// tree and thus ``hconj(Y_i)`` a splitting tree). The returned dictionary has entries
+    /// ``linear_combination[Y_i, X_i] = a_i`` for the contributions to this linear combination
+    /// (i.e. tree pairs for which the coefficient vanishes are omitted).
     static FusionTreePairLinearCombination bend_leg(FusionTree const& X,
                                                     FusionTree const& Y,
                                                     bool bend_downward,
@@ -151,7 +157,10 @@ class FusionTree
     /// @param overbraid If we apply an overbraid or an underbraid (see graphic above).
     /// @param cutoff We skip contributions with a prefactor below this.
     /// @param do_conj If ``True``, return the conjugate of the coefficients instead.
-    /// @returns linear_combination : dict {FusionTree: complex} The braided fusion tree is a linear combination ``braided_self = sum_i a_i X_i``. The returned dictionary has entries ``linear_combination[X_i] = a_i`` for the contributions to this linear combination (i.e. trees for which the coefficient vanishes may be omitted).
+    /// @returns linear_combination : dict {FusionTree: complex} The braided fusion tree is a
+    /// linear combination ``braided_self = sum_i a_i X_i``. The returned dictionary has entries
+    /// ``linear_combination[X_i] = a_i`` for the contributions to this linear combination (i.e.
+    /// trees for which the coefficient vanishes may be omitted).
     [[nodiscard]] FusionTreeLinearCombination braid(int64 j,
                                                     bool overbraid,
                                                     float64 cutoff = 1e-16,
@@ -170,8 +179,10 @@ class FusionTree
     /// Update the multiplicity and the three sectors around the ``n``-th vertex.
     ///
     /// @param n The vertex.
-    /// @param a, b, mu, c Three sectors and a multiplicity, like the returns of `vertex_labels`. ``None`` place-holders indicate to not update that value.
-    /// @param copy If ``True``, we return a modified copy. If ``False``, we modify in place and return the modified instance.
+    /// @param a, b, mu, c Three sectors and a multiplicity, like the returns of `vertex_labels`.
+    /// ``None`` place-holders indicate to not update that value.
+    /// @param copy If ``True``, we return a modified copy. If ``False``, we modify in place and
+    /// return the modified instance.
     FusionTree modify_vertex_labels(int64 n,
                                     Sector a,
                                     Sector b,
@@ -189,7 +200,14 @@ class FusionTree
     ///
     /// @param backend The backend for the resulting block. By default, we return a numpy array.
     /// @param dtye The dtype for the resulting block. By default, inferred from the symmetry
-    /// @param understood_braiding For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting dense block does no longer capture the braiding statistics correctly. This means that `permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on the dense block representation. Permuting its legs would require e.g. explicit swap gates. When using the result, special care needs to be taken regarding the leg order. To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to disable the error. It is then your responsibility to take care of leg orders and braids. See `swap_gate_numpy` for manipulations on these dense blocks.
+    /// @param understood_braiding For symmetries with non-trivial (but symmetric) braiding, e.g.
+    /// fermions, the resulting dense block does no longer capture the braiding statistics
+    /// correctly. This means that `permute_legs` is not consistently reproduced by e.g.
+    /// ``numpy.transpose`` on the dense block representation. Permuting its legs would require
+    /// e.g. explicit swap gates. When using the result, special care needs to be taken regarding
+    /// the leg order. To avoid this pitfall, we raise an error by default. Set this flag to
+    /// ``True`` to disable the error. It is then your responsibility to take care of leg orders
+    /// and braids. See `swap_gate_numpy` for manipulations on these dense blocks.
     /// @returns The matrix elements with axes ``[m_a1, m_a2, ..., m_aJ, m_c]``.
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block(BlockBackend* backend = nullptr,
                                                         std::optional<Dtype> dtype = std::nullopt,
@@ -224,10 +242,14 @@ class FusionTree
     /// This yields the result as a linear combination of canonical trees.
     /// We return a dictionary, with those trees as keys and the prefactors as values.
     ///
-    /// @param n The position to insert at. `t2` is inserted above ``t1.uncoupled[n]``. We must have have ``self.are_dual[n] is False``, as we can not have a Z between trees.
+    /// @param n The position to insert at. `t2` is inserted above ``t1.uncoupled[n]``. We must
+    /// have have ``self.are_dual[n] is False``, as we can not have a Z between trees.
     /// @param t2 The fusion tree to insert
-    /// @param eps F symbols whose absolute values are smaller than this number are treated as zero.
-    /// @returns coefficients : dict Trees and coefficients that form the composite map as a linear combination. Abusing notation (``FusionTree`` instances can not actually be scaled or added), this means ``map = sum(c * t for t, c in coefficient.items())``.
+    /// @param eps F symbols whose absolute values are smaller than this number are treated as
+    /// zero.
+    /// @returns coefficients : dict Trees and coefficients that form the composite map as a linear
+    /// combination. Abusing notation (``FusionTree`` instances can not actually be scaled or
+    /// added), this means ``map = sum(c * t for t, c in coefficient.items())``.
     ///
     /// insert
     ///     The same insertion, but restricted to ``n=0``, and returns that tree directly, no dict.
@@ -243,8 +265,10 @@ class FusionTree
     /// are allowed fusion channels of the coupled sectors).
     ///
     /// @param right_tree Tree to be combined with at the coupled sector from the right.
-    /// @param eps F symbols whose absolute values are smaller than this number are treated as zero.
-    /// @returns linear_combination : dict {FusionTree: complex} Result expressed as linear combination of fusion trees in the canonical basis with the corresponding coefficients.
+    /// @param eps F symbols whose absolute values are smaller than this number are treated as
+    /// zero.
+    /// @returns linear_combination : dict {FusionTree: complex} Result expressed as linear
+    /// combination of fusion trees in the canonical basis with the corresponding coefficients.
     ///
     /// insert_at
     ///     Similar insertion, but the tree is inserted above of an uncoupled sector rather than
@@ -255,7 +279,9 @@ class FusionTree
     /// Split into two separate fusion trees.
     ///
     /// @param n Where to split. Must fulfill ``2 <= n < self.num_uncoupled``.
-    /// @returns t1 : `FusionTree` The part that fuses the ``uncoupled_sectors[:n]`` to ``inner_sectors[n - 2]`` t2 : `FusionTree` The part that fuses ``inner_sectors[n - 2]`` and ``uncoupled_sectors[n:]`` to ``coupled``.
+    /// @returns t1 : `FusionTree` The part that fuses the ``uncoupled_sectors[:n]`` to
+    /// ``inner_sectors[n - 2]`` t2 : `FusionTree` The part that fuses ``inner_sectors[n - 2]`` and
+    /// ``uncoupled_sectors[n:]`` to ``coupled``.
     ///
     /// insert
     [[nodiscard]] std::pair<FusionTree, FusionTree> split(int64 n) const;
@@ -273,8 +299,12 @@ class FusionTree
     /// Twist some legs above a tree, return the resulting linear combination of trees.
     ///
     /// @param idcs Which uncoupled legs to twist
-    /// @param overtwist The chirality of the twist. If the loop is to the right of the wires, an overtwist is such that the free end is on top. See notes below.
-    /// @returns linear_combination : dict {FusionTree: complex} The composite object of tree and twist is a linear combination ``twisted_self = sum_i a_i X_i``. The returned dictionary has entries ``linear_combination[X_i] = a_i`` for the contributions to this linear combination (i.e. trees for which the coefficient vanishes may be omitted).
+    /// @param overtwist The chirality of the twist. If the loop is to the right of the wires, an
+    /// overtwist is such that the free end is on top. See notes below.
+    /// @returns linear_combination : dict {FusionTree: complex} The composite object of tree and
+    /// twist is a linear combination ``twisted_self = sum_i a_i X_i``. The returned dictionary has
+    /// entries ``linear_combination[X_i] = a_i`` for the contributions to this linear combination
+    /// (i.e. trees for which the coefficient vanishes may be omitted).
     ///
     /// Notes:
     ///

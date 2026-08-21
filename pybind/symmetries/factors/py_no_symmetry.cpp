@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/no_symmetry.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
@@ -11,9 +11,7 @@ namespace cyten {
 void
 bind_no_symmetry(py::module_& m)
 {
-    py::class_<NoSymmetry, AbelianGroup, py::smart_holder>(m,
-                                                           "NoSymmetry",
-                                                           DOC(cyten, NoSymmetry))
+    py::class_<NoSymmetry, AbelianGroup, py::smart_holder>(m, "NoSymmetry", DOC(cyten, NoSymmetry))
       .def(py::init<>())
       .def_static("from_hdf5",
                   &NoSymmetry::from_hdf5,

@@ -27,15 +27,20 @@ namespace cyten {
 /// This is the natural type e.g. for singular values or eigenvalue and allows
 /// `elementwise <diagonal_elementwise>` operations.
 ///
-/// @param data The numerical data ("free parameters") comprising the tensor. type is backend-specific
+/// @param data The numerical data ("free parameters") comprising the tensor. type is
+/// backend-specific
 /// @param leg The single leg in both the domain and codomain
 /// @param backend The backend of the tensor.
-/// @param labels Specify the labels for the legs. Can either give two lists, one for the codomain, one for the domain. Or a single flat list for all legs in the order of the `legs`, such that ``[codomain_labels, domain_labels]`` is equivalent to ``[*codomain_legs, *reversed(domain_legs)]``.
+/// @param labels Specify the labels for the legs. Can either give two lists, one for the codomain,
+/// one for the domain. Or a single flat list for all legs in the order of the `legs`, such that
+/// ``[codomain_labels, domain_labels]`` is equivalent to ``[*codomain_legs,
+/// *reversed(domain_legs)]``.
 /// @param .. _diagonal_elementwise
 /// @param Elementwise Functions
 /// @param ---------------------
 /// @param A bunch of "elementwise" functions can be defined for diagonal tensors.
-/// @param If a function can be defined as a power series in ``D`` and ``D.hc``, its action can be achieved
+/// @param If a function can be defined as a power series in ``D`` and ``D.hc``, its action can be
+/// achieved
 /// @param by applying that power series to the diagonal elements individually.
 /// @param E.g. `complex_conj`, `sqrt`, `exp` etc.
 class DiagonalTensor : public SymmetricTensor
@@ -57,32 +62,38 @@ class DiagonalTensor : public SymmetricTensor
 
     [[nodiscard]] std::vector<Dtype> const& forbidden_dtypes() const override;
 
-/// Perform sanity checks.
+    /// Perform sanity checks.
     void test_sanity() const override;
     void verify_dtype() const override;
 
     [[nodiscard]] std::string ascii_diagram_type_name() const override;
     [[nodiscard]] std::string class_name() const override;
 
-/// Return the single space that makes up to domain and codomain.
+    /// Return the single space that makes up to domain and codomain.
     [[nodiscard]] Space::Ptr leg() const;
 
     // --- factories ---
 
-/// Initialize a `SymmetricTensor` by generating its blocks from a function.
-///
-/// Here "the blocks of a tensor" are the backend-specific blocks that contain the free
-/// parameters of the tensor in the `data`. The concrete meaning of these blocks depends
-/// on the backend.
-///
-/// @param func A function with two possible signatures. If `shape_kw` is given, we expect::  ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``  Otherwise::  ``func(shape: tuple[int, ...], **kwargs) -> BlockLike``  Where ``shape`` is the shape of the block to be generate and `func_kwargs` are passed as ``kwargs``. The output is converted to backend-specific blocks via ``backend.as_block``. In particular, it may be modified in-place after that.
-/// @param codomain, domain, backend, labels Arguments for constructor of `SymmetricTensor`.
-/// @param func_kwargs Additional keyword arguments to be passed to ``func``.
-/// @param shape_kw If given, the shape is passed to `func` as a kwarg with this keyword.
-/// @param dtype If given, the resulting blocks from `func` are converted to this dtype.
-/// @param device If given, the resulting blocks are moved to that device. Per default, if `func` returns backend-specific blocks, their device is used and otherwise the default device of the backend.
-/// from_sector_block_func
-///     Allows the `func` to take the current coupled sectors as an argument.
+    /// Initialize a `SymmetricTensor` by generating its blocks from a function.
+    ///
+    /// Here "the blocks of a tensor" are the backend-specific blocks that contain the free
+    /// parameters of the tensor in the `data`. The concrete meaning of these blocks depends
+    /// on the backend.
+    ///
+    /// @param func A function with two possible signatures. If `shape_kw` is given, we expect::
+    /// ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``  Otherwise::  ``func(shape:
+    /// tuple[int, ...], **kwargs) -> BlockLike``  Where ``shape`` is the shape of the block to be
+    /// generate and `func_kwargs` are passed as ``kwargs``. The output is converted to
+    /// backend-specific blocks via ``backend.as_block``. In particular, it may be modified
+    /// in-place after that.
+    /// @param codomain, domain, backend, labels Arguments for constructor of `SymmetricTensor`.
+    /// @param func_kwargs Additional keyword arguments to be passed to ``func``.
+    /// @param shape_kw If given, the shape is passed to `func` as a kwarg with this keyword.
+    /// @param dtype If given, the resulting blocks from `func` are converted to this dtype.
+    /// @param device If given, the resulting blocks are moved to that device. Per default, if
+    /// `func` returns backend-specific blocks, their device is used and otherwise the default
+    /// device of the backend. from_sector_block_func
+    ///     Allows the `func` to take the current coupled sectors as an argument.
     [[nodiscard]] static Ptr from_block_func(BlockFactoryFn func,
                                              Space::Ptr leg,
                                              TensorBackend::Ptr backend = nullptr,
@@ -90,7 +101,7 @@ class DiagonalTensor : public SymmetricTensor
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
-/// Convert a dense block of the backend to a DiagonalTensor.
+    /// Convert a dense block of the backend to a DiagonalTensor.
     [[nodiscard]] static Ptr from_dense_block(BlockBackend::BlockPtr block,
                                               Space::Ptr leg,
                                               TensorBackend::Ptr backend = nullptr,
@@ -100,13 +111,14 @@ class DiagonalTensor : public SymmetricTensor
                                               std::optional<std::string> device = std::nullopt,
                                               bool understood_braiding = false);
 
-/// Convert a dense 1D block containing the diagonal entries to a DiagonalTensor.
-///
-/// @param diag The diagonal entries as a backend-specific block or some data that can be converted using `as_block`. This includes e.g. nested python iterables or numpy arrays.
-/// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
-/// @param dtype If given, `diag` is converted to this dtype.
-/// diagonal_as_block, diagonal_as_numpy
-///     Inverse methods that recover the `diag` entries.
+    /// Convert a dense 1D block containing the diagonal entries to a DiagonalTensor.
+    ///
+    /// @param diag The diagonal entries as a backend-specific block or some data that can be
+    /// converted using `as_block`. This includes e.g. nested python iterables or numpy arrays.
+    /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
+    /// @param dtype If given, `diag` is converted to this dtype.
+    /// diagonal_as_block, diagonal_as_numpy
+    ///     Inverse methods that recover the `diag` entries.
     [[nodiscard]] static Ptr from_diag_block(BlockBackend::BlockPtr diag,
                                              Space::Ptr leg,
                                              TensorBackend::Ptr backend = nullptr,
@@ -115,29 +127,29 @@ class DiagonalTensor : public SymmetricTensor
                                              std::optional<std::string> device = std::nullopt,
                                              float64 tol = 1e-6);
 
-/// The identity map as a DiagonalTensor.
-///
-/// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
-/// @param dtype The dtype for the entries.
+    /// The identity map as a DiagonalTensor.
+    ///
+    /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
+    /// @param dtype The dtype for the entries.
     [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       TensorBackend::Ptr backend = nullptr,
                                       std::optional<LegLabels> labels = std::nullopt,
                                       Dtype dtype = Dtype::Float64,
                                       std::optional<std::string> device = std::nullopt);
 
-/// Generate a sample from the complex normal distribution.
-///
-/// The probability density is
-///
-/// .. math ::
-///     p(T) \propto \mathrm{exp}\left[
-///         \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
-///     \right]
-///
-/// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
-/// @param mean The mean of the distribution. ``None`` is equivalent to zero mean.
-/// @param sigma The standard deviation of the distribution
-/// @param dtype The dtype for the entries.
+    /// Generate a sample from the complex normal distribution.
+    ///
+    /// The probability density is
+    ///
+    /// .. math ::
+    ///     p(T) \propto \mathrm{exp}\left[
+    ///         \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
+    ///     \right]
+    ///
+    /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
+    /// @param mean The mean of the distribution. ``None`` is equivalent to zero mean.
+    /// @param sigma The standard deviation of the distribution
+    /// @param dtype The dtype for the entries.
     [[nodiscard]] static Ptr from_random_normal(Space::Ptr leg = nullptr,
                                                 TensorCPtr mean = nullptr,
                                                 float64 sigma = 1.0,
@@ -146,46 +158,52 @@ class DiagonalTensor : public SymmetricTensor
                                                 Dtype dtype = Dtype::Complex128,
                                                 std::optional<std::string> device = std::nullopt);
 
-/// Generate a tensor with uniformly random block-entries.
-///
-/// The block entries, i.e. the free parameters of the tensor are drawn independently and
-/// uniformly. If dtype is a real type, they are drawn from [-1, 1], if it is complex, real and
-/// imaginary part are drawn independently from [-1, 1].
-///
-/// .. note ::
-///     This is not a well defined probability distribution on the space of symmetric tensors,
-///     since the meaning of the uniformly drawn numbers depends on both the choice of the
-///     basis and on the backend.
-///
-/// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
-/// @param dtype The dtype for the entries.
+    /// Generate a tensor with uniformly random block-entries.
+    ///
+    /// The block entries, i.e. the free parameters of the tensor are drawn independently and
+    /// uniformly. If dtype is a real type, they are drawn from [-1, 1], if it is complex, real and
+    /// imaginary part are drawn independently from [-1, 1].
+    ///
+    /// .. note ::
+    ///     This is not a well defined probability distribution on the space of symmetric tensors,
+    ///     since the meaning of the uniformly drawn numbers depends on both the choice of the
+    ///     basis and on the backend.
+    ///
+    /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
+    /// @param dtype The dtype for the entries.
     [[nodiscard]] static Ptr from_random_uniform(Space::Ptr leg,
                                                  TensorBackend::Ptr backend = nullptr,
                                                  std::optional<LegLabels> labels = std::nullopt,
                                                  Dtype dtype = Dtype::Complex128,
                                                  std::optional<std::string> device = std::nullopt);
 
-/// Initialize a `SymmetricTensor` by generating its blocks from a function.
-///
-/// Here "the blocks of a tensor" are the backend-specific blocks that contain the free
-/// parameters of the tensor in the `data`. The concrete meaning of these blocks depends
-/// on the backend.
-///
-/// Unlike `from_block_func`, this classmethod supports a `func` that takes the current
-/// coupled sector as an argument. The tensor, as a map from its domain to its codomain is
-/// block-diagonal in the coupled sectors, i.e. in the ``domain.sector_decomposition``.
-/// Thus, the free parameters of a tensor are associated with one block of this structure,
-/// and thus with a given coupled sector. A value of ``coupled`` indicates that the generated
-/// block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
-/// in the codomain.
-///
-/// @param func A function with the following signature::  ``func(shape: tuple[int, ...], coupled: Sector, **kwargs) -> BlockLike``  Where ``shape`` is the shape of the block to be generated, ``coupled`` is the current coupled sector and `func_kwargs` are passed as ``kwargs``. The output is converted to backend-specific blocks via ``backend.block_backend.as_block``.
-/// @param codomain, domain, backend, labels Arguments, like for constructor of `SymmetricTensor`.
-/// @param func_kwargs Additional keyword arguments to be passed to ``func``.
-/// @param shape_kw If given, the shape is passed to `func` as a kwarg with this keyword.
-/// @param dtype If given, the resulting blocks from `func` are converted to this dtype.
-/// @param device If given, the resulting blocks are moved to that device. Per default, if `func` returns backend-specific blocks, their device is used and otherwise the default device of the backend.
-/// from_block_func
+    /// Initialize a `SymmetricTensor` by generating its blocks from a function.
+    ///
+    /// Here "the blocks of a tensor" are the backend-specific blocks that contain the free
+    /// parameters of the tensor in the `data`. The concrete meaning of these blocks depends
+    /// on the backend.
+    ///
+    /// Unlike `from_block_func`, this classmethod supports a `func` that takes the current
+    /// coupled sector as an argument. The tensor, as a map from its domain to its codomain is
+    /// block-diagonal in the coupled sectors, i.e. in the ``domain.sector_decomposition``.
+    /// Thus, the free parameters of a tensor are associated with one block of this structure,
+    /// and thus with a given coupled sector. A value of ``coupled`` indicates that the generated
+    /// block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
+    /// in the codomain.
+    ///
+    /// @param func A function with the following signature::  ``func(shape: tuple[int, ...],
+    /// coupled: Sector, **kwargs) -> BlockLike``  Where ``shape`` is the shape of the block to be
+    /// generated, ``coupled`` is the current coupled sector and `func_kwargs` are passed as
+    /// ``kwargs``. The output is converted to backend-specific blocks via
+    /// ``backend.block_backend.as_block``.
+    /// @param codomain, domain, backend, labels Arguments, like for constructor of
+    /// `SymmetricTensor`.
+    /// @param func_kwargs Additional keyword arguments to be passed to ``func``.
+    /// @param shape_kw If given, the shape is passed to `func` as a kwarg with this keyword.
+    /// @param dtype If given, the resulting blocks from `func` are converted to this dtype.
+    /// @param device If given, the resulting blocks are moved to that device. Per default, if
+    /// `func` returns backend-specific blocks, their device is used and otherwise the default
+    /// device of the backend. from_block_func
     [[nodiscard]] static Ptr from_sector_block_func(
       SectorBlockFactoryFn func,
       Space::Ptr leg,
@@ -194,89 +212,104 @@ class DiagonalTensor : public SymmetricTensor
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
-/// Create DiagonalTensor from a Tensor.
-///
-/// @param tens Must have exactly two legs. Its diagonal entries ``tens[i, i]`` are used.
-/// @param tol Tolerance for checking if the `tens` is actually diagonal, in the sense that any "off-diagonal" free parameters that should vanish are smaller than this by magnitude. Set to ``None`` to disable the check.
+    /// Create DiagonalTensor from a Tensor.
+    ///
+    /// @param tens Must have exactly two legs. Its diagonal entries ``tens[i, i]`` are used.
+    /// @param tol Tolerance for checking if the `tens` is actually diagonal, in the sense that any
+    /// "off-diagonal" free parameters that should vanish are smaller than this by magnitude. Set
+    /// to ``None`` to disable the check.
     [[nodiscard]] static Ptr from_tensor(SymmetricTensorCPtr tens,
                                          std::optional<float64> tol = 1e-12);
 
-/// A zero tensor.
-///
-/// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
-/// @param dtype The dtype for the entries.
-/// @param device The device of the tensor. If ``None``, use the `default_device` of the block backend.
+    /// A zero tensor.
+    ///
+    /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
+    /// @param dtype The dtype for the entries.
+    /// @param device The device of the tensor. If ``None``, use the `default_device` of the block
+    /// backend.
     [[nodiscard]] static Ptr from_zero(Space::Ptr leg,
                                        TensorBackend::Ptr backend = nullptr,
                                        std::optional<LegLabels> labels = std::nullopt,
                                        Dtype dtype = Dtype::Complex128,
                                        std::optional<std::string> device = std::nullopt);
 
-/// Import DiagonalTensor from hdf5
+    /// Import DiagonalTensor from hdf5
     [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
                                        py::object h5gr,
                                        std::string const& subpath);
 
-/// Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5
+    /// Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
     // --- Tensor / SymmetricTensor overrides ---
 
-/// Convert to a tensor of the given dtype on the same device.
-///
-/// @param dtype The dtype of the result.
+    /// Convert to a tensor of the given dtype on the same device.
+    ///
+    /// @param dtype The dtype of the result.
     [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
 
-/// Convert to a `SymmetricTensor`, if possible.
-///
-/// @param guarantee_copy If already a SymmetricTensor, we do *not* make a copy by default. Set this flag to ``True`` to guarantee a copy.
-/// @param warning If given, and if the conversion is non-trivial (i.e. if it was not already a SymmetricTensor to begin with), a warning with this text is issued.
+    /// Convert to a `SymmetricTensor`, if possible.
+    ///
+    /// @param guarantee_copy If already a SymmetricTensor, we do *not* make a copy by default. Set
+    /// this flag to ``True`` to guarantee a copy.
+    /// @param warning If given, and if the conversion is non-trivial (i.e. if it was not already a
+    /// SymmetricTensor to begin with), a warning with this text is issued.
     [[nodiscard]] SymmetricTensorPtr as_SymmetricTensor(
       bool guarantee_copy = false,
       std::optional<std::string> warning = std::nullopt) override;
 
-/// Copy the tensor.
-///
-/// @param deep If the copy should be deep. A shallow copy is a new instance with the same data.
-/// @param device The device for the result. Per default, use the same device as `self`.
-/// @param dtype The dtype of the result. Per default, use the same dtype as `self`.
+    /// Copy the tensor.
+    ///
+    /// @param deep If the copy should be deep. A shallow copy is a new instance with the same
+    /// data.
+    /// @param device The device for the result. Per default, use the same device as `self`.
+    /// @param dtype The dtype of the result. Per default, use the same dtype as `self`.
     [[nodiscard]] Tensor::Ptr copy(bool deep = true,
                                    std::optional<std::string> device = std::nullopt,
                                    std::optional<Dtype> dtype = std::nullopt) override;
 
-/// The diagonal part as a `DiagonalTensor`.
-///
-/// @param check_offdiagonal If we should check that the off-diagonal parts vanish.
+    /// The diagonal part as a `DiagonalTensor`.
+    ///
+    /// @param check_offdiagonal If we should check that the off-diagonal parts vanish.
     [[nodiscard]] virtual DiagonalTensorPtr diagonal(bool check_offdiagonal = false) const;
 
-/// Implementation of `__getitem__`.
-///
-/// Can assume we have one non-negative integer index per leg.
+    /// Implementation of `__getitem__`.
+    ///
+    /// Can assume we have one non-negative integer index per leg.
     [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
 
-/// Move tensor to a given device, *in place*.
+    /// Move tensor to a given device, *in place*.
     void move_to_device(std::string device) override;
 
-/// Convert to a tensor with a different backend.
-///
-/// @param backend The backend of the result.
-/// @param dtype The dtype of the result. Per default, use the same dtype as `self`.
-/// @param device The device for the result. Per default, use the same device as `self`.
+    /// Convert to a tensor with a different backend.
+    ///
+    /// @param backend The backend of the result.
+    /// @param dtype The dtype of the result. Per default, use the same dtype as `self`.
+    /// @param device The device for the result. Per default, use the same device as `self`.
     [[nodiscard]] Tensor::Ptr to_backend(
       TensorBackend::Ptr backend,
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt) override;
 
-/// Convert to a dense block of the backend, if possible.
-///
-/// This corresponds to "forgetting" the symmetry structure and is only possible if the
-/// symmetry `can_be_dropped`.
-/// The result is a backend-specific block, e.g. a numpy array if the block backend is a
-/// `NumpyBlockBackend` or a torch Tensor if the backend is a `TorchBlockBackend`.
-///
-/// @param leg_order If given, the leg of the resulting block are permuted to match this leg order.
-/// @param dtype If given, the result is converted to this dtype. Per default it has the `dtype` of the tensor.
-/// @param understood_braiding For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting dense block does no longer capture the braiding statistics correctly. This means that `permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on the dense block representation. Permuting its legs would require e.g. explicit swap gates. When using the result, special care needs to be taken regarding the leg order. To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to disable the error. It is then your responsibility to take care of leg orders and braids. See `swap_gate_numpy` for manipulations on these dense blocks.
+    /// Convert to a dense block of the backend, if possible.
+    ///
+    /// This corresponds to "forgetting" the symmetry structure and is only possible if the
+    /// symmetry `can_be_dropped`.
+    /// The result is a backend-specific block, e.g. a numpy array if the block backend is a
+    /// `NumpyBlockBackend` or a torch Tensor if the backend is a `TorchBlockBackend`.
+    ///
+    /// @param leg_order If given, the leg of the resulting block are permuted to match this leg
+    /// order.
+    /// @param dtype If given, the result is converted to this dtype. Per default it has the
+    /// `dtype` of the tensor.
+    /// @param understood_braiding For symmetries with non-trivial (but symmetric) braiding, e.g.
+    /// fermions, the resulting dense block does no longer capture the braiding statistics
+    /// correctly. This means that `permute_legs` is not consistently reproduced by e.g.
+    /// ``numpy.transpose`` on the dense block representation. Permuting its legs would require
+    /// e.g. explicit swap gates. When using the result, special care needs to be taken regarding
+    /// the leg order. To avoid this pitfall, we raise an error by default. Set this flag to
+    /// ``True`` to disable the error. It is then your responsibility to take care of leg orders
+    /// and braids. See `swap_gate_numpy` for manipulations on these dense blocks.
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
       std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,
@@ -296,28 +329,31 @@ class DiagonalTensor : public SymmetricTensor
                                                        float64 rtol = 1e-5,
                                                        float64 atol = 1e-8);
 
-/// An elementwise function acting on a diagonal tensor.
-///
-/// Applies ``func(self_block: Block, **func_kwargs) -> Block`` elementwise.
-/// Set ``maps_zero_to_zero=True`` to promise that ``func(0) == 0``.
+    /// An elementwise function acting on a diagonal tensor.
+    ///
+    /// Applies ``func(self_block: Block, **func_kwargs) -> Block`` elementwise.
+    /// Set ``maps_zero_to_zero=True`` to promise that ``func(0) == 0``.
     [[nodiscard]] virtual Ptr _elementwise_unary(BlockUnaryFn func,
                                                  bool maps_zero_to_zero = false);
 
-/// An elementwise function acting on two diagonal tensors.
-///
-/// Applies ``func(self_block: Block, other_block: Block, **func_kwargs) -> Block`` elementwise.
-/// Set ``partial_zero_is_zero=True`` to promise that ``func(0, any) == 0 == func(any, 0)``.
+    /// An elementwise function acting on two diagonal tensors.
+    ///
+    /// Applies ``func(self_block: Block, other_block: Block, **func_kwargs) -> Block``
+    /// elementwise. Set ``partial_zero_is_zero=True`` to promise that ``func(0, any) == 0 ==
+    /// func(any, 0)``.
     [[nodiscard]] virtual Ptr _elementwise_binary(DiagonalTensorCPtr other,
                                                   BlockBinaryFn func,
                                                   bool partial_zero_is_zero = false);
 
-/// Common implementation for the binary dunder methods ``__mul__`` etc.
-///
-/// @param other Either a number or a DiagonalTensor.
-/// @param func The function with signature ``func(self_block: Block, other_block: Block) -> Block`` Scalars get passed the (0D) block representation of the scalar.
-/// @param operand A string representation of the operand, used in error messages
-/// @param return_NotImplemented Whether `NotImplemented` should be returned on a non-scalar and non-`Tensor` other.
-/// @param right If this is the "right" version, i.e. ``func(other, self)``.
+    /// Common implementation for the binary dunder methods ``__mul__`` etc.
+    ///
+    /// @param other Either a number or a DiagonalTensor.
+    /// @param func The function with signature ``func(self_block: Block, other_block: Block) ->
+    /// Block`` Scalars get passed the (0D) block representation of the scalar.
+    /// @param operand A string representation of the operand, used in error messages
+    /// @param return_NotImplemented Whether `NotImplemented` should be returned on a non-scalar
+    /// and non-`Tensor` other.
+    /// @param right If this is the "right" version, i.e. ``func(other, self)``.
     [[nodiscard]] virtual Ptr _binary_operand(BlockBackend::Scalar other,
                                               BlockBinaryFn func,
                                               std::string const& operand,
@@ -328,20 +364,21 @@ class DiagonalTensor : public SymmetricTensor
                                               std::string const& operand,
                                               bool right = false);
 
-/// For a bool dtype, if all values are True. Raises for other dtypes.
+    /// For a bool dtype, if all values are True. Raises for other dtypes.
     [[nodiscard]] virtual bool all() const;
-/// For a bool dtype, if any value is True. Raises for other dtypes.
+    /// For a bool dtype, if any value is True. Raises for other dtypes.
     [[nodiscard]] virtual bool any() const;
 
     [[nodiscard]] virtual BlockBackend::Scalar max() const;
     [[nodiscard]] virtual BlockBackend::Scalar min() const;
-/// Index ``i0`` in the public computational basis of the minimum diagonal entry.
-///
-/// Defined for real dtypes only. On ties, the first occurrence (in public basis
-/// order) is returned. Satisfies ``self[i0, i0] == self.min()`` when ``s`` is
-/// omitted and the symmetry can be dropped.
-///
-/// @param s If given, only the diagonal block of this charge sector is considered. The returned index is still in the public basis of the full leg.
+    /// Index ``i0`` in the public computational basis of the minimum diagonal entry.
+    ///
+    /// Defined for real dtypes only. On ties, the first occurrence (in public basis
+    /// order) is returned. Satisfies ``self[i0, i0] == self.min()`` when ``s`` is
+    /// omitted and the symmetry can be dropped.
+    ///
+    /// @param s If given, only the diagonal block of this charge sector is considered. The
+    /// returned index is still in the public basis of the full leg.
     [[nodiscard]] virtual int64 argmin(std::optional<Sector> s = std::nullopt) const;
 
     [[nodiscard]] virtual Ptr abs() const;
@@ -363,7 +400,7 @@ class Identity : public DiagonalTensor
 
     ~Identity() override = default;
 
-/// Perform sanity checks.
+    /// Perform sanity checks.
     void test_sanity() const override;
 
     [[nodiscard]] std::string class_name() const override;
@@ -371,30 +408,32 @@ class Identity : public DiagonalTensor
     // Unsupported factories (TypeError in Python)
     static void unsupported_factory(char const* name);
 
-/// The identity map as a DiagonalTensor.
-///
-/// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
-/// @param dtype The dtype for the entries.
+    /// The identity map as a DiagonalTensor.
+    ///
+    /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
+    /// @param dtype The dtype for the entries.
     [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       TensorBackend::Ptr backend = nullptr,
                                       std::optional<LegLabels> labels = std::nullopt,
                                       Dtype dtype = Dtype::Float64,
                                       std::optional<std::string> device = std::nullopt);
 
-/// Import Identity from hdf5
+    /// Import Identity from hdf5
     [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
                                        py::object h5gr,
                                        std::string const& subpath);
 
-/// Convert to a tensor of the given dtype on the same device.
-///
-/// @param dtype The dtype of the result.
+    /// Convert to a tensor of the given dtype on the same device.
+    ///
+    /// @param dtype The dtype of the result.
     [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
 
-/// Convert to a `SymmetricTensor`, if possible.
-///
-/// @param guarantee_copy If already a SymmetricTensor, we do *not* make a copy by default. Set this flag to ``True`` to guarantee a copy.
-/// @param warning If given, and if the conversion is non-trivial (i.e. if it was not already a SymmetricTensor to begin with), a warning with this text is issued.
+    /// Convert to a `SymmetricTensor`, if possible.
+    ///
+    /// @param guarantee_copy If already a SymmetricTensor, we do *not* make a copy by default. Set
+    /// this flag to ``True`` to guarantee a copy.
+    /// @param warning If given, and if the conversion is non-trivial (i.e. if it was not already a
+    /// SymmetricTensor to begin with), a warning with this text is issued.
     [[nodiscard]] SymmetricTensorPtr as_SymmetricTensor(
       bool guarantee_copy = false,
       std::optional<std::string> warning = std::nullopt) override;
@@ -413,18 +452,19 @@ class Identity : public DiagonalTensor
                                                       std::string const& operand,
                                                       bool right = false) override;
 
-/// Copy the tensor.
-///
-/// @param deep If the copy should be deep. A shallow copy is a new instance with the same data.
-/// @param device The device for the result. Per default, use the same device as `self`.
-/// @param dtype The dtype of the result. Per default, use the same dtype as `self`.
+    /// Copy the tensor.
+    ///
+    /// @param deep If the copy should be deep. A shallow copy is a new instance with the same
+    /// data.
+    /// @param device The device for the result. Per default, use the same device as `self`.
+    /// @param dtype The dtype of the result. Per default, use the same dtype as `self`.
     [[nodiscard]] Tensor::Ptr copy(bool deep = true,
                                    std::optional<std::string> device = std::nullopt,
                                    std::optional<Dtype> dtype = std::nullopt) override;
 
-/// The diagonal part as a `DiagonalTensor`.
-///
-/// @param check_offdiagonal If we should check that the off-diagonal parts vanish.
+    /// The diagonal part as a `DiagonalTensor`.
+    ///
+    /// @param check_offdiagonal If we should check that the off-diagonal parts vanish.
     [[nodiscard]] DiagonalTensorPtr diagonal(bool check_offdiagonal = false) const override;
 
     [[nodiscard]] BlockBackend::BlockPtr diagonal_as_block(
@@ -444,46 +484,55 @@ class Identity : public DiagonalTensor
       BlockBinaryFn func,
       bool partial_zero_is_zero = false) override;
 
-/// Implementation of `__getitem__`.
-///
-/// Can assume we have one non-negative integer index per leg.
+    /// Implementation of `__getitem__`.
+    ///
+    /// Can assume we have one non-negative integer index per leg.
     [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
 
-/// For a bool dtype, if all values are True. Raises for other dtypes.
+    /// For a bool dtype, if all values are True. Raises for other dtypes.
     [[nodiscard]] bool all() const override;
-/// For a bool dtype, if any value is True. Raises for other dtypes.
+    /// For a bool dtype, if any value is True. Raises for other dtypes.
     [[nodiscard]] bool any() const override;
 
     [[nodiscard]] BlockBackend::Scalar max() const override;
     [[nodiscard]] BlockBackend::Scalar min() const override;
-/// ``argmin`` is not supported for `Identity`.
+    /// ``argmin`` is not supported for `Identity`.
     [[nodiscard]] int64 argmin(std::optional<Sector> s = std::nullopt) const override;
 
     [[nodiscard]] DiagonalTensor::Ptr abs() const override;
 
-/// Move tensor to a given device, *in place*.
+    /// Move tensor to a given device, *in place*.
     void move_to_device(std::string device) override;
 
-/// Convert to a tensor with a different backend.
-///
-/// @param backend The backend of the result.
-/// @param dtype The dtype of the result. Per default, use the same dtype as `self`.
-/// @param device The device for the result. Per default, use the same device as `self`.
+    /// Convert to a tensor with a different backend.
+    ///
+    /// @param backend The backend of the result.
+    /// @param dtype The dtype of the result. Per default, use the same dtype as `self`.
+    /// @param device The device for the result. Per default, use the same device as `self`.
     [[nodiscard]] Tensor::Ptr to_backend(
       TensorBackend::Ptr backend,
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt) override;
 
-/// Convert to a dense block of the backend, if possible.
-///
-/// This corresponds to "forgetting" the symmetry structure and is only possible if the
-/// symmetry `can_be_dropped`.
-/// The result is a backend-specific block, e.g. a numpy array if the block backend is a
-/// `NumpyBlockBackend` or a torch Tensor if the backend is a `TorchBlockBackend`.
-///
-/// @param leg_order If given, the leg of the resulting block are permuted to match this leg order.
-/// @param dtype If given, the result is converted to this dtype. Per default it has the `dtype` of the tensor.
-/// @param understood_braiding For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting dense block does no longer capture the braiding statistics correctly. This means that `permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on the dense block representation. Permuting its legs would require e.g. explicit swap gates. When using the result, special care needs to be taken regarding the leg order. To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to disable the error. It is then your responsibility to take care of leg orders and braids. See `swap_gate_numpy` for manipulations on these dense blocks.
+    /// Convert to a dense block of the backend, if possible.
+    ///
+    /// This corresponds to "forgetting" the symmetry structure and is only possible if the
+    /// symmetry `can_be_dropped`.
+    /// The result is a backend-specific block, e.g. a numpy array if the block backend is a
+    /// `NumpyBlockBackend` or a torch Tensor if the backend is a `TorchBlockBackend`.
+    ///
+    /// @param leg_order If given, the leg of the resulting block are permuted to match this leg
+    /// order.
+    /// @param dtype If given, the result is converted to this dtype. Per default it has the
+    /// `dtype` of the tensor.
+    /// @param understood_braiding For symmetries with non-trivial (but symmetric) braiding, e.g.
+    /// fermions, the resulting dense block does no longer capture the braiding statistics
+    /// correctly. This means that `permute_legs` is not consistently reproduced by e.g.
+    /// ``numpy.transpose`` on the dense block representation. Permuting its legs would require
+    /// e.g. explicit swap gates. When using the result, special care needs to be taken regarding
+    /// the leg order. To avoid this pitfall, we raise an error by default. Set this flag to
+    /// ``True`` to disable the error. It is then your responsibility to take care of leg orders
+    /// and braids. See `swap_gate_numpy` for manipulations on these dense blocks.
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
       std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,

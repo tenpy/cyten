@@ -19,7 +19,8 @@ namespace cyten {
 /// Backends are instantiated only once and then cached. If a suitable backend instance is in
 /// the cache, that same instance is returned.
 ///
-/// @param symmetry Specifies which subclass of `TensorBackend` to use, either directly via string, or as the minimal version which supports the given symmetry.
+/// @param symmetry Specifies which subclass of `TensorBackend` to use, either directly via string,
+/// or as the minimal version which supports the given symmetry.
 /// @param block_backend Specify which block backend to use.
 py::object get_backend(py::object symmetry = py::none(), py::object block_backend = py::none());
 

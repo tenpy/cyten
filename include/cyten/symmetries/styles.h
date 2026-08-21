@@ -7,7 +7,8 @@ namespace cyten {
 /// Describes properties of fusion, i.e. of the tensor product.
 ///
 /// - `single`: fusing sectors results in a single sector ``a ⊗ b = c``, e.g. abelian groups.
-/// - `multiple_unique`: every sector appears at most once in pairwise fusion, ``N_symbol in [0, 1]``.
+/// - `multiple_unique`: every sector appears at most once in pairwise fusion, ``N_symbol in [0,
+/// 1]``.
 /// - `general`: no assumptions, ``N_symbol in [0, 1, 2, 3, ...]``.
 enum class FusionStyle : std::uint8_t
 {

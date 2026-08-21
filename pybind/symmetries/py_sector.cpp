@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../doc_plus.h"
 #include "docstrings/symmetries/sector.h"
+#include "py_cyten_pybind11.h"
 
 #include <cyten/symmetries/sector.h>
 #include <cyten/symmetries/sector_numpy.h>

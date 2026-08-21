@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../doc_plus.h"
 #include "docstrings/symmetries/abelian_group.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
@@ -15,9 +15,8 @@ namespace cyten {
 void
 bind_abelian_group(py::module_& m)
 {
-    py::class_<AbelianGroup, Group, PyAbelianGroup, py::smart_holder> cls(m,
-                                                                          "AbelianGroup",
-                                                                          DOC(cyten, AbelianGroup));
+    py::class_<AbelianGroup, Group, PyAbelianGroup, py::smart_holder> cls(
+      m, "AbelianGroup", DOC(cyten, AbelianGroup));
 
     cls.def(py::init<Sector, std::string, float64, std::optional<std::string>, bool>(),
             py::arg("trivial_sector"),
@@ -62,14 +61,9 @@ bind_abelian_group(py::module_& m)
            &AbelianGroup::frobenius_schur,
            py::arg("a"),
            DOC(cyten, AbelianGroup, frobenius_schur))
-      .def("qdim",
-           &AbelianGroup::qdim,
-           py::arg("a"),
-           DOC(cyten, AbelianGroup, qdim))
-      .def("sqrt_qdim",
-           &AbelianGroup::sqrt_qdim,
-           py::arg("a"),
-           DOC(cyten, AbelianGroup, sqrt_qdim))
+      .def("qdim", &AbelianGroup::qdim, py::arg("a"), DOC(cyten, AbelianGroup, qdim))
+      .def(
+        "sqrt_qdim", &AbelianGroup::sqrt_qdim, py::arg("a"), DOC(cyten, AbelianGroup, sqrt_qdim))
       .def("inv_sqrt_qdim",
            &AbelianGroup::inv_sqrt_qdim,
            py::arg("a"),
@@ -103,10 +97,7 @@ bind_abelian_group(py::module_& m)
            py::arg("Z_a"),
            py::arg("Z_b"),
            DOC(cyten, AbelianGroup, _fusion_tensor))
-      .def("Z_iso",
-           &AbelianGroup::Z_iso,
-           py::arg("a"),
-           DOC(cyten, AbelianGroup, Z_iso));
+      .def("Z_iso", &AbelianGroup::Z_iso, py::arg("a"), DOC(cyten, AbelianGroup, Z_iso));
 }
 
 } // namespace cyten

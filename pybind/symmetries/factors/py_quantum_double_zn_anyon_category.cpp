@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/quantum_double_zn_anyon_category.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
@@ -15,9 +15,7 @@ void
 bind_quantum_double_zn_anyon_category(py::module_& m)
 {
     py::class_<QuantumDoubleZNAnyonCategory, SymmetryFactor, py::smart_holder>(
-      m,
-      "QuantumDoubleZNAnyonCategory",
-      DOC(cyten, QuantumDoubleZNAnyonCategory))
+      m, "QuantumDoubleZNAnyonCategory", DOC(cyten, QuantumDoubleZNAnyonCategory))
       .def(py::init<int, std::optional<std::string>>(),
            py::arg("N"),
            py::arg("descriptive_name") = py::none())

@@ -539,7 +539,9 @@ bind_tensors_planar(py::module_& m)
         py::arg("other"),
         py::arg("value") = py::none(),
         DOC(cyten, ContractionTree, fuse))
-      .def("pop_contraction", &ContractionTree::pop_contraction, DOC(cyten, ContractionTree, pop_contraction))
+      .def("pop_contraction",
+           &ContractionTree::pop_contraction,
+           DOC(cyten, ContractionTree, pop_contraction))
       .def("__str__", &ContractionTree::str)
       .def_static(
         "from_contraction_order", &ContractionTree::from_contraction_order, py::arg("order"))
@@ -673,7 +675,9 @@ bind_tensors_planar(py::module_& m)
         py::arg("tensors"),
         py::arg("dims") = py::none(),
         "Parse the input format for the ``tensors`` arg to :class:`PlanarDiagram`.")
-      .def("verify_diagram", &PlanarDiagram::verify_diagram, DOC(cyten, PlanarDiagram, verify_diagram));
+      .def("verify_diagram",
+           &PlanarDiagram::verify_diagram,
+           DOC(cyten, PlanarDiagram, verify_diagram));
 
     // `py::dynamic_attr` plus no data descriptors for `op_diagram` / `matvec_diagram`: subclasses
     // are documented to store those as *class* variables, and `self.op_diagram` in an

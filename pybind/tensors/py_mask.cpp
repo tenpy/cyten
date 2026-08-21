@@ -110,9 +110,7 @@ bind_tensors_mask(py::module_& m)
     cls.def_property_readonly("large_leg", &Mask::large_leg);
     cls.def_property_readonly("small_leg", &Mask::small_leg);
 
-    cls.def("test_sanity",
-            &Mask::test_sanity,
-            DOC(cyten, Mask, test_sanity));
+    cls.def("test_sanity", &Mask::test_sanity, DOC(cyten, Mask, test_sanity));
 
     cls.def_static(
       "from_eye",
@@ -238,10 +236,7 @@ bind_tensors_mask(py::module_& m)
             py::arg("subpath"),
             DOC(cyten, Mask, save_hdf5));
 
-    cls.def("as_dtype",
-            &Mask::as_dtype,
-            py::arg("dtype"),
-            DOC(cyten, Mask, as_dtype));
+    cls.def("as_dtype", &Mask::as_dtype, py::arg("dtype"), DOC(cyten, Mask, as_dtype));
 
     cls.def(
       "as_SymmetricTensor",
@@ -264,12 +259,8 @@ bind_tensors_mask(py::module_& m)
     cls.def("as_block_mask", &Mask::as_block_mask);
     cls.def("as_numpy_mask", &Mask::as_numpy_mask);
 
-    cls.def("all",
-            &Mask::all,
-            DOC(cyten, Mask, all));
-    cls.def("any",
-            &Mask::any,
-            DOC(cyten, Mask, any));
+    cls.def("all", &Mask::all, DOC(cyten, Mask, all));
+    cls.def("any", &Mask::any, DOC(cyten, Mask, any));
 
     cls.def("copy",
             &Mask::copy,
@@ -279,21 +270,12 @@ bind_tensors_mask(py::module_& m)
             DOC(cyten, Mask, copy));
 
     // Override Tensor.dagger / hc properties (which delegate to the Python free function).
-    cls.def_property_readonly("dagger",
-                              &Mask::dagger,
-                              DOC(cyten, Mask, dagger));
-    cls.def_property_readonly("hc",
-                              &Mask::dagger,
-                              DOC(cyten, Mask, dagger));
+    cls.def_property_readonly("dagger", &Mask::dagger, DOC(cyten, Mask, dagger));
+    cls.def_property_readonly("hc", &Mask::dagger, DOC(cyten, Mask, dagger));
 
-    cls.def("_get_item",
-            &Mask::_get_item,
-            py::arg("idx"),
-            DOC(cyten, Mask, _get_item));
+    cls.def("_get_item", &Mask::_get_item, py::arg("idx"), DOC(cyten, Mask, _get_item));
 
-    cls.def("logical_not",
-            &Mask::logical_not,
-            DOC(cyten, Mask, logical_not));
+    cls.def("logical_not", &Mask::logical_not, DOC(cyten, Mask, logical_not));
     cls.def("orthogonal_complement",
             &Mask::orthogonal_complement,
             DOC(cyten, Mask, orthogonal_complement));

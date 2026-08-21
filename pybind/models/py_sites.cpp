@@ -1,7 +1,7 @@
 #include <cyten/models/sites.h>
 
-#include "../py_cyten_pybind11.h"
 #include "../doc_plus.h"
+#include "../py_cyten_pybind11.h"
 #include "docstrings/models/sites.h"
 
 #include <optional>
@@ -87,7 +87,9 @@ bind_models_sites(py::module_& m)
       .def_readwrite("conserve_N", &SpinHalfFermionSite::conserve_N)
       .def_readwrite("conserve_S", &SpinHalfFermionSite::conserve_S)
       .def_readwrite("filling", &SpinHalfFermionSite::filling)
-      .def("test_sanity", &SpinHalfFermionSite::test_sanity, doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::SpinHalfFermionSite::test_sanity()"))
+      .def("test_sanity",
+           &SpinHalfFermionSite::test_sanity,
+           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::SpinHalfFermionSite::test_sanity()"))
       .def("__repr__", &SpinHalfFermionSite::repr);
 
     py::class_<ClockSite, ClockDOF, py::smart_holder> clock_site(m, "ClockSite");

@@ -15,10 +15,7 @@ namespace cyten {
 void
 bind_block_backend_dtypes(py::module_& m)
 {
-    py::native_enum<Dtype> dtype_enum(m,
-                                      "Dtype",
-                                      "enum.Enum",
-                                      DOC(cyten, Dtype));
+    py::native_enum<Dtype> dtype_enum(m, "Dtype", "enum.Enum", DOC(cyten, Dtype));
     dtype_enum.value("bool", Dtype::Bool)
       .value("float32", Dtype::Float32)
       .value("complex64", Dtype::Complex64)

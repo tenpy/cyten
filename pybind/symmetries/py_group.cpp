@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../doc_plus.h"
 #include "docstrings/symmetries/group.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
@@ -15,9 +15,8 @@ namespace cyten {
 void
 bind_group(py::module_& m)
 {
-    py::class_<Group, SymmetryFactor, PyGroup, py::smart_holder> cls(m,
-                                                                     "Group",
-                                                                     DOC(cyten, Group));
+    py::class_<Group, SymmetryFactor, PyGroup, py::smart_holder> cls(
+      m, "Group", DOC(cyten, Group));
 
     cls.def(
       py::

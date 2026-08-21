@@ -1,7 +1,7 @@
 #include <cyten/tools/cost_polynomials.h>
 
-#include "../py_cyten_pybind11.h"
 #include "../doc_plus.h"
+#include "../py_cyten_pybind11.h"
 #include "docstrings/tools/cost_polynomials.h"
 
 namespace py = pybind11;

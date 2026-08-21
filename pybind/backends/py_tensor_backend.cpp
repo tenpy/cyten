@@ -1,7 +1,7 @@
-#include "../py_cyten_pybind11.h"
 #include "../doc_plus.h"
-#include "docstrings/backends/tensor_backend.h"
+#include "../py_cyten_pybind11.h"
 #include "../tensors/py_callbacks.hpp"
+#include "docstrings/backends/tensor_backend.h"
 #include "py_trampolines.hpp"
 
 #include <cyten/backends/tensor_backend.h>
@@ -40,10 +40,7 @@ bind_tensor_backend(py::module_& m)
                }
                return self == other.cast<TensorBackend const&>();
            })
-      .def("item",
-           &TensorBackend::item,
-           py::arg("a"),
-           DOC(cyten, TensorBackend, item))
+      .def("item", &TensorBackend::item, py::arg("a"), DOC(cyten, TensorBackend, item))
       .def("test_tensor_sanity",
            &TensorBackend::test_tensor_sanity,
            py::arg("a"),
@@ -107,14 +104,9 @@ bind_tensor_backend(py::module_& m)
            py::arg("a"),
            py::arg("device") = py::none(),
            DOC(cyten, TensorBackend, copy_data))
-      .def("dagger",
-           &TensorBackend::dagger,
-           py::arg("a"),
-           DOC(cyten, TensorBackend, dagger))
-      .def("data_item",
-           &TensorBackend::data_item,
-           py::arg("a"),
-           DOC(cyten, TensorBackend, data_item))
+      .def("dagger", &TensorBackend::dagger, py::arg("a"), DOC(cyten, TensorBackend, dagger))
+      .def(
+        "data_item", &TensorBackend::data_item, py::arg("a"), DOC(cyten, TensorBackend, data_item))
       .def("diagonal_all",
            &TensorBackend::diagonal_all,
            py::arg("a"),
@@ -356,10 +348,7 @@ bind_tensor_backend(py::module_& m)
            py::arg("device"),
            DOC(cyten, TensorBackend, move_to_device))
       .def("mul", &TensorBackend::mul, py::arg("a"), py::arg("b"))
-      .def("norm",
-           &TensorBackend::norm,
-           py::arg("a"),
-           DOC(cyten, TensorBackend, norm))
+      .def("norm", &TensorBackend::norm, py::arg("a"), DOC(cyten, TensorBackend, norm))
       .def("outer",
            &TensorBackend::outer,
            py::arg("a"),
@@ -499,10 +488,7 @@ bind_tensor_backend(py::module_& m)
            py::arg("device"))
       .def(
         "zero_mask_data", &TensorBackend::zero_mask_data, py::arg("large_leg"), py::arg("device"))
-      .def("is_real",
-           &TensorBackend::is_real,
-           py::arg("a"),
-           DOC(cyten, TensorBackend, is_real))
+      .def("is_real", &TensorBackend::is_real, py::arg("a"), DOC(cyten, TensorBackend, is_real))
       .def("save_hdf5",
            &TensorBackend::save_hdf5,
            py::arg("hdf5_saver"),
@@ -526,7 +512,8 @@ bind_tensor_backend(py::module_& m)
           py::overload_cast<py::object, py::object>(&conventional_leg_order),
           py::arg("tensor_or_codomain"),
           py::arg("domain") = py::none(),
-          doc_cpp_ref(R"pydoc(conventional_leg_order)pydoc", "cyten::TensorBackend::conventional_leg_order()"));
+          doc_cpp_ref(R"pydoc(conventional_leg_order)pydoc",
+                      "cyten::TensorBackend::conventional_leg_order()"));
 
     m.def(
       "get_same_backend",

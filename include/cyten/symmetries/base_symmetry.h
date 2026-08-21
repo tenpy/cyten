@@ -43,7 +43,7 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 
     // --- properties (Python @property) ---
 
-/// If the symmetry supports converting tensors to/from numpy.
+    /// If the symmetry supports converting tensors to/from numpy.
     virtual bool can_be_dropped() const;
     virtual bool has_symmetric_braid() const;
     virtual bool has_trivial_braid() const;
@@ -76,11 +76,12 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     /// Wrap as a product `Symmetry` (identity if already a product).
     /// Returns a Python object until `Symmetry` is converted to C++.
     virtual py::object as_Symmetry() = 0;
-/// Whether `a` is a valid sector of this symmetry
+    /// Whether `a` is a valid sector of this symmetry
     virtual bool is_valid_sector(Sector a) const = 0;
-/// Returns all outcomes for the fusion of sectors
-///
-/// Each sector appears only once, regardless of its multiplicity (given by n_symbol) in the fusion
+    /// Returns all outcomes for the fusion of sectors
+    ///
+    /// Each sector appears only once, regardless of its multiplicity (given by n_symbol) in the
+    /// fusion
     virtual SectorArray fusion_outcomes(Sector a, Sector b) const = 0;
 
     // --- defaults (may override) ---
@@ -109,92 +110,95 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     /// @param a Note that this is the target sector of the map, not its subscript!
     /// @returns The matrix elements as a [d_a, d_a] numpy array.
     virtual FusionSymbol Z_iso(Sector a) const;
-/// Assume there are finitely many sectors, return all of them.
-///
-/// @warning Do not perform inplace operations on the output. That may invalidate caches.
+    /// Assume there are finitely many sectors, return all of them.
+    ///
+    /// @warning Do not perform inplace operations on the output. That may invalidate caches.
     virtual SectorArray all_sectors() const;
 
-/// The N-symbol N^{ab}_c, i.e. how often c appears in the fusion of a and b.
+    /// The N-symbol N^{ab}_c, i.e. how often c appears in the fusion of a and b.
     int64 n_symbol(Sector a, Sector b, Sector c) const;
-/// Coefficients @f$ [F^{abc}_d]^e_f @f$ related to recoupling of fusion.
-///
-/// The F symbol relates the following two maps::
-///
-///     m1 := [a ⊗ b ⊗ c] --(1 ⊗ X_μ)--> [a ⊗ e] --(X_ν)--> d
-///     m2 := [a ⊗ b ⊗ c] --(X_κ ⊗ 1)--> [f ⊗ c] --(X_λ)--> d
-///
-/// Such that @f$ m_1 = \sum_{f\kappa\lambda} [F^{abc}_d]^{e\mu\nu}_{f\kappa\lambda} m_2 @f$.
-///
-/// The F symbol is unitary as a matrix from indices @f$ (f\kappa\lambda) @f$
-/// to @f$ (e\mu\nu) @f$.
-///
-/// @warning Do not perform inplace operations on the output. That may invalidate caches.
-///
-/// @param a, b, c, d, e, f Sectors. Must be compatible with the fusion described above.
-/// @returns F : 4D array The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
+    /// Coefficients @f$ [F^{abc}_d]^e_f @f$ related to recoupling of fusion.
+    ///
+    /// The F symbol relates the following two maps::
+    ///
+    ///     m1 := [a ⊗ b ⊗ c] --(1 ⊗ X_μ)--> [a ⊗ e] --(X_ν)--> d
+    ///     m2 := [a ⊗ b ⊗ c] --(X_κ ⊗ 1)--> [f ⊗ c] --(X_λ)--> d
+    ///
+    /// Such that @f$ m_1 = \sum_{f\kappa\lambda} [F^{abc}_d]^{e\mu\nu}_{f\kappa\lambda} m_2 @f$.
+    ///
+    /// The F symbol is unitary as a matrix from indices @f$ (f\kappa\lambda) @f$
+    /// to @f$ (e\mu\nu) @f$.
+    ///
+    /// @warning Do not perform inplace operations on the output. That may invalidate caches.
+    ///
+    /// @param a, b, c, d, e, f Sectors. Must be compatible with the fusion described above.
+    /// @returns F : 4D array The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
     FusionSymbol f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
-/// Coefficients @f$ B^{ab}_c @f$ related to bending the right leg on a fusion tensor.
-///
-/// The B symbol relates the following two maps::
-///
-///     m1 := a --(1 ⊗ η_b)--> [a ⊗ b ⊗ b^*] --(X_μ ⊗ 1)--> [c ⊗ b^*]
-///     m2 := a --(Y_ν)--> [c ⊗ \\bar{b}] --(1 ⊗ Z_b^†)--> [c ⊗ b^*]
-///
-/// such that @f$ m_1 = \sum_{\nu} [B^{ab}_c]^\mu_\nu m_2 @f$.
-///
-/// The related A-symbol for bending left legs is not needed, since we always
-/// work with fusion trees in form
-///
-/// @warning Do not perform inplace operations on the output. That may invalidate caches.
-///
-/// @param a, b, c Sectors. Must be compatible with the fusion described above.
-/// @returns B : 2D array The B symbol as an array of the multiplicity indices [μ,ν]
+    /// Coefficients @f$ B^{ab}_c @f$ related to bending the right leg on a fusion tensor.
+    ///
+    /// The B symbol relates the following two maps::
+    ///
+    ///     m1 := a --(1 ⊗ η_b)--> [a ⊗ b ⊗ b^*] --(X_μ ⊗ 1)--> [c ⊗ b^*]
+    ///     m2 := a --(Y_ν)--> [c ⊗ \\bar{b}] --(1 ⊗ Z_b^†)--> [c ⊗ b^*]
+    ///
+    /// such that @f$ m_1 = \sum_{\nu} [B^{ab}_c]^\mu_\nu m_2 @f$.
+    ///
+    /// The related A-symbol for bending left legs is not needed, since we always
+    /// work with fusion trees in form
+    ///
+    /// @warning Do not perform inplace operations on the output. That may invalidate caches.
+    ///
+    /// @param a, b, c Sectors. Must be compatible with the fusion described above.
+    /// @returns B : 2D array The B symbol as an array of the multiplicity indices [μ,ν]
     FusionSymbol b_symbol(Sector a, Sector b, Sector c) const;
-/// Coefficients @f$ R^{ab}_c @f$ related to braiding on a single fusion tensor.
-///
-/// The R symbol relates the following two maps::
-///
-///     m1 := [b ⊗ a] --τ--> [a ⊗ b] --X_μ--> c
-///     m2 := [b ⊗ a] --X_ν--> c
-///
-/// such that @f$ m_1 = \sum_{\nu} [R^{ab}_c]^\mu_\nu m_2 @f$.
-///
-/// We can use the unitary gauge freedom of the fusion tensors
-/// .. math ::
-///
-///     X_μ \\mapsto \\sum_ν U_{μ,ν} X_ν
-///
-/// to enforce that the R symbol is diagonal.
-///
-/// @warning Do not perform inplace operations on the output. That may invalidate caches.
-///
-/// @param a, b, c Sectors. Must be compatible with the fusion described above.
-/// @returns R : 1D array The diagonal entries of the R symbol as an array of the multiplicity index [μ].
+    /// Coefficients @f$ R^{ab}_c @f$ related to braiding on a single fusion tensor.
+    ///
+    /// The R symbol relates the following two maps::
+    ///
+    ///     m1 := [b ⊗ a] --τ--> [a ⊗ b] --X_μ--> c
+    ///     m2 := [b ⊗ a] --X_ν--> c
+    ///
+    /// such that @f$ m_1 = \sum_{\nu} [R^{ab}_c]^\mu_\nu m_2 @f$.
+    ///
+    /// We can use the unitary gauge freedom of the fusion tensors
+    /// .. math ::
+    ///
+    ///     X_μ \\mapsto \\sum_ν U_{μ,ν} X_ν
+    ///
+    /// to enforce that the R symbol is diagonal.
+    ///
+    /// @warning Do not perform inplace operations on the output. That may invalidate caches.
+    ///
+    /// @param a, b, c Sectors. Must be compatible with the fusion described above.
+    /// @returns R : 1D array The diagonal entries of the R symbol as an array of the multiplicity
+    /// index [μ].
     FusionSymbol r_symbol(Sector a, Sector b, Sector c) const;
-/// Coefficients @f$ [C^{abc}_d]^e_f @f$ related to braiding on a pair of fusion tensors.
-///
-/// The C symbol relates the following two maps::
-///
-///     m1 := [a ⊗ c ⊗ b] --(1 ⊗ τ)--> [a ⊗ b ⊗ c] --(X_μ ⊗ 1)--> [e ⊗ c] --X_ν--> d
-///     m2 := [a ⊗ c ⊗ b] --(X_κ ⊗ 1)--> [f ⊗ b] --X_λ--> d
-///
-/// such that @f$ m_1 = \sum_{f\kappa\lambda} C^{e\mu\nu}_{f\kappa\lambda} m_2 @f$.
-///
-/// @warning Do not perform inplace operations on the output. That may invalidate caches.
-///
-/// @param a, b, c, d, e, f Sectors. Must be compatible with the fusion described above.
-/// @returns C : 4D array The C symbol as an array of the multiplicity indices [μ,ν,κ,λ]
+    /// Coefficients @f$ [C^{abc}_d]^e_f @f$ related to braiding on a pair of fusion tensors.
+    ///
+    /// The C symbol relates the following two maps::
+    ///
+    ///     m1 := [a ⊗ c ⊗ b] --(1 ⊗ τ)--> [a ⊗ b ⊗ c] --(X_μ ⊗ 1)--> [e ⊗ c] --X_ν--> d
+    ///     m2 := [a ⊗ c ⊗ b] --(X_κ ⊗ 1)--> [f ⊗ b] --X_λ--> d
+    ///
+    /// such that @f$ m_1 = \sum_{f\kappa\lambda} C^{e\mu\nu}_{f\kappa\lambda} m_2 @f$.
+    ///
+    /// @warning Do not perform inplace operations on the output. That may invalidate caches.
+    ///
+    /// @param a, b, c, d, e, f Sectors. Must be compatible with the fusion described above.
+    /// @returns C : 4D array The C symbol as an array of the multiplicity indices [μ,ν,κ,λ]
     FusionSymbol c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
-/// Matrix elements of the fusion tensor @f$ X^{ab}_{c,\mu} @f$ for all @f$ \mu @f$.
-///
-/// May not be well defined for anyons.
-///
-/// @warning Do not perform inplace operations on the output. That may invalidate caches.
-///
-/// @param a, b, c Sectors. Must be compatible with the fusion described above.
-/// @param Z_a If we should include a Z isomorphism @f$ Z_{\bar{a}} : \bar{a}^* -> a @f$ below the sector a. If so, the composite is a map from @f$ \bar{a}^* \otimes b \to c @f$.
-/// @param Z_b Analogously to `Z_a`.
-/// @returns X : 4D ndarray Axis [μ, m_a, m_b, m_c] where μ is the multiplicity index of the fusion tensor and m_a goes over a basis for sector a, etc.
+    /// Matrix elements of the fusion tensor @f$ X^{ab}_{c,\mu} @f$ for all @f$ \mu @f$.
+    ///
+    /// May not be well defined for anyons.
+    ///
+    /// @warning Do not perform inplace operations on the output. That may invalidate caches.
+    ///
+    /// @param a, b, c Sectors. Must be compatible with the fusion described above.
+    /// @param Z_a If we should include a Z isomorphism @f$ Z_{\bar{a}} : \bar{a}^* -> a @f$ below
+    /// the sector a. If so, the composite is a map from @f$ \bar{a}^* \otimes b \to c @f$.
+    /// @param Z_b Analogously to `Z_a`.
+    /// @returns X : 4D ndarray Axis [μ, m_a, m_b, m_c] where μ is the multiplicity index of the
+    /// fusion tensor and m_a goes over a basis for sector a, etc.
     FusionSymbol fusion_tensor(Sector a,
                                Sector b,
                                Sector c,
@@ -212,15 +216,15 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     virtual SectorArray fusion_outcomes_broadcast(SectorArray const& a,
                                                   SectorArray const& b) const;
     Sector multiple_fusion(std::vector<Sector> const& sectors) const;
-/// Allows optimized fusion in the case of FusionStyle.single.
-///
-/// It generalizes `fusion_outcomes_broadcast` to more than two fusion inputs.
+    /// Allows optimized fusion in the case of FusionStyle.single.
+    ///
+    /// It generalizes `fusion_outcomes_broadcast` to more than two fusion inputs.
     SectorArray multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const;
     /// Internal version of `multiple_fusion_broadcast`. May assume ``len(sectors) >= 2``.
     ///
     /// Internal; may assume ``sectors.size() >= 2``.
     virtual SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const;
-/// Whether c is a valid fusion outcome, i.e. if it appears in ``self.fusion_outcomes(a, b)``
+    /// Whether c is a valid fusion outcome, i.e. if it appears in ``self.fusion_outcomes(a, b)``
     virtual bool can_fuse_to(Sector a, Sector b, Sector c) const;
     /// The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).
     ///
@@ -230,60 +234,60 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     /// dimension computed by `qdim`.
     /// For other braiding styles,
     virtual int64 sector_dim(Sector a) const;
-/// sector_dim of every sector (row) in a
+    /// sector_dim of every sector (row) in a
     virtual std::vector<int64> batch_sector_dim(SectorArray const& a) const;
-/// Quantum dimension of every sector (row) in `a`
+    /// Quantum dimension of every sector (row) in `a`
     virtual std::vector<float64> batch_qdim(SectorArray const& a) const;
-/// Short and readable string for the sector. Is used in __str__ of symmetry-related objects.
+    /// Short and readable string for the sector. Is used in __str__ of symmetry-related objects.
     virtual std::string sector_str(Sector a) const;
-/// dual_sector for multiple sectors
-///
-/// subclasses my override this.
+    /// dual_sector for multiple sectors
+    ///
+    /// subclasses my override this.
     virtual SectorArray dual_sectors(SectorArray const& sectors) const;
-/// The Frobenius Schur indicator of a sector.
+    /// The Frobenius Schur indicator of a sector.
     virtual int64 frobenius_schur(Sector a) const;
-/// The quantum dimension ``Tr(id_a)`` of a sector
+    /// The quantum dimension ``Tr(id_a)`` of a sector
     virtual float64 qdim(Sector a) const;
-/// The square root of the quantum dimension.
+    /// The square root of the quantum dimension.
     virtual float64 sqrt_qdim(Sector a) const;
-/// The inverse square root of the quantum dimension.
+    /// The inverse square root of the quantum dimension.
     virtual float64 inv_sqrt_qdim(Sector a) const;
-/// Total quantum dimension, @f$ D = \sqrt{\sum_a d_a^2} @f$.
+    /// Total quantum dimension, @f$ D = \sqrt{\sum_a d_a^2} @f$.
     float64 total_qdim() const;
-/// Internal implementation of `b_symbol`. Can assume that inputs are valid.
+    /// Internal implementation of `b_symbol`. Can assume that inputs are valid.
     virtual FusionSymbol _b_symbol(Sector a, Sector b, Sector c) const;
-/// Internal implementation of `c_symbol`. Can assume that inputs are valid.
+    /// Internal implementation of `c_symbol`. Can assume that inputs are valid.
     virtual FusionSymbol _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
       const;
-/// The prefactor that relates the twist on a single sector to the identity.
-///
-/// Graphically::
-///
-///     |   │   ╭─╮                |
-///     |    ╲ ╱  │                |
-///     |     ╱   │   =   theta_a  |
-///     |    ╱ ╲  │                |
-///     |   │   ╰─╯                |
-///     |   a                      a
-///
-/// Notes:
-///
-/// For a twist with opposite chirality, the prefactor is conjugated.
-///
-///     |   │   ╭─╮                      |
-///     |    ╲ ╱  │                      |
-///     |     ╲   │   =   conj(theta_a)  |
-///     |    ╱ ╲  │                      |
-///     |   │   ╰─╯                      |
-///     |   a                            a
+    /// The prefactor that relates the twist on a single sector to the identity.
+    ///
+    /// Graphically::
+    ///
+    ///     |   │   ╭─╮                |
+    ///     |    ╲ ╱  │                |
+    ///     |     ╱   │   =   theta_a  |
+    ///     |    ╱ ╲  │                |
+    ///     |   │   ╰─╯                |
+    ///     |   a                      a
+    ///
+    /// Notes:
+    ///
+    /// For a twist with opposite chirality, the prefactor is conjugated.
+    ///
+    ///     |   │   ╭─╮                      |
+    ///     |    ╲ ╱  │                      |
+    ///     |     ╲   │   =   conj(theta_a)  |
+    ///     |    ╱ ╲  │                      |
+    ///     |   │   ╰─╯                      |
+    ///     |   a                            a
     virtual complex128 topological_twist(Sector a) const;
-/// Single matrix-element of the S-matrix.
-///
-/// s_matrix
+    /// Single matrix-element of the S-matrix.
+    ///
+    /// s_matrix
     complex128 s_matrix_element(Sector a, Sector b) const;
-/// The modular S-matrix. Only defined for modular tensor categories.
-///
-/// s_matrix_element
+    /// The modular S-matrix. Only defined for modular tensor categories.
+    ///
+    /// s_matrix_element
     FusionSymbol s_matrix() const;
 };
 

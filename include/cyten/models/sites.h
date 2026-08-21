@@ -41,7 +41,7 @@ class SpinSite : public SpinDOF
              TensorBackend::Ptr backend = nullptr,
              std::optional<std::string> default_device = std::nullopt);
 
-/// Perform sanity checks.
+    /// Perform sanity checks.
     void test_sanity() override;
     [[nodiscard]] std::string repr() const;
 
@@ -69,9 +69,19 @@ class SpinSite : public SpinDOF
 ///
 /// TODO describe onsite operators
 ///
-/// @param Nmax The maximum occupation of each of the boson species. An `int` corresponds to a single boson species. Otherwise, the number of boson species corresponds to `len(Nmax)`.
-/// @param conserve The symmetry to be conserved. We can conserve::  - total particle number sum_k N_k (``conserve == 'N'``). - individual particle numbers N_k (``conserve[i] == 'N'``). - total parity (sum_i N_k) % 2 (``conserve == 'parity'``). - individual parities N_k % 2 (``conserve[i] == 'parity'``). - nothing (``conserve == 'None'`` or ``conserve[i] == 'None'``).  A `Literal` corresponds to symmetries involving all boson species, such as the total particle number (``conserve == 'N'``) or the total parity (``conserve == 'parity'``). For a sequence, the entry ``conserve[i]`` corresponds to the symmetry of boson species `k`, such that, e.g., ``conserve[k] == 'N'`` signifies that its particle number is conserved.  Conserves nothing by default.
-/// @param filling Average total filling (that is, filling of all species together). Used to define the on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
+/// @param Nmax The maximum occupation of each of the boson species. An `int` corresponds to a
+/// single boson species. Otherwise, the number of boson species corresponds to `len(Nmax)`.
+/// @param conserve The symmetry to be conserved. We can conserve::  - total particle number sum_k
+/// N_k (``conserve == 'N'``). - individual particle numbers N_k (``conserve[i] == 'N'``). - total
+/// parity (sum_i N_k) % 2 (``conserve == 'parity'``). - individual parities N_k % 2 (``conserve[i]
+/// == 'parity'``). - nothing (``conserve == 'None'`` or ``conserve[i] == 'None'``).  A `Literal`
+/// corresponds to symmetries involving all boson species, such as the total particle number
+/// (``conserve == 'N'``) or the total parity (``conserve == 'parity'``). For a sequence, the entry
+/// ``conserve[i]`` corresponds to the symmetry of boson species `k`, such that, e.g.,
+/// ``conserve[k] == 'N'`` signifies that its particle number is conserved.  Conserves nothing by
+/// default.
+/// @param filling Average total filling (that is, filling of all species together). Used to define
+/// the on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
 ///
 /// Attributes:
 ///
@@ -127,8 +137,20 @@ class SpinlessBosonSite : public BosonicDOF
 ///     That is also the reason why NoSymmetry is not an option here
 ///
 /// @param num_species Number of fermion species.
-/// @param conserve The symmetry to be conserved. We can conserve::  - total fermion number sum_i N_k (``conserve == 'N'``). - individual fermion numbers N_k (``conserve[i] == 'N'``). - total fermion parity (sum_i N_k) % 2 (``conserve == 'parity'``). - individual fermion parities N_k % 2 (``conserve[i] == 'parity'``). - nothing for an individual fermion (``conserve[i] == 'None'``); .  A `Literal` corresponds to symmetries involving all fermion species, such as the total fermion number (``conserve == 'N'``) or the total fermion parity (``conserve == 'parity'``). For a sequence, the entry ``conserve[k]`` corresponds to the symmetry of fermion species `k`, such that, e.g., ``conserve[k] == 'N'`` signifies that its fermion number is conserved.  Note that the total fermion parity is always conserved. It is thus always part of the symmetry. Hence, ``conserve == 'None'`` is not a valid value. On the other hand, ``conserve = ['None']`` is interpreted as valid and the resulting symmetry conserves the fermionic parity.  Conserves total fermion parity by default.
-/// @param filling Average total filling (that is, filling of all species together). Used to define the on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
+/// @param conserve The symmetry to be conserved. We can conserve::  - total fermion number sum_i
+/// N_k (``conserve == 'N'``). - individual fermion numbers N_k (``conserve[i] == 'N'``). - total
+/// fermion parity (sum_i N_k) % 2 (``conserve == 'parity'``). - individual fermion parities N_k %
+/// 2 (``conserve[i] == 'parity'``). - nothing for an individual fermion (``conserve[i] ==
+/// 'None'``); .  A `Literal` corresponds to symmetries involving all fermion species, such as the
+/// total fermion number (``conserve == 'N'``) or the total fermion parity (``conserve ==
+/// 'parity'``). For a sequence, the entry ``conserve[k]`` corresponds to the symmetry of fermion
+/// species `k`, such that, e.g., ``conserve[k] == 'N'`` signifies that its fermion number is
+/// conserved.  Note that the total fermion parity is always conserved. It is thus always part of
+/// the symmetry. Hence, ``conserve == 'None'`` is not a valid value. On the other hand, ``conserve
+/// = ['None']`` is interpreted as valid and the resulting symmetry conserves the fermionic parity.
+/// Conserves total fermion parity by default.
+/// @param filling Average total filling (that is, filling of all species together). Used to define
+/// the on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
 ///
 /// Attributes:
 ///
@@ -180,9 +202,17 @@ class SpinlessFermionSite : public FermionicDOF
 ///
 /// TODO describe onsite operators
 ///
-/// @param conserve_N The fermion symmetry to be conserved. We can conserve::  - total fermion number N_up + N_down (``conserve == 'N'``). - total fermion parity (N_up + N_down) % 2 (``conserve == 'parity'``).  Note that the total fermion parity is always conserved and is thus always part of the total symmetry. Hence, ``conserve == 'None'`` is not a valid choice. Conserves total fermion parity by default.
-/// @param conserve_S The spin symmetry to be conserved. We can conserve::  - SU(2), the full spin rotation symmetry. - Sz (= U(1) symmetry), with sector labels corresponding to ``2 * Sz``. - Sz parity (= Z_2 symmetry), with sector labels corresponding to ``(Sz + S_tot) % 2``. - nothing.  Conserves nothing by default.
-/// @param filling Average total filling (that is, filling of spin up and spin down fermions together). Used to define the on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
+/// @param conserve_N The fermion symmetry to be conserved. We can conserve::  - total fermion
+/// number N_up + N_down (``conserve == 'N'``). - total fermion parity (N_up + N_down) % 2
+/// (``conserve == 'parity'``).  Note that the total fermion parity is always conserved and is thus
+/// always part of the total symmetry. Hence, ``conserve == 'None'`` is not a valid choice.
+/// Conserves total fermion parity by default.
+/// @param conserve_S The spin symmetry to be conserved. We can conserve::  - SU(2), the full spin
+/// rotation symmetry. - Sz (= U(1) symmetry), with sector labels corresponding to ``2 * Sz``. - Sz
+/// parity (= Z_2 symmetry), with sector labels corresponding to ``(Sz + S_tot) % 2``. - nothing.
+/// Conserves nothing by default.
+/// @param filling Average total filling (that is, filling of spin up and spin down fermions
+/// together). Used to define the on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
 ///
 /// Attributes:
 ///
@@ -287,7 +317,10 @@ class ClockSite : public ClockDOF
 /// Class for anyon models where the local Hilbert space contains all sectors once.
 ///
 /// @param symmetry The symmetry describing the anyons.
-/// @param sector_names The sector names that appear in the onsite projection operators. The `i`th operator is called `f'P_{sector_names[i]}'` and projects onto the `i`th sector in `leg.sector_decomposition`. For `None` entries (default), no projection operators are constructed.
+/// @param sector_names The sector names that appear in the onsite projection operators. The `i`th
+/// operator is called `f'P_{sector_names[i]}'` and projects onto the `i`th sector in
+/// `leg.sector_decomposition`. For `None` entries (default), no projection operators are
+/// constructed.
 class AnyonSite : public AnyonDOF
 {
   public:
@@ -343,7 +376,8 @@ class FibonacciAnyonSite : public AnyonSite
 /// Projectors onto the onsite vacuum, sigma and psi sectors are automatically constructed and are
 /// named `'P_vac'`, `'P_sigma'`, and `'P_psi'`, respectively.
 ///
-/// @param `nu` Specifies the Ising anyons as different `nu` correspond to different topological twists.
+/// @param `nu` Specifies the Ising anyons as different `nu` correspond to different topological
+/// twists.
 class IsingAnyonSite : public AnyonSite
 {
   public:

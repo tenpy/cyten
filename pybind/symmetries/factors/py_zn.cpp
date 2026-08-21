@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/zn.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
@@ -14,9 +14,7 @@ namespace cyten {
 void
 bind_zn(py::module_& m)
 {
-    py::class_<ZN, AbelianGroup, py::smart_holder>(m,
-                                                   "ZN",
-                                                   DOC(cyten, ZN))
+    py::class_<ZN, AbelianGroup, py::smart_holder>(m, "ZN", DOC(cyten, ZN))
       .def(py::init<int, std::optional<std::string>, bool>(),
            py::arg("N"),
            py::arg("descriptive_name") = py::none(),

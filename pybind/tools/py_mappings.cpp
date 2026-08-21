@@ -1,7 +1,7 @@
 #include <cyten/tools/mappings.h>
 
-#include "../py_cyten_pybind11.h"
 #include "../doc_plus.h"
+#include "../py_cyten_pybind11.h"
 #include "docstrings/tools/mappings.h"
 
 #include <complex>
@@ -33,14 +33,12 @@ bind_sparse_mapping(py::module_& m, char const* name, char const* doc)
            &Mapping::pre_compose,
            py::arg("other"),
            doc_cpp_ref(R"pydoc(pre_compose)pydoc", "cyten::Mapping::pre_compose()"))
-      .def(
-        "nonzero_rows",
-        &Mapping::nonzero_rows,
-        doc_cpp_ref(R"pydoc(nonzero_rows)pydoc", "cyten::Mapping::nonzero_rows()"))
-      .def(
-        "nonzero_cols",
-        &Mapping::nonzero_cols,
-        doc_cpp_ref(R"pydoc(nonzero_cols)pydoc", "cyten::Mapping::nonzero_cols()"))
+      .def("nonzero_rows",
+           &Mapping::nonzero_rows,
+           doc_cpp_ref(R"pydoc(nonzero_rows)pydoc", "cyten::Mapping::nonzero_rows()"))
+      .def("nonzero_cols",
+           &Mapping::nonzero_cols,
+           doc_cpp_ref(R"pydoc(nonzero_cols)pydoc", "cyten::Mapping::nonzero_cols()"))
       .def("prune",
            &Mapping::prune,
            py::arg("tol"),
@@ -121,13 +119,15 @@ bind_identity_mapping(py::module_& m, char const* name)
 void
 bind_mappings(py::module_& m)
 {
-    bind_sparse_mapping<SparseMappingFusionTree>(m,
-                                                 "SparseMappingFusionTree",
-                                                 doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::IdMapping::prune()"));
+    bind_sparse_mapping<SparseMappingFusionTree>(
+      m,
+      "SparseMappingFusionTree",
+      doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::IdMapping::prune()"));
 
-    bind_sparse_mapping<SparseMappingFusionTreePair>(m,
-                                                     "SparseMappingFusionTreePair",
-                                                     doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::IdMapping::prune()"));
+    bind_sparse_mapping<SparseMappingFusionTreePair>(
+      m,
+      "SparseMappingFusionTreePair",
+      doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::IdMapping::prune()"));
 
     bind_identity_mapping<IdentityMappingFusionTree>(m, "IdentityMappingFusionTree");
     bind_identity_mapping<IdentityMappingFusionTreePair>(m, "IdentityMappingFusionTreePair");

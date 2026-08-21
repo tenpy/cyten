@@ -220,11 +220,9 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
 ///     |      ╭─│─│─────╮   │   │
 ///     |      │ │ │     6   5   4
 ///     |      │ │ │  ┏━━┷━━━┷━━━┷━━┓
-///     |      │ │ │  ┃      T      ┃   =   permute_legs(T, [6, 1, 3], [0, 5, 2, 4], bend_right=False)
-///     |      │ │ │  ┗┯━━━┯━━━┯━━━┯┛
-///     |      │ │ │   0   1   2   3
-///     |      │ │ ╰───│───│───╯   │
-///     |      │ ╰─────╯   │       │
+///     |      │ │ │  ┃      T      ┃   =   permute_legs(T, [6, 1, 3], [0, 5, 2, 4],
+///     bend_right=False) |      │ │ │  ┗┯━━━┯━━━┯━━━┯┛ |      │ │ │   0   1   2   3 |      │ │
+///     ╰───│───│───╯   │ |      │ ╰─────╯   │       │
 ///
 /// @note We expect that there are only two cases where you should do explicit leg
 ///     permutations: firstly, if you need to specify the `levels` explicitly for an anyonic

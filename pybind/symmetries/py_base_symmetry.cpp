@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../doc_plus.h"
 #include "docstrings/symmetries/base_symmetry.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
@@ -15,9 +15,8 @@ namespace cyten {
 void
 bind_base_symmetry(py::module_& m)
 {
-    py::class_<BaseSymmetry, PyBaseSymmetry, py::smart_holder> cls(m,
-                                                                   "BaseSymmetry",
-                                                                   DOC(cyten, BaseSymmetry));
+    py::class_<BaseSymmetry, PyBaseSymmetry, py::smart_holder> cls(
+      m, "BaseSymmetry", DOC(cyten, BaseSymmetry));
 
     cls.def(py::init<FusionStyle, BraidingStyle, Sector, float64, bool, bool>(),
             py::arg("fusion_style"),
@@ -47,14 +46,12 @@ bind_base_symmetry(py::module_& m)
       .def_readonly("trivial_shift", &BaseSymmetry::trivial_shift);
 
     cls
-      .def_property_readonly("can_be_dropped",
-                             &BaseSymmetry::can_be_dropped,
-                             DOC(cyten, BaseSymmetry, can_be_dropped))
+      .def_property_readonly(
+        "can_be_dropped", &BaseSymmetry::can_be_dropped, DOC(cyten, BaseSymmetry, can_be_dropped))
       .def_property_readonly("has_symmetric_braid", &BaseSymmetry::has_symmetric_braid)
       .def_property_readonly("has_trivial_braid", &BaseSymmetry::has_trivial_braid)
-      .def_property_readonly("is_abelian",
-                             &BaseSymmetry::is_abelian,
-                             DOC(cyten, BaseSymmetry, is_abelian))
+      .def_property_readonly(
+        "is_abelian", &BaseSymmetry::is_abelian, DOC(cyten, BaseSymmetry, is_abelian))
       .def_property_readonly("has_unique_fusion",
                              &BaseSymmetry::has_unique_fusion,
                              DOC(cyten, BaseSymmetry, has_unique_fusion));
@@ -122,13 +119,8 @@ bind_base_symmetry(py::module_& m)
            py::arg("a"),
            py::arg("b"),
            DOC(cyten, BaseSymmetry, swap_gate))
-      .def("Z_iso",
-           &BaseSymmetry::Z_iso,
-           py::arg("a"),
-           DOC(cyten, BaseSymmetry, Z_iso))
-      .def("all_sectors",
-           &BaseSymmetry::all_sectors,
-           DOC(cyten, BaseSymmetry, all_sectors))
+      .def("Z_iso", &BaseSymmetry::Z_iso, py::arg("a"), DOC(cyten, BaseSymmetry, Z_iso))
+      .def("all_sectors", &BaseSymmetry::all_sectors, DOC(cyten, BaseSymmetry, all_sectors))
       .def("n_symbol",
            &BaseSymmetry::n_symbol,
            py::arg("a"),
@@ -261,21 +253,14 @@ bind_base_symmetry(py::module_& m)
            &BaseSymmetry::frobenius_schur,
            py::arg("a"),
            DOC(cyten, BaseSymmetry, frobenius_schur))
-      .def("qdim",
-           &BaseSymmetry::qdim,
-           py::arg("a"),
-           DOC(cyten, BaseSymmetry, qdim))
-      .def("sqrt_qdim",
-           &BaseSymmetry::sqrt_qdim,
-           py::arg("a"),
-           DOC(cyten, BaseSymmetry, sqrt_qdim))
+      .def("qdim", &BaseSymmetry::qdim, py::arg("a"), DOC(cyten, BaseSymmetry, qdim))
+      .def(
+        "sqrt_qdim", &BaseSymmetry::sqrt_qdim, py::arg("a"), DOC(cyten, BaseSymmetry, sqrt_qdim))
       .def("inv_sqrt_qdim",
            &BaseSymmetry::inv_sqrt_qdim,
            py::arg("a"),
            DOC(cyten, BaseSymmetry, inv_sqrt_qdim))
-      .def("total_qdim",
-           &BaseSymmetry::total_qdim,
-           DOC(cyten, BaseSymmetry, total_qdim))
+      .def("total_qdim", &BaseSymmetry::total_qdim, DOC(cyten, BaseSymmetry, total_qdim))
       .def("_b_symbol",
            &BaseSymmetry::_b_symbol,
            py::arg("a"),
@@ -310,9 +295,7 @@ bind_base_symmetry(py::module_& m)
            py::arg("a"),
            py::arg("b"),
            DOC(cyten, BaseSymmetry, s_matrix_element))
-      .def("s_matrix",
-           &BaseSymmetry::s_matrix,
-           DOC(cyten, BaseSymmetry, s_matrix));
+      .def("s_matrix", &BaseSymmetry::s_matrix, DOC(cyten, BaseSymmetry, s_matrix));
 }
 
 } // namespace cyten

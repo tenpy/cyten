@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../doc_plus.h"
 #include "docstrings/symmetries/symmetry_factor.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
@@ -17,9 +17,7 @@ void
 bind_symmetry_factor(py::module_& m)
 {
     py::class_<SymmetryFactor, BaseSymmetry, PySymmetryFactor, py::smart_holder> cls(
-      m,
-      "SymmetryFactor",
-      DOC(cyten, SymmetryFactor));
+      m, "SymmetryFactor", DOC(cyten, SymmetryFactor));
 
     cls.def(py::init<FusionStyle,
                      BraidingStyle,

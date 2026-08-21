@@ -131,9 +131,14 @@ using TensorPlaceholderMap = std::map<std::string, TensorPlaceholder>;
 /// The RHS above corresponds to the graphic representation of the node in the full
 /// contraction tree, as constructed in `show_whole_tree`.
 ///
-/// @param parent Node representing a subsequent tensor contraction for which the result of the contraction represented by `self` is a left or right child.
-/// @param left_child Represents the left tensor to be contracted. May itself be the result of a tensor contraction. May be `None` if `self` represents a single tensor rather than a tensor contraction. In such a case, `right_child` must also be `None`.
-/// @param right_child Represents the right tensor to be contracted. May itself be the result of a tensor contraction. May be `None` if `self` represents a single tensor rather than a tensor contraction. In such a case, `left_child` must also be `None`.
+/// @param parent Node representing a subsequent tensor contraction for which the result of the
+/// contraction represented by `self` is a left or right child.
+/// @param left_child Represents the left tensor to be contracted. May itself be the result of a
+/// tensor contraction. May be `None` if `self` represents a single tensor rather than a tensor
+/// contraction. In such a case, `right_child` must also be `None`.
+/// @param right_child Represents the right tensor to be contracted. May itself be the result of a
+/// tensor contraction. May be `None` if `self` represents a single tensor rather than a tensor
+/// contraction. In such a case, `left_child` must also be `None`.
 /// @param value Value describing the contraction tree node.
 class ContractionTreeNode : public std::enable_shared_from_this<ContractionTreeNode>
 {
@@ -170,7 +175,8 @@ class ContractionTreeNode : public std::enable_shared_from_this<ContractionTreeN
 /// The values of non-leaf nodes currently have no meaning and are always set to ``None``,
 /// but may cary extra information about leg handling during a pairwise contraction in the future.
 ///
-/// @param root Node representing the root of the contraction tree, i.e., the upper-most node that does not have a parent.
+/// @param root Node representing the root of the contraction tree, i.e., the upper-most node that
+/// does not have a parent.
 class ContractionTree
 {
   public:
@@ -188,18 +194,19 @@ class ContractionTree
       std::vector<std::pair<std::string, std::string>> const& order);
     [[nodiscard]] static ContractionTree from_single_node(std::string const& node);
     [[nodiscard]] ContractionTree copy() const;
-/// Fuse two trees. In-place on both trees.
-///
-/// Graphically::
-///
-///     |                                        value
-///     |                                       /     \
-///     |       a             b                a        b
-///     |      / \     ,     / \      ->      / \      / \
-///     |    ... ...       ... ...          ... ...  ... ...
-///
-/// @param other The contraction tree that will become the right child of the resulting combined contraction tree; `self` becomes the left child.
-/// @param value The value of the new root node at which `self` and `other` are fused.
+    /// Fuse two trees. In-place on both trees.
+    ///
+    /// Graphically::
+    ///
+    ///     |                                        value
+    ///     |                                       /     \
+    ///     |       a             b                a        b
+    ///     |      / \     ,     / \      ->      / \      / \
+    ///     |    ... ...       ... ...          ... ...  ... ...
+    ///
+    /// @param other The contraction tree that will become the right child of the resulting
+    /// combined contraction tree; `self` becomes the left child.
+    /// @param value The value of the new root node at which `self` and `other` are fused.
     [[nodiscard]] ContractionTree fuse(ContractionTree& other,
                                        std::optional<std::string> value = std::nullopt);
     /// Replace a bottom node (where both children are leaves) with a single leaf, in-place.
@@ -212,7 +219,9 @@ class ContractionTree
     ///     |    / \
     ///     |   a   b
     ///
-    /// @returns X : str or None The value at the non-leaf node that is replaced a, b : str or None The values of the leaf nodes that are removed new_value : str The value of the new leaf, conventionally ``'a @ b'``.
+    /// @returns X : str or None The value at the non-leaf node that is replaced a, b : str or None
+    /// The values of the leaf nodes that are removed new_value : str The value of the new leaf,
+    /// conventionally ``'a @ b'``.
     std::tuple<std::optional<std::string>, std::string, std::string, std::string>
     pop_contraction();
     [[nodiscard]] std::string str() const;
@@ -246,10 +255,10 @@ class ContractionTree
 ///
 /// It is possible to create planar diagrams that contract `ChargedTensor` by adding the
 /// corresponding charge leg labels (`'!'`) to the tensor placeholders, where a ChargedTensor
-/// is allowed. Still, plain `SymmetricTensor` are accepted for such placeholders during evaluation,
-/// in which case the charge leg label is ignored.
-/// The result of a planar diagram containing open charge legs is always a `ChargedTensor`,
-/// and any remaining open charge legs need to be contiguous after the contractions.
+/// is allowed. Still, plain `SymmetricTensor` are accepted for such placeholders during
+/// evaluation, in which case the charge leg label is ignored. The result of a planar diagram
+/// containing open charge legs is always a `ChargedTensor`, and any remaining open charge legs
+/// need to be contiguous after the contractions.
 ///
 /// If multiple ChargedTensor placeholders with `'!'` label are specified
 /// (and `allow_multiple_charged_tensors` is set to True),
@@ -262,11 +271,38 @@ class ContractionTree
 /// This is useful e.g. for infinite MPS with non-zero charge in the unit cell,
 /// where we contract the charge legs when applying the transfer matrix.
 ///
-/// @param tensors Specifies the tensors in the planar diagram, each with leg labels and a unique name. Syntax for string input: a comma (`,`) separated list of entries, each for one tensor. The entry for a tensor is its name, followed by comma separated leg labels enclosed in brackets. Example: ``'theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]'``. The same format as the attribute `tensors` (dict) is accepted as well.
-/// @param definition Specifies the planar diagram, i.e., how the `tensors` are contracted. Syntax for string input: a comma (`,`) separated list of instructions, each either a contraction or an open leg. Contractions are of the form ``'{tensorA}:{legA} @ {tensorB}:{legB}'``. Open legs are of the form ``'{tensorA}:{legA} -> {new_label}``. The same format as the attribute `definition` (list of tuples) is accepted as well.
-/// @param dims Specifies a symbol for the dimension of each leg, used to show or optimize the contraction cost in terms of a `BigOPolynomial`. A dictionary with pairs ``{dim: labels}`` indicating that the legs with ``labels`` have a dimension represented by the symbol ``dim``. If given, *all* labels in the diagram should be assigned to a symbol. Legs with the same label must have the same dimension.
-/// @param order Specifies the contraction order, or how to determine it. If ``'greedy'`` (default) or ``'optimal'``, it is optimized via `optimize_order`. If ``'definition'``, it is taken from the order of the `definition`, with minimal extra optimizations (always do traces first and when contracting two tensors, contract all shared legs at once). If a single string, expect a comma separated list of instructions ``'{tensorA} @ {tensorB}'`` which indicate the order of pairwise contractions. If nested tuples of strings, interpret those strings as tensor names, and interpret the bracketing as the order of pairwise contractions, contracting innermost tuples first. The same format as the attribute `order` (``ContractionTree``) is accepted as well.
-/// @param allow_multiple_charged_tensors Whether multiple `ChargedTensor` are allowed to be part of the planar diagram. When there are multiple open charge legs, they must be contiguous after the contractions, such that the individual charge legs can be combined to a single one. When there is a specified contraction between two charge legs, this contraction must also be planar. It is allowed to evaluate a planar diagram containing tensor placeholders for `ChargedTensor` (placeholders containing the label `'!'`) with `SymmetricTensor`. In this case, the `SymmetricTensor` must have the same leg labels except for the charge leg label. The contraction between the charge legs is then ignored.
+/// @param tensors Specifies the tensors in the planar diagram, each with leg labels and a unique
+/// name. Syntax for string input: a comma (`,`) separated list of entries, each for one tensor.
+/// The entry for a tensor is its name, followed by comma separated leg labels enclosed in
+/// brackets. Example: ``'theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]'``. The same format as the
+/// attribute `tensors` (dict) is accepted as well.
+/// @param definition Specifies the planar diagram, i.e., how the `tensors` are contracted. Syntax
+/// for string input: a comma (`,`) separated list of instructions, each either a contraction or an
+/// open leg. Contractions are of the form ``'{tensorA}:{legA} @ {tensorB}:{legB}'``. Open legs are
+/// of the form ``'{tensorA}:{legA} -> {new_label}``. The same format as the attribute `definition`
+/// (list of tuples) is accepted as well.
+/// @param dims Specifies a symbol for the dimension of each leg, used to show or optimize the
+/// contraction cost in terms of a `BigOPolynomial`. A dictionary with pairs ``{dim: labels}``
+/// indicating that the legs with ``labels`` have a dimension represented by the symbol ``dim``. If
+/// given, *all* labels in the diagram should be assigned to a symbol. Legs with the same label
+/// must have the same dimension.
+/// @param order Specifies the contraction order, or how to determine it. If ``'greedy'`` (default)
+/// or ``'optimal'``, it is optimized via `optimize_order`. If ``'definition'``, it is taken from
+/// the order of the `definition`, with minimal extra optimizations (always do traces first and
+/// when contracting two tensors, contract all shared legs at once). If a single string, expect a
+/// comma separated list of instructions ``'{tensorA} @ {tensorB}'`` which indicate the order of
+/// pairwise contractions. If nested tuples of strings, interpret those strings as tensor names,
+/// and interpret the bracketing as the order of pairwise contractions, contracting innermost
+/// tuples first. The same format as the attribute `order` (``ContractionTree``) is accepted as
+/// well.
+/// @param allow_multiple_charged_tensors Whether multiple `ChargedTensor` are allowed to be part
+/// of the planar diagram. When there are multiple open charge legs, they must be contiguous after
+/// the contractions, such that the individual charge legs can be combined to a single one. When
+/// there is a specified contraction between two charge legs, this contraction must also be planar.
+/// It is allowed to evaluate a planar diagram containing tensor placeholders for `ChargedTensor`
+/// (placeholders containing the label `'!'`) with `SymmetricTensor`. In this case, the
+/// `SymmetricTensor` must have the same leg labels except for the charge leg label. The
+/// contraction between the charge legs is then ignored.
 ///
 /// Attributes:
 ///
@@ -310,8 +346,8 @@ class ContractionTree
 ///
 ///     TEBD_diagram = PlanarDiagram(
 ///         tensors='theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]',
-///         definition='theta:p0 @ U:p0*, theta:p1 @ U:p1*, theta:vL -> vL, theta:vR -> vR, U:p0 -> p0, U:p1 -> p1',
-///         dims=dict(chi=['vR', 'vL'], d=['p0', 'p0*', 'p1', 'p1*']),
+///         definition='theta:p0 @ U:p0*, theta:p1 @ U:p1*, theta:vL -> vL, theta:vR -> vR, U:p0 ->
+///         p0, U:p1 -> p1', dims=dict(chi=['vR', 'vL'], d=['p0', 'p0*', 'p1', 'p1*']),
 ///     )
 ///     theta_updated = TEBD_diagram.evaluate(dict(theta=theta, U=U))
 ///
@@ -341,8 +377,8 @@ class ContractionTree
 ///
 ///     TM_diagram = PlanarDiagram(
 ///         tensors='LP[vR*, vR], ket[vL, p, vR, !], bra[vR*, p*, vL*, !]',
-///         definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:! @ bra:!, ket:vR -> vR, bra:vR* -> vR*',
-///         dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*']),
+///         definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:! @ bra:!, ket:vR ->
+///         vR, bra:vR* -> vR*', dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*']),
 ///         allow_multiple_charged_tensors=True,
 ///     )
 ///     LP = TM_diagram.evaluate(dict(LP=LP, ket=ket, bra=bra))
@@ -371,25 +407,25 @@ class PlanarDiagram
 
     [[nodiscard]] std::vector<std::string> const& tensor_names() const { return tensor_names_; }
 
-/// Create a new planar diagram with an additional tensor.
-///
-/// The new planar diagram arises from the old one by adding a single tensor and contracting
-/// (some of) its legs with open legs of the old planar diagram. It is in particular not
-/// possible to change tensor contractions involving two tensors of the old planar diagram.
-///
-/// TODO should we allow to reference the existing diagram as a whole, instead of its
-///      individual tensors?
-///
-/// @param tensor Same as the parameter to `PlanarDiagram`, but expect only a single tensor
-///     to be added to the diagram.
-/// @param extra_definition Same as the parameter to `PlanarDiagram`. Should define for each
-///     leg of the new tensor whether it is an open leg or contracted with another leg.
-///     The new `definition` is given by this extra definition together with the old
-///     definition, except for entries that correspond to legs that were open in the original
-///     diagram and are now contracted with the new tensor.
-/// @param extra_dims Same as the parameter to `PlanarDiagram`, but applies only to the new
-///     `tensor`.
-/// @param order Same as the parameter to `PlanarDiagram`, applies to the entire new diagram.
+    /// Create a new planar diagram with an additional tensor.
+    ///
+    /// The new planar diagram arises from the old one by adding a single tensor and contracting
+    /// (some of) its legs with open legs of the old planar diagram. It is in particular not
+    /// possible to change tensor contractions involving two tensors of the old planar diagram.
+    ///
+    /// TODO should we allow to reference the existing diagram as a whole, instead of its
+    ///      individual tensors?
+    ///
+    /// @param tensor Same as the parameter to `PlanarDiagram`, but expect only a single tensor
+    ///     to be added to the diagram.
+    /// @param extra_definition Same as the parameter to `PlanarDiagram`. Should define for each
+    ///     leg of the new tensor whether it is an open leg or contracted with another leg.
+    ///     The new `definition` is given by this extra definition together with the old
+    ///     definition, except for entries that correspond to legs that were open in the original
+    ///     diagram and are now contracted with the new tensor.
+    /// @param extra_dims Same as the parameter to `PlanarDiagram`, but applies only to the new
+    ///     `tensor`.
+    /// @param order Same as the parameter to `PlanarDiagram`, applies to the entire new diagram.
     [[nodiscard]] PlanarDiagram add_tensor(TensorPlaceholderMap extra_tensors,
                                            std::vector<DiagramInstruction> extra_definition,
                                            std::string const& order = "definition") const;
@@ -398,11 +434,11 @@ class PlanarDiagram
     [[nodiscard]] TensorPlaceholder evaluate(
       std::map<std::string, TensorPlaceholder> tensors) const;
 
-/// Find the optimal contraction order for the given planar diagram.
-///
-/// TODO make it easy to print what you need to hard-code.
-/// TODO allow relations like ``d < w < chi``, or ``d^2 < chi`` to simplify the polynomials.
-/// TODO support cost as polynomials or with concrete numbers
+    /// Find the optimal contraction order for the given planar diagram.
+    ///
+    /// TODO make it easy to print what you need to hard-code.
+    /// TODO allow relations like ``d < w < chi``, or ``d^2 < chi`` to simplify the polynomials.
+    /// TODO support cost as polynomials or with concrete numbers
     [[nodiscard]] ContractionTree optimize_order(std::string const& strategy) const;
 
     [[nodiscard]] static std::vector<DiagramInstruction> parse_definition(
@@ -422,23 +458,27 @@ class PlanarDiagram
       std::optional<std::map<std::string, std::vector<std::string>>> const& dims = std::nullopt,
       std::vector<std::string>* name_order = nullptr);
 
-/// Create a new planar diagram by removing one tensor.
-///
-/// The new planar diagram arises from the old one by removing a single tensor and leaving the
-/// legs that were previously contracted with this tensor open. It is in particular not
-/// possible to change any tensor contractions in the planar diagram.
-///
-/// @param name The name of the tensor to be removed.
-/// @param extra_definition Extra instructions to be added to the `definition`. Expected to only contain instructions for the legs that were contracted with `name` in the old planar diagram and are now open legs. Same format as the `definition` parameter to `PlanarDiagram`.
-/// @param order Same as the parameter to `PlanarDiagram`, applies to the entire new diagram.
+    /// Create a new planar diagram by removing one tensor.
+    ///
+    /// The new planar diagram arises from the old one by removing a single tensor and leaving the
+    /// legs that were previously contracted with this tensor open. It is in particular not
+    /// possible to change any tensor contractions in the planar diagram.
+    ///
+    /// @param name The name of the tensor to be removed.
+    /// @param extra_definition Extra instructions to be added to the `definition`. Expected to
+    /// only contain instructions for the legs that were contracted with `name` in the old planar
+    /// diagram and are now open legs. Same format as the `definition` parameter to
+    /// `PlanarDiagram`.
+    /// @param order Same as the parameter to `PlanarDiagram`, applies to the entire new diagram.
     [[nodiscard]] PlanarDiagram remove_tensor(
       std::string const& name,
       std::vector<DiagramInstruction> extra_definition = {},
       std::string const& order = "greedy") const;
 
-/// Verify the definition of the planar diagram. Returns the `open_legs`.
-///
-/// @returns open_legs : list of str The leg labels of a result of `evaluate`. cost : BigOPolynomial The cost to contract the diagram, as a polynomial in terms of the dims.
+    /// Verify the definition of the planar diagram. Returns the `open_legs`.
+    ///
+    /// @returns open_legs : list of str The leg labels of a result of `evaluate`. cost :
+    /// BigOPolynomial The cost to contract the diagram, as a polynomial in terms of the dims.
     [[nodiscard]] std::pair<std::vector<std::string>, BigOPolynomial> verify_diagram();
 
     static std::map<std::string, PlanarResult>& _do_contractions(
@@ -478,9 +518,11 @@ class PlanarDiagram
 ///     construction.
 ///
 /// @param op_diagram The diagram that defines the operator (without acting on a vector).
-/// @param matvec_diagram The diagram that defines the action of the operator on a vector. Must have the same tensor names as the `op_diagram` in addition to a single tensor with `vec_name`.
+/// @param matvec_diagram The diagram that defines the action of the operator on a vector. Must
+/// have the same tensor names as the `op_diagram` in addition to a single tensor with `vec_name`.
 /// @param op_tensors The concrete tensors that define the operator, see `op_diagram`.
-/// @param vec_name The name of the "vector", i.e., the tensor that the linear operator acts on in the `matvec_diagram`.
+/// @param vec_name The name of the "vector", i.e., the tensor that the linear operator acts on in
+/// the `matvec_diagram`.
 class PlanarLinearOperator : public LinearOperator
 {
   public:
@@ -511,11 +553,19 @@ class PlanarLinearOperator : public LinearOperator
 ///     |    │   │   │   │           │   │   │         │           │   │   │    ╰────╯   │
 ///
 /// @param tensor The tensor to factorize
-/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of `A`, the rest of the codomain ends up in the codomain of `B`.
-/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `A`, the rest of the domain ends up in the domain of `B`.
-/// @param new_labels The labels for the new legs. Two entries ``[a, b]`` result in ``A.labels[-1 - domain_cut] == a`` and ``B.labels[0] == b`` and a single entry ``a`` is equivalent to ``[a, a*]``.
-/// @param cutoff_singular_values If ``None`` (default), we factorize using `qr` without truncation. If given, we use a truncated SVD and truncate by discarding singular values below this threshold.
-/// @returns A, B: Tensor A factorization of the `tensor`, such that ``tdot(A, B, -1 - domain_cut, 1)`` reproduces the `tensor`, up to bending and possibly up to truncation if `cutoff_singular_values` is given.
+/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of
+/// `A`, the rest of the codomain ends up in the codomain of `B`.
+/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `A`, the
+/// rest of the domain ends up in the domain of `B`.
+/// @param new_labels The labels for the new legs. Two entries ``[a, b]`` result in ``A.labels[-1 -
+/// domain_cut] == a`` and ``B.labels[0] == b`` and a single entry ``a`` is equivalent to ``[a,
+/// a*]``.
+/// @param cutoff_singular_values If ``None`` (default), we factorize using `qr` without
+/// truncation. If given, we use a truncated SVD and truncate by discarding singular values below
+/// this threshold.
+/// @returns A, B: Tensor A factorization of the `tensor`, such that ``tdot(A, B, -1 - domain_cut,
+/// 1)`` reproduces the `tensor`, up to bending and possibly up to truncation if
+/// `cutoff_singular_values` is given.
 ///
 /// Notes:
 ///
@@ -526,7 +576,7 @@ class PlanarLinearOperator : public LinearOperator
 ///     |             │           │   │    ╭──╮       │ ┏━━┷━━━┷━━━┷━━┓ │         │  ┏┷━━━┷┓
 ///     |             │  ╭────╮   │   │    │  │       │ ┃      B'     ┃ │         │  ┃  B  ┃
 ///     |             │  │ ┏━━┷━━━┷━━━┷━━┓ │  │       │ ┗━━━━━━┯━━━━━━┛ │         │  ┗┯━━━┯┛
-///     |   LHS   =   │  │ ┃   tensor    ┃ │  │   =   │        │        │   =     │   │   │   =  RHS
+///     |   LHS   =   │  │ ┃   tensor    ┃ │  │   =   │        │        │   =     │   │   │   = RHS
 ///     |             │  │ ┗┯━━━┯━━━┯━━━┯┛ │  │       │ ┏━━━━━━┷━━━━━━┓ │      ┏━━┷━━━┷━━┓│
 ///     |             │  │  │   │   │   ╰──╯  │       │ ┃      A'     ┃ │      ┃    A    ┃│
 ///     |             ╰──╯  │   │   │         │       │ ┗┯━━━┯━━━┯━━━┯┛ │      ┗┯━━━┯━━━┯┛│
@@ -550,7 +600,8 @@ class PlanarLinearOperator : public LinearOperator
 /// Note that this is a basis-dependent and backend-dependent notion of distance, which does
 /// not come from a norm in the strict mathematical sense.
 ///
-/// @param tensor_1, tensor_2 The tensors to compare. The legs of both tensors need to be labelled with the same leg labels in order to find the planar permutation between them.
+/// @param tensor_1, tensor_2 The tensors to compare. The legs of both tensors need to be labelled
+/// with the same leg labels in order to find the planar permutation between them.
 /// @param atol, rtol Absolute and relative tolerance, see above.
 ///
 /// Notes:
@@ -590,9 +641,16 @@ class PlanarLinearOperator : public LinearOperator
 ///
 /// @param T The tensor whose legs should be combined.
 /// @param *which_legs One or more groups of legs to combine.
-/// @param pipe_dualities Can optionally specify the `is_dual` attribute of each resulting pipe. This is an arbitrary choice for each pipe. The pipes are formed such that ``result.legs.[pipe_idx].is_dual == pipe_dualities[i]``. Defaults to all ``False``.
-/// @param pipes For each ``group = which_legs[i]`` of legs, the resulting pipe can be passed to avoid recomputation. If we group to the codomain (``group[0] < tensor.num_codomain_legs``), we expect ``LegPipe([tensor._as_codomain_leg(i) for i in group])``. Otherwise we expect ``LegPipe([tensor._as_domain_leg(i) for i in reversed(group)])``. Note the reverse order in the latter case! In the intended use case, when another tensor with the same legs has already been combined, obtain those pipes simply via `get_leg_co_domain`. It is possible to pass only some of the pipes, use ``None`` as filler.
-/// combine_legs
+/// @param pipe_dualities Can optionally specify the `is_dual` attribute of each resulting pipe.
+/// This is an arbitrary choice for each pipe. The pipes are formed such that
+/// ``result.legs.[pipe_idx].is_dual == pipe_dualities[i]``. Defaults to all ``False``.
+/// @param pipes For each ``group = which_legs[i]`` of legs, the resulting pipe can be passed to
+/// avoid recomputation. If we group to the codomain (``group[0] < tensor.num_codomain_legs``), we
+/// expect ``LegPipe([tensor._as_codomain_leg(i) for i in group])``. Otherwise we expect
+/// ``LegPipe([tensor._as_domain_leg(i) for i in reversed(group)])``. Note the reverse order in the
+/// latter case! In the intended use case, when another tensor with the same legs has already been
+/// combined, obtain those pipes simply via `get_leg_co_domain`. It is possible to pass only some
+/// of the pipes, use ``None`` as filler. combine_legs
 ///     Non-planar version that automatically braids legs in order to combine them.
 [[nodiscard]] TensorPtr planar_combine_legs(
   TensorCPtr T,
@@ -627,8 +685,9 @@ class PlanarLinearOperator : public LinearOperator
 /// *Assumes* that `tensor` is hermitian with respect to the legs specified by
 /// `codomain_cut` and `domain_cut`. If `T` is obtained from `tensor` by bending legs
 /// s.t. all legs on the left (right) are in the codomain (domain), or, equivalently,
-/// ``T = planar_permute_legs(tensor, domain=[*range(codomain_cut, tensor.num_legs - domain_cut))][::-1])``,
-/// then ``dagger(T) ~ T``, which requires in particular that ``T.domain == T.codomain``.
+/// ``T = planar_permute_legs(tensor, domain=[*range(codomain_cut, tensor.num_legs -
+/// domain_cut))][::-1])``, then ``dagger(T) ~ T``, which requires in particular that ``T.domain ==
+/// T.codomain``.
 ///
 /// Graphically, here with ``codomain_cut=3, domain_cut=1``::
 ///
@@ -645,12 +704,19 @@ class PlanarLinearOperator : public LinearOperator
 ///     |                                 │   │   │    │
 ///
 /// @param tensor The hermitian tensor to decompose.
-/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of `V`, the rest of the codomain ends up in the codomain of `dagger(V)`.
-/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `V`, the rest of the domain ends up in the domain of `dagger(V)`.
-/// @param new_labels The labels for the new legs can be specified in the following three ways; Three labels ``[a, b, c]`` result in ``V.labels[-1 - domain_cut] == a`` and ``W.labels == [b, c]``. Two labels ``[a, b]`` are equivalent to ``[a, b, a]``. A single label ``a`` is equivalent to ``[a, a*, a]``. The new legs are unlabelled by default.
+/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of
+/// `V`, the rest of the codomain ends up in the codomain of `dagger(V)`.
+/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `V`, the
+/// rest of the domain ends up in the domain of `dagger(V)`.
+/// @param new_labels The labels for the new legs can be specified in the following three ways;
+/// Three labels ``[a, b, c]`` result in ``V.labels[-1 - domain_cut] == a`` and ``W.labels == [b,
+/// c]``. Two labels ``[a, b]`` are equivalent to ``[a, b, a]``. A single label ``a`` is equivalent
+/// to ``[a, a*, a]``. The new legs are unlabelled by default.
 /// @param new_leg_dual If the new leg should be a ket space (``False``) or bra space (``True``).
-/// @param sort How the eigenvalues should are sorted *within* each charge block. Defaults to ``None``, which is same as '<'. See `argsort` for details.
-/// @returns W: `DiagonalTensor` The real eigenvalues. V: `SymmetricTensor` The orthonormal eigenvectors.
+/// @param sort How the eigenvalues should are sorted *within* each charge block. Defaults to
+/// ``None``, which is same as '<'. See `argsort` for details.
+/// @returns W: `DiagonalTensor` The real eigenvalues. V: `SymmetricTensor` The orthonormal
+/// eigenvectors.
 ///
 /// eigh
 ///     Eigen decomposition with respect to codomain and domain. Corresponds to this
@@ -691,9 +757,12 @@ class PlanarLinearOperator : public LinearOperator
 /// We always compute the "reduced", a.k.a. "economic" version.
 ///
 /// @param tensor The tensor to decompose.
-/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of `L`, the rest of the codomain ends up in the codomain of `Q`.
-/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `L`, the rest of the domain ends up in the domain of `Q`.
-/// @param new_labels Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1 - domain_cut] == a`` and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
+/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of
+/// `L`, the rest of the codomain ends up in the codomain of `Q`.
+/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `L`, the
+/// rest of the domain ends up in the domain of `Q`.
+/// @param new_labels Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1 -
+/// domain_cut] == a`` and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
 /// @param new_leg_dual If the new leg should be a ket space (``False``) or bra space (``True``).
 /// lq
 ///     LQ decomposition with respect to codomain and domain. Corresponds to this
@@ -722,8 +791,13 @@ class PlanarLinearOperator : public LinearOperator
 ///     |    ╰───────────╯
 ///
 /// @param tensor The tensor to act on.
-/// @param *pairs A number of pairs, each describing two legs via index or via label. Each pair is connected, realizing a partial trace. By definition, we create loops between the legs in a planar way by connecting them over the left or right side of the tensor. If both a connecting loop over the left and the right side are planar, the result is independent of this choice. Must be compatible ``tensor.get_leg(pair[0]) == tensor.get_leg(pair[1]).dual``.
-/// @returns If all legs are traced, a python scalar. If legs are left open, a tensor with the same type as `tensor`.
+/// @param *pairs A number of pairs, each describing two legs via index or via label. Each pair is
+/// connected, realizing a partial trace. By definition, we create loops between the legs in a
+/// planar way by connecting them over the left or right side of the tensor. If both a connecting
+/// loop over the left and the right side are planar, the result is independent of this choice.
+/// Must be compatible ``tensor.get_leg(pair[0]) == tensor.get_leg(pair[1]).dual``.
+/// @returns If all legs are traced, a python scalar. If legs are left open, a tensor with the same
+/// type as `tensor`.
 ///
 /// partial_trace
 ///     Non-planar partial trace which may include braiding of legs with specified levels.
@@ -741,7 +815,9 @@ class PlanarLinearOperator : public LinearOperator
 /// It is fully specified by assigning each leg to either the new codomain or the new domain.
 ///
 /// @param tensor The tensor whose legs are to be permuted.
-/// @param codomain, domain The legs that should be in the new (co)domain, in the correct order. Only one of `codomain`, `domain` is required when the other can be unambiguously inferred. This is the case when the specified `codomain` or `domain` contains at least one leg.
+/// @param codomain, domain The legs that should be in the new (co)domain, in the correct order.
+/// Only one of `codomain`, `domain` is required when the other can be unambiguously inferred. This
+/// is the case when the specified `codomain` or `domain` contains at least one leg.
 [[nodiscard]] TensorPtr planar_permute_legs(
   TensorCPtr T,
   std::optional<std::vector<LegRef>> codomain = std::nullopt,
@@ -774,9 +850,12 @@ class PlanarLinearOperator : public LinearOperator
 /// We always compute the "reduced", a.k.a. "economic" version.
 ///
 /// @param tensor The tensor to decompose.
-/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of `Q`, the rest of the codomain ends up in the codomain of `R`.
-/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `Q`, the rest of the domain ends up in the domain of `R`.
-/// @param new_labels Labels for the new legs. Either two legs ``[a, b]`` s.t. ``Q.labels[-1 - domain_cut] == a`` and ``R.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
+/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of
+/// `Q`, the rest of the codomain ends up in the codomain of `R`.
+/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `Q`, the
+/// rest of the domain ends up in the domain of `R`.
+/// @param new_labels Labels for the new legs. Either two legs ``[a, b]`` s.t. ``Q.labels[-1 -
+/// domain_cut] == a`` and ``R.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
 /// @param new_leg_dual If the new leg should be a ket space (``False``) or bra space (``True``).
 /// qr
 ///     QR decomposition with respect to codomain and domain. Corresponds to this
@@ -825,11 +904,17 @@ class PlanarLinearOperator : public LinearOperator
 /// isometries are (in general) not full unitaries.
 ///
 /// @param tensor The tensor to decompose.
-/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of `U`, the rest of the codomain ends up in the codomain of `Vh`.
-/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `U`, the rest of the domain ends up in the domain of `Vh`.
-/// @param new_labels The labels for the new legs can be specified in the following three ways; Four labels ``[a, b, c, d]`` result in ``U.labels[-1 - domain_cut] == a``, ``S.labels == [b, c]`` and ``Vh.labels[0] == d``. Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``. A single label ``a`` is equivalent to ``[a, a*, a, a*]``. The new legs are unlabelled by default.
+/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of
+/// `U`, the rest of the codomain ends up in the codomain of `Vh`.
+/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `U`, the
+/// rest of the domain ends up in the domain of `Vh`.
+/// @param new_labels The labels for the new legs can be specified in the following three ways;
+/// Four labels ``[a, b, c, d]`` result in ``U.labels[-1 - domain_cut] == a``, ``S.labels == [b,
+/// c]`` and ``Vh.labels[0] == d``. Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``. A
+/// single label ``a`` is equivalent to ``[a, a*, a, a*]``. The new legs are unlabelled by default.
 /// @param new_leg_dual If the new leg should be a ket space (``False``) or bra space (``True``).
-/// @param algorithm The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific. See `possible_svd_algorithms`.
+/// @param algorithm The algorithm (a.k.a. "driver") for the block-wise svd. Choices are
+/// backend-specific. See `possible_svd_algorithms`.
 /// @returns U: SymmetricTensor S: DiagonalTensor Vh: SymmetricTensor
 ///
 /// svd

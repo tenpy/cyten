@@ -238,8 +238,8 @@ svd_apply_mask(TensorCPtr U, DiagonalTensorCPtr S, TensorCPtr Vh, MaskCPtr mask)
 /// the degeneracy given by the quantum dimension @f$d_a@f$ of the sector. When converting to a
 /// non-symmetric representation, e.g. via `S.diagonal_to_numpy()`, that value @f$S_i@f$ will
 /// appear @f$d_a@f$ times. In particular, the error that we get by truncating some of the
-/// @f$S_i@f$ is given by @f$\epsilon = \sum_{i\,\mathrm{discarded}} d_{a_i} S_i^2@f$, such that the
-/// quantum dimensions need to be considered when choosing which singular values to keep for an
+/// @f$S_i@f$ is given by @f$\epsilon = \sum_{i\,\mathrm{discarded}} d_{a_i} S_i^2@f$, such that
+/// the quantum dimensions need to be considered when choosing which singular values to keep for an
 /// optimal truncation error.
 ///
 /// This is why the singular values are prioritized by largest @f$d_{a_i} S_i^2@f$.
@@ -292,8 +292,8 @@ svd_apply_mask(TensorCPtr U, DiagonalTensorCPtr S, TensorCPtr Vh, MaskCPtr mask)
 ///     `truncate_singular_values`.
 /// @returns `(U, S, Vh, err, renormalize)` such that `tdot(U, tdot(S, Vh, 1, 0), -1, 0)` is
 ///     *approximately* equal to `tensor`. `err` is the relative 2-norm truncation error
-///     `norm(tensor - U_S_Vh) / norm(tensor)`. `renormalize` is `norm(S) / norm(tensor)`, such that
-///     `U @ S @ Vh / renormalize` has the same norm as `tensor`.
+///     `norm(tensor - U_S_Vh) / norm(tensor)`. `renormalize` is `norm(S) / norm(tensor)`, such
+///     that `U @ S @ Vh / renormalize` has the same norm as `tensor`.
 ///
 /// See also: `svd`.
 [[nodiscard]] std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr, float64, float64> truncated_svd(

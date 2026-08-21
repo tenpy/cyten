@@ -147,10 +147,7 @@ bind_tensors_sparse(py::module_& m)
             self.vector_labels = optional_labels(labels);
         })
       .def_readwrite("dtype", &LinearOperator::dtype)
-      .def("matvec",
-           &LinearOperator::matvec,
-           py::arg("vec"),
-           DOC(cyten, LinearOperator, matvec))
+      .def("matvec", &LinearOperator::matvec, py::arg("vec"), DOC(cyten, LinearOperator, matvec))
       .def("to_tensor",
            &LinearOperator::to_tensor,
            py::arg("backend") = nullptr,
@@ -159,9 +156,7 @@ bind_tensors_sparse(py::module_& m)
            &LinearOperator::to_matrix,
            py::arg("backend") = nullptr,
            DOC(cyten, LinearOperator, to_matrix))
-      .def("adjoint",
-           &LinearOperator::adjoint,
-           DOC(cyten, LinearOperator, adjoint));
+      .def("adjoint", &LinearOperator::adjoint, DOC(cyten, LinearOperator, adjoint));
 
     auto tensor_linear_operator_cls =
       py::class_<TensorLinearOperator, LinearOperator, py::smart_holder>(m,

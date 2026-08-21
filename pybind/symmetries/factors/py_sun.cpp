@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/sun.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
@@ -14,9 +14,7 @@ namespace cyten {
 void
 bind_sun(py::module_& m)
 {
-    py::class_<SUN, Group, py::smart_holder> cls(m,
-                                                 "SUN",
-                                                 DOC(cyten, SUN));
+    py::class_<SUN, Group, py::smart_holder> cls(m, "SUN", DOC(cyten, SUN));
 
     cls.def(py::init<int, py::object, py::object, py::object, std::optional<std::string>>(),
             py::arg("N"),

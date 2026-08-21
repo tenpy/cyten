@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../doc_plus.h"
 #include "docstrings/symmetries/symmetry.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
@@ -36,9 +36,7 @@ flatten_factors_from_python(py::sequence seq)
 void
 bind_symmetry(py::module_& m)
 {
-    py::class_<Symmetry, BaseSymmetry, py::smart_holder> cls(m,
-                                                             "Symmetry",
-                                                             DOC(cyten, Symmetry));
+    py::class_<Symmetry, BaseSymmetry, py::smart_holder> cls(m, "Symmetry", DOC(cyten, Symmetry));
 
     cls.def(py::init([](py::sequence factors) {
                 return std::make_shared<Symmetry>(flatten_factors_from_python(factors));
@@ -63,11 +61,8 @@ bind_symmetry(py::module_& m)
       .def_readwrite("fusion_tensor_dtype", &Symmetry::fusion_tensor_dtype)
       .def_property_readonly("num_factors", &Symmetry::num_factors);
 
-    cls
-      .def(
-        "as_Symmetry",
-        [](py::object self) { return self; },
-        DOC(cyten, Symmetry, as_Symmetry))
+    cls.def(
+         "as_Symmetry", [](py::object self) { return self; }, DOC(cyten, Symmetry, as_Symmetry))
       .def(
         "is_valid_sector",
         [](Symmetry const& self, py::object a) {
@@ -129,10 +124,7 @@ bind_symmetry(py::module_& m)
             throw py::type_error("Expected instance or subclass of SymmetryFactor.");
         },
         py::arg("other"))
-      .def("dual_sector",
-           &Symmetry::dual_sector,
-           py::arg("a"),
-           DOC(cyten, Symmetry, dual_sector))
+      .def("dual_sector", &Symmetry::dual_sector, py::arg("a"), DOC(cyten, Symmetry, dual_sector))
       .def("dual_sectors",
            &Symmetry::dual_sectors,
            py::arg("sectors"),
@@ -143,21 +135,13 @@ bind_symmetry(py::module_& m)
            py::arg("b"),
            py::arg("c"),
            DOC(cyten, Symmetry, _n_symbol))
-      .def("all_sectors",
-           &Symmetry::all_sectors,
-           DOC(cyten, Symmetry, all_sectors))
+      .def("all_sectors", &Symmetry::all_sectors, DOC(cyten, Symmetry, all_sectors))
       .def("factor_where",
            &Symmetry::factor_where,
            py::arg("descriptive_name"),
            DOC(cyten, Symmetry, factor_where))
-      .def("qdim",
-           &Symmetry::qdim,
-           py::arg("a"),
-           DOC(cyten, Symmetry, qdim))
-      .def("sector_dim",
-           &Symmetry::sector_dim,
-           py::arg("a"),
-           DOC(cyten, Symmetry, sector_dim))
+      .def("qdim", &Symmetry::qdim, py::arg("a"), DOC(cyten, Symmetry, qdim))
+      .def("sector_dim", &Symmetry::sector_dim, py::arg("a"), DOC(cyten, Symmetry, sector_dim))
       .def(
         "batch_sector_dim",
         [](Symmetry const& self, SectorArray const& a) {
@@ -172,10 +156,7 @@ bind_symmetry(py::module_& m)
         },
         py::arg("a"),
         DOC(cyten, Symmetry, batch_qdim))
-      .def("sector_str",
-           &Symmetry::sector_str,
-           py::arg("a"),
-           DOC(cyten, Symmetry, sector_str))
+      .def("sector_str", &Symmetry::sector_str, py::arg("a"), DOC(cyten, Symmetry, sector_str))
       .def("_f_symbol",
            &Symmetry::_f_symbol,
            py::arg("a"),
@@ -204,10 +185,7 @@ bind_symmetry(py::module_& m)
            py::arg("a"),
            py::arg("b"),
            DOC(cyten, Symmetry, swap_gate))
-      .def("Z_iso",
-           &Symmetry::Z_iso,
-           py::arg("a"),
-           DOC(cyten, Symmetry, Z_iso))
+      .def("Z_iso", &Symmetry::Z_iso, py::arg("a"), DOC(cyten, Symmetry, Z_iso))
       .def(
         "is_equivalent_to",
         [](Symmetry const& self, py::object other, bool strict_ordering) {

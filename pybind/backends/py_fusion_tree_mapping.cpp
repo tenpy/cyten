@@ -1,8 +1,8 @@
 #include <cyten/backends/fusion_tree_mapping.h>
 #include <cyten/backends/fusion_tree_permute.h>
 
-#include "../py_cyten_pybind11.h"
 #include "../doc_plus.h"
+#include "../py_cyten_pybind11.h"
 #include "docstrings/backends/fusion_tree_mapping.h"
 
 #include <format>
@@ -120,7 +120,8 @@ bind_fusion_tree_mapping(py::module_& m)
         py::arg("codomain_idcs"),
         py::arg("domain_idcs"),
         py::arg("block_backend"),
-        doc_cpp_ref(R"pydoc(transform_tensor)pydoc", "cyten::TreePairMapping::transform_tensor()"));
+        doc_cpp_ref(R"pydoc(transform_tensor)pydoc",
+                    "cyten::TreePairMapping::transform_tensor()"));
 
     py::class_<FactorizedTreeMapping> fact(m, "FactorizedTreeMapping");
     fact.doc() = DOC(cyten, FactorizedTreeMapping);
@@ -133,12 +134,13 @@ bind_fusion_tree_mapping(py::module_& m)
       .def_readwrite("is_real", &FactorizedTreeMapping::is_real)
       .def_readwrite("splitting_tree_mapping", &FactorizedTreeMapping::splitting_tree_mapping)
       .def_readwrite("fusion_tree_mapping", &FactorizedTreeMapping::fusion_tree_mapping)
-      .def_static("from_identity",
-                  &FactorizedTreeMapping::from_identity,
-                  py::arg("codomain"),
-                  py::arg("domain"),
-                  py::arg("block_inds") = py::none(),
-                  doc_cpp_ref(R"pydoc(from_identity)pydoc", "cyten::FactorizedTreeMapping::from_identity()"))
+      .def_static(
+        "from_identity",
+        &FactorizedTreeMapping::from_identity,
+        py::arg("codomain"),
+        py::arg("domain"),
+        py::arg("block_inds") = py::none(),
+        doc_cpp_ref(R"pydoc(from_identity)pydoc", "cyten::FactorizedTreeMapping::from_identity()"))
       .def_static("from_instructions",
                   &FactorizedTreeMapping::from_instructions,
                   py::arg("instructions"),
@@ -178,10 +180,12 @@ bind_fusion_tree_mapping(py::module_& m)
         py::arg("codomain_idcs"),
         py::arg("domain_idcs"),
         py::arg("block_backend"),
-        doc_cpp_ref(R"pydoc(transform_tensor)pydoc", "cyten::FactorizedTreeMapping::transform_tensor()"));
+        doc_cpp_ref(R"pydoc(transform_tensor)pydoc",
+                    "cyten::FactorizedTreeMapping::transform_tensor()"));
 
     py::class_<PermuteLegsInstructionEngine> perm_cls(m, "PermuteLegsInstructionEngine");
-    perm_cls.doc() = doc_cpp_ref(R"pydoc(PermuteLegsInstructionEngine)pydoc", "cyten::PermuteLegsInstructionEngine");
+    perm_cls.doc() = doc_cpp_ref(R"pydoc(PermuteLegsInstructionEngine)pydoc",
+                                 "cyten::PermuteLegsInstructionEngine");
 
     perm_cls
       .def(py::init<int64,

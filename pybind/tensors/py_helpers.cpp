@@ -82,14 +82,13 @@ py_from_compose_sym(std::variant<SymmetricTensorPtr, BlockBackend::Scalar> const
 void
 bind_tensors_helpers(py::module_& m)
 {
-    m.def(
-      "_check_compatible_legs",
-      &py_check_compatible_legs,
-      py::arg("legs1"),
-      py::arg("legs2"),
-      py::arg("expect_equal") = true,
-      doc_plus(DOC(cyten, _check_compatible_legs),
-               R"pydoc(
+    m.def("_check_compatible_legs",
+          &py_check_compatible_legs,
+          py::arg("legs1"),
+          py::arg("legs2"),
+          py::arg("expect_equal") = true,
+          doc_plus(DOC(cyten, _check_compatible_legs),
+                   R"pydoc(
 Accepts sequences of either ``Leg`` or ``Space`` objects (dispatches to the matching
 C++ overload).
 )pydoc"));

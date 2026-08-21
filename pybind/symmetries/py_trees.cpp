@@ -1,6 +1,6 @@
-#include "py_cyten_pybind11.h"
 #include "../doc_plus.h"
 #include "docstrings/symmetries/trees.h"
+#include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
@@ -144,9 +144,7 @@ pair_linear_combination_to_python(FusionTreePairLinearCombination const& lc)
 void
 bind_trees(py::module_& m)
 {
-    py::class_<FusionTree> cls(m,
-                               "FusionTree",
-                               DOC(cyten, FusionTree));
+    py::class_<FusionTree> cls(m, "FusionTree", DOC(cyten, FusionTree));
 
     cls.def(py::init([](py::object symmetry_obj,
                         py::object uncoupled,
@@ -221,14 +219,10 @@ bind_trees(py::module_& m)
             }
         });
 
-    cls.def_property_readonly("pre_Z_uncoupled",
-                              &FusionTree::pre_Z_uncoupled,
-                              DOC(cyten, FusionTree, pre_Z_uncoupled));
+    cls.def_property_readonly(
+      "pre_Z_uncoupled", &FusionTree::pre_Z_uncoupled, DOC(cyten, FusionTree, pre_Z_uncoupled));
 
-    cls
-      .def("test_sanity",
-           &FusionTree::test_sanity,
-           DOC(cyten, FusionTree, test_sanity))
+    cls.def("test_sanity", &FusionTree::test_sanity, DOC(cyten, FusionTree, test_sanity))
       .def_static(
         "from_abelian_symmetry",
         [](py::object symmetry_obj, py::object uncoupled, py::object are_dual) {
@@ -328,10 +322,7 @@ bind_trees(py::module_& m)
         py::arg("dtype") = py::none(),
         py::arg("understood_braiding") = false,
         DOC(cyten, FusionTree, to_dense_block))
-      .def("copy",
-           &FusionTree::copy,
-           py::arg("deep") = true,
-           DOC(cyten, FusionTree, copy))
+      .def("copy", &FusionTree::copy, py::arg("deep") = true, DOC(cyten, FusionTree, copy))
       .def("extended",
            &FusionTree::extended,
            py::arg("new_uncoupled"),
@@ -339,10 +330,7 @@ bind_trees(py::module_& m)
            py::arg("new_coupled"),
            py::arg("is_dual"),
            DOC(cyten, FusionTree, extended))
-      .def("insert",
-           &FusionTree::insert,
-           py::arg("t2"),
-           DOC(cyten, FusionTree, insert))
+      .def("insert", &FusionTree::insert, py::arg("t2"), DOC(cyten, FusionTree, insert))
       .def(
         "insert_at",
         [](FusionTree const& self, int64 n, FusionTree const& t2, float64 eps) {
@@ -360,10 +348,7 @@ bind_trees(py::module_& m)
         py::arg("right_tree"),
         py::arg("eps") = 1.0e-14,
         DOC(cyten, FusionTree, outer))
-      .def("split",
-           &FusionTree::split,
-           py::arg("n"),
-           DOC(cyten, FusionTree, split))
+      .def("split", &FusionTree::split, py::arg("n"), DOC(cyten, FusionTree, split))
       .def("split_bottom_vertex",
            &FusionTree::split_bottom_vertex,
            DOC(cyten, FusionTree, split_bottom_vertex))
@@ -376,9 +361,7 @@ bind_trees(py::module_& m)
         py::arg("overtwist"),
         DOC(cyten, FusionTree, twist));
 
-    py::class_<fusion_trees> ft(m,
-                                "fusion_trees",
-                                DOC(cyten, fusion_trees));
+    py::class_<fusion_trees> ft(m, "fusion_trees", DOC(cyten, fusion_trees));
 
     ft.def(
       py::init(
@@ -425,10 +408,7 @@ bind_trees(py::module_& m)
       .def("__len__", &fusion_trees::size)
       .def("__str__", &fusion_trees::str)
       .def("__repr__", &fusion_trees::repr)
-      .def("index",
-           &fusion_trees::index,
-           py::arg("tree"),
-           DOC(cyten, fusion_trees, index));
+      .def("index", &fusion_trees::index, py::arg("tree"), DOC(cyten, fusion_trees, index));
 }
 
 } // namespace cyten

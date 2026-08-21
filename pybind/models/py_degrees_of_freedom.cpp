@@ -1,7 +1,7 @@
 #include <cyten/models/degrees_of_freedom.h>
 
-#include "../py_cyten_pybind11.h"
 #include "../doc_plus.h"
+#include "../py_cyten_pybind11.h"
 #include "docstrings/models/degrees_of_freedom.h"
 
 #include <cmath>
@@ -88,10 +88,7 @@ bind_models_degrees_of_freedom(py::module_& m)
            py::arg("understood_braiding") = false,
            DOC(cyten, Site, add_onsite_operator))
       .def("valid_opname", &Site::valid_opname, py::arg("name"), DOC(cyten, Site, valid_opname))
-      .def("get_op",
-           &Site::get_op,
-           py::arg("name"),
-           DOC(cyten, Site, get_op))
+      .def("get_op", &Site::get_op, py::arg("name"), DOC(cyten, Site, get_op))
       .def("multiply_op_names",
            &Site::multiply_op_names,
            py::arg("names"),
@@ -105,14 +102,9 @@ bind_models_degrees_of_freedom(py::module_& m)
            py::arg("w"),
            py::arg("overbraid") = true,
            DOC(cyten, Site, identity_tensor))
-      .def("state_index",
-           &Site::state_index,
-           py::arg("label"),
-           DOC(cyten, Site, state_index))
-      .def("state_indices",
-           &Site::state_indices,
-           py::arg("labels"),
-           DOC(cyten, Site, state_indices))
+      .def("state_index", &Site::state_index, py::arg("label"), DOC(cyten, Site, state_index))
+      .def(
+        "state_indices", &Site::state_indices, py::arg("labels"), DOC(cyten, Site, state_indices))
       .def("__repr__", &Site::repr)
       .def("save_hdf5",
            &Site::save_hdf5,
@@ -212,13 +204,16 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_readwrite("species_names", &OccupationDOF::species_names)
       .def_readwrite("number_operators", &OccupationDOF::number_operators)
       .def_readwrite("n_tot", &OccupationDOF::n_tot)
-      .def("test_sanity", &OccupationDOF::test_sanity, doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::OccupationDOF::test_sanity()"))
+      .def("test_sanity",
+           &OccupationDOF::test_sanity,
+           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::OccupationDOF::test_sanity()"))
       .def("add_individual_occupation_ops",
            &OccupationDOF::add_individual_occupation_ops,
            DOC(cyten, OccupationDOF, add_individual_occupation_ops))
       .def("add_total_occupation_ops",
            &OccupationDOF::add_total_occupation_ops,
-           doc_cpp_ref(R"pydoc(add_total_occupation_ops)pydoc", "cyten::OccupationDOF::add_total_occupation_ops()"))
+           doc_cpp_ref(R"pydoc(add_total_occupation_ops)pydoc",
+                       "cyten::OccupationDOF::add_total_occupation_ops()"))
       .def("get_annihilator_numpy",
            &OccupationDOF::get_annihilator_numpy,
            py::arg("species"),
@@ -229,11 +224,10 @@ bind_models_degrees_of_freedom(py::module_& m)
            py::arg("species"),
            py::arg("include_JW") = false,
            DOC(cyten, OccupationDOF, get_creator_numpy))
-      .def(
-        "get_occupation_numpy",
-        &OccupationDOF::get_occupation_numpy,
-        py::arg("species") = all_species_sentinel(),
-        DOC(cyten, OccupationDOF, get_occupation_numpy))
+      .def("get_occupation_numpy",
+           &OccupationDOF::get_occupation_numpy,
+           py::arg("species") = all_species_sentinel(),
+           DOC(cyten, OccupationDOF, get_occupation_numpy))
       .def("get_species_idx", &OccupationDOF::get_species_idx, py::arg("species"));
 
     py::class_<BosonicDOF, OccupationDOF, py::smart_holder> bosonic_dof(m, "BosonicDOF");
@@ -261,10 +255,13 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_readwrite("Nmax", &BosonicDOF::Nmax)
       .def_readwrite("JW", &BosonicDOF::JW)
       .def_readwrite("_JW", &BosonicDOF::JW)
-      .def("test_sanity", &BosonicDOF::test_sanity, doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::BosonicDOF::test_sanity()"))
+      .def("test_sanity",
+           &BosonicDOF::test_sanity,
+           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::BosonicDOF::test_sanity()"))
       .def("add_individual_occupation_ops",
            &BosonicDOF::add_individual_occupation_ops,
-           doc_cpp_ref(R"pydoc(add_individual_occupation_ops)pydoc", "cyten::BosonicDOF::add_individual_occupation_ops()"))
+           doc_cpp_ref(R"pydoc(add_individual_occupation_ops)pydoc",
+                       "cyten::BosonicDOF::add_individual_occupation_ops()"))
       .def("get_annihilator_numpy",
            &BosonicDOF::get_annihilator_numpy,
            py::arg("species"),
@@ -273,11 +270,11 @@ bind_models_degrees_of_freedom(py::module_& m)
            &BosonicDOF::get_creator_numpy,
            py::arg("species"),
            py::arg("include_JW") = false)
-      .def_static(
-        "conservation_law_to_symmetry",
-        &BosonicDOF::conservation_law_to_symmetry,
-        py::arg("conserve"),
-        doc_cpp_ref(R"pydoc(conservation_law_to_symmetry)pydoc", "cyten::BosonicDOF::conservation_law_to_symmetry()"))
+      .def_static("conservation_law_to_symmetry",
+                  &BosonicDOF::conservation_law_to_symmetry,
+                  py::arg("conserve"),
+                  doc_cpp_ref(R"pydoc(conservation_law_to_symmetry)pydoc",
+                              "cyten::BosonicDOF::conservation_law_to_symmetry()"))
       .def_static("creation_annihilation_op_from_single_Nmax",
                   &BosonicDOF::creation_annihilation_op_from_single_Nmax,
                   py::arg("Nmax"),
@@ -315,7 +312,9 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_readwrite("partial_JWs", &FermionicDOF::partial_JWs)
       .def_readwrite("JW", &FermionicDOF::JW)
       .def_readwrite("_JW", &FermionicDOF::JW)
-      .def("test_sanity", &FermionicDOF::test_sanity, doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::FermionicDOF::test_sanity()"))
+      .def("test_sanity",
+           &FermionicDOF::test_sanity,
+           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::FermionicDOF::test_sanity()"))
       .def("get_annihilator_numpy",
            &FermionicDOF::get_annihilator_numpy,
            py::arg("species"),
@@ -324,11 +323,11 @@ bind_models_degrees_of_freedom(py::module_& m)
            &FermionicDOF::get_creator_numpy,
            py::arg("species"),
            py::arg("include_JW") = false)
-      .def_static(
-        "conservation_law_to_symmetry",
-        &FermionicDOF::conservation_law_to_symmetry,
-        py::arg("conserve"),
-        doc_cpp_ref(R"pydoc(conservation_law_to_symmetry)pydoc", "cyten::FermionicDOF::conservation_law_to_symmetry()"))
+      .def_static("conservation_law_to_symmetry",
+                  &FermionicDOF::conservation_law_to_symmetry,
+                  py::arg("conserve"),
+                  doc_cpp_ref(R"pydoc(conservation_law_to_symmetry)pydoc",
+                              "cyten::FermionicDOF::conservation_law_to_symmetry()"))
       .def_static("creation_annihilation_ops",
                   &FermionicDOF::creation_annihilation_ops,
                   py::arg("num_species"));

@@ -1,5 +1,5 @@
-#include "../py_cyten_pybind11.h"
 #include "../doc_plus.h"
+#include "../py_cyten_pybind11.h"
 #include "docstrings/block_backend/block_backend.h"
 #include "py_array_api.cpp"
 #include "py_dtypes.cpp"
@@ -762,10 +762,7 @@ bind_block_backend(py::module_& m)
            py::arg("block"),
            py::arg("mask"),
            py::arg("axis"))
-      .def("exp",
-           &BlockBackend::exp,
-           py::arg("a"),
-           DOC(cyten, BlockBackend, exp))
+      .def("exp", &BlockBackend::exp, py::arg("a"), DOC(cyten, BlockBackend, exp))
       .def("block_from_diagonal",
            &BlockBackend::block_from_diagonal,
            py::arg("diag"),
@@ -796,30 +793,20 @@ bind_block_backend(py::module_& m)
            py::arg("b"),
            py::arg("do_dagger"),
            DOC(cyten, BlockBackend, inner))
-      .def("is_real",
-           &BlockBackend::is_real,
-           py::arg("a"),
-           DOC(cyten, BlockBackend, is_real))
+      .def("is_real", &BlockBackend::is_real, py::arg("a"), DOC(cyten, BlockBackend, is_real))
       .def("item",
            &BlockBackend::item,
            py::arg("a"),
            "Assumes that data is a scalar (i.e. has only one entry). Returns that scalar as "
            "python float or complex")
-      .def("kron",
-           &BlockBackend::kron,
-           py::arg("a"),
-           py::arg("b"),
-           DOC(cyten, BlockBackend, kron))
+      .def("kron", &BlockBackend::kron, py::arg("a"), py::arg("b"), DOC(cyten, BlockBackend, kron))
       .def("linear_combination",
            &BlockBackend::linear_combination,
            py::arg("a"),
            py::arg("v"),
            py::arg("b"),
            py::arg("w"))
-      .def("log",
-           &BlockBackend::log,
-           py::arg("a"),
-           DOC(cyten, BlockBackend, log))
+      .def("log", &BlockBackend::log, py::arg("a"), DOC(cyten, BlockBackend, log))
       .def("max", &BlockBackend::max, py::arg("a"))
       .def("max_abs", &BlockBackend::max_abs, py::arg("a"))
       .def("min", &BlockBackend::min, py::arg("a"))
@@ -841,11 +828,8 @@ bind_block_backend(py::module_& m)
            py::arg("order") = 2,
            py::arg("axis") = py::none(),
            DOC(cyten, BlockBackend, norm))
-      .def("outer",
-           &BlockBackend::outer,
-           py::arg("a"),
-           py::arg("b"),
-           DOC(cyten, BlockBackend, outer))
+      .def(
+        "outer", &BlockBackend::outer, py::arg("a"), py::arg("b"), DOC(cyten, BlockBackend, outer))
       .def("permute_axes", &BlockBackend::permute_axes, py::arg("a"), py::arg("permutation"))
       .def("permute_combined_matrix",
            &BlockBackend::permute_combined_matrix,
@@ -933,10 +917,7 @@ bind_block_backend(py::module_& m)
            py::arg("cutoff"),
            "Elementwise stable log. For entries > cutoff, yield their natural log. Otherwise 0.")
       .def("sum", &BlockBackend::sum, py::arg("a"), py::arg("ax"), "The sum over a single axis.")
-      .def("sum_all",
-           &BlockBackend::sum_all,
-           py::arg("a"),
-           DOC(cyten, BlockBackend, sum_all))
+      .def("sum_all", &BlockBackend::sum_all, py::arg("a"), DOC(cyten, BlockBackend, sum_all))
       .def("tdot",
            &BlockBackend::tdot,
            py::arg("a"),

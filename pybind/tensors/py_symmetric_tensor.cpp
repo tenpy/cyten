@@ -82,9 +82,8 @@ bind_tensors_symmetric_tensor(py::module_& m)
           }
       });
 
-    cls.def("test_sanity",
-            &SymmetricTensor::test_sanity,
-            DOC(cyten, SymmetricTensor, test_sanity));
+    cls.def(
+      "test_sanity", &SymmetricTensor::test_sanity, DOC(cyten, SymmetricTensor, test_sanity));
     cls.def("verify_dtype", &SymmetricTensor::verify_dtype);
 
     cls.def_static(

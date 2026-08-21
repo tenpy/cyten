@@ -192,9 +192,7 @@ bind_tensors_krylov_based(py::module_& m)
            py::arg("psi0"),
            py::arg("options") = py::none())
       .def_readwrite("E_tol", &LanczosGroundState::E_tol)
-      .def("run",
-           &LanczosGroundState::run,
-           DOC(cyten, LanczosGroundState, run));
+      .def("run", &LanczosGroundState::run, DOC(cyten, LanczosGroundState, run));
 
     py::class_<LanczosEvolution, LanczosGroundState, py::smart_holder> lanczos_evolution(
       m, "LanczosEvolution");

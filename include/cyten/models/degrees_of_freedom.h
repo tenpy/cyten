@@ -69,55 +69,67 @@ class Site : public virtual std::enable_shared_from_this<Site>
 
     virtual ~Site() = default;
 
-/// Perform sanity checks.
+    /// Perform sanity checks.
     virtual void test_sanity();
 
     [[nodiscard]] Symmetry::Ptr symmetry() const;
     [[nodiscard]] float64 dim() const;
 
-/// Add an operator to the `onsite_operators`.
+    /// Add an operator to the `onsite_operators`.
     void add_onsite_operator(std::string const& name,
                              py::object op,
                              std::optional<bool> is_diagonal = std::nullopt,
                              bool understood_braiding = false);
 
-/// Whether `name` labels a valid onsite operator of this site.
+    /// Whether `name` labels a valid onsite operator of this site.
     [[nodiscard]] bool valid_opname(std::string const& name) const;
-/// Return operator of given name.
-///
-/// @param name The name of the operator to be returned. In case of multiple operator names separated by whitespace, we multiply them together to a single on-site operator (with the one on the right acting first).
-/// @returns op : `SymmetricTensor` The operator given by `name`, with labels ``'p', 'p*'``. If name already was an onsite operator, it's directly returned.
+    /// Return operator of given name.
+    ///
+    /// @param name The name of the operator to be returned. In case of multiple operator names
+    /// separated by whitespace, we multiply them together to a single on-site operator (with the
+    /// one on the right acting first).
+    /// @returns op : `SymmetricTensor` The operator given by `name`, with labels ``'p', 'p*'``. If
+    /// name already was an onsite operator, it's directly returned.
     [[nodiscard]] SymmetricTensorPtr get_op(std::string const& name);
-/// Multiply operator names together.
-///
-/// Join the operator names in `names` such that `get_op` returns the product of the
-/// corresponding operators.
-///
-/// @param names List of valid operator labels.
-/// @returns combined_opname : str A valid operator name Operator name representing the product of operators in `names`.
+    /// Multiply operator names together.
+    ///
+    /// Join the operator names in `names` such that `get_op` returns the product of the
+    /// corresponding operators.
+    ///
+    /// @param names List of valid operator labels.
+    /// @returns combined_opname : str A valid operator name Operator name representing the product
+    /// of operators in `names`.
     [[nodiscard]] std::string multiply_op_names(std::vector<std::string> const& names) const;
-/// Multiply local operators (possibly given by their names) together.
-///
-/// @param operators List of valid operator names (to be translated with `get_op`) or directly on-site operators in the form of tensors with ``'p', 'p*'`` labels. The operators are multiplied left-to-right.
-/// @returns combined_operator : `SymmetricTensor` The product of the given `operators` in a left-to-right multiplication following the usual mathematical convention. For example, if ``operators=['Sz', 'Sp', 'Sx']``, the final operator is equivalent to ``site.get_op('Sz Sp Sx')``, with the ``'Sx'`` operator acting first on any physical state.
+    /// Multiply local operators (possibly given by their names) together.
+    ///
+    /// @param operators List of valid operator names (to be translated with `get_op`) or directly
+    /// on-site operators in the form of tensors with ``'p', 'p*'`` labels. The operators are
+    /// multiplied left-to-right.
+    /// @returns combined_operator : `SymmetricTensor` The product of the given `operators` in a
+    /// left-to-right multiplication following the usual mathematical convention. For example, if
+    /// ``operators=['Sz', 'Sp', 'Sx']``, the final operator is equivalent to ``site.get_op('Sz Sp
+    /// Sx')``, with the ``'Sx'`` operator acting first on any physical state.
     [[nodiscard]] SymmetricTensorPtr multiply_operators(std::vector<py::object> const& operators);
-/// Build an identity MPO tensor for this site with the given virtual legs.
-///
-/// Returns a 4-leg tensor with legs ``[wL, p, wR, p*]``; the physical legs carry `leg`.
-/// This tensor acts as identity map between wL and wR, and is symmetric under the symmetry of this site.
-///
-/// @param w Virtual leg for the `wL` and `wR` legs (they are the same) of the returned tensor.
-/// @param overbraid Braiding direction when the virtual leg is permuted past the physical leg. ``True`` (default) uses an over-braid (``bend_right=False`` in `permute_legs`); ``False`` uses an under-braid (``bend_right=True``).
-/// @returns Identity tensor with legs ``[wL, p, wR, p*]``.
+    /// Build an identity MPO tensor for this site with the given virtual legs.
+    ///
+    /// Returns a 4-leg tensor with legs ``[wL, p, wR, p*]``; the physical legs carry `leg`.
+    /// This tensor acts as identity map between wL and wR, and is symmetric under the symmetry of
+    /// this site.
+    ///
+    /// @param w Virtual leg for the `wL` and `wR` legs (they are the same) of the returned tensor.
+    /// @param overbraid Braiding direction when the virtual leg is permuted past the physical leg.
+    /// ``True`` (default) uses an over-braid (``bend_right=False`` in `permute_legs`); ``False``
+    /// uses an under-braid (``bend_right=True``).
+    /// @returns Identity tensor with legs ``[wL, p, wR, p*]``.
     [[nodiscard]] SymmetricTensorPtr identity_tensor(ElementarySpace::Ptr w,
                                                      bool overbraid = true);
-/// The index of a basis state.
+    /// The index of a basis state.
     [[nodiscard]] int64 state_index(py::object label) const;
-/// The indices of multiple basis states
+    /// The indices of multiple basis states
     [[nodiscard]] std::vector<int64> state_indices(std::vector<py::object> const& labels) const;
     [[nodiscard]] std::string repr() const;
 
-/// Export `self` into a HDF5 file.
+    /// Export `self` into a HDF5 file.
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
     static py::object from_hdf5(py::object cls,
                                 py::object hdf5_loader,
@@ -152,14 +164,14 @@ class SpinDOF : public virtual Site
             TensorBackend::Ptr backend = nullptr,
             std::optional<std::string> default_device = std::nullopt);
 
-/// Perform sanity checks.
+    /// Perform sanity checks.
     void test_sanity() override;
 
-/// Build the spin_vector from ``Sz`` and ``Sp = Sx + i Sy``
+    /// Build the spin_vector from ``Sz`` and ``Sp = Sx + i Sy``
     [[nodiscard]] static py::array spin_vector_from_Sp(py::array Sz, py::array Sp);
-/// Translate conservation law for a spin to a symmetry.
-/// Translate conservation law for individual / all bosons to a symmetry.
-/// Translate conservation law for individual / all fermions to a symmetry.
+    /// Translate conservation law for a spin to a symmetry.
+    /// Translate conservation law for individual / all bosons to a symmetry.
+    /// Translate conservation law for individual / all fermions to a symmetry.
     [[nodiscard]] static Symmetry::Ptr conservation_law_to_symmetry(
       std::optional<std::string> conserve);
 };
@@ -179,10 +191,10 @@ class ClockDOF : public virtual Site
              TensorBackend::Ptr backend = nullptr,
              std::optional<std::string> default_device = std::nullopt);
 
-/// Perform sanity checks.
+    /// Perform sanity checks.
     void test_sanity() override;
 
-/// Translate conservation law for a clock to a symmetry.
+    /// Translate conservation law for a clock to a symmetry.
     [[nodiscard]] static Symmetry::Ptr conservation_law_to_symmetry(
       std::optional<std::string> conserve);
 };
@@ -202,7 +214,7 @@ class AnyonDOF : public virtual Site
              TensorBackend::Ptr backend = nullptr,
              std::optional<std::string> default_device = std::nullopt);
 
-/// Perform sanity checks.
+    /// Perform sanity checks.
     void test_sanity() override;
 };
 
@@ -220,8 +232,9 @@ class AnyonDOF : public virtual Site
 ///     and axes ``[p, p*, i]``, where `i` corresponds to the different species of bosons (i.e.,
 ///     ``[Bd0, Bd1`, ...]`` stacked along axis 2).
 /// annihilators : 3D array
-///     The vector of annihilation operators as a numpy array with shape ``(dim, dim, num_species)``
-///     and axes ``[p, p*, i]``, where `i` corresponds to the different species of bosons (i.e.,
+///     The vector of annihilation operators as a numpy array with shape ``(dim, dim,
+///     num_species)`` and axes ``[p, p*, i]``, where `i` corresponds to the different species of
+///     bosons (i.e.,
 ///     ``[B0, B1`, ...]`` stacked along axis 2).
 /// anti_commute_sign : float
 ///     ``+1`` for bosons, ``-1`` for fermions.
@@ -256,22 +269,22 @@ class OccupationDOF : public virtual Site
 
     void test_sanity() override;
 
-/// Add occupation and parity operators for each species.
+    /// Add occupation and parity operators for each species.
     virtual void add_individual_occupation_ops();
     void add_total_occupation_ops();
 
-/// Wrapper around ``annihilators[:, :, species]``, optionally including JW strings.
-///
-/// If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
+    /// Wrapper around ``annihilators[:, :, species]``, optionally including JW strings.
+    ///
+    /// If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
     [[nodiscard]] virtual py::array get_annihilator_numpy(py::object species,
                                                           bool include_JW = false) = 0;
-/// Wrapper around ``creators[:, :, species]``, optionally including JW strings.
-///
-/// If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
+    /// Wrapper around ``creators[:, :, species]``, optionally including JW strings.
+    ///
+    /// If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
     [[nodiscard]] virtual py::array get_creator_numpy(py::object species,
                                                       bool include_JW = false) = 0;
 
-/// Get the occupation number operator for some or multiple species as a numpy array.
+    /// Get the occupation number operator for some or multiple species as a numpy array.
     [[nodiscard]] py::array get_occupation_numpy(py::object species = py::none());
     [[nodiscard]] int64 get_species_idx(py::object species) const;
 
