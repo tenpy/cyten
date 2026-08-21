@@ -23,7 +23,6 @@ from . import (
 )
 
 # import pybind11 bindings from C++ code
-from ._core import add
 from .backends import TensorBackend, get_backend
 from .block_backends import Block, BlockBackend, Dtype, NumpyBlockBackend, TorchBlockBackend
 

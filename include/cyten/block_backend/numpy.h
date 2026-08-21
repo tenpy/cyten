@@ -7,6 +7,9 @@
 namespace cyten {
 
 /// A block backend using numpy.
+///
+/// No constructor available, use from_factory instead.
+/// Not to be subclassed.
 class NumpyBlockBackend : public BlockBackend
 {
   public:

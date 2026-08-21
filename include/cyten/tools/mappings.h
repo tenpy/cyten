@@ -15,9 +15,9 @@ namespace cyten {
 
 /// A sparse matrix, where the labels of basis states are a structured type, not just int.
 ///
-/// Used in :class:`cyten.backends.fusion_tree_backend.TreePairMapping` and related objects.
+/// Used in `TreePairMapping` and related objects.
 ///
-/// To represent the mapping ``e_j -> \sum_i A_{ij} e_i``, we store ``self[j][i] = A_{ij}``.
+/// To represent the mapping ``e_j -> \\sum_i A_{ij} e_i``, we store ``self[j][i] = A_{ij}``.
 /// I.e. a single entry ``self[j][i] = a`` represents the contribution ``e_j -> a e_i``.
 ///
 /// Unlike the Python ``dict`` subclass, this wraps nested ``std::unordered_map`` and does not
@@ -39,7 +39,7 @@ class SparseMapping
     {
     }
 
-    /// The identity mapping ``e_j -> e_j`` on the given keys.
+    /// The identity mapping ``e_j -> e_j`` on the given keys
     [[nodiscard]] static SparseMapping from_identity(std::vector<KT> const& keys)
     {
         SparseMapping res;
@@ -50,7 +50,7 @@ class SparseMapping
         return res;
     }
 
-    /// The composite ``res_{ik} = \sum_j other_{ij} self_{jk}``, such that self acts first.
+    /// The composite ``res_{ik} = \\sum_j other_{ij} self{jk}``, such that self acts first.
     ///
     /// I.e. ``pre_compose(self, other) : x ↦ other(self(x)) = (other ∘ self)(x)``.
     [[nodiscard]] SparseMapping pre_compose(SparseMapping const& other) const
@@ -130,7 +130,7 @@ class SparseMapping
     auto end() const { return data.end(); }
 };
 
-/// An identity mapping with same call structure as :class:`SparseMapping`.
+/// An identity mapping with same call structure as `SparseMapping`.
 template<typename KT, typename Scalar = complex128>
 class IdentityMapping
 {
@@ -150,7 +150,7 @@ class IdentityMapping
     {
     }
 
-    /// The composite ``res_{ik} = \sum_j other_{ij} self_{jk}``, such that self acts first.
+    /// The composite ``res_{ik} = \\sum_j other_{ij} self_{jk}``, such that self acts first.
     [[nodiscard]] SparseMapping<KT, Scalar> pre_compose(
       SparseMapping<KT, Scalar> const& other) const
     {
@@ -173,7 +173,10 @@ class IdentityMapping
     void prune(float64 /*tol*/) {}
 };
 
+/// Sparse mapping with `FusionTree` keys and ``complex128`` coefficients.
 using SparseMappingFusionTree = SparseMapping<FusionTree, complex128>;
+/// Sparse mapping with ``(FusionTree, FusionTree)`` keys (tree pairs) and ``complex128``
+/// coefficients.
 using SparseMappingFusionTreePair = SparseMapping<std::pair<FusionTree, FusionTree>, complex128>;
 using IdentityMappingFusionTree = IdentityMapping<FusionTree, complex128>;
 using IdentityMappingFusionTreePair =

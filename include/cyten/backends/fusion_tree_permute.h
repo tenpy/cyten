@@ -15,6 +15,13 @@ enum class ShouldBend
 };
 
 /// Helper class to build the basic instructions that realize a leg permutation.
+///
+/// The strategy is to have a stateful instance of this class that represents a list
+/// of `instructions` that have already been deduced, as well as attributes that encode
+/// what needs to be done still.
+///
+/// Typical usage is to call `evaluate_instructions` once and consider the rest of the
+/// methods as internals.
 class PermuteLegsInstructionEngine
 {
   public:
@@ -38,6 +45,15 @@ class PermuteLegsInstructionEngine
 
     [[nodiscard]] std::vector<Instruction> evaluate_instructions();
 
+    /// Verify that the `instructions` reproduce the target leg permutation.
+    ///
+    /// Note: we only check if the legs end up where they are supposed to, we do not verify
+    /// braid chiralities.
+    /// TODO should we?
+    ///
+    /// @param num_codomain_legs, num_domain_legs The leg numbers of the original non-permuted
+    /// tensor.
+    /// @param codomain_idcs, domain_idcs The target permutations.
     void verify(int64 num_codomain_legs_,
                 int64 num_domain_legs_,
                 std::vector<int64> const& codomain_idcs,

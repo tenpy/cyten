@@ -18,7 +18,10 @@ Dtype from_torch_dtype(c10::ScalarType torch_dtype);
 
 } // namespace dtype
 
-/// A block-backend using PyTorch (libtorch C++ API).
+/// A block-backend using PyTorch.
+///
+/// No constructor available, use from_factory instead.
+/// Not to be subclassed.
 class TorchBlockBackend : public BlockBackend
 {
   public:

@@ -9,6 +9,9 @@
 namespace cyten {
 
 /// Conserves a fermionic particle number (U(1)-like fusion, fermionic braid).
+///
+/// This is essentially U(1), but with a braid that encodes fermionic exchange statistics.
+/// Allowed sectors are arrays with a single integer entry.
 class FermionNumber : public SymmetryFactor
 {
   public:

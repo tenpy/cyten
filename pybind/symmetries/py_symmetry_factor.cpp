@@ -1,3 +1,5 @@
+#include "../doc_plus.h"
+#include "docstrings/symmetries/symmetry_factor.h"
 #include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
@@ -15,63 +17,7 @@ void
 bind_symmetry_factor(py::module_& m)
 {
     py::class_<SymmetryFactor, BaseSymmetry, PySymmetryFactor, py::smart_holder> cls(
-      m,
-      "SymmetryFactor",
-      R"pydoc(
-      Base class for symmetries that impose a block-structure on tensors
-
-      Attributes
-      ----------
-      can_be_dropped: bool
-          If the symmetry could be dropped to :class:`NoSymmetry` while preserving the structure.
-          This is e.g. the case for group symmetries.
-          This means that there is a well-defined notion of a basis of graded vector spaces and of
-          dense array representations of symmetric Tensor. See notes below.
-      trivial_sector: Sector
-          The trivial sector of the symmetry.
-          For a group this is the "symmetric" sector, where the group acts trivially.
-          For a general category, this is the monoidal unit.
-      group_name: str
-          A readable name for the symmetry, purely as a mathematical structure, e.g. ``'U(1)'``.
-      descriptive_name: str | None
-          Optionally, an additional name for the group, indicating e.g. how it arises.
-          Could be e.g. ``'Sz'`` for the U(1) symmetry that conserves magnetization.
-      num_sectors: int | float
-          The number of sectors of the symmetry. An integer if finite, otherwise ``float('inf')``.
-      sector_ind_len : int
-          Valid sectors are numpy arrays with shape ``(sector_ind_len,)``.
-      empty_sector_array : 2D ndarray
-          A SectorArray with no sectors, shape ``(0, sector_ind_len)``.
-      has_complex_topological_data : bool
-          If any of the topological data (F, R, C, B symbols, twist) for any sectors is complex.
-          If so, tensors with that symmetry must have a complex dtype (except DiagonalTensor or Mask),
-          since real blocks become complex under leg manipulations.
-          Note: for a group (and for fermions), the topo data must be real if the fusion tensors
-          are real. This is because the associator, the braid, and the cup are all real for groups.
-
-      Notes
-      -----
-      Some symmetries can be dropped to :class:`NoSymmetry`, see :attr:`can_be_dropped`.
-      It implies that all operations that may be carried out on symmetric objects have a corresponding
-      operation on a non-symmetric counterpart. For example, a symmetric space :math:`A` has a
-      corresponding space :math:`\mathbb{C}^n_A`, without further structure.
-      It "corresponds" to :math:`A` in the sense that it has the same properties, e.g. same dimension,
-      and that there are compatible operations (tensor product, direct sum, ...) such that::
-
-          symmetric :math:`A`  -------- (operation) --->   symmetric :math:`B`
-                  |                                                 |
-               (drop symm)                                       (drop symm)
-                  |                                                 |
-                  v                                                 v
-          :math:`\mathbb{C}^{n_A}`  --- (operation) --->   :math:`\mathbb{C}^{n_B}`
-
-      commutes.
-      The same goes for tensors, i.e. for symmetric tensors there are corresponding non-symmetric
-      tensors which we may manipulate instead. This means that if *and only if* the symmetry has this
-      property does it make sense to convert between symmetric tensors and e.g. numpy arrays, which we can
-      think of as tensors with :class:`NoSymmetry`. Additionally, the concept of a basis only makes
-      sense in exactly these cases.
-      )pydoc");
+      m, "SymmetryFactor", DOC(cyten, SymmetryFactor));
 
     cls.def(py::init<FusionStyle,
                      BraidingStyle,
@@ -111,9 +57,7 @@ bind_symmetry_factor(py::module_& m)
             }
         },
         py::arg("a"),
-        R"pydoc(
-        Whether `a` is a valid sector of this symmetry
-        )pydoc")
+        doc_cpp_ref(R"pydoc(is_valid_sector)pydoc", "cyten::BaseSymmetry::is_valid_sector()"))
       .def(
         "are_valid_sectors",
         [](SymmetryFactor const& self, py::object sectors) {
@@ -134,11 +78,7 @@ bind_symmetry_factor(py::module_& m)
            &SymmetryFactor::fusion_outcomes,
            py::arg("a"),
            py::arg("b"),
-           R"pydoc(
-           Returns all outcomes for the fusion of sectors
-
-           Each sector appears only once, regardless of its multiplicity (given by n_symbol) in the fusion
-           )pydoc")
+           doc_cpp_ref(R"pydoc(fusion_outcomes)pydoc", "cyten::BaseSymmetry::fusion_outcomes()"))
       .def("__repr__", &SymmetryFactor::repr)
       .def(
         "is_equivalent_to",
@@ -152,11 +92,7 @@ bind_symmetry_factor(py::module_& m)
       .def("_is_equivalent_factor",
            &SymmetryFactor::_is_equivalent_factor,
            py::arg("other"),
-           R"pydoc(
-           Whether self and other describe the same mathematical structure.
-
-           In particular, :attr:`descriptive_name` is ignored.
-           )pydoc")
+           DOC(cyten, SymmetryFactor, _is_equivalent_factor))
       .def(
         "as_Symmetry",
         [](py::object self) {
@@ -165,9 +101,7 @@ bind_symmetry_factor(py::module_& m)
             auto ptr = self.cast<SymmetryFactor::Ptr>();
             return py::cast(std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ ptr }));
         },
-        R"pydoc(
-        Convert any :class:`SymmetryFactor` to a :class:`Symmetry` with that single factor.
-        )pydoc")
+        DOC(cyten, SymmetryFactor, as_Symmetry))
       .def("__str__", &SymmetryFactor::str)
       .def("__mul__",
            [](py::object self, py::object other) -> py::object {

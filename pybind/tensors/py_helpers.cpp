@@ -1,7 +1,10 @@
 #include <cyten/tensors/helpers.h>
 #include <cyten/tools.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+
+#include "docstrings/tensors/helpers.h"
 
 #include <map>
 #include <optional>
@@ -79,40 +82,23 @@ py_from_compose_sym(std::variant<SymmetricTensorPtr, BlockBackend::Scalar> const
 void
 bind_tensors_helpers(py::module_& m)
 {
-    m.def(
-      "_check_compatible_legs",
-      &py_check_compatible_legs,
-      py::arg("legs1"),
-      py::arg("legs2"),
-      py::arg("expect_equal") = true,
-      R"pydoc(Check if legs are compatible (equal if `expect_equal`, otherwise mutually dual).)pydoc");
+    m.def("_check_compatible_legs",
+          &py_check_compatible_legs,
+          py::arg("legs1"),
+          py::arg("legs2"),
+          py::arg("expect_equal") = true,
+          doc_plus(DOC(cyten, _check_compatible_legs),
+                   R"pydoc(
+Accepts sequences of either ``Leg`` or ``Space`` objects (dispatches to the matching
+C++ overload).
+)pydoc"));
 
     m.def("_compose_with_Mask",
           &_compose_with_Mask,
           py::arg("tensor"),
           py::arg("mask"),
           py::arg("leg_idx"),
-          R"pydoc(
-Compose `tensor` with a mask, preserving the leg order of `tensor`
-
-We expect ``tensor.codomain[leg_idx] == mask.domain[0]`` if `leg_idx` is in the codomain, or
-``tensor.domain[co_domain_idx] == mask.codomain[0]`` otherwise.
-
-That is we have::
-
-    |      │   │   │            │   │  ┏┷┓
-    |     ┏┷━━━┷━━━┷┓           │   │  ┃M┃
-    |     ┃ tensor  ┃           │   │  ┗┯┛
-    |     ┗┯━━━┯━━━┯┛   OR     ┏┷━━━┷━━━┷┓
-    |      │  ┏┷┓  │           ┃ tensor  ┃
-    |      │  ┃M┃  │           ┗┯━━━┯━━━┯┛
-    |      │  ┗┯┛  │            │   │   │
-
-Note that the resulting leg may be smaller than before (for a projection mask in the codomain
-or an inclusion mask in the domain) or larger (otherwise).
-
-The result hast the same leg order and labels as `tensor`.
-)pydoc");
+          DOC(cyten, _compose_with_Mask));
 
     m.def(
       "_compose_SymmetricTensors",
@@ -132,11 +118,10 @@ The result hast the same leg order and labels as `tensor`.
       py::arg("tensor2"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      R"pydoc(
-Restricted case of :func:`compose` where we assume that both tensors are SymmetricTensor.
-
-Is used by both compose and tdot.
-)pydoc");
+      doc_plus(DOC(cyten, _compose_SymmetricTensors),
+               R"pydoc(
+In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabel).
+)pydoc"));
 
     m.def("_convert_abelian_to_FT",
           &_convert_abelian_to_FT,
@@ -144,11 +129,7 @@ Is used by both compose and tdot.
           py::arg("backend"),
           py::arg("dtype"),
           py::arg("device"),
-          R"pydoc(
-Convert tensor from abelian backend to FT backend. Return the data
-
-Same idea as :func:`_convert_FT_to_abelian`, see its docstring.
-)pydoc");
+          DOC(cyten, _convert_abelian_to_FT));
 
     m.def("_convert_FT_to_abelian",
           &_convert_FT_to_abelian,
@@ -156,37 +137,21 @@ Same idea as :func:`_convert_FT_to_abelian`, see its docstring.
           py::arg("backend"),
           py::arg("dtype"),
           py::arg("device"),
-          R"pydoc(
-Convert tensor from abelian backend to FT backend. Return the data
-
-Notes
------
-- For abelian symmetries, a fusion tree is completely determined by its uncoupled sectors
-- This means that each forest blocks consists of a single tree block
-- The blocks of the abelian backend correspond one-to-one to tree blocks in the FT backend,
-  up to reshaping and transposing
-- All that remains is to make sure we loop over all of them in an efficient manner.
-- It is convenient to do the outer loops over combinations of uncoupled sectors
-    - This way, we have the abelian block_inds by construction
-    - we need to compute the coupled sectors to check for valid fusion channels anyway,
-      which gives us the FT block inds with one additional lookup
-    - While we jump back-and-forth between different coupled sectors, and thus different FT block
-      while iterating, we know that we visit the tree-blocks within each FT block *in order*,
-      and we can thus keep track of where we are within each FT block easily.
-)pydoc");
+          DOC(cyten, _convert_FT_to_abelian));
 
     m.def("_decomposition_prepare",
           &_decomposition_prepare,
           py::arg("tensor"),
           py::arg("new_leg_dual"),
-          R"pydoc(Common steps to prepare a SymmetricTensor before a decomposition)pydoc");
+          DOC(cyten, _decomposition_prepare));
 
     m.def(
       "_decomposition_labels",
       [](py::object new_labels) {
           return _decomposition_labels(py_leg_labels(to_iterable(new_labels)));
       },
-      py::arg("new_labels"));
+      py::arg("new_labels"),
+      DOC(cyten, _decomposition_labels));
 
     m.def(
       "_svd_new_labels",
@@ -197,7 +162,10 @@ Notes
           return _svd_new_labels(py_leg_labels(to_iterable(new_labels)));
       },
       py::arg("new_labels"),
-      R"pydoc(Parse label for :func:`svd`.)pydoc");
+      doc_plus(DOC(cyten, _svd_new_labels),
+               R"pydoc(
+In Python, ``new_labels`` may be ``None`` (all unlabeled).
+)pydoc"));
 }
 
 } // namespace cyten

@@ -5,7 +5,6 @@
 enable_testing()
 # create the testing file and list of tests
 set (TestsToRun
-  test_setup_check.cpp
   test_sector.cpp
   test_sector_casters.cpp
   test_block_inds.cpp

@@ -9,7 +9,7 @@
 
 namespace cyten {
 
-/// Abelian anyon category :math:`Z_N^{(n+1/2)}` (``N`` must be even).
+/// Abelian anyon category @f$ Z_N^{(n+1/2)} @f$ (``N`` must be even).
 ///
 /// Allowed sectors are 1D arrays with a single integer in ``[0, N-1]``.
 class ZNAnyonCategory2 : public SymmetryFactor

@@ -18,7 +18,6 @@ target_sources(cyten
   block_backend/dtypes.cpp
   block_backend/numpy.cpp
   block_backend/torch.cpp
-  check.cpp
   config.cpp
   symmetries/base_symmetry.cpp
   symmetries/symmetry_factor.cpp

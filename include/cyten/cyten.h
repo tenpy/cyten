@@ -22,7 +22,7 @@ namespace py = ::pybind11;
 ///
 /// Function-local or global ``py::object`` destructors run from ``atexit`` *after*
 /// ``Py_Finalize``, and ``Py_DECREF`` then segfaults (Python 3.14: ``tstate == NULL``).
-template <typename T>
+template<typename T>
 [[nodiscard]] T&
 leak_py_object(T obj)
 {

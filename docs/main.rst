@@ -7,19 +7,25 @@ Cyten main module
 
 .. currentmodule:: cyten
 
-.. rubric:: Submodules
+.. rubric:: Subpackages
+
+Pybind11 classes and functions (``R"pydoc(...)pydoc"`` docstrings from
+``pybind/``) are documented in the stubs below.
+
+.. toctree::
+   :maxdepth: 2
+
+   python/config
+   python/backends
+   python/block_backends
+   python/symmetries
+   python/tensors
+   python/tools
 
 .. autosummary::
     :toctree: reference
 
-    backends
-    block_backends
-    config
     models
-    symmetries
-    tensors
-    tools
-    version
 
 .. rubric:: Module description
 .. automodule:: cyten
@@ -32,5 +38,3 @@ Cyten main module
     show_config
 
 .. autodata:: __version__
-
-.. autodata:: __full_version__

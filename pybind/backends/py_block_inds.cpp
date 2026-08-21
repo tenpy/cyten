@@ -1,4 +1,6 @@
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+#include "docstrings/backends/block_inds.h"
 
 #include "backends/casters.hpp"
 
@@ -137,11 +139,7 @@ block_inds_repr(BlockInds const& a)
 void
 bind_block_inds(py::module_& m)
 {
-    py::class_<BlockInds>(m, "BlockInds", R"pydoc(
-        Owning 2D int64 array with shape ``(num_blocks, num_legs)``.
-
-        Used for abelian ``block_inds``. Lex order matches ``np.lexsort(arr.T)``.
-        )pydoc")
+    py::class_<BlockInds>(m, "BlockInds", DOC(cyten, BlockInds))
       .def(py::init<>())
       .def(py::init([](py::object values) { return block_inds_from_numpy(values); }),
            py::arg("values"),

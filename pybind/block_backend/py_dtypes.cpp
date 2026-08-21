@@ -1,3 +1,5 @@
+#include "../doc_plus.h"
+#include "docstrings/block_backend/dtypes.h"
 // NOTE: this file is #included from block_backend.cpp
 
 #include <cyten/block_backend/dtypes.h>
@@ -13,14 +15,7 @@ namespace cyten {
 void
 bind_block_backend_dtypes(py::module_& m)
 {
-    py::native_enum<Dtype> dtype_enum(m,
-                                      "Dtype",
-                                      "enum.Enum",
-                                      R"pydoc(
-                                      The dtype of (entries in) a tensor.
-
-                                      value = num_bytes * 2 + int(not is_real)
-                                      )pydoc");
+    py::native_enum<Dtype> dtype_enum(m, "Dtype", "enum.Enum", DOC(cyten, Dtype));
     dtype_enum.value("bool", Dtype::Bool)
       .value("float32", Dtype::Float32)
       .value("complex64", Dtype::Complex64)

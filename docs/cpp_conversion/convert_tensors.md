@@ -10,6 +10,8 @@ Layer 3 backends use typed tensor Ptr args via [`forward_declare.h`](../../inclu
 
 Layer 4 C++ tensor / space / leg API is typed — see [convert_tensor_typed_api.md](convert_tensor_typed_api.md).
 
+Tensor factories and elementwise callbacks are typed `std::function` — see [convert_tensor_callbacks.md](convert_tensor_callbacks.md).
+
 ## Conversion order
 
 ```mermaid
@@ -29,6 +31,7 @@ flowchart TD
   decomp[Decompositions]
   backendFix[Replace py object in TensorBackend]
   typedApi[Typed tensor C++ API]
+  callbacks[Typed tensor callbacks]
   labels --> tensor
   tensor --> sym
   sym --> diag
@@ -47,6 +50,7 @@ flowchart TD
   mask --> algebra
   decomp --> backendFix
   backendFix --> typedApi
+  typedApi --> callbacks
 ```
 
 | # | Object(s) | Status |
@@ -67,6 +71,7 @@ flowchart TD
 | 15 | Backend `py::object` cleanup | **done** — [convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md) (`forward_declare.h`; typed virtuals; `as_py_object` removed) |
 | 16 | Monkey-patch Tensor hierarchy + remaining free fns (`apply_mask`, `enlarge_leg`, `exp`) | **done**; Python bodies removed (`_tensors.py` is `_core` re-export); not-slow pytest passed |
 | 17 | Typed tensor C++ API (drop leftover `py::object`) | **done** — [convert_tensor_typed_api.md](convert_tensor_typed_api.md) (`TensorProduct::factors` as `Leg::Ptr`; typed ctors / helpers / free fns) |
+| 18 | Typed tensor callbacks (`py::function` → `std::function`) | **done** — [convert_tensor_callbacks.md](convert_tensor_callbacks.md) (`BlockFactoryFn` / `BlockUnaryFn` / …; wrap helpers in pybind) |
 
 ## Backend `py::object` cleanup
 
@@ -90,7 +95,18 @@ flowchart TD
   return `Leg::Ptr`.
 - Helpers and free functions take `Tensor(C)Ptr` / `Mask(C)Ptr` / `LegRef` / `LegLabels`.
   Sequence-of-spaces, nested labels, numpy blocks, and `*args` stay in pybind.
-- HDF5, `py::function` factories, and numpy-facing methods remain `py::object`.
+- HDF5 and numpy-facing methods remain `py::object` / `py::array`.
+
+## Typed tensor callbacks
+
+**Done** — see **[convert_tensor_callbacks.md](convert_tensor_callbacks.md)**.
+
+- Callback typedefs (`BlockUnaryFn`, `BlockFactoryFn`, `SectorBlockFactoryFn`, …) on the backend
+  surface.
+- `from_block_func` / `from_sector_block_func` and elementwise / binary-operand APIs take
+  `std::function` over blocks; `func_kwargs` / `shape_kw` / `BlockLike` conversion stay in pybind
+  (`py_callbacks.hpp`).
+- `NotImplemented` for unknown dunder `other` types lives only in pybind; C++ throws.
 
 ## File layout
 

@@ -83,8 +83,29 @@ if(NOT CYTEN_TORCH_CMAKE_PREFIX_RESULT EQUAL 0 OR CYTEN_TORCH_CMAKE_PREFIX STREQ
     "Install the matching Python torch package in this environment.")
 endif()
 list(PREPEND CMAKE_PREFIX_PATH "${CYTEN_TORCH_CMAKE_PREFIX}")
+
+# Torch's Caffe2/mkl.cmake sets caffe2::mkl INTERFACE_LINK_DIRECTORIES to
+# ${MKL_ROOT}/lib/intel64 (etc.). When MKL_ROOT is unset those become the
+# bogus absolute paths /lib/intel64, and executables that link cyten (e.g.
+# CommonCppTests) fail to resolve libtorch_cpu's MKL/sleef/omp deps. Conda
+# ships those libs in $CONDA_PREFIX/lib.
+if(NOT MKL_ROOT AND DEFINED ENV{CONDA_PREFIX})
+  set(MKL_ROOT "$ENV{CONDA_PREFIX}")
+endif()
+
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
+# Belt-and-suspenders: overwrite any empty-MKL_ROOT stub dirs Torch still set.
+if(TARGET caffe2::mkl AND MKL_ROOT)
+  set_property(TARGET caffe2::mkl PROPERTY INTERFACE_LINK_DIRECTORIES
+    "${MKL_ROOT}/lib")
+  # Executables that link Torch (e.g. CommonCppTests) must resolve libtorch_cpu's
+  # DT_NEEDED deps (MKL, sleef, omp) at link time; -L alone is not enough for
+  # that — pass -rpath-link. Shared modules like _core do not need this.
+  target_link_options(caffe2::mkl INTERFACE "LINKER:-rpath-link=${MKL_ROOT}/lib")
+endif()
+
 cmake_print_variables(Torch_DIR)
 cmake_print_variables(TORCH_INSTALL_PREFIX)
 cmake_print_variables(TORCH_LIBRARIES)
@@ -130,6 +151,138 @@ target_include_directories(_core
 add_subdirectory(pybind)  # adds source files to _core
 
 target_link_libraries(_core PUBLIC cyten)
+
+# #####################################################################
+# ## Docstrings (Doxygen XML → pybind/docstrings/<rel>, always at build)
+# #####################################################################
+# Layout: include/cyten/<rel>  →  pybind/docstrings/<rel> (gitignored; IDE-visible)
+# Each pybind TU includes only the docstring headers it needs.
+# Requires doxygen (see environment.yml).
+#
+# Pilot list — extend as more bindings switch to DOC(...):
+set(CYTEN_MKDOC_HEADERS
+  tensors/ops_algebra.h
+  tensors/constructors.h
+  tensors/ops_elementwise.h
+  tensors/ops_legs.h
+  tensors/decompositions.h
+  tensors/helpers.h
+  tensors/labels.h
+  tensors/vector_like.h
+  tensors/direct_sum.h
+  tensors/tensor.h
+  tensors/symmetric_tensor.h
+  tensors/diagonal_tensor.h
+  tensors/mask.h
+  tensors/charged_tensor.h
+  tensors/sparse.h
+  tensors/planar.h
+  tensors/krylov_based.h
+  symmetries/factors/fermion_number.h
+  symmetries/factors/fermion_parity.h
+  symmetries/factors/fibonacci_anyon_category.h
+  symmetries/factors/ising_anyon_category.h
+  symmetries/factors/no_symmetry.h
+  symmetries/factors/quantum_double_zn_anyon_category.h
+  symmetries/factors/su2.h
+  symmetries/factors/su2_k_anyon_category.h
+  symmetries/factors/su3_3_anyon_category.h
+  symmetries/factors/sun.h
+  symmetries/factors/toric_code_category.h
+  symmetries/factors/u1.h
+  symmetries/factors/zn.h
+  symmetries/factors/zn_anyon_category.h
+  symmetries/factors/zn_anyon_category2.h
+  symmetries/abelian_group.h
+  symmetries/base_symmetry.h
+  symmetries/exceptions.h
+  symmetries/group.h
+  symmetries/sector.h
+  symmetries/spaces.h
+  symmetries/styles.h
+  symmetries/symmetry.h
+  symmetries/symmetry_factor.h
+  symmetries/trees.h
+  backends/abelian.h
+  backends/backend_factory.h
+  backends/block_inds.h
+  backends/fusion_tree_backend.h
+  backends/fusion_tree_mapping.h
+  backends/no_symmetry.h
+  backends/tensor_backend.h
+  block_backend/array_api.h
+  block_backend/block_backend.h
+  block_backend/dtypes.h
+  block_backend/numpy.h
+  block_backend/torch.h
+  tools/cost_polynomials.h
+  tools/mappings.h
+  models/couplings.h
+  models/degrees_of_freedom.h
+  models/sites.h
+  tools.h
+)
+
+find_program(CYTEN_DOXYGEN_EXECUTABLE NAMES doxygen REQUIRED)
+set(CYTEN_DOCSTRINGS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pybind/docstrings")
+set(CYTEN_DOCSTRING_SCRIPT
+  "${CMAKE_CURRENT_SOURCE_DIR}/scripts/doxygen_xml_to_docstrings.py")
+set(CYTEN_DOCSTRINGS_XML_ROOT
+  "${CMAKE_CURRENT_BINARY_DIR}/docstrings_doxygen")
+
+set(_cyten_doc_outputs "")
+foreach(_cyten_hdr_rel IN LISTS CYTEN_MKDOC_HEADERS)
+  set(_cyten_src_hdr "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/${_cyten_hdr_rel}")
+  set(_cyten_doc_out "${CYTEN_DOCSTRINGS_DIR}/${_cyten_hdr_rel}")
+  set(_cyten_safe_rel "${_cyten_hdr_rel}")
+  string(REPLACE "/" "_" _cyten_safe_rel "${_cyten_safe_rel}")
+  string(REPLACE "." "_" _cyten_safe_rel "${_cyten_safe_rel}")
+  set(_cyten_xml_out "${CYTEN_DOCSTRINGS_XML_ROOT}/${_cyten_safe_rel}")
+  set(_cyten_doxyfile "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile_docstrings_${_cyten_safe_rel}")
+  get_filename_component(_cyten_doc_outdir "${_cyten_doc_out}" DIRECTORY)
+
+  file(WRITE "${_cyten_doxyfile}"
+"PROJECT_NAME           = cyten
+OUTPUT_DIRECTORY       = ${_cyten_xml_out}
+INPUT                  = ${_cyten_src_hdr}
+RECURSIVE              = NO
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+EXTRACT_ALL            = YES
+QUIET                  = YES
+WARNINGS               = NO
+MARKDOWN_SUPPORT       = NO
+AUTOLINK_SUPPORT       = NO
+")
+
+  # Write into the source tree under pybind/docstrings/ so IDEs can open DOC()
+  # headers next to the bindings. Files are gitignored; always regenerated.
+  add_custom_command(
+    OUTPUT ${_cyten_doc_out}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_doc_outdir}
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${_cyten_xml_out}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_xml_out}
+    COMMAND ${CYTEN_DOXYGEN_EXECUTABLE} ${_cyten_doxyfile}
+    COMMAND ${Python_EXECUTABLE} ${CYTEN_DOCSTRING_SCRIPT}
+            --xml-dir ${_cyten_xml_out}/xml
+            --header-rel ${_cyten_hdr_rel}
+            --source-root ${CMAKE_CURRENT_SOURCE_DIR}
+            -o ${_cyten_doc_out}
+    DEPENDS ${_cyten_src_hdr} ${CYTEN_DOCSTRING_SCRIPT} ${_cyten_doxyfile}
+    COMMENT "Generating pybind/docstrings/${_cyten_hdr_rel}"
+    VERBATIM
+  )
+  list(APPEND _cyten_doc_outputs ${_cyten_doc_out})
+endforeach()
+
+add_custom_target(cyten_generate_docstrings DEPENDS ${_cyten_doc_outputs})
+add_custom_target(cyten_mkdoc_docstrings DEPENDS cyten_generate_docstrings)
+add_dependencies(_core cyten_generate_docstrings)
+message(STATUS
+  "Docstrings: generating ${CYTEN_MKDOC_HEADERS} under pybind/docstrings/ "
+  "(doxygen=${CYTEN_DOXYGEN_EXECUTABLE})")
+
 
 # Resolve libtorch/c10 from the same place as Python torch._C.
 # Installed layout: site-packages/cyten/_core*.so

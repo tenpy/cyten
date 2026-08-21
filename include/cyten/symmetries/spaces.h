@@ -21,9 +21,9 @@
 
 namespace cyten {
 
-/// Common base of :class:`Leg` and :class:`Space`, providing ``shared_from_this``.
+/// Common base of `Leg` and `Space`, providing ``shared_from_this``.
 ///
-/// :class:`ElementarySpace` inherits from both :class:`Space` and :class:`Leg`. They must
+/// `ElementarySpace` inherits from both `Space` and `Leg`. They must
 /// therefore share a single ``std::enable_shared_from_this`` base; two independent ones would
 /// be ambiguous, such that ``shared_from_this()`` throws ``std::bad_weak_ptr``.
 /// Not exposed to Python.
@@ -37,8 +37,8 @@ class LegOrSpace : public std::enable_shared_from_this<LegOrSpace>
 
 /// Common base class for a single leg of a tensor.
 ///
-/// A single leg on a tensor can either be an :class:`ElementarySpace` or, e.g. as the result
-/// of combining legs, a :class:`LegPipe`.
+/// A single leg on a tensor can either be an `ElementarySpace` or, e.g. as the result
+/// of combining legs, a `LegPipe`.
 class Leg : public virtual LegOrSpace
 {
   public:
@@ -59,16 +59,16 @@ class Leg : public virtual LegOrSpace
     /// Perform sanity checks.
     virtual void test_sanity() const;
 
-    /// Convert to (an appropriate subclass of) :class:`Space`.
+    /// Convert to (an appropriate subclass of) `Space`.
     virtual py::object as_Space() = 0;
 
-    /// Convert to an isomorphic :class:`ElementarySpace`.
+    /// Convert to an isomorphic `ElementarySpace`.
     virtual py::object as_ElementarySpace(bool is_dual = false);
 
-    /// The dual leg (hook for MI; override :meth:`dual_leg`).
+    /// The dual leg (hook for MI; override `dual_leg`).
     Ptr dual() const { return dual_leg(); }
 
-    /// Implement dual for :class:`Leg` subclasses.
+    /// Implement dual for `Leg` subclasses.
     virtual Ptr dual_leg() const = 0;
 
     virtual bool is_trivial() const = 0;
@@ -77,18 +77,29 @@ class Leg : public virtual LegOrSpace
 
     virtual void set_basis_perm(std::optional<std::vector<int64>> basis_perm);
 
+    /// Inverse permutation of `basis_perm`.
     [[nodiscard]] std::vector<int64> inverse_basis_perm() const;
 
     virtual void set_inverse_basis_perm(std::optional<std::vector<int64>> inverse_basis_perm);
 
+    /// Flatten until there are no more pipes.
+    ///
+    /// flat_spaces : Keeps `AbelianLegPipes` nested.
     virtual std::vector<Ptr> flat_legs();
 
+    /// Flatten until we get spaces.
+    ///
+    /// flat_legs : Also flattens `AbelianLegPipes`.
     virtual std::vector<Ptr> flat_spaces();
 
+    /// The number of `flat_legs`.
     virtual int64 num_flat_legs() const;
 
     virtual std::vector<int64> _flat_leg_permutation(int64 offset = 0) const;
 
+    /// A single character arrow, for use in tensor diagrams
+    ///
+    /// Indicates (a) if the leg is a pipe and (b) for ElementarySpaces, the duality
     virtual std::string ascii_arrow() const;
 
     virtual bool operator==(Leg const& other) const = 0;
@@ -101,19 +112,19 @@ class Leg : public virtual LegOrSpace
 
     [[nodiscard]] bool has_custom_basis_perm() const noexcept { return _basis_perm.has_value(); }
 
-    /// ``shared_from_this()``, downcast to :class:`Leg`.
+    /// ``shared_from_this()``, downcast to `Leg`.
     [[nodiscard]] Ptr shared_leg();
 
   protected:
-    /// For subclasses that inherit :class:`Leg` *virtually*.
+    /// For subclasses that inherit `Leg` *virtually*.
     ///
     /// A virtual base is initialized by the constructor of the most derived class, which for
     /// pybind11 trampolines is generated from an inherited constructor and can not pass any
-    /// arguments. Such subclasses therefore leave the :class:`Leg` base default-constructed and
-    /// call :meth:`init_leg` in their constructor body instead.
+    /// arguments. Such subclasses therefore leave the `Leg` base default-constructed and
+    /// call `init_leg` in their constructor body instead.
     Leg() = default;
 
-    /// Set the state of the :class:`Leg` base, see :meth:`Leg::Leg`.
+    /// Set the state of the `Leg` base, see `Leg::Leg`.
     void init_leg(Symmetry::Ptr symmetry,
                   float64 dim,
                   bool is_dual,
@@ -125,7 +136,7 @@ class Leg : public virtual LegOrSpace
 
 using SectorMapFn = std::function<SectorArray(SectorArray const&)>;
 
-/// Base class for symmetry spaces, see :class:`ElementarySpace` for the standard case.
+/// Base class for symmetry spaces, see `ElementarySpace` for the standard case.
 class Space : public virtual LegOrSpace
 {
   public:
@@ -148,9 +159,13 @@ class Space : public virtual LegOrSpace
           std::optional<std::string> sector_order = std::nullopt);
     virtual ~Space() = default;
 
+    /// Convert to an isomorphic `ElementarySpace`.
     virtual void test_sanity() const;
 
-    /// The dual space (hook for MI; override :meth:`dual_space`).
+    /// If the space is trivial, i.e. isomorphic to the one-dimensional trivial sector.
+    ///
+    /// A trivial space is one-dimensional and transforms trivially under a symmetry group.
+    /// In category speak, it is (isomorphic to) the monoidal unit.
     Ptr dual() const { return dual_space(); }
 
     virtual Ptr dual_space() const = 0;
@@ -165,25 +180,51 @@ class Space : public virtual LegOrSpace
 
     virtual py::object as_ElementarySpace(bool is_dual = false);
 
+    /// Change the symmetry by specifying how the sectors change.
+    ///
+    /// .. note ::
+    ///     This interface assumes that a single sector of the old symmetry is mapped to a single
+    ///     sector of the new symmetry, i.e. that the functor that we realize here preserves
+    ///     simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
+    ///     subgroup.
+    ///
+    /// @param symmetry The symmetry of the new space
+    /// @param sector_map A map of sectors (2D int arrays), such that ``new_sectors =
+    /// sector_map(old_sectors)``. The map is assumed to cooperate with duality, i.e. we assume
+    /// without checking that ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
+    /// ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
+    /// @param injective If ``True``, the `sector_map` is assumed to be injective, i.e. produce a
+    /// list of unique outputs, if the inputs are unique.
+    /// @returns A space with the new symmetry. The order of the basis is preserved, but every
+    /// basis element lives in a new sector, according to `sector_map`.
     virtual py::object change_symmetry(Symmetry::Ptr symmetry,
                                        SectorMapFn sector_map,
                                        bool injective = false) = 0;
 
+    /// Drop some or all symmetries.
+    ///
+    /// @param which If ``'all'`` (default) the entire symmetry is dropped and the result has
+    /// ``no_symmetry``. An integer or list of integers indicates to drop the `factors` with those
+    /// indices.
     virtual py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) = 0;
 
-    /// Not virtual: :class:`ElementarySpace` also inherits the (differently typed)
-    /// :meth:`Leg::as_Space` and can only override one of the two.
+    /// Convert to (an appropriate subclass of) `Space`.
     Ptr as_Space();
 
-    /// ``shared_from_this()``, downcast to :class:`Space`.
+    /// ``shared_from_this()``, downcast to `Space`.
     [[nodiscard]] Ptr shared_space();
 
+    /// Find the index of a given sector in the `sector_decomposition`.
+    ///
+    /// @returns idx : int | None If the `sector` is found the `sector_decomposition`, its index
+    /// there such that ``sector_decomposition[idx] == sector``. Otherwise ``None``.
     [[nodiscard]] std::optional<int64> sector_decomposition_where(Sector sector) const;
 
+    /// The multiplicity of a given sector in the `sector_decomposition`.
     [[nodiscard]] int64 sector_multiplicity(Sector sector) const;
 };
 
-/// A group of legs, i.e. resulting from :func:`~cyten.tensors.combine_legs`.
+/// A group of legs, i.e. resulting from `combine_legs`.
 class LegPipe : public virtual Leg
 {
   public:
@@ -197,6 +238,7 @@ class LegPipe : public virtual Leg
     explicit LegPipe(std::vector<Leg::Ptr> legs, bool is_dual = false, bool combine_cstyle = true);
     ~LegPipe() override = default;
 
+    /// Perform sanity checks.
     void test_sanity() const override;
 
     py::object as_Space() override;
@@ -205,10 +247,17 @@ class LegPipe : public virtual Leg
 
     bool is_trivial() const override;
 
+    /// Flatten until there are no more pipes.
+    ///
+    /// flat_spaces : Keeps `AbelianLegPipes` nested.
     std::vector<Leg::Ptr> flat_legs() override;
 
+    /// Flatten until we get spaces.
+    ///
+    /// flat_legs : Also flattens `AbelianLegPipes`.
     std::vector<Leg::Ptr> flat_spaces() override;
 
+    /// The number of `flat_legs`.
     int64 num_flat_legs() const override;
 
     std::vector<int64> _flat_leg_permutation(int64 offset = 0) const override;
@@ -228,11 +277,11 @@ class LegPipe : public virtual Leg
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
 };
 
-/// A :class:`Space` that is defined as (the dual of) a direct sum of sectors.
+/// A `Space` that is defined as (the dual of) a direct sum of sectors.
 ///
-/// Note that :attr:`Space::symmetry` / :attr:`Leg::symmetry` and :attr:`Space::dim` /
-/// :attr:`Leg::dim` are separate members of the two bases. They are kept in sync; access them
-/// through the :class:`Space` base within this class.
+/// Note that `Space::symmetry` / `Leg::symmetry` and `Space::dim` /
+/// `Leg::dim` are separate members of the two bases. They are kept in sync; access them
+/// through the `Space` base within this class.
 class ElementarySpace
   : public Space
   , public virtual Leg
@@ -283,7 +332,7 @@ class ElementarySpace
                                    bool is_dual = false,
                                    std::optional<std::vector<int64>> basis_perm = std::nullopt);
 
-    /// ``shared_from_this()``, downcast to :class:`ElementarySpace`.
+    /// ``shared_from_this()``, downcast to `ElementarySpace`.
     ///
     /// Const, since the Python methods that "return self" are conceptually const.
     [[nodiscard]] Ptr shared_es() const;
@@ -300,6 +349,7 @@ class ElementarySpace
 
     py::object as_ElementarySpace(bool is_dual = false) override;
 
+    /// The ket space (``is_dual=False``) isomorphic or equal to self.
     [[nodiscard]] Ptr as_ket_space();
     [[nodiscard]] Ptr as_bra_space();
 
@@ -320,9 +370,17 @@ class ElementarySpace
 
     Sector idx_to_sector(int64 idx) const;
 
+    /// Take a "slice" of the leg, keeping only some of the basis states.
+    ///
+    /// Loses the product (pipe) structure and results in a plain `ElementarySpace`.
+    ///
+    /// @param blockmask For every basis state of self, in the public basis order, if it
+    ///     should be kept (``True``) or discarded (``False``).
     [[nodiscard]] virtual Ptr take_slice(py::array blockmask) const;
 
-    /// Virtual so :class:`AbelianLegPipe` can keep the pipe structure.
+    /// A space isomorphic to self with opposite ``is_dual`` attribute.
+    ///
+    /// Virtual so `AbelianLegPipe` can keep the pipe structure.
     [[nodiscard]] virtual Ptr with_opposite_duality() const;
 
     [[nodiscard]] Ptr with_is_dual(bool is_dual) const;
@@ -345,7 +403,7 @@ struct IndexSlice
     int64 stop = 0;
 };
 
-/// One item of :meth:`TensorProduct::iter_uncoupled`.
+/// One item of `TensorProduct::iter_uncoupled`.
 struct UncoupledItem
 {
     SectorArray uncoupled;
@@ -353,7 +411,7 @@ struct UncoupledItem
     std::optional<std::vector<IndexSlice>> slices;
 };
 
-/// One item of :meth:`TensorProduct::iter_forest_blocks`.
+/// One item of `TensorProduct::iter_forest_blocks`.
 struct ForestBlockItem
 {
     SectorArray uncoupled;
@@ -361,7 +419,7 @@ struct ForestBlockItem
     int64 coupled_idx = 0;
 };
 
-/// One item of :meth:`TensorProduct::iter_tree_blocks`.
+/// One item of `TensorProduct::iter_tree_blocks`.
 struct TreeBlockItem
 {
     FusionTree tree;
@@ -370,15 +428,15 @@ struct TreeBlockItem
     int64 coupled_idx = 0;
 };
 
-/// Represents a tensor product of :class:`Space`\ s, e.g. the (co-)domain of a tensor.
+/// Represents a tensor product of `Space`\ s, e.g. the (co-)domain of a tensor.
 class TensorProduct : public Space
 {
   public:
     using Ptr = std::shared_ptr<TensorProduct>;
     using CPtr = std::shared_ptr<const TensorProduct>;
 
-    /// Factors of the product: each is a single tensor leg (:class:`ElementarySpace` or
-    /// :class:`LegPipe`).
+    /// Factors of the product: each is a single tensor leg (`ElementarySpace` or
+    /// `LegPipe`).
     std::vector<Leg::Ptr> factors;
     int64 num_factors = 0;
 
@@ -415,28 +473,69 @@ class TensorProduct : public Space
 
     [[nodiscard]] std::vector<int64> flat_leg_idcs(int64 i) const;
 
+    /// The size of a forest-block
     [[nodiscard]] int64 forest_block_size(SectorArray const& uncoupled, Sector coupled) const;
 
+    /// The range of indices of a forest-block within its block, as a slice.
     [[nodiscard]] IndexSlice forest_block_slice(SectorArray const& uncoupled,
                                                 Sector coupled) const;
 
+    /// Insert a new space into the product at position `pos`.
     [[nodiscard]] Ptr insert_multiply(Leg::Ptr other, int64 pos) const;
 
     [[nodiscard]] std::vector<TreeBlockItem> iter_tree_blocks(SectorArray const& coupled) const;
 
+    /// Iterate over forest blocks. Helper function for `FusionTreeBackend`.
+    ///
+    /// See `fusion_tree_backend__blocks` for definitions of blocks and forest blocks.
+    ///
+    /// Yields
+    /// ------
+    /// uncoupled : tuple of Sector
+    ///     A tuple of uncoupled sectors that can fuse to a coupled sector ``coupled[i]``
+    /// slc : slice
+    ///     The slice of the tree-block associated with `tree` in its block.
+    /// i : int
+    ///     The index of the current coupled sector in `coupled`
+    ///
+    /// iter_tree_blocks
+    /// iter_uncoupled
     [[nodiscard]] std::vector<ForestBlockItem> iter_forest_blocks(
       SectorArray const& coupled) const;
 
+    /// Iterate over all combinations of sectors from the `flat_legs`.
+    ///
+    /// Yields
+    /// ------
+    /// uncoupled : 2D array of int
+    ///     A combination of uncoupled sectors, where
+    ///     ``uncoupled[i] == self.flat_legs[i].sector_decomposition[some_idx]``.
+    /// multiplicities : 1D array of int
+    ///     The corresponding multiplicities
+    ///     ``multiplicities[i] == self.flat_legs[i].multiplicities[some_idx]``.
+    /// slices : list of slice, optional
+    ///     Only if ``yield_slices``, the corresponding entry of `slices`, as a slice.
+    ///     I.e. ``slices[i] == slice(*self.flat_legs[i].slices[some_idx])``.
+    ///
+    /// Notes:
+    ///
+    /// For a TensorProduct of zero spaces, i.e. with ``num_factors == 0``,
+    /// we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
     [[nodiscard]] std::vector<UncoupledItem> iter_uncoupled(bool yield_slices = false) const;
 
+    /// Add a new factor at the left / beginning of the spaces
     [[nodiscard]] Ptr left_multiply(Leg::Ptr other) const;
 
+    /// A product of the same `factors` in a different order.
     [[nodiscard]] Ptr permuted(std::vector<int64> const& perm) const;
 
+    /// Add a new factor at the right / end of the spaces
     [[nodiscard]] Ptr right_multiply(Leg::Ptr other) const;
 
+    /// The size of a tree-block
     [[nodiscard]] int64 tree_block_size(SectorArray const& uncoupled) const;
 
+    /// The range of indices of a tree-block within its block, as a slice.
     [[nodiscard]] IndexSlice tree_block_slice(FusionTree const& tree) const;
 
     bool operator==(Space const& other) const override;
@@ -453,10 +552,10 @@ class TensorProduct : public Space
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 
   private:
-    /// Arguments of the :class:`Space` base, which is initialized before the constructor body.
+    /// Arguments of the `Space` base, which is initialized before the constructor body.
     ///
     /// Python sets ``self.symmetry`` first and only then computes the sectors. In C++ the base
-    /// must already know them, so they are computed by :meth:`prepare` and passed on to a
+    /// must already know them, so they are computed by `prepare` and passed on to a
     /// delegated constructor.
     struct Prepared
     {
@@ -473,9 +572,9 @@ class TensorProduct : public Space
     TensorProduct(std::vector<Leg::Ptr> factors, Prepared prepared);
 };
 
-/// Special case of a :class:`LegPipe` for abelian group symmetries.
+/// Special case of a `LegPipe` for abelian group symmetries.
 ///
-/// Diamond MI: :class:`LegPipe` + :class:`ElementarySpace`, with a single virtual :class:`Leg`.
+/// Diamond MI: `LegPipe` + `ElementarySpace`, with a single virtual `Leg`.
 class AbelianLegPipe
   : public LegPipe
   , public ElementarySpace
@@ -498,6 +597,23 @@ class AbelianLegPipe
                             bool combine_cstyle = true);
     ~AbelianLegPipe() override = default;
 
+    /// Change the symmetry by specifying how the sectors change.
+    ///
+    /// .. note ::
+    ///     This interface assumes that a single sector of the old symmetry is mapped to a single
+    ///     sector of the new symmetry, i.e. that the functor that we realize here preserves
+    ///     simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
+    ///     subgroup.
+    ///
+    /// @param symmetry The symmetry of the new space
+    /// @param sector_map A map of sectors (2D int arrays), such that ``new_sectors =
+    /// sector_map(old_sectors)``. The map is assumed to cooperate with duality, i.e. we assume
+    /// without checking that ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
+    /// ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
+    /// @param injective If ``True``, the `sector_map` is assumed to be injective, i.e. produce a
+    /// list of unique outputs, if the inputs are unique.
+    /// @returns A space with the new symmetry. The order of the basis is preserved, but every
+    /// basis element lives in a new sector, according to `sector_map`.
     void test_sanity() const override;
 
     py::object as_Space() override;
@@ -515,16 +631,49 @@ class AbelianLegPipe
 
     /// A filled arrow: unlike its two bases, a pipe that is also a space has its own symbol.
     ///
-    /// Also resolves the ambiguity between :meth:`LegPipe::ascii_arrow` and
-    /// :meth:`ElementarySpace::ascii_arrow`.
+    /// Also resolves the ambiguity between `LegPipe::ascii_arrow` and
+    /// `ElementarySpace::ascii_arrow`.
     std::string ascii_arrow() const override;
 
     [[nodiscard]] bool is_abelian_leg_pipe() const override { return true; }
 
+    /// Create an AbelianLegPipe with multiple independent symmetries.
+    ///
+    /// @param independent_descriptions Each entry describes the resulting pipe in terms of *one*
+    /// of the independent symmetries.
     static Ptr from_independent_symmetries(std::vector<Ptr> const& independent_descriptions);
 
     // Unsupported ElementarySpace factories (raise TypeError).
+    /// Create an ElementarySpace by specifying the sector of every basis element.
+    ///
+    /// This requires that the symmetry `can_be_dropped`, such
+    /// that there is a useful notion of a basis.
+    ///
+    /// .. note ::
+    ///     Unlike `from_defining_sectors`, this method expects the same sector to be listed
+    ///     multiple times, if the sector is multi-dimensional. The Hilbert Space of a
+    ///     spin-one-half D.O.F. can e.g. be created as ``ElementarySpace.from_basis(su2,
+    ///     [spin_half, spin_half])`` or as ``ElementarySpace.from_defining_sectors(su2,
+    ///     [spin_half])``. In the former case we need to list the same sector both for the spin up
+    ///     and spin down state.
+    ///
+    /// .. note ::
+    ///     This classmethod always creates ket-spaces with ``is_dual=False``. This is to make
+    ///     it unambiguous if `sectors_of_basis` refers to the `sector_decomposition` or the
+    ///     `defining_sectors`, since they coincide for ket spaces.
+    ///     Use `dual` or `as_bra_space` to create bra spaces.
+    ///
+    /// @param symmetry The symmetry associated with this space.
+    /// @param sectors_of_basis Specifies the basis. ``sectors_of_basis[n]`` is the sector of the
+    /// ``n``-th basis element. In particular, for a ``d`` dimensional sector, we expect an integer
+    /// multiple of ``d`` occurrences. They need not be contiguous though. They will be grouped by
+    /// order of appearance, such that they ``m``-th time a sector appears, that basis state is
+    /// interpreted as the ``(m % d)``-th state of the multiplet. `sectors_of_basis`
+    ///     Reproduces the `sectors_of_basis` parameter.
+    /// from_defining_sectors
+    ///     Similar to the constructor, but with fewer requirements.
     static Ptr from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis);
+    /// The zero-dimensional space, i.e. the span of the empty set.
     static Ptr from_null_space(Symmetry::Ptr symmetry, bool is_dual = false);
     static Ptr from_defining_sectors(
       Symmetry::Ptr symmetry,
@@ -534,6 +683,11 @@ class AbelianLegPipe
       std::optional<std::vector<int64>> basis_perm = std::nullopt,
       bool unique_sectors = false,
       std::vector<std::size_t>* return_sorting_perm = nullptr);
+    /// Create an ElementarySpace that lives in the trivial sector (i.e. it is symmetric).
+    ///
+    /// @param dim The dimension of the space.
+    /// @param symmetry The symmetry of the space. Defaults to ``no_symmetry``.
+    /// @param is_dual If the space should be bra or a ket space.
     static Ptr from_trivial_sector(int64 dim = 1,
                                    Symmetry::Ptr symmetry = nullptr,
                                    bool is_dual = false,
@@ -556,21 +710,98 @@ class AbelianLegPipe
     bool operator==(Leg const& other) const override;
     bool operator==(Space const& other) const override;
 
+    /// A `Space` that is defined as (the dual of) a direct sum of sectors.
+    ///
+    /// While every `Space` is isomorphic to a direct sum of sectors, an `ElementarySpace`
+    /// is by definition *equal* to such a direct sum, or to the dual of such a sum. We distinguish
+    /// "ket" spaces @f$ V_k := a_1 \oplus a_2 \oplus \dots \plus a_N @f$ with ``is_dual=False``
+    /// and "bra" spaces @f$ V_b := [b_1 \oplus b_2 \oplus \dots \plus b_N]^* @f$ with
+    /// ``is_dual=True``. The listed sectors, @f$ \{a_n\} @f$ for the ket space @f$ V_k @f$ and the
+    /// @f$ \{b_n\} @f$ for the bra space, are the `defining_sectors` of the space. For a ket
+    /// space, they coincide with the `sector_decomposition`, while for a bra space they are
+    /// mutually dual, since we have @f$ V_b \cong \bar{b}_1 \oplus \bar{b}_2 \oplus \dots \plus
+    /// \bar{b}_N @f$.
+    ///
+    /// We impose a canonical order of sectors, such that the `defining_sectors` are sorted.
+    /// This in turn means that the `sector_order` is ``'sorted'`` for ket spaces and
+    /// ``'dual_sorted'`` for bra spaces.
+    ///
+    /// If the symmetry `can_be_dropped`, there is a notion of a basis for the
+    /// spaces. We demand the basis to be compatible with the symmetry, i.e. each basis vector
+    /// needs to lie in one of the sectors of the symmetry. The *internal* basis order that results
+    /// from demanding that the sectors are contiguous and sorted may, however, not be the desired
+    /// basis order, e.g. for matrix representations.
+    ///
+    /// @param symmetry, sectors, multiplicities, is_dual, basis_perm Like attributes of the same
+    /// name, except nested sequences are allowed in place of arrays.
+    ///
+    /// Attributes:
+    ///
+    /// is_dual: bool
+    ///     If this is a ket space (``False``) or a bra space (``True``).
+    /// defining_sectors: 2D array of int
+    ///     The defining sectors, see class docstring of `ElementarySpace`.
+    ///     Is ``np.lexsort( .T)``-ed.
+    ///     The `sector_decomposition` is equal for ket spaces (``is_dual=False``) or given by
+    ///     the respective `dual_sectors` for bra spaces.
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
 
     /// The permutation of basis elements that is introduced by the fusion.
     ///
-    /// ``_get_fusion_outcomes_perm`` in Python. Only depends on the :attr:`multiplicities`, which
-    /// are passed explicitly since Python calls this before the :class:`ElementarySpace` base is
+    /// ``_get_fusion_outcomes_perm`` in Python. Only depends on the `multiplicities`, which
+    /// are passed explicitly since Python calls this before the `ElementarySpace` base is
     /// initialized.
     [[nodiscard]] std::vector<int64> get_fusion_outcomes_perm(
       std::vector<int64> const& multiplicities) const;
 
-    /// The :attr:`legs`, downcast to :class:`ElementarySpace`.
+    /// The `legs`, downcast to `ElementarySpace`.
     [[nodiscard]] std::vector<ElementarySpace::Ptr> es_legs() const;
 
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
+    /// Special case of a `LegPipe` for abelian group symmetries.
+    ///
+    /// This class essentially exists to allow specialized handling of combined legs in the
+    /// `AbelianBackend`. For this backend, we want to treat combined legs, i.e. pipes, exactly
+    /// the same as regular legs. This is why this class also inherits from `ElementarySpace`,
+    /// which are the "uncombined" legs. Crucially, this allows the pipe to have
+    /// `defining_sectors` for the `block_inds`
+    /// to point to, to have a well-behaved `is_dual` attribute and to have a `basis_perm`,
+    /// which can account for the basis permutation that is induced by going from sectors of the
+    /// individual legs to a sorted list of coupled sectors on the pipe.
+    ///
+    /// Attributes:
+    ///
+    /// legs:
+    ///     The individual legs that form this pipe, and that the pipe can be split into.
+    ///     In particular, these are such that the pipe, as an `ElementarySpace`, is isomorphic
+    ///     to their tensor product ``TensorProduct(legs)``, i.e. has the same
+    ///     `sector_decomposition`.
+    /// sector_strides : 1D numpy array of int
+    ///     Strides for the shape ``[leg.num_sectors for leg in self.legs]``. Is either C-style or
+    ///     F-style, depending on `combine_cstyle`. This allows one-to-one mapping between
+    ///     multi-indices (one block_ind per space) to a single index.
+    ///     Used in `combine_legs`.
+    /// fusion_outcomes_sort : 1D numpy array of int
+    ///     The permutation that sorts the list of fusion outcomes.
+    ///     To calculate the `sector_decomposition` of the pipe, we go through all combinations
+    ///     of sectors from the `legs` in F-style order, i.e. varying sectors from the first leg
+    ///     the fastest. For each combination of sectors, we perform their fusion, which yields a
+    ///     single sector in the abelian case assumed here. The resulting list of fused sectors is
+    ///     in general neither sorted nor unique. This permutation (stable) sorts the resulting
+    ///     list. We use F-style to match the sorting convention of `block_ind_map`.
+    /// block_ind_map_slices : 1D numpy array of int
+    ///     Slices for embedding the unique fused sectors in the sorted list of all fusion
+    ///     outcomes. Shape is ``(K,)`` where ``K == pipe.num_sectors + 1``. Fusing all sectors
+    ///     from the `sector_decomposition` of all legs and sorting the outcomes gives a list which
+    ///     contains (in general) duplicates. The slice
+    ///     ``block_ind_map_slices[n]:block_ind_map_slices[n + 1]`` within this sorted list
+    ///     contains the same entry, namely ``pipe.sector_decomposition[n]``.
+    ///     Used in @f$ AbelianBackend.split_legs @f$.
+    /// block_ind_map : BlockInds
+    ///     Map for the embedding of uncoupled to coupled indices, see notes of the Python class.
+    ///     Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
+    ///     i.e. ``M == prod(leg.num_sectors for leg in legs)`` and ``N == 3 + len(legs)``.
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 
   private:
@@ -608,20 +839,42 @@ class AbelianLegPipe
       BlockInds const& block_ind_map);
 };
 
-/// Convert a tensor leg to a :class:`Space` (identity if it already is one).
+/// Convert a tensor leg to a `Space` (identity if it already is one).
 [[nodiscard]] Space::Ptr as_space(Leg::Ptr const& leg);
 
 /// The swap gate (numpy representation of the braid) between two legs.
 ///
-/// Axes of the result are ``[W, V, W*, V*]``. Accepts plain :class:`LegPipe`\ s (recursively)
-/// as well as :class:`ElementarySpace`\ s; an :class:`AbelianLegPipe` is treated as an
-/// :class:`ElementarySpace` (matching Python ``isinstance``).
+/// Axes of the result are ``[W, V, W*, V*]``. Accepts plain `LegPipe`\ s (recursively)
+/// as well as `ElementarySpace`\ s; an `AbelianLegPipe` is treated as an
+/// `ElementarySpace` (matching Python ``isinstance``).
+/// The swap gate (numpy representation of the braid).
+///
+///     |   V   W
+///     |   │   │
+///     |   v   v
+///     |    ╲ ╱
+///     |     ╲          <-  overbraid == underbraid is assumed
+///     |    ╱ ╲
+///     |   v   v
+///     |   │   │
+///     |   W   V
+///
+/// @returns
+///
+/// `swap_gate`
+///     The swap gate for single sectors.
 [[nodiscard]] FusionSymbol swap_gate(Leg::Ptr V, Leg::Ptr W);
 
 /// The topological twist on a whole space, as a numpy matrix with axes ``[V, V*]``.
+/// The topological twist on a whole space, as numpy representation.
+///
+/// @returns
+///
+/// `topological_twist`
+///     The twist on a single sector, given in the form of a prefactor for the identity map.
 [[nodiscard]] FusionSymbol twist_gate(Leg::Ptr V);
 
-/// Diagonal of :func:`twist_gate` (public basis order).
+/// Diagonal of `twist_gate` (public basis order).
 [[nodiscard]] FusionSymbol twist_gate_diag(Leg::Ptr V);
 
 /// Leg permutation such that combining / splitting legs would be in C style.
@@ -636,7 +889,7 @@ unique_sorted_sectors(SectorArray const& unsorted_sectors,
 [[nodiscard]] std::tuple<SectorArray, std::vector<int64>, std::vector<std::size_t>>
 sort_sectors_public(SectorArray const& sectors, std::vector<int64> const& multiplicities);
 
-/// Input parsing for :meth:`Space.drop_symmetry`.
+/// Input parsing for `drop_symmetry`.
 ///
 /// Returns ``(which_factors, remaining_symmetry)`` where ``which_factors`` is ``nullopt`` for
 /// ``'all'``.

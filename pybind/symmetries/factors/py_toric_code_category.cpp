@@ -1,3 +1,5 @@
+#include "../../doc_plus.h"
+#include "docstrings/symmetries/factors/toric_code_category.h"
 #include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
@@ -13,11 +15,7 @@ void
 bind_toric_code_category(py::module_& m)
 {
     py::class_<ToricCodeCategory, QuantumDoubleZNAnyonCategory, py::smart_holder> cls(
-      m,
-      "ToricCodeCategory",
-      R"pydoc(
-      Toric code anyon category. Essentially equivalent to `QuantumDoubleZNAnyonCategory(N=2)`.
-      )pydoc");
+      m, "ToricCodeCategory", DOC(cyten, ToricCodeCategory));
     cls.def(py::init<std::optional<std::string>>(), py::arg("descriptive_name") = py::none())
       .def_static("from_hdf5",
                   &ToricCodeCategory::from_hdf5,

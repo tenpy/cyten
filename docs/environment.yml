@@ -12,6 +12,7 @@ dependencies:
   - scipy
   - openblas
   - cmake
+  - doxygen  # required: generates pybind/docstrings/ DOC() headers at build time
   - pytorch
   # alteratively use MKL instead of openblas
   # - mkl
@@ -28,17 +29,18 @@ dependencies:
   - flake8-rst-docstrings
   - sphinx-lint
 
-  # building docs
-  - doxygen
+  # building Sphinx docs
   - sphinx
   - sphinx_rtd_theme
   - graphviz
   - sphinx-copybutton
-  - pip:
-    - breathe  # conde-forge version seems incompatible
 
   # I/O
   - hdf5
   - h5py
   - pyyaml
   - toml
+
+  # pip last: packages after a `pip:` block are ignored by conda
+  - pip:
+    - breathe  # conda-forge version seems incompatible

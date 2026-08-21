@@ -13,10 +13,13 @@ import sys
 
 import cyten
 
+# Local Sphinx extensions under docs/sphinx/
+sys.path.insert(0, os.path.abspath('sphinx'))
+
 project = 'Cyten'
 copyright = '2024, Cyten developer team'
 author = 'Cyten developer team'
-release = '0.1'
+release = cyten.__version__
 
 GITHUBBASE = 'https://github.com/tenpy/cyten'
 
@@ -37,6 +40,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.linkcode',
     'sphinx.ext.githubpages',
+    'cyten_cpp_link',  # after autodoc; connects with priority before napoleon
     'sphinx.ext.napoleon',
     'sphinx.ext.graphviz',
     'sphinx.ext.inheritance_diagram',
@@ -81,16 +85,26 @@ breathe_projects = {'cyten': 'build_docs/doxy_xml'}
 
 breathe_default_project = 'cyten'
 
-breathe_projects_source = {'cyten': ('../include/cyten', ['symmetries.h'])}
+breathe_default_members = ('members', 'undoc-members')
+
+# Map header extensions to the C++ domain so :cpp:func: links resolve.
+breathe_domain_by_extension = {
+    'h': 'cpp',
+    'hpp': 'cpp',
+    'cpp': 'cpp',
+}
 
 # -- sphinx.ext.autodoc ---------------------------------------------------
 
-autodoc_default_options = {}
+autodoc_default_options = {
+    'member-order': 'bysource',
+}
 autodoc_member_order = 'bysource'
 # some options are included in the templates under
 # sphinx_templates/autosummary/class.rst
 # for example :inherited-members: and :show-inheritance:
 autosummary_generate = True
+autodoc_docstring_signature = True
 
 # -- sphinx.ext.todo ------------------------------------------------------
 
@@ -189,7 +203,7 @@ def linkcode_resolve(domain, info):
     if fn.startswith('..'):
         return None
 
-    if cyten.__version__ == cyten.__full_version__:
+    if 'dev' not in cyten.__version__:
         return f'{GITHUBBASE}/blob/v{cyten.__version__}/cyten/{fn}{linespec}'
     else:
         return f'{GITHUBBASE}/blob/main/cyten/{fn}{linespec}'
