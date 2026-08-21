@@ -25,6 +25,8 @@ class SpinSite : public SpinDOF
     void test_sanity() override;
     [[nodiscard]] std::string repr() const;
 
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
+
   private:
     /// Temporary data for virtual-base initialization; lives only during construction.
     struct Prepared
@@ -58,6 +60,8 @@ class SpinlessBosonSite : public BosonicDOF
                       std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
 
   private:
     struct Prepared
@@ -93,6 +97,8 @@ class SpinlessFermionSite : public FermionicDOF
                         std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
 
   private:
     struct Prepared
@@ -132,6 +138,8 @@ class SpinHalfFermionSite
 
     [[nodiscard]] std::string repr() const;
 
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
+
   private:
     struct Prepared
     {
@@ -167,6 +175,8 @@ class ClockSite : public ClockDOF
 
     [[nodiscard]] std::string repr() const;
 
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
+
   private:
     struct Prepared
     {
@@ -193,6 +203,8 @@ class AnyonSite : public AnyonDOF
 
     [[nodiscard]] std::string repr() const;
 
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
+
   protected:
     /// Initialize from an already-built local space (shared by Site and AnyonDOF).
     AnyonSite(ElementarySpace::Ptr leg,
@@ -209,6 +221,8 @@ class FibonacciAnyonSite : public AnyonSite
                        std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
 
   private:
     struct Prepared
@@ -233,6 +247,8 @@ class IsingAnyonSite : public AnyonSite
 
     [[nodiscard]] std::string repr() const;
 
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
+
   private:
     struct Prepared
     {
@@ -256,6 +272,8 @@ class GoldenSite : public AnyonDOF
 
     [[nodiscard]] std::string repr() const;
 
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
+
   private:
     GoldenSite(ElementarySpace::Ptr leg,
                TensorBackend::Ptr backend,
@@ -274,6 +292,8 @@ class SU2kSpin1Site : public AnyonDOF
                   std::optional<std::string> default_device = std::nullopt);
 
     [[nodiscard]] std::string repr() const;
+
+    [[nodiscard]] py::dict hdf5_init_kwargs() const override;
 
   private:
     SU2kSpin1Site(ElementarySpace::Ptr leg,

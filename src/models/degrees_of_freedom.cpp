@@ -236,8 +236,7 @@ add_onsite_operators_from_map(Site& site,
 py::object&
 all_species_sentinel()
 {
-    static py::object& sentinel =
-      leak_py_object(py::module_::import("builtins").attr("object")());
+    static py::object& sentinel = leak_py_object(py::module_::import("builtins").attr("object")());
     return sentinel;
 }
 
@@ -493,6 +492,45 @@ Site::repr() const
 {
     return std::format(
       "<{}, dim={}, symmetry={}>", site_class_name(*this), dim(), symmetry()->repr());
+}
+
+py::dict
+Site::hdf5_backend_kwargs() const
+{
+    py::dict d;
+    d["backend"] = py::cast(backend);
+    d["default_device"] = default_device;
+    return d;
+}
+
+py::dict
+Site::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    d["leg"] = py::cast(leg);
+    d["state_labels"] = py::cast(state_labels);
+    std::map<std::string, SymmetricTensorPtr> ops = onsite_operators;
+    ops.erase("Id");
+    d["onsite_operators"] = py::cast(ops);
+    return d;
+}
+
+void
+Site::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string const& subpath) const
+{
+    hdf5_saver.attr("save")(hdf5_init_kwargs(), subpath + "init_kwargs");
+}
+
+py::object
+Site::from_hdf5(py::object cls,
+                py::object hdf5_loader,
+                py::object h5gr,
+                std::string const& subpath)
+{
+    py::dict kwargs = hdf5_loader.attr("load")(subpath + "init_kwargs").cast<py::dict>();
+    py::object obj = cls(**kwargs);
+    hdf5_loader.attr("memorize_load")(h5gr, obj);
+    return obj;
 }
 
 SpinDOF::SpinDOF(ElementarySpace::Ptr leg,

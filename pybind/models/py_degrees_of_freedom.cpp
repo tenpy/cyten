@@ -207,7 +207,23 @@ SymmetricTensor
            &Site::state_indices,
            py::arg("labels"),
            R"pydoc(The indices of multiple basis states)pydoc")
-      .def("__repr__", &Site::repr);
+      .def("__repr__", &Site::repr)
+      .def("save_hdf5",
+           &Site::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"),
+           R"pydoc(Export `self` into a HDF5 file.)pydoc");
+
+    py::object classmethod = py::module_::import("builtins").attr("classmethod");
+    site.attr("from_hdf5") =
+      classmethod(py::cpp_function(&Site::from_hdf5,
+                                   py::name("from_hdf5"),
+                                   py::arg("cls"),
+                                   py::arg("hdf5_loader"),
+                                   py::arg("h5gr"),
+                                   py::arg("subpath"),
+                                   "Reconstruct a Site (or subclass) from HDF5."));
 
     py::class_<SpinDOF, Site, py::smart_holder> spin_dof(m, "SpinDOF");
     spin_dof.doc() = R"pydoc(Common base class for sites that have a spin degree of freedom.

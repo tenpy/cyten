@@ -742,14 +742,14 @@ SpinSite::SpinSite(Prepared&& prepared,
             py::cast(std::complex(0., 1.)) *
               spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1)));
         if (prepared.two_S == 1) {
-            add_onsite_operator(
-              "Sigmax",
-              np.attr("multiply")(
-                2.0, spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 0))));
-            add_onsite_operator(
-              "Sigmay",
-              np.attr("multiply")(
-                2.0, spin_vector.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), 1))));
+            add_onsite_operator("Sigmax",
+                                np.attr("multiply")(2.0,
+                                                    spin_vector.attr("__getitem__")(py::make_tuple(
+                                                      py::slice(), py::slice(), 0))));
+            add_onsite_operator("Sigmay",
+                                np.attr("multiply")(2.0,
+                                                    spin_vector.attr("__getitem__")(py::make_tuple(
+                                                      py::slice(), py::slice(), 1))));
         }
     }
 }
@@ -1146,6 +1146,114 @@ SU2kSpin1Site::repr() const
         return std::format("SU2kSpin1Site(k={}, handedness={})", cat->k, cat->handedness);
     }
     return std::format("SU2kSpin1Site(k={}, handedness=left)", k);
+}
+
+namespace {
+
+py::object
+optional_str_to_py(std::optional<std::string> const& value)
+{
+    if (!value)
+        return py::none();
+    return py::str(*value);
+}
+
+py::object
+optional_float_to_py(std::optional<float64> const& value)
+{
+    if (!value)
+        return py::none();
+    return py::float_(*value);
+}
+
+} // namespace
+
+py::dict
+SpinSite::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    d["S"] = S;
+    d["conserve"] = optional_str_to_py(conserve);
+    return d;
+}
+
+py::dict
+SpinlessBosonSite::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    d["Nmax"] = Nmax;
+    d["conserve"] = conserve;
+    d["filling"] = optional_float_to_py(filling);
+    return d;
+}
+
+py::dict
+SpinlessFermionSite::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    d["num_species"] = num_species;
+    d["conserve"] = conserve;
+    d["filling"] = optional_float_to_py(filling);
+    return d;
+}
+
+py::dict
+SpinHalfFermionSite::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    d["conserve_N"] = py::str(conserve_N);
+    d["conserve_S"] = optional_str_to_py(conserve_S);
+    d["filling"] = optional_float_to_py(filling);
+    return d;
+}
+
+py::dict
+ClockSite::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    d["q"] = q;
+    d["conserve"] = optional_str_to_py(conserve);
+    return d;
+}
+
+py::dict
+AnyonSite::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    d["symmetry"] = py::cast(symmetry());
+    return d;
+}
+
+py::dict
+FibonacciAnyonSite::hdf5_init_kwargs() const
+{
+    return hdf5_backend_kwargs();
+}
+
+py::dict
+IsingAnyonSite::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    auto const* cat = dynamic_cast<IsingAnyonCategory const*>(symmetry()->factors[0].get());
+    d["nu"] = cat ? cat->nu : 1;
+    return d;
+}
+
+py::dict
+GoldenSite::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    auto const* cat = dynamic_cast<FibonacciAnyonCategory const*>(symmetry()->factors[0].get());
+    d["handedness"] = cat ? cat->handedness : "left";
+    return d;
+}
+
+py::dict
+SU2kSpin1Site::hdf5_init_kwargs() const
+{
+    py::dict d = hdf5_backend_kwargs();
+    d["k"] = k;
+    return d;
 }
 
 } // namespace cyten

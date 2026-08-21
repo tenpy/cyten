@@ -69,6 +69,17 @@ class Site : public virtual std::enable_shared_from_this<Site>
     [[nodiscard]] int64 state_index(py::object label) const;
     [[nodiscard]] std::vector<int64> state_indices(std::vector<py::object> const& labels) const;
     [[nodiscard]] std::string repr() const;
+
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    static py::object from_hdf5(py::object cls,
+                                py::object hdf5_loader,
+                                py::object h5gr,
+                                std::string const& subpath);
+
+  protected:
+    /// Constructor keyword arguments used by :meth:`save_hdf5` / :meth:`from_hdf5`.
+    [[nodiscard]] virtual py::dict hdf5_init_kwargs() const;
+    [[nodiscard]] py::dict hdf5_backend_kwargs() const;
 };
 
 class SpinDOF : public virtual Site
