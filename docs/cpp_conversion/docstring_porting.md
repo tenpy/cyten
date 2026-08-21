@@ -108,16 +108,20 @@ Language-neutral concepts and tutorials. Prefer Python examples for now; C++
 snippets can be added later in separate tabs/sections. Do not assume readers
 open the C++ API pages.
 
-## Docstring generation (optional regeneration)
+## Docstring generation (always at build)
 
 ### Layout
 
-| C++ header | Generated / checked-in docstring header |
+| C++ header | Generated docstring header (gitignored) |
 | --- | --- |
 | `include/cyten/<rel>` | `pybind/docstrings/<rel>` |
 
 Example: `include/cyten/tensors/ops_algebra.h` →
 `pybind/docstrings/tensors/ops_algebra.h`.
+
+Headers are written under `pybind/docstrings/` so IDEs can open them next to the
+bindings; they are **not** committed (see [`.gitignore`](../../.gitignore)).
+**doxygen** is a required build dependency ([`environment.yml`](../../environment.yml)).
 
 Each binding `.cpp` includes **only** the docstring headers it needs:
 
@@ -132,7 +136,8 @@ unrelated `py_*.cpp` TUs.
 
 1. Write / clean `///` on the public C++ API (NumPy style, C++ types).
 2. Add `<rel>` to `CYTEN_MKDOC_HEADERS` in top-level [`CMakeLists.txt`](../../CMakeLists.txt).
-3. Regenerate (or create) `pybind/docstrings/<rel>` and **commit it**.
+3. Build (or `cmake --build <build-dir> --target cyten_generate_docstrings`) so
+   `pybind/docstrings/<rel>` appears; do **not** commit it.
 4. In the matching `pybind/.../py_*.cpp`:
    - `#include "docstrings/<rel>"`
    - Replace 1:1 `R"pydoc"` with `DOC(cyten, …)` where safe.
@@ -140,35 +145,20 @@ unrelated `py_*.cpp` TUs.
 5. Confirm overload suffixes after the first generation (`DOC(cyten, foo, 2)`, …).
 6. Spot-check `obj.__doc__` in Python for a direct binding and a wrapper.
 
-### Regenerating
+### How generation works
 
-Requires **doxygen** (see [`docs/environment.yml`](../environment.yml); optional in the
-main env). Normal builds and CI leave generation **OFF** and use checked-in files.
-
-```bash
-cmake -S . -B build -DCYTEN_GENERATE_DOCSTRINGS=ON
-cmake --build build --target cyten_generate_docstrings
-```
-
-Pipeline:
+Every `_core` build runs target `cyten_generate_docstrings`:
 
 1. Scoped Doxygen XML for each header in `CYTEN_MKDOC_HEADERS`.
 2. [`scripts/doxygen_xml_to_docstrings.py`](../../scripts/doxygen_xml_to_docstrings.py)
    maps symbols from XML (names, namespaces, overload order) and copies `///`
    comment bodies from the source header into `DOC()` macros.
 
-Notes:
+```bash
+cmake --build <build-dir> --target cyten_generate_docstrings
+```
 
-- Default is `-DCYTEN_GENERATE_DOCSTRINGS=OFF`; `_core` does **not** depend on
-  the generation target (a failed regen cannot break the extension build).
-- Stamps live in the build tree so `ninja clean` does not delete checked-in files.
-- Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
-
-### Commit discipline
-
-Always commit updated `pybind/docstrings/<rel>` together with the `///` / binding
-changes that produced them, so CI and users without doxygen still build and see
-correct `__doc__`.
+Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
 
 ## What not to do
 
@@ -177,7 +167,7 @@ correct `__doc__`.
 - Do not put C++ signature docs alone on a lambda whose Python signature differs
   (`LegRef` vs `int | str`, `optional<map>` vs `dict | None`).
 - Do not rely on `\param` if you want TeNPy-style Napoleon sections in `DOC()`.
-- Do not make `_core` depend on regenerating docstring headers at build time.
+- Do not commit generated `pybind/docstrings/**/*.h` files.
 - Do not make `_core` depend on one giant docstring header for the whole tree.
 
 ## Status

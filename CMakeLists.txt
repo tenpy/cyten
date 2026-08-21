@@ -32,12 +32,6 @@ endif()
 option(BUILD_DOC "Build API documentation" OFF)
 option(LINTING "Use clang-tidy for linting" OFF)
 option(BUILD_TESTING "Build ctest tests" ON)
-# Checked-in pybind/docstrings/<path>.h mirrors include/cyten/<path>.h.
-# Regeneration is optional (Doxygen XML → DOC() headers). Default OFF so CI and
-# normal builds use checked-in files and do not depend on doxygen.
-option(CYTEN_GENERATE_DOCSTRINGS
-  "Regenerate pybind/docstrings/*.h from Doxygen XML when doxygen is available"
-  OFF)
 
 
 # #####################################################################
@@ -159,61 +153,36 @@ add_subdirectory(pybind)  # adds source files to _core
 target_link_libraries(_core PUBLIC cyten)
 
 # #####################################################################
-# ## Docstrings (optional: Doxygen XML → pybind/docstrings/<rel>)
+# ## Docstrings (Doxygen XML → pybind/docstrings/<rel>, always at build)
 # #####################################################################
-# Layout: include/cyten/<rel>  →  pybind/docstrings/<rel>
+# Layout: include/cyten/<rel>  →  pybind/docstrings/<rel> (gitignored; IDE-visible)
 # Each pybind TU includes only the docstring headers it needs.
-# Regeneration is a standalone target (never required to link _core).
+# Requires doxygen (see environment.yml).
 #
 # Pilot list — extend as more bindings switch to DOC(...):
 set(CYTEN_MKDOC_HEADERS
   tensors/ops_algebra.h
 )
 
+find_program(CYTEN_DOXYGEN_EXECUTABLE NAMES doxygen REQUIRED)
 set(CYTEN_DOCSTRINGS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pybind/docstrings")
-set(CYTEN_CAN_GENERATE_DOCSTRINGS FALSE)
+set(CYTEN_DOCSTRING_SCRIPT
+  "${CMAKE_CURRENT_SOURCE_DIR}/scripts/doxygen_xml_to_docstrings.py")
+set(CYTEN_DOCSTRINGS_XML_ROOT
+  "${CMAKE_CURRENT_BINARY_DIR}/docstrings_doxygen")
 
-if(CYTEN_GENERATE_DOCSTRINGS)
-  find_program(CYTEN_DOXYGEN_EXECUTABLE NAMES doxygen)
-  if(CYTEN_DOXYGEN_EXECUTABLE)
-    set(CYTEN_CAN_GENERATE_DOCSTRINGS TRUE)
-  else()
-    message(STATUS
-      "CYTEN_GENERATE_DOCSTRINGS: doxygen not found; using checked-in "
-      "${CYTEN_DOCSTRINGS_DIR}/")
-  endif()
-endif()
-
+set(_cyten_doc_outputs "")
 foreach(_cyten_hdr_rel IN LISTS CYTEN_MKDOC_HEADERS)
+  set(_cyten_src_hdr "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/${_cyten_hdr_rel}")
   set(_cyten_doc_out "${CYTEN_DOCSTRINGS_DIR}/${_cyten_hdr_rel}")
-  if(NOT EXISTS "${_cyten_doc_out}" AND NOT CYTEN_CAN_GENERATE_DOCSTRINGS)
-    message(FATAL_ERROR
-      "Missing ${_cyten_doc_out}. Commit/restore that file, or install doxygen "
-      "and regenerate with -DCYTEN_GENERATE_DOCSTRINGS=ON "
-      "(target cyten_generate_docstrings).")
-  endif()
-endforeach()
+  set(_cyten_safe_rel "${_cyten_hdr_rel}")
+  string(REPLACE "/" "_" _cyten_safe_rel "${_cyten_safe_rel}")
+  string(REPLACE "." "_" _cyten_safe_rel "${_cyten_safe_rel}")
+  set(_cyten_xml_out "${CYTEN_DOCSTRINGS_XML_ROOT}/${_cyten_safe_rel}")
+  set(_cyten_doxyfile "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile_docstrings_${_cyten_safe_rel}")
+  get_filename_component(_cyten_doc_outdir "${_cyten_doc_out}" DIRECTORY)
 
-set(_cyten_doc_stamps "")
-if(CYTEN_CAN_GENERATE_DOCSTRINGS)
-  set(CYTEN_DOCSTRING_SCRIPT
-    "${CMAKE_CURRENT_SOURCE_DIR}/scripts/doxygen_xml_to_docstrings.py")
-  set(CYTEN_DOCSTRINGS_XML_ROOT
-    "${CMAKE_CURRENT_BINARY_DIR}/docstrings_doxygen")
-
-  foreach(_cyten_hdr_rel IN LISTS CYTEN_MKDOC_HEADERS)
-    set(_cyten_src_hdr "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/${_cyten_hdr_rel}")
-    set(_cyten_doc_out "${CYTEN_DOCSTRINGS_DIR}/${_cyten_hdr_rel}")
-    set(_cyten_safe_rel "${_cyten_hdr_rel}")
-    string(REPLACE "/" "_" _cyten_safe_rel "${_cyten_safe_rel}")
-    string(REPLACE "." "_" _cyten_safe_rel "${_cyten_safe_rel}")
-    set(_cyten_xml_out "${CYTEN_DOCSTRINGS_XML_ROOT}/${_cyten_safe_rel}")
-    set(_cyten_doxyfile "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile_docstrings_${_cyten_safe_rel}")
-    set(_cyten_gen "${CMAKE_CURRENT_BINARY_DIR}/docstrings_${_cyten_safe_rel}.generated.h")
-    set(_cyten_stamp "${CMAKE_CURRENT_BINARY_DIR}/docstrings_${_cyten_safe_rel}.stamp")
-    get_filename_component(_cyten_doc_outdir "${_cyten_doc_out}" DIRECTORY)
-
-    file(WRITE "${_cyten_doxyfile}"
+  file(WRITE "${_cyten_doxyfile}"
 "PROJECT_NAME           = cyten
 OUTPUT_DIRECTORY       = ${_cyten_xml_out}
 INPUT                  = ${_cyten_src_hdr}
@@ -228,40 +197,32 @@ MARKDOWN_SUPPORT       = NO
 AUTOLINK_SUPPORT       = NO
 ")
 
-    # Stamp in the build tree so `ninja clean` does not delete checked-in files.
-    # Standalone target only — not a dependency of _core.
-    add_custom_command(
-      OUTPUT ${_cyten_stamp}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_doc_outdir}
-      COMMAND ${CMAKE_COMMAND} -E rm -rf ${_cyten_xml_out}
-      COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_xml_out}
-      COMMAND ${CYTEN_DOXYGEN_EXECUTABLE} ${_cyten_doxyfile}
-      COMMAND ${Python_EXECUTABLE} ${CYTEN_DOCSTRING_SCRIPT}
-              --xml-dir ${_cyten_xml_out}/xml
-              --header-rel ${_cyten_hdr_rel}
-              --source-root ${CMAKE_CURRENT_SOURCE_DIR}
-              -o ${_cyten_gen}
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_cyten_gen} ${_cyten_doc_out}
-      COMMAND ${CMAKE_COMMAND} -E touch ${_cyten_stamp}
-      DEPENDS ${_cyten_src_hdr} ${CYTEN_DOCSTRING_SCRIPT} ${_cyten_doxyfile}
-      COMMENT "Regenerating pybind/docstrings/${_cyten_hdr_rel}"
-      VERBATIM
-    )
-    list(APPEND _cyten_doc_stamps ${_cyten_stamp})
-  endforeach()
-
-  add_custom_target(cyten_generate_docstrings DEPENDS ${_cyten_doc_stamps})
-  add_custom_target(cyten_mkdoc_docstrings DEPENDS cyten_generate_docstrings)
-  message(STATUS
-    "CYTEN_GENERATE_DOCSTRINGS: ON (${CYTEN_MKDOC_HEADERS}); "
-    "build target cyten_generate_docstrings")
-else()
-  add_custom_target(cyten_generate_docstrings
-    COMMENT "cyten_generate_docstrings skipped (using checked-in pybind/docstrings/)"
+  # Write into the source tree under pybind/docstrings/ so IDEs can open DOC()
+  # headers next to the bindings. Files are gitignored; always regenerated.
+  add_custom_command(
+    OUTPUT ${_cyten_doc_out}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_doc_outdir}
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${_cyten_xml_out}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_xml_out}
+    COMMAND ${CYTEN_DOXYGEN_EXECUTABLE} ${_cyten_doxyfile}
+    COMMAND ${Python_EXECUTABLE} ${CYTEN_DOCSTRING_SCRIPT}
+            --xml-dir ${_cyten_xml_out}/xml
+            --header-rel ${_cyten_hdr_rel}
+            --source-root ${CMAKE_CURRENT_SOURCE_DIR}
+            -o ${_cyten_doc_out}
+    DEPENDS ${_cyten_src_hdr} ${CYTEN_DOCSTRING_SCRIPT} ${_cyten_doxyfile}
+    COMMENT "Generating pybind/docstrings/${_cyten_hdr_rel}"
+    VERBATIM
   )
-  add_custom_target(cyten_mkdoc_docstrings DEPENDS cyten_generate_docstrings)
-  message(STATUS "CYTEN_GENERATE_DOCSTRINGS: OFF (using checked-in pybind/docstrings/)")
-endif()
+  list(APPEND _cyten_doc_outputs ${_cyten_doc_out})
+endforeach()
+
+add_custom_target(cyten_generate_docstrings DEPENDS ${_cyten_doc_outputs})
+add_custom_target(cyten_mkdoc_docstrings DEPENDS cyten_generate_docstrings)
+add_dependencies(_core cyten_generate_docstrings)
+message(STATUS
+  "Docstrings: generating ${CYTEN_MKDOC_HEADERS} under pybind/docstrings/ "
+  "(doxygen=${CYTEN_DOXYGEN_EXECUTABLE})")
 
 
 # Resolve libtorch/c10 from the same place as Python torch._C.

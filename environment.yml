@@ -16,6 +16,7 @@ dependencies:
   - scipy
   - openblas
   - cmake
+  - doxygen  # required: generates pybind/docstrings/ DOC() headers at build time
   - pytorch
   #- xtensor
   #- xtensor-python
@@ -34,8 +35,7 @@ dependencies:
   - flake8-rst-docstrings
   - sphinx-lint
 
-  # building docs
-  # - doxygen  # also needed for optional CYTEN_GENERATE_DOCSTRINGS
+  # building Sphinx docs (doxygen already above for DOC() generation)
   # - sphinx
   # - sphinx_rtd_theme
   # - graphviz

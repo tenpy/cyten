@@ -52,11 +52,9 @@ _DOC_PREAMBLE = """\
 _BANNER = """\
 /*
   Generated from Doxygen XML + include/cyten/{source_rel} /// comments.
-  Checked into git so builds work without regenerating.
+  Not committed — produced at build time (requires doxygen).
 
-  To regenerate (optional; needs doxygen):
-    cmake -S . -B <build-dir> -DCYTEN_GENERATE_DOCSTRINGS=ON
-    cmake --build <build-dir> --target cyten_generate_docstrings
+  cmake --build <build-dir> --target cyten_generate_docstrings
  */
 
 """
