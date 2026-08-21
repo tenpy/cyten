@@ -429,7 +429,7 @@ bind_tensors_tensor(py::module_& m)
         py::arg("leg_order") = py::none(),
         py::arg("numpy_dtype") = py::none(),
         py::arg("understood_braiding") = false,
-        DOC(cyten, Tensor, set_labels));
+        DOC(cyten, Tensor, to_numpy));
 }
 
 } // namespace cyten

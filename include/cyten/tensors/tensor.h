@@ -328,6 +328,7 @@ class Tensor
     [[nodiscard]] std::vector<Leg::Ptr> get_leg_co_domain(
       std::vector<std::variant<int64, std::string>> const& which_legs) const;
 
+    /// Set the given labels, in-place. Return the modified instance.
     Tensor& set_labels(LegLabels labels) override;
 
     /// Convert to a numpy array.

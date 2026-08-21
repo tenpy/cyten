@@ -377,22 +377,22 @@ class NoSymmetryBackend : public TensorBackend
                                                                   MaskCPtr mask2,
                                                                   BlockBinaryFn func) override;
 
+    /// Contraction with the large leg of a Mask.
+    ///
+    /// Implementation of `_compose_with_Mask` in the case where
+    /// the large leg of the mask is contracted.
+    /// Note that the mask may be a projection to be applied to the codomain or an inclusion
+    /// to be contracted on the domain.
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
-/// Contraction with the large leg of a Mask.
-///
-/// Implementation of `_compose_with_Mask` in the case where
-/// the large leg of the mask is contracted.
-/// Note that the mask may be a projection to be applied to the codomain or an inclusion
-/// to be contracted on the domain.
     mask_contract_large_leg(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) override;
 
+    /// Contraction with the small leg of a Mask.
+    ///
+    /// Implementation of `_compose_with_Mask` in the case where
+    /// the small leg of the mask is contracted.
+    /// Note that the mask may be an inclusion to be applied to the codomain or a projection
+    /// to be contracted on the domain.
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
-/// Contraction with the small leg of a Mask.
-///
-/// Implementation of `_compose_with_Mask` in the case where
-/// the small leg of the mask is contracted.
-/// Note that the mask may be an inclusion to be applied to the codomain or a projection
-/// to be contracted on the domain.
     mask_contract_small_leg(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) override;
 
     DataPtr mask_dagger(MaskCPtr mask) override;

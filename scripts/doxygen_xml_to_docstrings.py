@@ -224,18 +224,39 @@ def collect_symbols(xml_dir: Path, header_rel: str) -> list[Symbol]:
     return sorted(uniq.values(), key=lambda s: (s.line, s.name))
 
 
+def _is_decl_prefix_line(stripped: str) -> bool:
+    """True for lines Doxygen does not count as the member location.
+
+    Doxygen's ``<location line>`` is typically the line of the *name*. Return
+    types, ``template <...>``, and ``[[nodiscard]]`` then sit between the
+    ``///`` block and that line, e.g.::
+
+        /// docs
+        virtual std::tuple<A, B>
+        foo();
+    """
+    if stripped == '' or stripped.startswith('[['):
+        return True
+    if stripped.startswith('///') or stripped.startswith('//'):
+        return False
+    if stripped in {'public:', 'private:', 'protected:'}:
+        return False
+    if stripped.endswith(';') or stripped.endswith('{') or stripped.endswith('}'):
+        return False
+    # Another declarator (function, macro) — do not walk through it.
+    if '(' in stripped:
+        return False
+    return True
+
+
 def extract_slash_comment(source_lines: list[str], decl_line: int) -> str | None:
     """Return the ``///`` block immediately above 1-based ``decl_line``, or None."""
     if decl_line < 1 or decl_line > len(source_lines):
         return None
-    # Skip attribute / empty lines directly above the declaration.
+    # Skip attribute / return-type / empty lines directly above the name line.
     i = decl_line - 2  # 0-based index of line above decl
-    while i >= 0:
-        stripped = source_lines[i].strip()
-        if stripped == '' or stripped.startswith('[['):
-            i -= 1
-            continue
-        break
+    while i >= 0 and _is_decl_prefix_line(source_lines[i].strip()):
+        i -= 1
     if i < 0 or not source_lines[i].lstrip().startswith('///'):
         return None
     block: list[str] = []

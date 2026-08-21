@@ -202,18 +202,18 @@ class ContractionTree
 /// @param value The value of the new root node at which `self` and `other` are fused.
     [[nodiscard]] ContractionTree fuse(ContractionTree& other,
                                        std::optional<std::string> value = std::nullopt);
+    /// Replace a bottom node (where both children are leaves) with a single leaf, in-place.
+    ///
+    /// Graphically::
+    ///
+    ///     |    ...              ...
+    ///     |     |                |
+    ///     |     X       ->    new_value
+    ///     |    / \
+    ///     |   a   b
+    ///
+    /// @returns X : str or None The value at the non-leaf node that is replaced a, b : str or None The values of the leaf nodes that are removed new_value : str The value of the new leaf, conventionally ``'a @ b'``.
     std::tuple<std::optional<std::string>, std::string, std::string, std::string>
-/// Replace a bottom node (where both children are leaves) with a single leaf, in-place.
-///
-/// Graphically::
-///
-///     |    ...              ...
-///     |     |                |
-///     |     X       ->    new_value
-///     |    / \
-///     |   a   b
-///
-/// @returns X : str or None The value at the non-leaf node that is replaced a, b : str or None The values of the leaf nodes that are removed new_value : str The value of the new leaf, conventionally ``'a @ b'``.
     pop_contraction();
     [[nodiscard]] std::string str() const;
 };
