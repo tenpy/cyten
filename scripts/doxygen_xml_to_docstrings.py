@@ -2,8 +2,10 @@
 """Generate pybind ``DOC()`` headers from Doxygen XML + source ``///`` comments.
 
 Doxygen discovers symbols (names, overload order, namespaces). Comment bodies are
-read from the C++ header so NumPy ``Parameters`` / ``----------`` layout survives
-(Doxygen collapses those into markdown sections or single paragraphs).
+read from the C++ header (Doxygen ``@param`` / ``@returns`` + markdown) and
+converted to NumPy-style sections for Sphinx Napoleon / Python ``__doc__``.
+A ``See Also`` entry with ``:cpp:func:`` / ``:cpp:class:`` is appended so Python
+docs link to the matching Breathe page.
 
 Example::
 
@@ -18,11 +20,19 @@ Example::
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+
+# @param[in] name1,name2 description…  /  @returns description…
+_CMD_RE = re.compile(
+    r'^@(?P<cmd>param|paramref|returns?|return|brief)\s*'
+    r'(?:\[(?P<dir>[^\]]*)\]\s*)?'
+    r'(?P<rest>.*)$'
+)
 
 _DOC_PREAMBLE = """\
 #ifndef CYTEN_MKDOC_DOC_MACROS
@@ -71,6 +81,8 @@ class Symbol:
     line: int
     file: str
     has_docs: bool
+    # Comma-separated parameter *types* (no names/defaults), for overload links.
+    param_types: str = ''
 
 
 def _local_tag(tag: str | None) -> str:
@@ -101,6 +113,25 @@ def _file_matches(location_file: str, header_rel: str) -> bool:
     loc = location_file.replace('\\', '/')
     rel = header_rel.replace('\\', '/')
     return loc == rel or loc.endswith('/' + rel) or loc.endswith(rel)
+
+
+def _param_types(member: ET.Element) -> str:
+    """Return ``Type1, Type2, …`` from a ``memberdef`` (no names/defaults)."""
+    types: list[str] = []
+    for child in member:
+        if _local_tag(child.tag) != 'param':
+            continue
+        type_el = None
+        for sub in child:
+            if _local_tag(sub.tag) == 'type':
+                type_el = sub
+                break
+        if type_el is None:
+            continue
+        t = re.sub(r'\s+', ' ', ''.join(type_el.itertext()).strip())
+        if t:
+            types.append(t)
+    return ', '.join(types)
 
 
 def collect_symbols(xml_dir: Path, header_rel: str) -> list[Symbol]:
@@ -182,6 +213,7 @@ def collect_symbols(xml_dir: Path, header_rel: str) -> list[Symbol]:
                         line=int(loc.get('line', '0') or 0),
                         file=loc.get('file', ''),
                         has_docs=_text_nonempty(brief) or _text_nonempty(detailed),
+                        param_types=_param_types(md) if kind == 'function' else '',
                     )
                 )
     # Dedupe identical (kind, path, name, line)
@@ -222,6 +254,161 @@ def extract_slash_comment(source_lines: list[str], decl_line: int) -> str | None
         block.pop()
     text = '\n'.join(block).rstrip() + '\n'
     return text if text.strip() else None
+
+
+def _split_param_rest(rest: str) -> tuple[str, str]:
+    """Split ``name[,name…] description`` after ``@param``."""
+    rest = rest.strip()
+    if not rest:
+        return '', ''
+    # First token is the name list (may contain commas, no spaces inside names).
+    parts = rest.split(None, 1)
+    names = parts[0]
+    desc = parts[1] if len(parts) > 1 else ''
+    return names, desc
+
+
+def doxygen_comment_to_numpy(doc: str) -> str:
+    """Convert Doxygen ``@param`` / ``@returns`` (+ markdown) to NumPy sections.
+
+    Prose before the first command is kept as the summary/body. Markdown
+    backticks are upgraded to reST double-backticks for Napoleon/Sphinx.
+    """
+    prose: list[str] = []
+    params: list[tuple[str, list[str]]] = []
+    returns: list[str] = []
+    mode: str | None = None  # None | 'param' | 'returns'
+    cur_names = ''
+    cur_lines: list[str] = []
+
+    def flush() -> None:
+        nonlocal cur_names, cur_lines, mode
+        if mode == 'param' and cur_names:
+            # ``a,b`` → ``a, b`` for NumPy readability
+            display = ', '.join(p.strip() for p in cur_names.split(',') if p.strip())
+            params.append((display, list(cur_lines)))
+        elif mode == 'returns' and cur_lines:
+            returns.extend(cur_lines)
+        cur_names = ''
+        cur_lines = []
+        mode = None
+
+    for raw in doc.splitlines():
+        # Normalize backslash commands (\param → @param, \returns → @returns).
+        line = raw
+        for old, new in (
+            ('\\paramref', '@paramref'),
+            ('\\param', '@param'),
+            ('\\returns', '@returns'),
+            ('\\return', '@return'),
+            ('\\brief', '@brief'),
+        ):
+            if line.lstrip().startswith(old):
+                line = line.replace(old, new, 1)
+                break
+        stripped = line.strip()
+        m = _CMD_RE.match(stripped) if stripped.startswith('@') else None
+        if m:
+            cmd = m.group('cmd')
+            rest = m.group('rest') or ''
+            if cmd in ('param', 'paramref'):
+                flush()
+                names, desc = _split_param_rest(rest)
+                mode = 'param'
+                cur_names = names
+                cur_lines = [desc] if desc else []
+            elif cmd in ('return', 'returns'):
+                flush()
+                mode = 'returns'
+                cur_lines = [rest] if rest else []
+            elif cmd == 'brief':
+                flush()
+                if rest:
+                    prose.append(rest)
+                mode = None
+            continue
+
+        if mode == 'param':
+            if stripped == '':
+                if cur_lines:
+                    cur_lines.append('')
+            else:
+                cur_lines.append(stripped)
+            continue
+        if mode == 'returns':
+            if stripped == '':
+                if cur_lines:
+                    cur_lines.append('')
+            else:
+                cur_lines.append(stripped)
+            continue
+
+        prose.append(raw)
+
+    flush()
+
+    # Drop trailing blanks in prose
+    while prose and prose[-1].strip() == '':
+        prose.pop()
+
+    out: list[str] = []
+    if prose:
+        out.extend(prose)
+    if params:
+        if out:
+            out.append('')
+        out.append('Parameters')
+        out.append('----------')
+        for names, desc_lines in params:
+            # Trim trailing empty continuation lines
+            while desc_lines and desc_lines[-1].strip() == '':
+                desc_lines.pop()
+            if not desc_lines:
+                out.append(names)
+                continue
+            first, *rest = desc_lines
+            out.append(f'{names}')
+            if first:
+                out.append(f'    {first}')
+            for cont in rest:
+                if cont.strip() == '':
+                    out.append('')
+                else:
+                    out.append(f'    {cont}')
+    if returns:
+        while returns and returns[-1].strip() == '':
+            returns.pop()
+        if out:
+            out.append('')
+        out.append('Returns')
+        out.append('-------')
+        for line in returns:
+            out.append(line if line.strip() == '' else line)
+
+    text = '\n'.join(out).rstrip() + '\n'
+    # Markdown `code` → reST ``code`` (avoid touching already-doubled ticks).
+    text = re.sub(r'(?<!`)`([^`]+)`(?!`)', r'``\1``', text)
+    return text
+
+
+def _cpp_see_also(sym: Symbol, *, has_overloads: bool) -> str:
+    """NumPy ``See Also`` linking to the Breathe / Sphinx C++ domain target."""
+    qname = '::'.join([*sym.namespace_parts, sym.name])
+    if sym.kind in ('class', 'struct'):
+        role = 'class'
+        target = qname
+    elif sym.kind == 'enum':
+        role = 'enum'
+        target = qname
+    elif sym.kind == 'function':
+        role = 'func'
+        if has_overloads:
+            target = f'{qname}({sym.param_types})'
+        else:
+            target = f'{qname}()'
+    else:
+        return ''
+    return f'\nSee Also\n--------\n:cpp:{role}:`{target}`\n'
 
 
 def _macro_name(parts: list[str], overload_suffix: int | None) -> str:
@@ -265,18 +452,25 @@ def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
         by_key[key].append(s)
 
     # Emit in first-seen (line) order across all keys
-    ordered: list[tuple[tuple[str, ...], Symbol, int | None]] = []
+    ordered: list[tuple[tuple[str, ...], Symbol, int | None, bool]] = []
     for key, group in by_key.items():
         group = sorted(group, key=lambda s: s.line)
+        has_overloads = len(group) > 1
         for idx, s in enumerate(group):
             suffix = None if idx == 0 else idx + 1  # 2, 3, ...
-            ordered.append((key, s, suffix))
+            ordered.append((key, s, suffix, has_overloads))
     ordered.sort(key=lambda t: t[1].line)
 
-    for key, sym, suffix in ordered:
+    for key, sym, suffix, has_overloads in ordered:
         doc = extract_slash_comment(source_lines, sym.line)
         if doc is None:
             continue
+        doc = doxygen_comment_to_numpy(doc)
+        see = _cpp_see_also(sym, has_overloads=has_overloads)
+        if see:
+            doc = doc.rstrip() + '\n' + see
+            if not doc.endswith('\n'):
+                doc += '\n'
         parts = list(key)
         entries.append((parts, suffix, doc))
 

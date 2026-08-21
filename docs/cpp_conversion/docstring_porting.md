@@ -40,58 +40,74 @@ flowchart LR
 
 ### Header `///` (shared meaning)
 
-Write **NumPy-style / reST inside `///`**, with **C++ types only**.
+Write **Doxygen markup with markdown** in `///` comments. Types come from the
+C++ signature — do **not** repeat parameter/return types in the comments.
 
 Include:
 
 - What the function/class does (first paragraph = brief).
 - Invariants, domain/codomain rules, “may return a scalar”, algorithms.
-- `Parameters` / `Returns` using C++ names (`TensorCPtr`, `LegRef`,
-  `std::optional<std::map<std::string, std::string>>`, `nullopt`, …).
+- `@param` / `@returns` describing meaning only (not types).
+- Markdown for emphasis and code (`*italic*`, `` `code` ``).
 
 Avoid:
 
-- Doxygen `\param` / `\return` if you want Napoleon NumPy sections in Python
-  `__doc__` (prefer NumPy underlines in `///`; the generator copies those
-  comments verbatim from the header).
+- Restating parameter or return types in `@param` / `@returns` (redundant with
+  the declaration; clutters Breathe).
+- NumPy ``Parameters`` / ``----------`` sections in headers — Doxygen’s markdown
+  treats those as headings and collapses the body into one paragraph (broken
+  C++ / Breathe pages). Prefer `@param` / `@returns`; the docstring generator
+  converts them to NumPy for Python `DOC()`.
 - Python-only types and conventions (`None`, `dict`, `int or str` labels,
   `py::object`, `*args`).
 - Sphinx roles that only make sense for Python autodoc when they would confuse
-  a C++-only library long-term. Prefer plain ``TypeName`` in backticks for types
-  in headers when possible. Short `:ref:` / diagrams that already live in the
-  user guide can stay in **Python** docs instead.
+  a C++-only library long-term. Prefer markdown `` `name` `` for identifiers.
+  Short `:ref:` / diagrams that already live in the user guide can stay in
+  **Python** docs instead.
 
 Example (`compose`):
 
 ```cpp
-/// Tensor contraction as map composition. Requires ``tensor1.domain == tensor2.codomain``.
+/// Tensor contraction as map composition. Requires `tensor1.domain == tensor2.codomain`.
 ///
 /// If both tensors have no remaining open legs, returns a scalar.
 ///
-/// Parameters
-/// ----------
-/// tensor1, tensor2 : TensorCPtr
-///     Maps to compose: ``tensor1`` after ``tensor2``.
-/// relabel1, relabel2 : std::optional<std::map<std::string, std::string>>
-///     Optional label maps. ``nullopt`` means no relabel.
-///
-/// Returns
-/// -------
-/// std::variant<TensorPtr, BlockBackend::Scalar>
-///     The composed tensor, or a scalar if no open legs remain.
+/// @param tensor1,tensor2 Maps to compose: `tensor1` after `tensor2`.
+/// @param relabel1,relabel2 Optional label maps applied before composition.
+///     `nullopt` means no relabel.
+/// @returns The composed tensor, or a scalar if no open legs remain.
 ```
 
 ### pybind (Python surface)
 
 | Binding style | Docstring |
 | --- | --- |
-| Direct `&free_function` / `&Class::method` with the **same meaning** as C++ | Prefer `DOC(cyten, …)` from the generated docstring header |
+| Direct `&free_function` / `&Class::method` with the **same meaning** as C++ | Prefer `DOC(cyten, …)` from the generated docstring header (auto ``See Also`` → C++) |
 | Overloads | Use the overload suffix (`DOC(cyten, inner, 2)` for the second declaration in the header) |
-| Lambdas / wrappers (`py::object`, label parsing, `None` defaults, `*args`) | Keep hand-written `R"pydoc(...)"` |
-| Shared C++ meaning + Python-only args | `doc_plus(DOC(cyten, name), R"pydoc(…)")` — see [`pybind/doc_plus.h`](../../pybind/doc_plus.h) |
+| Lambdas / wrappers that still wrap a C++ API | `doc_cpp_ref(R"pydoc(…)", "cyten::name()")` — see [`pybind/doc_plus.h`](../../pybind/doc_plus.h) |
+| Shared C++ meaning + Python-only args | `doc_plus(DOC(cyten, name), R"pydoc(…)")` (Python extras are inserted *before* the auto ``See Also``) |
+| Python-only helpers (no matching C++ symbol) | Hand-written `R"pydoc"` only — **no** `DOC` / `doc_cpp_ref` |
 
-Do **not** attach `DOC(...)` to a Python helper that does not call the C++
-symbol (e.g. duck-typed `is_scalar` in algebra bindings).
+Do **not** attach `DOC(...)` or `doc_cpp_ref` to a Python helper that does not
+call the documented C++ symbol (e.g. duck-typed `is_scalar` in algebra bindings).
+
+#### Cross-links to C++ (Breathe)
+
+Generated `DOC()` strings end with a NumPy ``See Also`` pointing at the C++
+symbol, e.g. `:cpp:func:`cyten::dagger()``. Overloads include parameter types:
+`:cpp:func:`cyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)``.
+
+For explicit control (wrappers, override target/overload):
+
+```cpp
+doc_cpp_ref(R"pydoc(Brief.)pydoc", "cyten::apply_mask()");
+doc_cpp_ref(DOC(cyten, inner, 2),
+            "cyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)");  // replace See Also
+```
+
+The C++ symbol must appear on a `docs/cpp/…` Breathe page or the link will not
+resolve. Prefer putting Sphinx roles only in the Python layer (not in header
+`///`).
 
 Python-only extras in `R"pydoc"` / `doc_plus` appendices:
 
@@ -107,6 +123,26 @@ its own line at the same indent.
 Language-neutral concepts and tutorials. Prefer Python examples for now; C++
 snippets can be added later in separate tabs/sections. Do not assume readers
 open the C++ API pages.
+
+### C++ API pages (`docs/cpp/…`, Breathe)
+
+Free functions are pulled in with ``.. doxygenfunction::``. For **overloads**,
+Breathe cannot resolve a bare name — list each signature explicitly (parameter
+types only is enough), same pattern as [`docs/cpp/config.rst`](../cpp/config.rst):
+
+```rst
+.. doxygenfunction:: cyten::inner(TensorCPtr, TensorCPtr, bool)
+   :project: cyten
+
+.. doxygenfunction:: cyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)
+   :project: cyten
+```
+
+Otherwise Sphinx emits *Unable to resolve function … with arguments None* and
+shows the candidate overloads. Match types to the Doxygen XML / header
+(east-const style like ``BlockBackend::Scalar const &`` when that is what
+appears there). See the pilot page
+[`docs/cpp/tensors/ops_algebra.rst`](../cpp/tensors/ops_algebra.rst).
 
 ## Docstring generation (always at build)
 
@@ -134,7 +170,8 @@ unrelated `py_*.cpp` TUs.
 
 ### Checklist when porting a header
 
-1. Write / clean `///` on the public C++ API (NumPy style, C++ types).
+1. Write / clean `///` on the public C++ API (Doxygen `@param` / `@returns` +
+   markdown; no parameter/return types in the comments).
 2. Add `<rel>` to `CYTEN_MKDOC_HEADERS` in top-level [`CMakeLists.txt`](../../CMakeLists.txt).
 3. Build (or `cmake --build <build-dir> --target cyten_generate_docstrings`) so
    `pybind/docstrings/<rel>` appears; do **not** commit it.
@@ -143,7 +180,9 @@ unrelated `py_*.cpp` TUs.
    - Replace 1:1 `R"pydoc"` with `DOC(cyten, …)` where safe.
    - Leave lambdas as `R"pydoc"`; use `doc_plus` when appending Python-only sections.
 5. Confirm overload suffixes after the first generation (`DOC(cyten, foo, 2)`, …).
-6. Spot-check `obj.__doc__` in Python for a direct binding and a wrapper.
+6. If the header has overloads, update the matching `docs/cpp/…/*.rst` so each
+   `doxygenfunction` includes a distinguishing parameter list (see above).
+7. Spot-check `obj.__doc__` in Python for a direct binding and a wrapper.
 
 ### How generation works
 
@@ -151,8 +190,9 @@ Every `_core` build runs target `cyten_generate_docstrings`:
 
 1. Scoped Doxygen XML for each header in `CYTEN_MKDOC_HEADERS`.
 2. [`scripts/doxygen_xml_to_docstrings.py`](../../scripts/doxygen_xml_to_docstrings.py)
-   maps symbols from XML (names, namespaces, overload order) and copies `///`
-   comment bodies from the source header into `DOC()` macros.
+   maps symbols from XML (names, namespaces, overload order), reads `///`
+   comment bodies from the source header, converts `@param` / `@returns` to
+   NumPy sections, and appends a ``See Also`` `:cpp:` link for `DOC()` macros.
 
 ```bash
 cmake --build <build-dir> --target cyten_generate_docstrings
@@ -162,13 +202,16 @@ Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
 
 ## What not to do
 
-- Do not dump full Python NumPy docs into headers (pollutes libcyten / Breathe).
+- Do not dump full Python NumPy docs into headers (pollutes libcyten / Breathe;
+  Doxygen also mangles NumPy `Parameters` / `Returns` underlines).
+- Do not restate parameter/return types in header `@param` / `@returns`.
 - Do not generate C++ comments from `R"pydoc"`.
 - Do not put C++ signature docs alone on a lambda whose Python signature differs
   (`LegRef` vs `int | str`, `optional<map>` vs `dict | None`).
-- Do not rely on `\param` if you want TeNPy-style Napoleon sections in `DOC()`.
 - Do not commit generated `pybind/docstrings/**/*.h` files.
 - Do not make `_core` depend on one giant docstring header for the whole tree.
+- Do not use a bare `.. doxygenfunction:: cyten::name` when `name` is overloaded
+  (Breathe needs the argument types).
 
 ## Status
 

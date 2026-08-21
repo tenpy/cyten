@@ -108,7 +108,9 @@ bind_tensors_ops_algebra(py::module_& m)
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg"),
-      R"pydoc(Apply a projection Mask to one leg of a tensor, *projecting* it to a smaller leg.)pydoc");
+      doc_cpp_ref(
+        R"pydoc(Apply a projection Mask to one leg of a tensor, *projecting* it to a smaller leg.)pydoc",
+        "cyten::apply_mask()"));
 
     m.def(
       "enlarge_leg",
@@ -118,7 +120,9 @@ bind_tensors_ops_algebra(py::module_& m)
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg"),
-      R"pydoc(Apply an inclusion Mask to one leg of a tensor *embedding* it into a larger leg.)pydoc");
+      doc_cpp_ref(
+        R"pydoc(Apply an inclusion Mask to one leg of a tensor *embedding* it into a larger leg.)pydoc",
+        "cyten::enlarge_leg()"));
 
     m.def("dagger", &dagger, py::arg("tensor"), DOC(cyten, dagger));
 
@@ -154,7 +158,9 @@ relabel1, relabel2 : dict or None
       },
       py::kw_only(),
       py::arg("error_msg") = "Incompatible devices.",
-      R"pydoc(If the given tensors have the same device, return it. Raise otherwise.)pydoc");
+      doc_cpp_ref(
+        R"pydoc(If the given tensors have the same device, return it. Raise otherwise.)pydoc",
+        "cyten::get_same_device()"));
 
     // Bind the VectorLike overload (DOC(..., 2)); Tensor overload is DOC(cyten, inner).
     m.def("inner",
@@ -233,7 +239,9 @@ relabel1, relabel2 : dict or None
       py::arg("v"),
       py::arg("b").none(true),
       py::arg("w"),
-      R"pydoc(The linear combination ``a * v + b * w``)pydoc");
+      doc_cpp_ref(R"pydoc(The linear combination ``a * v + b * w``)pydoc",
+                  "cyten::linear_combination(BlockBackend::Scalar const &, VectorLikeCPtr, "
+                  "BlockBackend::Scalar const &, VectorLikeCPtr)"));
 
     m.def("norm",
           static_cast<BlockBackend::Scalar (*)(VectorLikeCPtr)>(&norm),
@@ -285,7 +293,9 @@ relabel1, relabel2 : dict or None
       py::arg("tensor1_first_leg"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      R"pydoc(Tensor contraction / composition involving only a part of the full (co)domain.)pydoc");
+      doc_cpp_ref(
+        R"pydoc(Tensor contraction / composition involving only a part of the full (co)domain.)pydoc",
+        "cyten::partial_compose()"));
 
     m.def(
       "partial_trace",
@@ -314,7 +324,7 @@ relabel1, relabel2 : dict or None
       py::arg("tensor"),
       py::kw_only(),
       py::arg("levels") = py::none(),
-      R"pydoc(Perform a partial trace.)pydoc");
+      doc_cpp_ref(R"pydoc(Perform a partial trace.)pydoc", "cyten::partial_trace()"));
 
     m.def("pinv", &pinv, py::arg("tensor"), py::arg("cutoff") = 1e-15, DOC(cyten, pinv));
 
@@ -345,7 +355,8 @@ relabel1, relabel2 : dict or None
       },
       py::arg("a").none(true),
       py::arg("v"),
-      R"pydoc(The scalar multiplication ``a * v``)pydoc");
+      doc_cpp_ref(R"pydoc(The scalar multiplication ``a * v``)pydoc",
+                  "cyten::scalar_multiply(BlockBackend::Scalar const &, VectorLikeCPtr)"));
 
     m.def(
       "scale_axis",
@@ -355,7 +366,8 @@ relabel1, relabel2 : dict or None
       py::arg("tensor"),
       py::arg("diag"),
       py::arg("leg"),
-      R"pydoc(Contract one `leg` of  `tensor` with a diagonal tensor.)pydoc");
+      doc_cpp_ref(R"pydoc(Contract one `leg` of  `tensor` with a diagonal tensor.)pydoc",
+                  "cyten::scale_axis()"));
 
     m.def(
       "tdot",

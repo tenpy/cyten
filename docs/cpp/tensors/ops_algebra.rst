@@ -24,7 +24,10 @@ Free functions
 .. doxygenfunction:: cyten::get_same_device
    :project: cyten
 
-.. doxygenfunction:: cyten::inner
+.. doxygenfunction:: cyten::inner(TensorCPtr, TensorCPtr, bool)
+   :project: cyten
+
+.. doxygenfunction:: cyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)
    :project: cyten
 
 .. doxygenfunction:: cyten::is_scalar
@@ -33,10 +36,16 @@ Free functions
 .. doxygenfunction:: cyten::item
    :project: cyten
 
-.. doxygenfunction:: cyten::linear_combination
+.. doxygenfunction:: cyten::linear_combination(BlockBackend::Scalar const &, TensorCPtr, BlockBackend::Scalar const &, TensorCPtr)
    :project: cyten
 
-.. doxygenfunction:: cyten::norm
+.. doxygenfunction:: cyten::linear_combination(BlockBackend::Scalar const &, VectorLikeCPtr, BlockBackend::Scalar const &, VectorLikeCPtr)
+   :project: cyten
+
+.. doxygenfunction:: cyten::norm(TensorCPtr)
+   :project: cyten
+
+.. doxygenfunction:: cyten::norm(VectorLikeCPtr)
    :project: cyten
 
 .. doxygenfunction:: cyten::on_device
@@ -54,7 +63,10 @@ Free functions
 .. doxygenfunction:: cyten::pinv
    :project: cyten
 
-.. doxygenfunction:: cyten::scalar_multiply
+.. doxygenfunction:: cyten::scalar_multiply(BlockBackend::Scalar const &, TensorCPtr)
+   :project: cyten
+
+.. doxygenfunction:: cyten::scalar_multiply(BlockBackend::Scalar const &, VectorLikeCPtr)
    :project: cyten
 
 .. doxygenfunction:: cyten::scale_axis

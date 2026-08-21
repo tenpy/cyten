@@ -83,6 +83,13 @@ breathe_default_project = 'cyten'
 
 breathe_default_members = ('members', 'undoc-members')
 
+# Map header extensions to the C++ domain so :cpp:func: links resolve.
+breathe_domain_by_extension = {
+    'h': 'cpp',
+    'hpp': 'cpp',
+    'cpp': 'cpp',
+}
+
 # -- sphinx.ext.autodoc ---------------------------------------------------
 
 autodoc_default_options = {
