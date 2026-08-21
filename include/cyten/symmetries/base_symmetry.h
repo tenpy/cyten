@@ -85,42 +85,29 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 
     // --- defaults (may override) ---
 
+    /// Internal implementation of `fusion_tensor`. Can assume that inputs are valid.
+    ///
     /// Internal fusion tensor; inputs assumed valid.
-/// Internal implementation of `fusion_tensor`. Can assume that inputs are valid.
     virtual FusionSymbol _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const;
-    /// Swap gate (numpy braid) of single sectors.
-/// The swap gate (numpy representation of the braid) of single sectors.
-///
-///     |   a   b
-///     |   │   │
-///     |   v   v
-///     |    ╲ ╱
-///     |     ╲          <-  overbraid == underbraid is assumed
-///     |    ╱ ╲
-///     |   v   v
-///     |   │   │
-///     |   b   a
-///
-/// @returns A numpy representation of the above tensor with axes ``[b, a, b*, a*]``.
+    /// The swap gate (numpy representation of the braid) of single sectors.
     virtual FusionSymbol swap_gate(Sector a, Sector b) const;
-    /// Z isomorphism @f$ Z_{\bar{a}} : \bar{a}^* \to a @f$.
-/// The Z isomorphism @f$ Z_{\bar{a}} : \bar{a}^* \to a @f$.
-///
-/// The dual @f$ a^* @f$ of a sector @f$ a @f$ is another irreducible space.
-/// However, it may not be itself a sector. It must be isomorphic to one of the sector
-/// representatives though, which we call @f$ \bar{a} @f$.
-/// The Z isomorphism @f$ Z_a : a^* \to \bar{a} @f$ is that isomorphism.
-///
-/// We return the matrix elements
-///
-/// .. math ::
-///     (Z_{\\bar{a}})_{mn} = \\langle m \\vert Z_{\\bar{a}}(\\langle n \\vert)
-///
-/// where @f$ m @f$ goes over a (dual) basis of @f$ \bar{a} @f$ and @f$ n @f$ over a basis of
-/// @f$ a @f$.
-///
-/// @param a Note that this is the target sector of the map, not its subscript!
-/// @returns The matrix elements as a [d_a, d_a] numpy array.
+    /// The Z isomorphism @f$ Z_{\bar{a}} : \bar{a}^* \to a @f$.
+    ///
+    /// The dual @f$ a^* @f$ of a sector @f$ a @f$ is another irreducible space.
+    /// However, it may not be itself a sector. It must be isomorphic to one of the sector
+    /// representatives though, which we call @f$ \bar{a} @f$.
+    /// The Z isomorphism @f$ Z_a : a^* \to \bar{a} @f$ is that isomorphism.
+    ///
+    /// We return the matrix elements
+    ///
+    /// .. math ::
+    ///     (Z_{\\bar{a}})_{mn} = \\langle m \\vert Z_{\\bar{a}}(\\langle n \\vert)
+    ///
+    /// where @f$ m @f$ goes over a (dual) basis of @f$ \bar{a} @f$ and @f$ n @f$ over a basis of
+    /// @f$ a @f$.
+    ///
+    /// @param a Note that this is the target sector of the map, not its subscript!
+    /// @returns The matrix elements as a [d_a, d_a] numpy array.
     virtual FusionSymbol Z_iso(Sector a) const;
 /// Assume there are finitely many sectors, return all of them.
 ///
@@ -216,11 +203,12 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 
     virtual bool are_valid_sectors(SectorArray const& sectors) const;
     /// Element-wise fusion for FusionStyle.single.
-/// Allows optimized fusion in the case of FusionStyle.single.
-///
-/// For two SectorArrays, return the element-wise fusion outcome of each pair of Sectors,
-/// which is a single unique Sector, as a new SectorArray.
-/// Subclasses may override this with more efficient implementations.
+    ///
+    /// Allows optimized fusion in the case of FusionStyle.single.
+    ///
+    /// For two SectorArrays, return the element-wise fusion outcome of each pair of Sectors,
+    /// which is a single unique Sector, as a new SectorArray.
+    /// Subclasses may override this with more efficient implementations.
     virtual SectorArray fusion_outcomes_broadcast(SectorArray const& a,
                                                   SectorArray const& b) const;
     Sector multiple_fusion(std::vector<Sector> const& sectors) const;
@@ -228,17 +216,19 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
 ///
 /// It generalizes `fusion_outcomes_broadcast` to more than two fusion inputs.
     SectorArray multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const;
+    /// Internal version of `multiple_fusion_broadcast`. May assume ``len(sectors) >= 2``.
+    ///
     /// Internal; may assume ``sectors.size() >= 2``.
-/// Internal version of `multiple_fusion_broadcast`. May assume ``len(sectors) >= 2``.
     virtual SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const;
 /// Whether c is a valid fusion outcome, i.e. if it appears in ``self.fusion_outcomes(a, b)``
     virtual bool can_fuse_to(Sector a, Sector b, Sector c) const;
+    /// The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).
+    ///
     /// Dimension as unstructured space (if symmetry can be dropped).
-/// The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).
-///
-/// For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum
-/// dimension computed by `qdim`.
-/// For other braiding styles,
+    ///
+    /// For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum
+    /// dimension computed by `qdim`.
+    /// For other braiding styles,
     virtual int64 sector_dim(Sector a) const;
 /// sector_dim of every sector (row) in a
     virtual std::vector<int64> batch_sector_dim(SectorArray const& a) const;

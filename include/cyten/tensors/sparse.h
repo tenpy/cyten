@@ -218,11 +218,6 @@ class DirectSumLinearOperator : public LinearOperator
 /// @param vecs The list of vectors to be orthogonalized. All must be mutually compatible.
 /// @param rcond Vectors of ``norm < rcond`` (after projecting out previous vectors) are discarded.
 /// @returns A list of orthonormal vectors which span the same space as `vecs`.
-/// Gram-Schmidt orthonormalization of a list of vectors.
-///
-/// @param vecs The list of vectors to be orthogonalized. All must be mutually compatible.
-/// @param rcond Vectors of ``norm < rcond`` (after projecting out previous vectors) are discarded.
-/// @returns A list of orthonormal vectors which span the same space as `vecs`.
 std::vector<VectorLike::Ptr> gram_schmidt(std::vector<VectorLike::Ptr> const& vecs,
                                           float64 rcond = kGramSchmidtDefaultRcond);
 

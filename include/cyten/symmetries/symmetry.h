@@ -45,8 +45,9 @@ class Symmetry : public BaseSymmetry
 
     std::size_t num_factors() const { return factors.size(); }
 
+    /// Return the index of the first factor with that name. Raises if not found.
+    ///
     /// Index of the first factor with ``descriptive_name == name``; throws if missing.
-/// Return the index of the first factor with that name. Raises if not found.
     std::size_t factor_where(std::string const& descriptive_name) const;
 
     /// Whether ``other`` is among the factors (instance or type check via Python binding).

@@ -42,7 +42,6 @@ class SpinSite : public SpinDOF
              std::optional<std::string> default_device = std::nullopt);
 
 /// Perform sanity checks.
-/// Perform sanity checks.
     void test_sanity() override;
     [[nodiscard]] std::string repr() const;
 

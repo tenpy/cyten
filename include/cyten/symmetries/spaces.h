@@ -192,18 +192,6 @@ class Space : public virtual LegOrSpace
 /// @param sector_map A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``. The map is assumed to cooperate with duality, i.e. we assume without checking that ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
 /// @param injective If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of unique outputs, if the inputs are unique.
 /// @returns A space with the new symmetry. The order of the basis is preserved, but every basis element lives in a new sector, according to `sector_map`.
-/// Change the symmetry by specifying how the sectors change.
-///
-/// .. note ::
-///     This interface assumes that a single sector of the old symmetry is mapped to a single
-///     sector of the new symmetry, i.e. that the functor that we realize here preserves
-///     simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
-///     subgroup.
-///
-/// @param symmetry The symmetry of the new space
-/// @param sector_map A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``. The map is assumed to cooperate with duality, i.e. we assume without checking that ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
-/// @param injective If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of unique outputs, if the inputs are unique.
-/// @returns A space with the new symmetry. The order of the basis is preserved, but every basis element lives in a new sector, according to `sector_map`.
     virtual py::object change_symmetry(Symmetry::Ptr symmetry,
                                        SectorMapFn sector_map,
                                        bool injective = false) = 0;
@@ -374,16 +362,17 @@ class ElementarySpace
 
     Sector idx_to_sector(int64 idx) const;
 
-/// Take a "slice" of the leg, keeping only some of the basis states.
-///
-/// @param blockmask For every basis state of self, in the public basis order, if it should be kept (``True``) or discarded (``False``).
-/// Take a "slice" of the leg, keeping only some of the basis states.
-///
-/// Loses the product (pipe) structure and results in a plain `ElementarySpace`.
+    /// Take a "slice" of the leg, keeping only some of the basis states.
+    ///
+    /// Loses the product (pipe) structure and results in a plain `ElementarySpace`.
+    ///
+    /// @param blockmask For every basis state of self, in the public basis order, if it
+    ///     should be kept (``True``) or discarded (``False``).
     [[nodiscard]] virtual Ptr take_slice(py::array blockmask) const;
 
+    /// A space isomorphic to self with opposite ``is_dual`` attribute.
+    ///
     /// Virtual so `AbelianLegPipe` can keep the pipe structure.
-/// A space isomorphic to self with opposite ``is_dual`` attribute.
     [[nodiscard]] virtual Ptr with_opposite_duality() const;
 
     [[nodiscard]] Ptr with_is_dual(bool is_dual) const;

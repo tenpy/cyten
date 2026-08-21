@@ -11,14 +11,6 @@
 
 namespace cyten {
 
-/// A symbolic representation of an algorithmic cost as a monomial.
-///
-/// A monomial is of the form ``x^a y^b z^c``, i.e. a product of integer powers.
-///
-/// Attributes:
-///
-/// factors : dict {str: int}
-///     The factor, where an entry ``{'x': n}`` represents the symbol factor ``x^n``.
 class BigOPolynomial;
 
 /// A symbolic representation of an algorithmic cost as a monomial.
@@ -46,7 +38,6 @@ class BigOMonomial
     std::string repr() const;
 
     /// If the given monomial is negligible compared to `others`, s.t. ``O(self + x) = O(x)``.
-/// If the given monomial is negligible compared to `others`, s.t. ``O(self + x) = O(x)``.
     bool is_negligible(std::vector<BigOMonomial> const& others,
                        std::optional<std::vector<std::pair<BigOMonomial, BigOMonomial>>>
                          relations = std::nullopt) const;

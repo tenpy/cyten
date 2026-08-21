@@ -59,17 +59,6 @@ class FusionTreeData : public TensorBackend::Data
     ///
     /// Note: we use the domain (and not the codomain), since only the `block_inds[:, 1]`
     /// are sorted.
-/// Return `ind` such that ``blocks[ind]`` is associated with the `coupled` sector.
-///
-/// This is such that ``domain.sector_decomposition[block_inds[res][1]] == coupled``.
-///
-/// Note: we use the domain (and not the codomain), since only the `block_inds[:, 1]`
-/// are sorted.
-/// Return `ind` such that ``block_inds[ind, 1] == domain_sector_ind``
-///
-/// Note: we use the domain (and not the codomain), since only the `block_inds[:, 1]`
-/// are sorted.
-/// Discard blocks whose norm is below the threshold `eps`
     [[nodiscard]] std::optional<int64> block_ind_from_coupled(Sector coupled,
                                                               TensorProduct::Ptr domain) const;
 
@@ -371,7 +360,6 @@ class FusionTreeBackend : public TensorBackend
     DataPtr zero_mask_data(Space::Ptr large_leg, std::string device) override;
 
     /// Apply a sequence of braid/bend/twist instructions (used by `permute_legs`).
-/// Apply a sequence of braid/bend/twist instructions (used by `permute_legs`).
     DataPtr apply_instructions(TensorCPtr tensor,
                                py::object instructions,
                                std::vector<int64> codomain_idcs,

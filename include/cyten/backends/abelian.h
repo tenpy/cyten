@@ -82,15 +82,6 @@ class AbelianBackendData : public TensorBackend::Data
     /// Return the index ``n`` of the block which matches ``block_inds``,
     /// i.e. such that ``all(self.block_inds[n, :] == block_inds)``.
     /// Return ``nullopt`` if no such ``n`` exists.
-/// Return the index ``n`` of the block which matches the block_inds.
-///
-/// I.e. such that ``all(self.block_inds[n, :] == block_inds)``.
-/// Return None if no such ``n`` exists.
-/// Get the block at given block indices.
-///
-/// Return the block in `blocks` matching the given block_inds,
-/// i.e. `self.blocks[n]` such that `all(self.block_inds[n, :] == blocks_inds)`
-/// or None if no such block exists
     std::optional<int64> get_block_num(BlockInds const& block_inds) const;
 
     /// Get the block at given block indices, or ``nullptr`` if none exists.
@@ -101,7 +92,6 @@ class AbelianBackendData : public TensorBackend::Data
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
 
-/// Charge-allowed block index combinations for ``codomain`` / ``domain``, lexsorted.
 /// Charge-allowed block index combinations for ``codomain`` / ``domain``, lexsorted.
 BlockInds valid_block_inds(TensorProduct::Ptr codomain, TensorProduct::Ptr domain);
 
@@ -401,13 +391,12 @@ class AbelianBackend : public TensorBackend
     DataPtr zero_mask_data(Space::Ptr large_leg, std::string device) override;
 
     /// Map incoming multi-leg block indices through a pipe ``block_ind_map``.
-/// Map incoming block indices to indices of `block_ind_map`.
-///
-/// Needed for `combine_legs`.
-///
-/// @param pipe The pipe which indices are to be mapped
-/// @param incoming_block_inds Rows are block indices @f$ (i_1, i_2, ... i_{nlegs}) @f$ for incoming legs.
-/// @returns block_inds: 1D array For each row j of `incoming_block_inds` an index `J` such that ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
+    ///
+    /// Needed for `combine_legs`.
+    ///
+    /// @param pipe The pipe which indices are to be mapped
+    /// @param incoming_block_inds Rows are block indices @f$ (i_1, i_2, ... i_{nlegs}) @f$ for incoming legs.
+    /// @returns block_inds: 1D array For each row j of `incoming_block_inds` an index `J` such that ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
     BlockInds leg_pipe_map_incoming_block_inds(AbelianLegPipe const& pipe,
                                                BlockInds const& incoming_block_inds) const;
 

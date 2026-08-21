@@ -39,8 +39,7 @@ class SparseMapping
     {
     }
 
-    /// The identity mapping ``e_j -> e_j`` on the given keys.
-/// The identity mapping ``e_j -> e_j`` on the given keys
+    /// The identity mapping ``e_j -> e_j`` on the given keys
     [[nodiscard]] static SparseMapping from_identity(std::vector<KT> const& keys)
     {
         SparseMapping res;
@@ -51,12 +50,8 @@ class SparseMapping
         return res;
     }
 
-/// The composite ``res_{ik} = \\sum_j other_{ij} self{jk}``, such that self acts first.
-///
-/// I.e. we pre-compose self with other, i.e. compose other with self, i.e.::
-///
-///     pre_compose(self, other) : x ↦ other(self(x)) = (other ∘ self)(x)
-///     pre_compose(self, other) : x ↦ other(self(x)) = (other ∘ self)(x)
+    /// The composite ``res_{ik} = \\sum_j other_{ij} self{jk}``, such that self acts first.
+    ///
     /// I.e. ``pre_compose(self, other) : x ↦ other(self(x)) = (other ∘ self)(x)``.
     [[nodiscard]] SparseMapping pre_compose(SparseMapping const& other) const
     {
@@ -79,7 +74,6 @@ class SparseMapping
     }
 
     /// The idcs ``i`` for which there are entries ``self_{ij} = self[j][i]`` set.
-/// The idcs ``i`` for which there are entries ``self_{ij} = self[j][i]`` set.
     [[nodiscard]] std::unordered_set<KT> nonzero_rows() const
     {
         std::unordered_set<KT> rows;
@@ -94,7 +88,6 @@ class SparseMapping
     }
 
     /// The idcs ``j`` for which there are entries ``self_{ij} = self[j][i]`` set.
-/// The idcs ``j`` for which there are entries ``self_{ij} = self[j][i]`` set.
     [[nodiscard]] std::unordered_set<KT> nonzero_cols() const
     {
         std::unordered_set<KT> cols;
@@ -109,17 +102,6 @@ class SparseMapping
     /// Remove small contributions with ``abs(coefficient) <= tol`` in-place.
     ///
     /// Returns nothing (Python returns ``self`` for chaining).
-/// Remove small contributions with ``abs(coefficient) <= tol`` in-place.
-/// Remove small entries, in-place (no-op for identity).
-/// A sparse matrix, where the labels of basis states are a structured type, not just int.
-///
-/// Used in `TreePairMapping` and related objects.
-///
-/// To represent the mapping ``e_j -> \\sum_i A_{ij} e_i``, we store ``self[j][i] = A_{ij}``.
-/// I.e. a single entry ``self[j][i] = a`` represents the contribution ``e_j -> a e_i``.
-///
-/// Concrete instantiation with `FusionTree` keys and ``complex128`` coefficients.
-/// SparseMapping with ``(FusionTree, FusionTree)`` keys (tree pairs) and ``complex128`` coefficients.
     void prune(float64 tol)
     {
         for (auto& [j, self_j] : data) {
@@ -191,7 +173,9 @@ class IdentityMapping
     void prune(float64 /*tol*/) {}
 };
 
+/// Sparse mapping with `FusionTree` keys and ``complex128`` coefficients.
 using SparseMappingFusionTree = SparseMapping<FusionTree, complex128>;
+/// Sparse mapping with ``(FusionTree, FusionTree)`` keys (tree pairs) and ``complex128`` coefficients.
 using SparseMappingFusionTreePair = SparseMapping<std::pair<FusionTree, FusionTree>, complex128>;
 using IdentityMappingFusionTree = IdentityMapping<FusionTree, complex128>;
 using IdentityMappingFusionTreePair =

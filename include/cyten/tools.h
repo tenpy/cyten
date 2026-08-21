@@ -12,7 +12,6 @@ class NotImplemented : public std::logic_error
 };
 
 /// Format elements of an iterable as if it were a plain list.
-/// Format elements of an iterable as if it were a plain list.
 ///
 /// This means surrounding them with brackets and separating them by `', '`.
 std::string format_like_list(py::iterable it);

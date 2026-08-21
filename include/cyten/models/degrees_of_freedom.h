@@ -70,8 +70,6 @@ class Site : public virtual std::enable_shared_from_this<Site>
     virtual ~Site() = default;
 
 /// Perform sanity checks.
-/// Perform sanity checks.
-/// Perform sanity checks.
     virtual void test_sanity();
 
     [[nodiscard]] Symmetry::Ptr symmetry() const;

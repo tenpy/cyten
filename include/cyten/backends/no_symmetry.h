@@ -284,8 +284,7 @@ class NoSymmetryBackend : public TensorBackend
                                Dtype dtype,
                                std::string device) override;
 
-    /// Generate tensor data from a function ``func(shape, coupled) -> Block``.
-/// Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``.
+    /// Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``.
     DataPtr from_sector_block_func(SectorBlockFactoryFn func,
                                    TensorProduct::Ptr codomain,
                                    TensorProduct::Ptr domain) override;

@@ -115,13 +115,10 @@ class Tensor
     /// Also checks if they are compatible. Sequence-of-spaces conversion is done in pybind
     /// (or `parse_tensor_init_args`).
     ///
-    /// Returns ``(codomain, domain, backend, symmetry)``.
+    /// @returns codomain, domain The (co)domain, converted to `TensorProduct` if needed.
+    ///     backend The given backend, or the default compatible with `symmetry`.
+    ///     symmetry The symmetry of the domain and codomain.
     static std::tuple<TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, Symmetry::Ptr>
-/// Common input parsing for ``__init__`` methods of tensor classes.
-///
-/// Also checks if they are compatible.
-///
-/// @returns codomain, domain: TensorProduct The codomain and domain, converted to `TensorProduct` if needed. backend: TensorBackend The given backend, or the default backend compatible with `symmetry`. symmetry: Symmetry The symmetry of the domain and codomain
     _init_parse_args(TensorProduct::Ptr codomain,
                      TensorProduct::Ptr domain,
                      TensorBackend::Ptr backend);
@@ -324,15 +321,13 @@ class Tensor
     /// Get the specified leg from the domain or codomain.
     ///
     /// May be a `LegPipe` (not only a `Space`).
-/// Get the specified leg from the domain or codomain.
-///
-/// This is the same as `get_leg` if the leg is in the codomain, and the respective
-/// dual if the leg is in the domain.
+    ///
+    /// This is the same as `get_leg` if the leg is in the codomain, and the respective
+    /// dual if the leg is in the domain.
     [[nodiscard]] Leg::Ptr get_leg_co_domain(std::variant<int64, std::string> which_leg) const;
     [[nodiscard]] std::vector<Leg::Ptr> get_leg_co_domain(
       std::vector<std::variant<int64, std::string>> const& which_legs) const;
 
-/// Convert to a numpy array
     Tensor& set_labels(LegLabels labels) override;
 
     /// Convert to a numpy array.

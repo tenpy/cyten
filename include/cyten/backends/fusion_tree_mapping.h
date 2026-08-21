@@ -100,7 +100,6 @@ struct BendInstruction
 /// For multiple legs (``len(idcs) > 1``), we twist them together, e.g.::
 ///
 ///     |
-///     |
 ///     |    │   │   │   │   ╭──────╮
 ///     |    │   │    ╲   ╲ ╱       │
 ///     |    │   │     ╲   ╱   ╭─╮  │
@@ -166,15 +165,8 @@ class TensorMapping
       bool instruction_is_real) const = 0;
 
 /// Remove small contributions with ``abs(coefficient) < tol`` in-place.
-/// Remove small contributions with ``abs(coefficient) < tol`` in-place.
     virtual void prune(float64 tol = 1e-15) = 0;
 
-/// Transform a tensor by applying the mapping to its tree-pairs. See class docstring.
-///
-/// @param data The data of the input tensor.
-/// @param codomain, domain The (co)domain of the input tensor.
-/// @param new_codomain, new_domain The (co)domain of the output tensor.
-/// @param codomain_idcs, domain_idcs The permutations such that ``new_(co)domain[i] = old_legs[(co)domain_idcs[i]]``. This permutation acts on the uncoupled multiplicity indices.
 /// Transform a tensor by applying the mapping to its tree-pairs. See class docstring.
 ///
 /// @param data The data of the input tensor.
@@ -204,10 +196,6 @@ class TreePairMapping : public TensorMapping
 
     TreePairMapping(SparseMappingFusionTreePair mapping_, bool is_real_);
 
-/// The identity mapping.
-///
-/// @param codomain, domain The codomain and domain that determine the possible fusion and splitting trees.
-/// @param block_inds Same format and meaning as the `block_inds`. If given, we only initialize those components ``X_I @ Y_I -> X_I @ Y_I`` where the coupled sector of the tree-pair is pointed to by a row in the `block_inds`, i.e. if we have ``coupled == codomain.sector_decomposition[block_inds[some_idx, 0]]``.
 /// The identity mapping.
 ///
 /// @param codomain, domain The codomain and domain that determine the possible fusion and splitting trees.
