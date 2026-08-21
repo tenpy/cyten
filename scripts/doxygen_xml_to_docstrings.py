@@ -388,6 +388,9 @@ def doxygen_comment_to_numpy(doc: str) -> str:
     text = '\n'.join(out).rstrip() + '\n'
     # Markdown `code` → reST ``code`` (avoid touching already-doubled ticks).
     text = re.sub(r'(?<!`)`([^`]+)`(?!`)', r'``\1``', text)
+    # Doxygen inline math → Sphinx math role (after backtick upgrade).
+    text = re.sub(r'@f\$(.+?)@f\$', r':math:`\1`', text, flags=re.DOTALL)
+    text = re.sub(r'\\f\$(.+?)\\f\$', r':math:`\1`', text, flags=re.DOTALL)
     return text
 
 

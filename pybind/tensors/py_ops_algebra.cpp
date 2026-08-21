@@ -140,10 +140,7 @@ bind_tensors_ops_algebra(py::module_& m)
       py::arg("relabel2") = py::none(),
       doc_plus(DOC(cyten, compose),
                R"pydoc(
-Parameters
-----------
-relabel1, relabel2 : dict or None
-    Optional label maps applied before composition. ``None`` means no relabel.
+In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabel).
 )pydoc"));
 
     m.def(
@@ -269,10 +266,7 @@ relabel1, relabel2 : dict or None
       py::arg("relabel2") = py::none(),
       doc_plus(DOC(cyten, outer),
                R"pydoc(
-Parameters
-----------
-relabel1, relabel2 : dict or None
-    Optional label maps. ``None`` means no relabel.
+In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabel).
 )pydoc"));
 
     m.def(
@@ -392,12 +386,8 @@ relabel1, relabel2 : dict or None
       py::arg("relabel2") = py::none(),
       doc_plus(DOC(cyten, tdot),
                R"pydoc(
-Parameters
-----------
-legs1, legs2 : int, str, or sequence thereof
-    Matching legs of ``tensor1`` / ``tensor2`` to contract.
-relabel1, relabel2 : dict or None
-    Optional label maps. ``None`` means no relabel.
+In Python, ``legs1`` / ``legs2`` are ``int``, ``str``, or a sequence thereof;
+``relabel1`` / ``relabel2`` are ``dict | None``.
 )pydoc"));
 
     m.def("trace", &trace, py::arg("tensor"), DOC(cyten, trace));

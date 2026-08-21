@@ -162,6 +162,7 @@ target_link_libraries(_core PUBLIC cyten)
 # Pilot list — extend as more bindings switch to DOC(...):
 set(CYTEN_MKDOC_HEADERS
   tensors/ops_algebra.h
+  tensors/constructors.h
 )
 
 find_program(CYTEN_DOXYGEN_EXECUTABLE NAMES doxygen REQUIRED)

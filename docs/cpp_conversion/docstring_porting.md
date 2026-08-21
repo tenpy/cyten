@@ -2,10 +2,12 @@
 
 Policy summary for documenting the C++ core and the pybind11 Python surface.
 Background: [tenpy/cyten#242](https://github.com/tenpy/cyten/issues/242).
-Reference implementation (pilot): tensor algebra —
+Reference implementations (pilots): tensor algebra —
 [`include/cyten/tensors/ops_algebra.h`](../../include/cyten/tensors/ops_algebra.h),
-[`pybind/tensors/py_ops_algebra.cpp`](../../pybind/tensors/py_ops_algebra.cpp),
-[`pybind/docstrings/tensors/ops_algebra.h`](../../pybind/docstrings/tensors/ops_algebra.h).
+[`pybind/tensors/py_ops_algebra.cpp`](../../pybind/tensors/py_ops_algebra.cpp);
+constructors —
+[`include/cyten/tensors/constructors.h`](../../include/cyten/tensors/constructors.h),
+[`pybind/tensors/py_constructors.cpp`](../../pybind/tensors/py_constructors.cpp).
 
 ## Goals
 
@@ -40,6 +42,12 @@ flowchart LR
 
 ### Header `///` (shared meaning)
 
+**Port the full docstring** from the Python / conversion source into the header
+`///` comments — including diagrams, math, algorithms, and parameter meaning —
+**unless** a part clearly does not apply to the C++ API (then leave that part in
+a Python-only `doc_plus` / `R"pydoc"` appendix). Do not leave a thin C++ brief
+while the rich description lives only on the Python binding.
+
 Write **Doxygen markup with markdown** in `///` comments. Types come from the
 C++ signature — do **not** repeat parameter/return types in the comments.
 
@@ -49,6 +57,11 @@ Include:
 - Invariants, domain/codomain rules, “may return a scalar”, algorithms.
 - `@param` / `@returns` describing meaning only (not types).
 - Markdown for emphasis and code (`*italic*`, `` `code` ``).
+- Shared ASCII / box diagrams with a `Graphically::` (or similar) indented
+  literal block — same pattern as `FusionTree` in
+  [`include/cyten/symmetries/trees.h`](../../include/cyten/symmetries/trees.h).
+- Inline math with Doxygen `@f$ ... @f$` (not Sphinx `:math:`). The docstring
+  generator rewrites these to `:math:`…`` for Python `DOC()`.
 
 Avoid:
 
@@ -60,10 +73,9 @@ Avoid:
   converts them to NumPy for Python `DOC()`.
 - Python-only types and conventions (`None`, `dict`, `int or str` labels,
   `py::object`, `*args`).
-- Sphinx roles that only make sense for Python autodoc when they would confuse
-  a C++-only library long-term. Prefer markdown `` `name` `` for identifiers.
-  Short `:ref:` / diagrams that already live in the user guide can stay in
-  **Python** docs instead.
+- Sphinx roles (`:math:`, `:class:`, `:meth:`, `:ref:`) in headers — they are
+  not Doxygen markup. Prefer markdown `` `name` `` for identifiers and `@f$`
+  for formulas.
 
 Example (`compose`):
 
@@ -78,6 +90,18 @@ Example (`compose`):
 /// @returns The composed tensor, or a scalar if no open legs remain.
 ```
 
+Example (diagram + math, as in `tensor_from_grid`):
+
+```cpp
+/// ... resulting legs are @f$V = \bigoplus_m V_m@f$ ...
+///
+/// Graphically::
+///
+///     |       ┏━━┷━━━┷━━┓
+///     |       ┃   res   ┃
+///     |       ┗┯━━━┯━━━┯┛
+```
+
 ### pybind (Python surface)
 
 | Binding style | Docstring |
@@ -85,7 +109,7 @@ Example (`compose`):
 | Direct `&free_function` / `&Class::method` with the **same meaning** as C++ | Prefer `DOC(cyten, …)` from the generated docstring header (auto ``cyten-cpp-ref`` marker → ``[C++]`` badge) |
 | Overloads | Use the overload suffix (`DOC(cyten, inner, 2)` for the second declaration in the header) |
 | Lambdas / wrappers that still wrap a C++ API | `doc_cpp_ref(R"pydoc(…)", "cyten::name()")` — see [`pybind/doc_plus.h`](../../pybind/doc_plus.h) |
-| Shared C++ meaning + Python-only args | `doc_plus(DOC(cyten, name), R"pydoc(…)")` (Python extras are inserted *before* the auto marker) |
+| Shared C++ meaning + Python-only deltas | `doc_plus(DOC(cyten, name), R"pydoc(…)")` — appendix states **only what changes** (inserted *before* the auto marker) |
 | Python-only helpers (no matching C++ symbol) | Hand-written `R"pydoc"` only — **no** `DOC` / `doc_cpp_ref` |
 
 Do **not** attach `DOC(...)` or `doc_cpp_ref` to a Python helper that does not
@@ -118,9 +142,19 @@ resolve. Do not put Sphinx roles or this marker in header `///`.
 
 Python-only extras in `R"pydoc"` / `doc_plus` appendices:
 
-- `None` defaults, `dict` label maps, `int or str` legs.
-- Sphinx roles (`:class:`, `:meth:`, `:ref:`), NumPy examples, diagrams.
-- Behavior that exists only in the wrapper.
+- State **only what differs** from the C++ / `DOC()` text (e.g. ``None`` ≡
+  `nullopt`, ``dict`` ≡ label map, ``int | str`` legs, wrapper-only behavior).
+- Sphinx roles (`:class:`, `:meth:`, `:ref:`) and NumPy examples that are
+  Python-specific.
+
+Do **not**:
+
+- Duplicate a full ``Parameters`` / ``Returns`` section that `DOC()` already
+  provides from header `@param` / `@returns`. Prefer a short prose note, or a
+  Parameters block that lists **only** the arguments whose Python meaning or
+  type differs.
+- Duplicate shared diagrams or `@f$` math — those belong in the header and
+  arrive via `DOC()`.
 
 Indent `R"pydoc(` content with the surrounding `.def()` block; put `)pydoc"` on
 its own line at the same indent.
@@ -199,8 +233,8 @@ Every `_core` build runs target `cyten_generate_docstrings`:
 2. [`scripts/doxygen_xml_to_docstrings.py`](../../scripts/doxygen_xml_to_docstrings.py)
    maps symbols from XML (names, namespaces, overload order), reads `///`
    comment bodies from the source header, converts `@param` / `@returns` to
-   NumPy sections, and appends a ``.. cyten-cpp-ref::`` marker for the Sphinx
-   ``[C++]`` badge.
+   NumPy sections, rewrites `@f$…@f$` to Sphinx `:math:`…``, and appends a
+   ``.. cyten-cpp-ref::`` marker for the Sphinx ``[C++]`` badge.
 
 ```bash
 cmake --build <build-dir> --target cyten_generate_docstrings
@@ -226,6 +260,7 @@ Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
 | Area | State |
 | --- | --- |
 | Algebra free functions (`ops_algebra.h`) | Pilot: headers + `DOC` / `doc_plus` / lambdas |
+| Constructors (`constructors.h`) | Pilot: headers + `DOC` / `doc_plus` on wrappers |
 | Other modules | Still mostly hand-written `R"pydoc"` from conversion; migrate incrementally via `CYTEN_MKDOC_HEADERS` |
 
 Near term remains **Python-first**: full user-facing NumPy docs stay available
