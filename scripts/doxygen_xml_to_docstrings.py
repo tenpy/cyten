@@ -4,8 +4,8 @@
 Doxygen discovers symbols (names, overload order, namespaces). Comment bodies are
 read from the C++ header (Doxygen ``@param`` / ``@returns`` + markdown) and
 converted to NumPy-style sections for Sphinx Napoleon / Python ``__doc__``.
-A ``See Also`` entry with ``:cpp:func:`` / ``:cpp:class:`` is appended so Python
-docs link to the matching Breathe page.
+A trailing ``.. cyten-cpp-ref::`` marker is appended so Sphinx can inject a
+compact ``[C++]`` signature badge linking to the matching Breathe page.
 
 Example::
 
@@ -391,24 +391,27 @@ def doxygen_comment_to_numpy(doc: str) -> str:
     return text
 
 
-def _cpp_see_also(sym: Symbol, *, has_overloads: bool) -> str:
-    """NumPy ``See Also`` linking to the Breathe / Sphinx C++ domain target."""
+def _cpp_ref_marker(sym: Symbol, *, has_overloads: bool) -> str:
+    """Trailing RST marker consumed by ``docs/sphinx/cyten_cpp_link.py``.
+
+    Targets are bare qualified names (``cyten::compose``) matching Sphinx's
+    ``cpp:function`` inventory keys. Overload disambiguation is not required for
+    the badge (inventory stores one entry per name).
+    """
+    del has_overloads  # inventory keys do not include signatures
     qname = '::'.join([*sym.namespace_parts, sym.name])
     if sym.kind in ('class', 'struct'):
         role = 'class'
-        target = qname
     elif sym.kind == 'enum':
         role = 'enum'
-        target = qname
     elif sym.kind == 'function':
         role = 'func'
-        if has_overloads:
-            target = f'{qname}({sym.param_types})'
-        else:
-            target = f'{qname}()'
     else:
         return ''
-    return f'\nSee Also\n--------\n:cpp:{role}:`{target}`\n'
+    lines = [f'.. cyten-cpp-ref:: {qname}']
+    if role != 'func':
+        lines.append(f'   :role: {role}')
+    return '\n' + '\n'.join(lines) + '\n'
 
 
 def _macro_name(parts: list[str], overload_suffix: int | None) -> str:
@@ -466,9 +469,9 @@ def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
         if doc is None:
             continue
         doc = doxygen_comment_to_numpy(doc)
-        see = _cpp_see_also(sym, has_overloads=has_overloads)
-        if see:
-            doc = doc.rstrip() + '\n' + see
+        marker = _cpp_ref_marker(sym, has_overloads=has_overloads)
+        if marker:
+            doc = doc.rstrip() + '\n' + marker
             if not doc.endswith('\n'):
                 doc += '\n'
         parts = list(key)

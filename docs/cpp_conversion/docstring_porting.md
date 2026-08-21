@@ -82,32 +82,39 @@ Example (`compose`):
 
 | Binding style | Docstring |
 | --- | --- |
-| Direct `&free_function` / `&Class::method` with the **same meaning** as C++ | Prefer `DOC(cyten, …)` from the generated docstring header (auto ``See Also`` → C++) |
+| Direct `&free_function` / `&Class::method` with the **same meaning** as C++ | Prefer `DOC(cyten, …)` from the generated docstring header (auto ``cyten-cpp-ref`` marker → ``[C++]`` badge) |
 | Overloads | Use the overload suffix (`DOC(cyten, inner, 2)` for the second declaration in the header) |
 | Lambdas / wrappers that still wrap a C++ API | `doc_cpp_ref(R"pydoc(…)", "cyten::name()")` — see [`pybind/doc_plus.h`](../../pybind/doc_plus.h) |
-| Shared C++ meaning + Python-only args | `doc_plus(DOC(cyten, name), R"pydoc(…)")` (Python extras are inserted *before* the auto ``See Also``) |
+| Shared C++ meaning + Python-only args | `doc_plus(DOC(cyten, name), R"pydoc(…)")` (Python extras are inserted *before* the auto marker) |
 | Python-only helpers (no matching C++ symbol) | Hand-written `R"pydoc"` only — **no** `DOC` / `doc_cpp_ref` |
 
 Do **not** attach `DOC(...)` or `doc_cpp_ref` to a Python helper that does not
 call the documented C++ symbol (e.g. duck-typed `is_scalar` in algebra bindings).
 
-#### Cross-links to C++ (Breathe)
+#### Cross-links to C++ (``[C++]`` badge)
 
-Generated `DOC()` strings end with a NumPy ``See Also`` pointing at the C++
-symbol, e.g. `:cpp:func:`cyten::dagger()``. Overloads include parameter types:
-`:cpp:func:`cyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)``.
+Generated `DOC()` strings end with a machine marker for Sphinx
+([`docs/sphinx/cyten_cpp_link.py`](../sphinx/cyten_cpp_link.py)):
 
-For explicit control (wrappers, override target/overload):
-
-```cpp
-doc_cpp_ref(R"pydoc(Brief.)pydoc", "cyten::apply_mask()");
-doc_cpp_ref(DOC(cyten, inner, 2),
-            "cyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)");  // replace See Also
+```text
+.. cyten-cpp-ref:: cyten::dagger
 ```
 
-The C++ symbol must appear on a `docs/cpp/…` Breathe page or the link will not
-resolve. Prefer putting Sphinx roles only in the Python layer (not in header
-`///`).
+Overloads use the bare name (Sphinx indexes one ``cpp:function`` entry per
+symbol), e.g. ``.. cyten-cpp-ref:: cyten::inner``.
+The HTML docs show a compact ``[C++]`` link after the signature (next to
+``[source]``); the marker may still appear in interactive ``help()`` /
+``__doc__``.
+
+For explicit control (wrappers, override target):
+
+```cpp
+doc_cpp_ref(R"pydoc(Brief.)pydoc", "cyten::apply_mask()");  // () stripped
+doc_cpp_ref(DOC(cyten, inner, 2), "cyten::inner");
+```
+
+The C++ symbol must appear on a `docs/cpp/…` Breathe page or the badge will not
+resolve. Do not put Sphinx roles or this marker in header `///`.
 
 Python-only extras in `R"pydoc"` / `doc_plus` appendices:
 
@@ -192,7 +199,8 @@ Every `_core` build runs target `cyten_generate_docstrings`:
 2. [`scripts/doxygen_xml_to_docstrings.py`](../../scripts/doxygen_xml_to_docstrings.py)
    maps symbols from XML (names, namespaces, overload order), reads `///`
    comment bodies from the source header, converts `@param` / `@returns` to
-   NumPy sections, and appends a ``See Also`` `:cpp:` link for `DOC()` macros.
+   NumPy sections, and appends a ``.. cyten-cpp-ref::`` marker for the Sphinx
+   ``[C++]`` badge.
 
 ```bash
 cmake --build <build-dir> --target cyten_generate_docstrings

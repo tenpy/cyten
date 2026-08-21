@@ -13,6 +13,9 @@ import sys
 
 import cyten
 
+# Local Sphinx extensions under docs/sphinx/
+sys.path.insert(0, os.path.abspath('sphinx'))
+
 project = 'Cyten'
 copyright = '2024, Cyten developer team'
 author = 'Cyten developer team'
@@ -37,6 +40,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.linkcode',
     'sphinx.ext.githubpages',
+    'cyten_cpp_link',  # after autodoc; connects with priority before napoleon
     'sphinx.ext.napoleon',
     'sphinx.ext.graphviz',
     'sphinx.ext.inheritance_diagram',
