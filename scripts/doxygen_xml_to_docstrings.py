@@ -1,0 +1,321 @@
+#!/usr/bin/env python3
+"""Generate pybind ``DOC()`` headers from Doxygen XML + source ``///`` comments.
+
+Doxygen discovers symbols (names, overload order, namespaces). Comment bodies are
+read from the C++ header so NumPy ``Parameters`` / ``----------`` layout survives
+(Doxygen collapses those into markdown sections or single paragraphs).
+
+Example::
+
+    doxygen <scoped-Doxyfile>
+    python scripts/doxygen_xml_to_docstrings.py \\
+        --xml-dir build/docstrings_xml/xml \\
+        --header-rel tensors/ops_algebra.h \\
+        --source-root . \\
+        -o pybind/docstrings/tensors/ops_algebra.h
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import xml.etree.ElementTree as ET
+from collections import defaultdict
+from dataclasses import dataclass
+from pathlib import Path
+
+_DOC_PREAMBLE = """\
+#ifndef CYTEN_MKDOC_DOC_MACROS
+#define CYTEN_MKDOC_DOC_MACROS
+#define MKD_EXPAND(x)                                      x
+#define MKD_COUNT(_1, _2, _3, _4, _5, _6, _7, COUNT, ...)  COUNT
+#define MKD_VA_SIZE(...)                                   MKD_EXPAND(MKD_COUNT(__VA_ARGS__, 7, 6, 5, 4, 3, 2, 1, 0))
+#define MKD_CAT1(a, b)                                     a##b
+#define MKD_CAT2(a, b)                                     MKD_CAT1(a, b)
+#define MKD_DOC1(n1)                                       mkd_doc_##n1
+#define MKD_DOC2(n1, n2)                                   mkd_doc_##n1##_##n2
+#define MKD_DOC3(n1, n2, n3)                               mkd_doc_##n1##_##n2##_##n3
+#define MKD_DOC4(n1, n2, n3, n4)                           mkd_doc_##n1##_##n2##_##n3##_##n4
+#define MKD_DOC5(n1, n2, n3, n4, n5)                       mkd_doc_##n1##_##n2##_##n3##_##n4##_##n5
+#define MKD_DOC6(n1, n2, n3, n4, n5, n6)                   mkd_doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6
+#define MKD_DOC7(n1, n2, n3, n4, n5, n6, n7)               mkd_doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6##_##n7
+#define DOC(...)                                           MKD_EXPAND(MKD_EXPAND(MKD_CAT2(MKD_DOC, MKD_VA_SIZE(__VA_ARGS__)))(__VA_ARGS__))
+#endif /* CYTEN_MKDOC_DOC_MACROS */
+
+#if defined(__GNUG__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#endif
+
+"""
+
+_BANNER = """\
+/*
+  Generated from Doxygen XML + include/cyten/{source_rel} /// comments.
+  Checked into git so builds work without regenerating.
+
+  To regenerate (optional; needs doxygen):
+    cmake -S . -B <build-dir> -DCYTEN_GENERATE_DOCSTRINGS=ON
+    cmake --build <build-dir> --target cyten_generate_docstrings
+ */
+
+"""
+
+# Kinds we emit as DOC() entries (not typedefs / variables / enums alone).
+_EMIT_KINDS = frozenset({'function', 'class', 'struct', 'enum'})
+
+
+@dataclass(frozen=True)
+class Symbol:
+    kind: str
+    name: str
+    namespace_parts: tuple[str, ...]
+    line: int
+    file: str
+    has_docs: bool
+
+
+def _local_tag(tag: str | None) -> str:
+    if tag is None:
+        return ''
+    if '}' in tag:
+        return tag.rsplit('}', 1)[-1]
+    return tag
+
+
+def _text_nonempty(elem: ET.Element | None) -> bool:
+    if elem is None:
+        return False
+    return bool(''.join(elem.itertext()).strip())
+
+
+def _compound_namespace(compound: ET.Element) -> tuple[str, ...]:
+    kind = compound.get('kind', '')
+    name = (compound.findtext('compoundname') or '').strip()
+    if kind == 'namespace' and name:
+        return tuple(p for p in name.split('::') if p)
+    if kind in ('class', 'struct') and name:
+        return tuple(p for p in name.split('::') if p)
+    return ()
+
+
+def _file_matches(location_file: str, header_rel: str) -> bool:
+    loc = location_file.replace('\\', '/')
+    rel = header_rel.replace('\\', '/')
+    return loc == rel or loc.endswith('/' + rel) or loc.endswith(rel)
+
+
+def collect_symbols(xml_dir: Path, header_rel: str) -> list[Symbol]:
+    symbols: list[Symbol] = []
+    for path in sorted(xml_dir.glob('*.xml')):
+        if path.name in {'index.xml', 'Doxyfile.xml'} or path.name.endswith('.xsd'):
+            continue
+        try:
+            root = ET.parse(path).getroot()
+        except ET.ParseError:
+            continue
+        for compound in root.iter():
+            if _local_tag(compound.tag) != 'compounddef':
+                continue
+            ns_parts = _compound_namespace(compound)
+            compound_kind = compound.get('kind', '')
+            # Class/struct documented on the compound itself.
+            if compound_kind in ('class', 'struct'):
+                loc = None
+                for child in compound:
+                    if _local_tag(child.tag) == 'location':
+                        loc = child
+                        break
+                if loc is not None and _file_matches(loc.get('file', ''), header_rel):
+                    brief = None
+                    detailed = None
+                    for child in compound:
+                        t = _local_tag(child.tag)
+                        if t == 'briefdescription':
+                            brief = child
+                        elif t == 'detaileddescription':
+                            detailed = child
+                    qname = ns_parts
+                    if qname:
+                        symbols.append(
+                            Symbol(
+                                kind=compound_kind,
+                                name=qname[-1],
+                                namespace_parts=qname[:-1],
+                                line=int(loc.get('line', '0') or 0),
+                                file=loc.get('file', ''),
+                                has_docs=_text_nonempty(brief) or _text_nonempty(detailed),
+                            )
+                        )
+            for md in compound.iter():
+                if _local_tag(md.tag) != 'memberdef':
+                    continue
+                kind = md.get('kind', '')
+                if kind not in _EMIT_KINDS:
+                    continue
+                loc = None
+                name = None
+                brief = None
+                detailed = None
+                for child in md:
+                    t = _local_tag(child.tag)
+                    if t == 'location':
+                        loc = child
+                    elif t == 'name':
+                        name = (child.text or '').strip()
+                    elif t == 'briefdescription':
+                        brief = child
+                    elif t == 'detaileddescription':
+                        detailed = child
+                if loc is None or not name:
+                    continue
+                if not _file_matches(loc.get('file', ''), header_rel):
+                    continue
+                member_ns = ns_parts
+                # Nested class members: compound is the class; keep full path.
+                if compound_kind in ('class', 'struct') and ns_parts:
+                    # methods: DOC(ns, Class, method) → namespace_parts = ns + Class
+                    pass
+                symbols.append(
+                    Symbol(
+                        kind=kind,
+                        name=name,
+                        namespace_parts=member_ns,
+                        line=int(loc.get('line', '0') or 0),
+                        file=loc.get('file', ''),
+                        has_docs=_text_nonempty(brief) or _text_nonempty(detailed),
+                    )
+                )
+    # Dedupe identical (kind, path, name, line)
+    uniq: dict[tuple, Symbol] = {}
+    for s in symbols:
+        key = (s.kind, s.namespace_parts, s.name, s.line)
+        uniq[key] = s
+    return sorted(uniq.values(), key=lambda s: (s.line, s.name))
+
+
+def extract_slash_comment(source_lines: list[str], decl_line: int) -> str | None:
+    """Return the ``///`` block immediately above 1-based ``decl_line``, or None."""
+    if decl_line < 1 or decl_line > len(source_lines):
+        return None
+    # Skip attribute / empty lines directly above the declaration.
+    i = decl_line - 2  # 0-based index of line above decl
+    while i >= 0:
+        stripped = source_lines[i].strip()
+        if stripped == '' or stripped.startswith('[['):
+            i -= 1
+            continue
+        break
+    if i < 0 or not source_lines[i].lstrip().startswith('///'):
+        return None
+    block: list[str] = []
+    while i >= 0 and source_lines[i].lstrip().startswith('///'):
+        line = source_lines[i].lstrip()
+        if line.startswith('/// '):
+            block.append(line[4:])
+        elif line.startswith('///'):
+            block.append(line[3:])
+        else:
+            break
+        i -= 1
+    block.reverse()
+    # Trim trailing blank comment lines
+    while block and block[-1].strip() == '':
+        block.pop()
+    text = '\n'.join(block).rstrip() + '\n'
+    return text if text.strip() else None
+
+
+def _macro_name(parts: list[str], overload_suffix: int | None) -> str:
+    base = '_'.join(parts)
+    if overload_suffix is None:
+        return f'mkd_doc_{base}'
+    return f'mkd_doc_{base}_{overload_suffix}'
+
+
+def _escape_raw_string(doc: str) -> str:
+    # Avoid terminating R"doc( ... )doc"
+    if ')doc"' in doc:
+        raise SystemExit('docstring contains )doc" which breaks R"doc(...)doc"')
+    return doc
+
+
+def format_entry(macro: str, doc: str) -> str:
+    doc = _escape_raw_string(doc)
+    if '\n' not in doc.rstrip('\n'):
+        # Single-line: keep compact like mkdoc for short briefs
+        one = doc.rstrip('\n')
+        return f'static const char* {macro} =\n  R"doc({one})doc";\n'
+    # Multi-line: content starts on same line as R"doc(
+    body = doc if doc.endswith('\n') else doc + '\n'
+    return f'static const char* {macro} =\n  R"doc({body})doc";\n'
+
+
+def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
+    source_path = source_root / 'include' / 'cyten' / header_rel
+    if not source_path.is_file():
+        raise SystemExit(f'source header not found: {source_path}')
+    source_lines = source_path.read_text(encoding='utf-8').splitlines()
+
+    symbols = collect_symbols(xml_dir, header_rel)
+    # Prefer symbols that have doxygen docs OR a /// block we can extract.
+    entries: list[tuple[list[str], int | None, str]] = []
+    # Group by qualified path for overload suffixes
+    by_key: dict[tuple[str, ...], list[Symbol]] = defaultdict(list)
+    for s in symbols:
+        key = (*s.namespace_parts, s.name)
+        by_key[key].append(s)
+
+    # Emit in first-seen (line) order across all keys
+    ordered: list[tuple[tuple[str, ...], Symbol, int | None]] = []
+    for key, group in by_key.items():
+        group = sorted(group, key=lambda s: s.line)
+        for idx, s in enumerate(group):
+            suffix = None if idx == 0 else idx + 1  # 2, 3, ...
+            ordered.append((key, s, suffix))
+    ordered.sort(key=lambda t: t[1].line)
+
+    for key, sym, suffix in ordered:
+        doc = extract_slash_comment(source_lines, sym.line)
+        if doc is None:
+            continue
+        parts = list(key)
+        entries.append((parts, suffix, doc))
+
+    if not entries:
+        raise SystemExit(f'no documented symbols found for {header_rel} in {xml_dir}')
+
+    out: list[str] = [_BANNER.format(source_rel=header_rel), _DOC_PREAMBLE]
+    for parts, suffix, doc in entries:
+        out.append(format_entry(_macro_name(parts, suffix), doc))
+        out.append('\n')
+    out.append('#if defined(__GNUG__)\n#pragma GCC diagnostic pop\n#endif\n')
+    return ''.join(out)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--xml-dir', type=Path, required=True, help='Doxygen XML output directory')
+    ap.add_argument(
+        '--header-rel',
+        required=True,
+        help='Path relative to include/cyten/ (e.g. tensors/ops_algebra.h)',
+    )
+    ap.add_argument(
+        '--source-root',
+        type=Path,
+        default=Path('.'),
+        help='Repository root containing include/cyten/',
+    )
+    ap.add_argument('-o', '--output', type=Path, required=True, help='Output docstring header')
+    args = ap.parse_args()
+    if not args.xml_dir.is_dir():
+        raise SystemExit(f'XML dir not found: {args.xml_dir}')
+    text = generate(args.xml_dir, args.header_rel, args.source_root.resolve())
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(text, encoding='utf-8')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

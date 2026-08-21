@@ -11,7 +11,8 @@ Reference implementation (pilot): tensor algebra —
 
 - Most near-term users read **Python** docs (Sphinx autodoc + Napoleon).
 - A pure C++ / libcyten future needs **header** docs (Doxygen + Breathe).
-- Do **not** try to generate C++ comments from `R"pydoc"`, or treat mkdoc as the only pipeline.
+- Do **not** try to generate C++ comments from `R"pydoc"`, or treat docstring
+  generation as the only documentation pipeline.
 
 ## Three layers
 
@@ -23,14 +24,15 @@ Reference implementation (pilot): tensor algebra —
 
 ```mermaid
 flowchart LR
-  headers["include/cyten ///"] --> doxygen["Doxygen / Breathe"]
-  headers --> mkdoc["pybind11_mkdoc optional"]
-  mkdoc --> docsh["pybind/docstrings/ mirror"]
+  headers["include/cyten ///"] --> doxygen["Doxygen XML"]
+  doxygen --> script["doxygen_xml_to_docstrings"]
+  script --> docsh["pybind/docstrings/ mirror"]
   docsh --> direct["DOC on 1:1 bindings"]
   wrappers["R pydoc or doc_plus"] --> autodoc["Sphinx autodoc"]
   direct --> autodoc
   rst["docs RST"] --> sphinx["Sphinx HTML"]
-  doxygen --> sphinx
+  headers --> breathe["Doxygen / Breathe"]
+  breathe --> sphinx
   autodoc --> sphinx
 ```
 
@@ -49,8 +51,9 @@ Include:
 
 Avoid:
 
-- Doxygen `\param` / `\return` if you want Napoleon NumPy sections after mkdoc
-  (stock mkdoc turns those into Google `Args:` / `Returns:`).
+- Doxygen `\param` / `\return` if you want Napoleon NumPy sections in Python
+  `__doc__` (prefer NumPy underlines in `///`; the generator copies those
+  comments verbatim from the header).
 - Python-only types and conventions (`None`, `dict`, `int or str` labels,
   `py::object`, `*args`).
 - Sphinx roles that only make sense for Python autodoc when they would confuse
@@ -83,7 +86,7 @@ Example (`compose`):
 | Binding style | Docstring |
 | --- | --- |
 | Direct `&free_function` / `&Class::method` with the **same meaning** as C++ | Prefer `DOC(cyten, …)` from the generated docstring header |
-| Overloads | Use the mkdoc suffix for the overload you bind (`DOC(cyten, inner, 2)` for the second declaration in the header) |
+| Overloads | Use the overload suffix (`DOC(cyten, inner, 2)` for the second declaration in the header) |
 | Lambdas / wrappers (`py::object`, label parsing, `None` defaults, `*args`) | Keep hand-written `R"pydoc(...)"` |
 | Shared C++ meaning + Python-only args | `doc_plus(DOC(cyten, name), R"pydoc(…)")` — see [`pybind/doc_plus.h`](../../pybind/doc_plus.h) |
 
@@ -105,7 +108,7 @@ Language-neutral concepts and tutorials. Prefer Python examples for now; C++
 snippets can be added later in separate tabs/sections. Do not assume readers
 open the C++ API pages.
 
-## mkdoc pipeline (optional regeneration)
+## Docstring generation (optional regeneration)
 
 ### Layout
 
@@ -139,25 +142,32 @@ unrelated `py_*.cpp` TUs.
 
 ### Regenerating
 
-Requires `pybind11-mkdoc`, `clangdev`, and `libclang` (see [`environment.yml`](../../environment.yml)).
+Requires **doxygen** (see [`docs/environment.yml`](../environment.yml); optional in the
+main env). Normal builds and CI leave generation **OFF** and use checked-in files.
 
 ```bash
-# default: ON when tools are found
 cmake -S . -B build -DCYTEN_GENERATE_DOCSTRINGS=ON
-cmake --build build --target cyten_mkdoc_docstrings
+cmake --build build --target cyten_generate_docstrings
 ```
 
-- Without tools, or with `-DCYTEN_GENERATE_DOCSTRINGS=OFF`, the build uses the
-  **checked-in** `pybind/docstrings/` files (docs may be stale vs headers).
+Pipeline:
+
+1. Scoped Doxygen XML for each header in `CYTEN_MKDOC_HEADERS`.
+2. [`scripts/doxygen_xml_to_docstrings.py`](../../scripts/doxygen_xml_to_docstrings.py)
+   maps symbols from XML (names, namespaces, overload order) and copies `///`
+   comment bodies from the source header into `DOC()` macros.
+
+Notes:
+
+- Default is `-DCYTEN_GENERATE_DOCSTRINGS=OFF`; `_core` does **not** depend on
+  the generation target (a failed regen cannot break the extension build).
 - Stamps live in the build tree so `ninja clean` does not delete checked-in files.
-- Post-process: [`scripts/fix_mkdoc_numpy_sections.py`](../../scripts/fix_mkdoc_numpy_sections.py)
-  restores NumPy underlines (mkdoc reflow joins `Parameters` / `----------`) and
-  guards the shared `DOC()` macro preamble.
+- Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
 
 ### Commit discipline
 
 Always commit updated `pybind/docstrings/<rel>` together with the `///` / binding
-changes that produced them, so CI and users without mkdoc still build and see
+changes that produced them, so CI and users without doxygen still build and see
 correct `__doc__`.
 
 ## What not to do
@@ -166,7 +176,8 @@ correct `__doc__`.
 - Do not generate C++ comments from `R"pydoc"`.
 - Do not put C++ signature docs alone on a lambda whose Python signature differs
   (`LegRef` vs `int | str`, `optional<map>` vs `dict | None`).
-- Do not rely on `\param` if you want TeNPy-style Napoleon sections via mkdoc.
+- Do not rely on `\param` if you want TeNPy-style Napoleon sections in `DOC()`.
+- Do not make `_core` depend on regenerating docstring headers at build time.
 - Do not make `_core` depend on one giant docstring header for the whole tree.
 
 ## Status
@@ -179,4 +190,4 @@ correct `__doc__`.
 Near term remains **Python-first**: full user-facing NumPy docs stay available
 through pybind; headers carry shared semantics (and briefs at minimum). When a
 Python-free libcyten is real, invert only the shared layer (headers canonical for
-meaning; mkdoc for 1:1 bindings; wrappers keep extra `R"pydoc"`).
+meaning; generated `DOC()` for 1:1 bindings; wrappers keep extra `R"pydoc"`).
