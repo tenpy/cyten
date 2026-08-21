@@ -18,7 +18,7 @@ constexpr int64 kMaxUnwrapDepth = 10000;
 
 } // namespace
 
-py::object LinearOperator::acts_on = py::none();
+py::object& LinearOperator::acts_on = leak_py_object(py::object(py::none()));
 
 bool
 same_legs(std::vector<Leg::Ptr> const& legs1, std::vector<Leg::Ptr> const& legs2)

@@ -65,4 +65,7 @@ target_sources(cyten
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp
+  models/degrees_of_freedom.cpp
+  models/sites.cpp
+  models/couplings.cpp
 )

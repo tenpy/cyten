@@ -120,10 +120,12 @@ Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`
 
 ### Layer 5 — Models
 
-- **cyten/models/degrees_of_freedom.py** — DOF classes, `Site` (~714 lines).
-- **cyten/models/sites.py** — `SpinSite`, `GoldenSite`, etc. (~655 lines).
-- **cyten/models/couplings.py** — `Coupling`, `gold_coupling`, etc. (~560 lines).
-- **cyten/models/tenpy_models.py** — Tenpy model helpers (~130 lines).
+Branch: `convert_models`. Overview: [convert_models.md](convert_models.md).
+
+- **cyten/models/degrees_of_freedom.py** — `Site`, DOF classes (`SpinDOF`, `ClockDOF`, `AnyonDOF`, `OccupationDOF`, `BosonicDOF`, `FermionicDOF`), `ALL_SPECIES`. **C++ + monkey-patched** — [convert_Site.md](convert_Site.md).
+- **cyten/models/sites.py** — Concrete sites (`SpinSite`, `SpinlessBosonSite`, `SpinlessFermionSite`, `SpinHalfFermionSite`, anyon sites, …). **C++ + monkey-patched**.
+- **cyten/models/couplings.py** — `Coupling`, factory functions (`spin_spin_coupling`, `hopping`, …). **C++ + monkey-patched**; `tenpy_models.py` remains Python.
+- **cyten/models/tenpy_models.py** — TenPy model helpers (~130 lines). **Still Python** (out of scope).
 
 ## C++ layout
 

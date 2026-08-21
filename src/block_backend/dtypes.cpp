@@ -8,7 +8,7 @@ namespace dtype {
 py::module_&
 numpy_module()
 {
-    static py::module_ np = py::module_::import("numpy");
+    static py::module_& np = leak_py_object(py::module_::import("numpy"));
     return np;
 }
 

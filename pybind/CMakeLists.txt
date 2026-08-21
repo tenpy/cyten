@@ -61,4 +61,7 @@ target_sources(_core
   tensors/py_sparse.cpp
   tensors/py_krylov_based.cpp
   tensors/py_planar.cpp
+  models/py_degrees_of_freedom.cpp
+  models/py_sites.cpp
+  models/py_couplings.cpp
 )

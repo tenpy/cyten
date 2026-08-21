@@ -32,7 +32,7 @@ class LinearOperator
     VectorLabels vector_labels;
     Dtype dtype = Dtype::Float64;
 
-    static py::object acts_on;
+    static py::object& acts_on;
 
     LinearOperator(std::vector<Leg::Ptr> vector_legs = {},
                    Dtype dtype = Dtype::Float64,
