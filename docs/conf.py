@@ -173,11 +173,20 @@ _REPO_ROOT = os.path.abspath(os.path.join(_DOCS_DIR, '..'))
 _DOXY_XML = os.path.join(_DOCS_DIR, 'build_docs', 'doxy_xml')
 
 
+def _github_ref():
+    """GitHub ref for source links: a release tag, else the build commit."""
+    if 'dev' not in cyten.__version__:
+        return f'v{cyten.__version__}'
+    # setuptools_scm writes ``g`` + git node (e.g. ``g2ce59cf1a``).
+    commit_id = cyten._version.commit_id
+    if not commit_id:
+        return 'main'
+    return commit_id[1:] if commit_id.startswith('g') else commit_id
+
+
 def _blob_url(repo_relpath, linespec):
     """GitHub blob URL for a path relative to the repository root."""
-    if 'dev' not in cyten.__version__:
-        return f'{GITHUBBASE}/blob/v{cyten.__version__}/{repo_relpath}{linespec}'
-    return f'{GITHUBBASE}/blob/main/{repo_relpath}{linespec}'
+    return f'{GITHUBBASE}/blob/{_github_ref()}/{repo_relpath}{linespec}'
 
 
 def _strip_func_parens(name):
