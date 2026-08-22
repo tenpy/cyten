@@ -413,12 +413,29 @@ def doxygen_comment_to_numpy(doc: str) -> str:
     # Markdown `code` → reST ``code`` (avoid touching already-doubled ticks).
     text = re.sub(r'(?<!`)`([^`]+)`(?!`)', r'``\1``', text)
     # Doxygen inline math → Sphinx math role (after backtick upgrade).
-    text = re.sub(r'@f\$(.+?)@f\$', r':math:`\1`', text, flags=re.DOTALL)
-    text = re.sub(r'\\f\$(.+?)\\f\$', r':math:`\1`', text, flags=re.DOTALL)
+    text = _inline_math_to_sphinx(text)
     return text
 
 
 _DISPLAY_MATH_RE = re.compile(r'(?:@f\[|\\f\[)(.*?)(?:@f\]|\\f\])', re.DOTALL)
+_INLINE_MATH_RE = re.compile(r'(?:@f\$|\\f\$)(.*?)(?:@f\$|\\f\$)', re.DOTALL)
+
+
+def _inline_math_to_sphinx(text: str) -> str:
+    """Rewrite Doxygen @f$ ... @f$ / \\f$ ... \\f$ to :math:`...`.
+
+    Surrounding spaces and newlines (from wrapped /// comments) are stripped.
+    RST inline markup is not recognized when a backtick is adjacent to
+    whitespace.
+    """
+
+    def repl(m: re.Match[str]) -> str:
+        body = re.sub(r'\s+', ' ', m.group(1)).strip()
+        if not body:
+            return m.group(0)
+        return f':math:`{body}`'
+
+    return _INLINE_MATH_RE.sub(repl, text)
 
 
 def _display_math_to_sphinx(text: str) -> str:
