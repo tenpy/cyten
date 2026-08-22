@@ -1,5 +1,5 @@
-Block backends
-==============
+block_backend
+=============
 Headers in ``include/cyten/block_backend/``.
 
 .. toctree::

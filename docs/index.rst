@@ -26,10 +26,16 @@ If you're new here, start with the :doc:`readme_wrap`.
     python/cyten.models
 
 .. toctree::
-   :caption: C++ Reference
-   :maxdepth: 2
+    :caption: C++ Reference
+    :maxdepth: 1
 
-   cpp
+    cpp/config
+    cpp/backends
+    cpp/block_backend
+    cpp/symmetries
+    cpp/tensors
+    cpp/tools
+    cpp/models
 
 Indices and Tables
 ==================

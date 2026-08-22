@@ -1,5 +1,5 @@
-tools.h
-=======
+tools
+=====
 
 Declared in ``include/cyten/tools.h``.
 

@@ -1,5 +1,5 @@
-Tensor backends
-===============
+backends
+========
 Headers in ``include/cyten/backends/``.
 
 .. toctree::

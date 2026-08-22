@@ -1,4 +1,4 @@
-Models
+models
 ======
 Headers in ``include/cyten/models/``.
 

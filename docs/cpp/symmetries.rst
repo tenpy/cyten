@@ -1,4 +1,4 @@
-Symmetries
+symmetries
 ==========
 Headers in ``include/cyten/symmetries/``.
 

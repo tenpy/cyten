@@ -1,4 +1,4 @@
-Tensors
+tensors
 =======
 Headers in ``include/cyten/tensors/``.
 

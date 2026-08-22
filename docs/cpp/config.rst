@@ -1,5 +1,5 @@
-config.h
-========
+config
+======
 
 Declared in ``include/cyten/config.h``.
 
