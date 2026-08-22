@@ -1,7 +1,7 @@
 warn.h
 ======
 
-Declared in ``include/cyten/warn.h``.
+Declared in ``include/cyten/tools/warn.h``.
 
 Free functions
 --------------

@@ -2,7 +2,7 @@
 
 #include <cyten/symmetries/fusion_symbol.h>
 #include <cyten/symmetries/sector_numpy.h>
-#include <cyten/warn.h>
+#include <cyten/tools/warn.h>
 
 #include <algorithm>
 #include <array>

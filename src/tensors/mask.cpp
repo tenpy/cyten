@@ -5,7 +5,7 @@
 #include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/tools.h>
-#include <cyten/warn.h>
+#include <cyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>

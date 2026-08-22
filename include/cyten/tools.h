@@ -30,3 +30,4 @@ int64 to_valid_idx(int64 idx, int64 length);
 
 #include <cyten/tools/cost_polynomials.h>
 #include <cyten/tools/mappings.h>
+#include <cyten/tools/version.h>

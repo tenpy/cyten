@@ -1,7 +1,7 @@
 version.h
 =========
 
-Declared in ``include/cyten/version.h``.
+Declared in ``include/cyten/tools/version.h``.
 
 Free functions
 --------------

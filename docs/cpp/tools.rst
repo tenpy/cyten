@@ -34,3 +34,5 @@ Subheaders
 
    tools/cost_polynomials
    tools/mappings
+   tools/version
+   tools/warn

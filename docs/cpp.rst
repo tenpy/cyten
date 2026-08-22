@@ -13,8 +13,6 @@ these stubs.
    :caption: Core
 
    cpp/config
-   cpp/version
-   cpp/warn
    cpp/tools
 
 .. toctree::
