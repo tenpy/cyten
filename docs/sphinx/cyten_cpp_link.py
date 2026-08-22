@@ -35,6 +35,10 @@ def _normalize_cpp_target(target: str) -> str:
 # env.cyten_cpp_refs: fullname -> (role, target)
 _ENV_KEY = 'cyten_cpp_refs'
 
+# Also kept at module level so ``linkcode_resolve`` can fall back to C++ source
+# without access to the Sphinx env.
+CPP_REFS: dict[str, tuple[str, str]] = {}
+
 # Run before Napoleon (default priority 500) so the marker is not eaten as :param:.
 _BEFORE_NAPOLEON = 400
 
@@ -80,6 +84,47 @@ def _extract_marker(lines: list[str]) -> tuple[str, str] | None:
     return role, target
 
 
+def cpp_ref_from_doc(doc: str | None) -> str | None:
+    """Return the C++ qualified name from a ``.. cyten-cpp-ref::`` marker, if any."""
+    if not doc:
+        return None
+    extracted = _extract_marker(doc.splitlines())
+    if extracted is None:
+        return None
+    return extracted[1]
+
+
+def cpp_ref_from_object(obj: Any) -> str | None:
+    """Return a C++ qualified name recorded on ``obj`` or its property getter."""
+    seen: list[Any] = []
+
+    def consider(candidate: Any) -> str | None:
+        if candidate is None:
+            return None
+        try:
+            if candidate in seen:
+                return None
+            seen.append(candidate)
+        except TypeError:
+            pass
+        return cpp_ref_from_doc(getattr(candidate, '__doc__', None))
+
+    if isinstance(obj, property):
+        return consider(obj) or consider(obj.fget) or consider(obj.fset)
+    if isinstance(obj, (staticmethod, classmethod)):
+        return consider(obj) or consider(getattr(obj, '__func__', None))
+    return consider(obj)
+
+
+def lookup_cpp_ref(modname: str, fullname: str) -> str | None:
+    """Return a C++ target recorded during autodoc for ``modname.fullname``."""
+    key = f'{modname}.{fullname}' if modname else fullname
+    entry = CPP_REFS.get(key) or CPP_REFS.get(fullname)
+    if entry is None:
+        return None
+    return entry[1]
+
+
 def autodoc_process_docstring(
     app: Sphinx,
     what: str,
@@ -94,6 +139,7 @@ def autodoc_process_docstring(
     if extracted is None:
         return
     role, target = extracted
+    CPP_REFS[name] = (role, target)
     _ensure_map(app.env)[name] = (role, target)
 
 
