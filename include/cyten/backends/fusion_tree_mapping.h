@@ -41,8 +41,8 @@ struct BraidInstruction
 {
     /// If the braid is in the codomain, otherwise in the domain.
     bool codomain = false;
-    /// Which leg of the (co-)domain braids. We braid ``(co)domain[idx]`` with ``(co)domain[idx +
-    /// 1]``.
+    /// Which leg of the (co-)domain braids.
+    /// We braid ``(co)domain[idx]`` with ``(co)domain[idx + 1]``.
     int64 idx = 0;
     /// Chirality of the braid. An overbraid is a braid where the leg that goes
     /// from bottom left to top right is on top, see notes below.
@@ -60,17 +60,6 @@ struct BendInstruction
 };
 
 /// Instruction to apply a twist on one or more contiguous legs.
-///
-/// Attributes:
-///
-/// codomain : bool
-///     If the twist is in the codomain, otherwise in the domain.
-/// idcs : list of int
-///     Which legs of the (co-)domain are twisted; we twist ``(co)domain[idcs]``.
-///     Must be contiguous.
-/// overtwist : bool
-///     Specifies the chirality of the twist. An overtwist (undertwist) has an overbraid
-///     (underbraid) at the center, and a cup and cap.
 ///
 /// Notes:
 ///
@@ -115,8 +104,13 @@ struct BendInstruction
 ///     |      │   │   │
 struct TwistInstruction
 {
+    /// If the twist is in the codomain, otherwise in the domain.
     bool codomain = false;
+    /// Which legs of the (co-)domain are twisted; we twist ``(co)domain[idcs]``.
+    /// Must be contiguous.
     std::vector<int64> idcs;
+    /// Chirality of the twist.
+    // An overtwist (undertwist) has an overbraid (underbraid) at the center, and a cup and cap.
     bool overtwist = false;
 
     bool operator==(TwistInstruction const&) const = default;

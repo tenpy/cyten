@@ -141,10 +141,11 @@ class DiagonalTensor : public SymmetricTensor
     ///
     /// The probability density is
     ///
-    /// .. math ::
+    /// \f[
     ///     p(T) \propto \mathrm{exp}\left[
     ///         \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
     ///     \right]
+    /// \f]
     ///
     /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
     /// @param mean The mean of the distribution. ``None`` is equivalent to zero mean.

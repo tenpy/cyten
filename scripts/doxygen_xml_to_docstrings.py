@@ -407,12 +407,41 @@ def doxygen_comment_to_numpy(doc: str) -> str:
             out.append(line if line.strip() == '' else line)
 
     text = '\n'.join(out).rstrip() + '\n'
+    # Doxygen display math → Sphinx ``.. math::`` (before inline, so ``\f[`` is not
+    # confused with ``\f$``).
+    text = _display_math_to_sphinx(text)
     # Markdown `code` → reST ``code`` (avoid touching already-doubled ticks).
     text = re.sub(r'(?<!`)`([^`]+)`(?!`)', r'``\1``', text)
     # Doxygen inline math → Sphinx math role (after backtick upgrade).
     text = re.sub(r'@f\$(.+?)@f\$', r':math:`\1`', text, flags=re.DOTALL)
     text = re.sub(r'\\f\$(.+?)\\f\$', r':math:`\1`', text, flags=re.DOTALL)
     return text
+
+
+_DISPLAY_MATH_RE = re.compile(r'(?:@f\[|\\f\[)(.*?)(?:@f\]|\\f\])', re.DOTALL)
+
+
+def _display_math_to_sphinx(text: str) -> str:
+    """Rewrite Doxygen ``\\f[ ... \\f]`` / ``@f[ ... @f]`` to a Sphinx ``.. math::`` block."""
+
+    def repl(m: re.Match[str]) -> str:
+        body = m.group(1)
+        lines = body.splitlines()
+        while lines and not lines[0].strip():
+            lines.pop(0)
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if not lines:
+            return '.. math::\n'
+        indents = [len(l) - len(l.lstrip()) for l in lines if l.strip()]
+        pad = min(indents) if indents else 0
+        out_lines: list[str] = []
+        for l in lines:
+            s = l[pad:] if len(l) >= pad else l
+            out_lines.append(('    ' + s) if s.strip() else '')
+        return '.. math::\n\n' + '\n'.join(out_lines) + '\n'
+
+    return _DISPLAY_MATH_RE.sub(repl, text)
 
 
 def _cpp_ref_marker(sym: Symbol, *, has_overloads: bool) -> str:

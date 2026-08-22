@@ -101,8 +101,9 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     ///
     /// We return the matrix elements
     ///
-    /// .. math ::
-    ///     (Z_{\\bar{a}})_{mn} = \\langle m \\vert Z_{\\bar{a}}(\\langle n \\vert)
+    /// \f[
+    ///     (Z_{\bar{a}})_{mn} = \langle m \vert Z_{\bar{a}}(\langle n \vert)
+    /// \f]
     ///
     /// where @f$ m @f$ goes over a (dual) basis of @f$ \bar{a} @f$ and @f$ n @f$ over a basis of
     /// @f$ a @f$.
@@ -161,9 +162,10 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     /// such that @f$ m_1 = \sum_{\nu} [R^{ab}_c]^\mu_\nu m_2 @f$.
     ///
     /// We can use the unitary gauge freedom of the fusion tensors
-    /// .. math ::
     ///
-    ///     X_μ \\mapsto \\sum_ν U_{μ,ν} X_ν
+    /// \f[
+    ///     X_μ \mapsto \sum_ν U_{μ,ν} X_ν
+    /// \f]
     ///
     /// to enforce that the R symbol is diagonal.
     ///

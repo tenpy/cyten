@@ -176,8 +176,9 @@ class Coupling
 
 /// Two-site coupling between spins.
 ///
-/// .. math ::
-///     h_{ij} = \\mathtt{Jx} S_i^x S_j^x + \\mathtt{Jy} S_i^y S_j^y + \\mathtt{Jz} S_i^z S_j^z
+/// \f[
+///     h_{ij} = \mathtt{Jx} S_i^x S_j^x + \mathtt{Jy} S_i^y S_j^y + \mathtt{Jz} S_i^z S_j^z
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
@@ -192,8 +193,9 @@ class Coupling
 
 /// Single-site coupling of a spin to an external field.
 ///
-/// .. math ::
-///     h_i = \\mathtt{hx} S_i^x + \\mathtt{hy} S_i^y + \\mathtt{hz} S_i^z
+/// \f[
+///     h_i = \mathtt{hx} S_i^x + \mathtt{hy} S_i^y + \mathtt{hz} S_i^z
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
@@ -208,9 +210,10 @@ class Coupling
 
 /// Two-site AKLT coupling between spins.
 ///
-/// .. math ::
-///     h_{ij} = \\mathtt{J} [\\vec{S}_i \\cdot \\vec{S}_j + \\frac{1}{3} (\\vec{S}_i \\cdot
-///     \\vec{S}_j)^2]
+/// \f[
+///     h_{ij} = \mathtt{J} [\vec{S}_i \cdot \vec{S}_j + \frac{1}{3} (\vec{S}_i \cdot
+///     \vec{S}_j)^2]
+/// \f]
 ///
 /// This is the coupling originally defined by Affleck, Kennedy, Lieb, Tasaki
 /// in :cite:`affleck1987`, except we drop the constant part of 1/3 per bond and rescale with a
@@ -230,8 +233,9 @@ class Coupling
 
 /// Two-site Heisenberg coupling between spins.
 ///
-/// .. math ::
-///     h_{ij} = \\mathtt{J} \\vec{S}_i \\cdot \\vec{S}_j
+/// \f[
+///     h_{ij} = \mathtt{J} \vec{S}_i \cdot \vec{S}_j
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
@@ -244,8 +248,9 @@ class Coupling
 
 /// Chiral coupling of three spins.
 ///
-/// .. math ::
-///     h_{ijk} = \\mathtt{chi} \\vec{S}_i \\cdot ( \\vec{S}_j \\times \\vec{S}_k )
+/// \f[
+///     h_{ijk} = \mathtt{chi} \vec{S}_i \cdot ( \vec{S}_j \times \vec{S}_k )
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
@@ -258,8 +263,9 @@ class Coupling
 
 /// Chemical potential for bosons or fermions. Single-site coupling.
 ///
-/// .. math ::
-///     h_i = -\\mathtt{mu} \\sum_{k \\in \\mathtt{species} n_{i, k}
+/// \f[
+///     h_i = -\mathtt{mu} \sum_{k \in \mathtt{species}} n_{i, k}
+/// \f]
 ///
 /// where @f$ n_{i, k} @f$ is the occupation number of species @f$ k @f$ on site @f$ i @f$.
 ///
@@ -277,8 +283,9 @@ class Coupling
 
 /// Onsite interaction for bosons or fermions. Single-site coupling.
 ///
-/// .. math ::
-///     h_i = \\frac{U}{2} n_i^2
+/// \f[
+///     h_i = \frac{U}{2} n_i^2
+/// \f]
 ///
 /// where @f$ n_i @f$ is the total occupation number, or the occupation of a single `species`.
 ///
@@ -296,8 +303,9 @@ class Coupling
 
 /// Density-density interaction. Two-site coupling.
 ///
-/// .. math ::
-///     h_{ij} = \\mathtt{V} n_i n_j
+/// \f[
+///     h_{ij} = \mathtt{V} n_i n_j
+/// \f]
 ///
 /// where @f$ n_i @f$ is the total occupation number.
 ///
@@ -317,9 +325,10 @@ class Coupling
 
 /// Hopping of fermions or bosons. Two-site coupling.
 ///
-/// .. math ::
-///     h_{ij} = -\\mathtt{t} \\sum_{k \\in \\mathtt{species}} a_{i, k_i}^\\dagger a_{j, k_j} +
+/// \f[
+///     h_{ij} = -\mathtt{t} \sum_{k \in \mathtt{species}} a_{i, k_i}^\dagger a_{j, k_j} +
 ///     h.c.
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
@@ -336,9 +345,10 @@ class Coupling
 
 /// Superconducting pairing of fermions or bosons. Two-site coupling.
 ///
-/// .. math ::
-///     h_{ij} = \\mathtt{Delta} \\sum_{k\\in\\mathtt{species}} a_{i, k_i}^\\dagger a_{j,
-///     k_j}^\\dagger + h.c.
+/// \f[
+///     h_{ij} = \mathtt{Delta} \sum_{k\in\mathtt{species}} a_{i, k_i}^\dagger a_{j,
+///     k_j}^\dagger + h.c.
+/// \f]
 ///
 /// .. note ::
 ///     This coupling assumes distinct sites @f$ i \neq j @f$.
@@ -359,9 +369,10 @@ class Coupling
 
 /// Superconducting pairing of fermions or bosons. Single-site coupling.
 ///
-/// .. math ::
-///     h_i = \\mathtt{Delta} \\sum_{k\\in\\mathtt{species}} a_{i, k_1}^\\dagger a_{i,
-///     k_2}^\\dagger + h.c.
+/// \f[
+///     h_i = \mathtt{Delta} \sum_{k\in\mathtt{species}} a_{i, k_1}^\dagger a_{i,
+///     k_2}^\dagger + h.c.
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
@@ -378,8 +389,9 @@ class Coupling
 
 /// Two-site coupling between quantum clocks.
 ///
-/// .. math ::
-///     h_{ij} = \\mathtt{Jx} X_i X_j^\\dagger + \\mathtt{Jz} Z_i Z_j^\\dagger + h.c.
+/// \f[
+///     h_{ij} = \mathtt{Jx} X_i X_j^\dagger + \mathtt{Jz} Z_i Z_j^\dagger + h.c.
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
@@ -393,8 +405,9 @@ class Coupling
 
 /// Single-site coupling of a quantum clock to an external field.
 ///
-/// .. math ::
-///     h_i = \\mathtt{hx} X_i + \\mathtt{hz} Z_i + h.c.
+/// \f[
+///     h_i = \mathtt{hx} X_i + \mathtt{hz} Z_i + h.c.
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
@@ -421,8 +434,9 @@ class Coupling
 
 /// Two-site coupling of Fibonacci anyons that energy splits fusion to vacuum or tau.
 ///
-/// .. math ::
-///     h_{ij} = -J P^\\text{vac}_{i, j}
+/// \f[
+///     h_{ij} = -J P^\text{vac}_{i, j}
+/// \f]
 ///
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.

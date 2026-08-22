@@ -151,8 +151,6 @@ class FusionTree
     ///     |   ┡━━━━━━━━━━━━━┛             ┡━━━━━━━━━━━━━┛
     ///     |   │                           │
     ///
-    /// @warning When braiding splitting trees (daggers of fusion trees), consider the notes below.
-    ///
     /// @param j The index for the braid. We braid ``uncoupled[j]`` with ``uncoupled[j + 1]``.
     /// @param overbraid If we apply an overbraid or an underbraid (see graphic above).
     /// @param cutoff We skip contributions with a prefactor below this.
@@ -161,6 +159,28 @@ class FusionTree
     /// linear combination ``braided_self = sum_i a_i X_i``. The returned dictionary has entries
     /// ``linear_combination[X_i] = a_i`` for the contributions to this linear combination (i.e.
     /// trees for which the coefficient vanishes may be omitted).
+    ///
+    /// @warning The diagram above is for FusionTrees, which this class implements.
+    // Splitting trees are stored as daggers of fusion trees.
+    /// The dagger of a braid is the opposite braid, and coefficients are conjugated::
+    ///
+    ///     dagger(braid(S)) = opposite_braid(dagger(S))
+    ///
+    /// Graphically for splitting trees::
+    ///
+    ///     |   overbraid:                  underbraid
+    ///     |
+    ///     |   │                           │
+    ///     |   ┢━━━┷━━━┷━━━┷━┓             ┢━━━┷━━━┷━━━┷━┓
+    ///     |   ┡━━━┯━━━┯━━━┯━┛             ┡━━━┯━━━┯━━━┯━┛
+    ///     |   │   │   │   │               │   │   │   │
+    ///     |   │    ╲ ╱    │               │    ╲ ╱    │
+    ///     |   │     ╱     │               │     ╲     │
+    ///     |   │    ╱ ╲    │               │    ╱ ╲    │
+    ///     |   │   j  j+1  │               │   j  j+1  │
+    ///
+    /// So to apply an overbraid to the splitting tree ``hconj(X)``, call
+    /// ``X.braid(j, overbraid=false, do_conj=true)``.
     [[nodiscard]] FusionTreeLinearCombination braid(int64 j,
                                                     bool overbraid,
                                                     float64 cutoff = 1e-16,
@@ -174,6 +194,9 @@ class FusionTree
     ///         |                      │       │
     ///         |                      a       b
     ///         |                      ╰───µ───╯
+    ///         |                          c
+    ///         |                          │
+    ///         |                          (possibly lower vertices)
     [[nodiscard]] std::tuple<Sector, Sector, int64, Sector> vertex_labels(int64 n) const;
 
     /// Update the multiplicity and the three sectors around the ``n``-th vertex.
@@ -222,6 +245,13 @@ class FusionTree
     ///
     ///     |               │
     ///     |              (Z)
+    ///     |               v
+    ///     |   (self)     new_uncoupled
+    ///     |       │       │
+    ///     |       ╰───µ───╯
+    ///     |           │
+    ///     |          new_coupled
+
     [[nodiscard]] FusionTree extended(Sector new_uncoupled,
                                       int64 mu,
                                       Sector new_coupled,
@@ -294,6 +324,11 @@ class FusionTree
     ///     |   │ │ │ │ │           │  │  │  │     │
     ///     |   (self_tree)    =    (rest_tree)    │
     ///     |       │                    │         │
+    ///     |       │                    │         │
+    ///     |       c                    ╰────µ────╯
+    ///     |                                 │
+    ///     |                                 c
+
     [[nodiscard]] std::tuple<FusionTree, Sector, int64, Sector> split_bottom_vertex() const;
 
     /// Twist some legs above a tree, return the resulting linear combination of trees.

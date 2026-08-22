@@ -59,8 +59,9 @@ class AbelianGroup : public Group
     ///
     /// We return the matrix elements
     ///
-    /// .. math ::
-    ///     (Z_{\\bar{a}})_{mn} = \\langle m \\vert Z_{\\bar{a}}(\\langle n \\vert)
+    /// \f[
+    ///     (Z_{\bar{a}})_{mn} = \langle m \vert Z_{\bar{a}}(\langle n \vert)
+    /// \f]
     ///
     /// where @f$ m @f$ goes over a (dual) basis of @f$ \bar{a} @f$ and @f$ n @f$ over a basis of
     /// @f$ a @f$.

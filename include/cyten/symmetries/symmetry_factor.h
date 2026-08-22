@@ -48,12 +48,12 @@ namespace cyten {
 /// "corresponds" to @f$ A @f$ in the sense that it has the same properties, e.g. same dimension,
 /// and that there are compatible operations (tensor product, direct sum, ...) such that::
 ///
-///     symmetric A  -------- (operation) --->   symmetric B
-///             |                                         |
-///          (drop symm)                               (drop symm)
-///             |                                         |
-///             v                                         v
-///     C^{n_A}  --- (operation) --->   C^{n_B}
+///   |      symmetric A  -------- (operation) --->   symmetric B
+///   |              |                                         |
+///   |           (drop symm)                               (drop symm)
+///   |              |                                         |
+///   |              v                                         v
+///   |            C^{n_A}  -------- (operation) -------->   C^{n_B}
 ///
 /// commutes.
 /// The same goes for tensors, i.e. for symmetric tensors there are corresponding non-symmetric

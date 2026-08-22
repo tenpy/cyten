@@ -62,6 +62,8 @@ Include:
   [`include/cyten/symmetries/trees.h`](../../include/cyten/symmetries/trees.h).
 - Inline math with Doxygen `@f$ ... @f$` (not Sphinx `:math:`). The docstring
   generator rewrites these to `:math:`…`` for Python `DOC()`.
+- Display math with Doxygen `\f[ ... \f]` (not Sphinx `.. math::`). The
+  generator rewrites these to a `.. math::` block for Python `DOC()`.
 
 Avoid:
 
@@ -73,9 +75,9 @@ Avoid:
   converts them to NumPy for Python `DOC()`.
 - Python-only types and conventions (`None`, `dict`, `int or str` labels,
   `py::object`, `*args`).
-- Sphinx roles (`:math:`, `:class:`, `:meth:`, `:ref:`) in headers — they are
-  not Doxygen markup. Prefer markdown `` `name` `` for identifiers and `@f$`
-  for formulas.
+- Sphinx roles (`:math:`, `:class:`, `:meth:`, `:ref:`) and `.. math::` in
+  headers — they are not Doxygen markup. Prefer markdown `` `name` `` for
+  identifiers, `@f$ ... @f$` for inline math, and `\f[ ... \f]` for display math.
 
 Example (`compose`):
 
@@ -233,8 +235,9 @@ Every `_core` build runs target `cyten_generate_docstrings`:
 2. [`scripts/doxygen_xml_to_docstrings.py`](../../scripts/doxygen_xml_to_docstrings.py)
    maps symbols from XML (names, namespaces, overload order), reads `///`
    comment bodies from the source header, converts `@param` / `@returns` to
-   NumPy sections, rewrites `@f$…@f$` to Sphinx `:math:`…``, and appends a
-   ``.. cyten-cpp-ref::`` marker for the Sphinx ``[C++]`` badge.
+   NumPy sections, rewrites `@f$…@f$` to Sphinx `:math:`…`` and `\f[…\f]` to
+   `.. math::`, and appends a ``.. cyten-cpp-ref::`` marker for the Sphinx
+   ``[C++]`` badge.
 
 ```bash
 cmake --build <build-dir> --target cyten_generate_docstrings
