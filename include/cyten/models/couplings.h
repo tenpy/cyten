@@ -68,6 +68,8 @@ class Coupling
     /// coupling.
     /// @param dtype If given, the block is converted to that dtype and the resulting tensors in
     /// the factorization will have that dtype. By default, we detect the dtype from the block.
+    /// @param understood_braiding Set if the caller has accounted for non-trivial braiding of the
+    /// dense block.
     /// @param cutoff_singular_values If given, truncate singular values (see
     /// `horizontal_factorization`) below this threshold.
     [[nodiscard]] static Coupling from_dense_block(
@@ -89,7 +91,7 @@ class Coupling
     /// @param sites The sites that the operator acts on.
     /// @param name A descriptive name that can be used when pretty-printing, to identify the
     /// coupling. For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
-    /// @param cutoff_singular_values If given, truncate singular values (see
+    /// @param cutoff If given, truncate singular values (see
     /// `horizontal_factorization`) below this threshold.
     [[nodiscard]] static Coupling from_tensor(SymmetricTensorPtr operator_,
                                               std::vector<Site::Ptr> sites,
@@ -183,6 +185,7 @@ class Coupling
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
 /// @param Jx, Jy, Jz Prefactor, as given above. By default, all prefactors vanish.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling spin_spin_coupling(std::vector<Site::Ptr> sites,
                                           float64 Jx = 0,
                                           float64 Jy = 0,
@@ -200,6 +203,7 @@ class Coupling
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
 /// @param hx, hy, hz Prefactor, as given above. By default, all prefactors vanish.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling spin_field_coupling(std::vector<Site::Ptr> sites,
                                            float64 hx = 0,
                                            float64 hy = 0,
@@ -216,8 +220,9 @@ class Coupling
 /// \f]
 ///
 /// This is the coupling originally defined by Affleck, Kennedy, Lieb, Tasaki
-/// in :cite:`affleck1987`, except we drop the constant part of 1/3 per bond and rescale with a
-/// factor of 2, i.e. @f$ h_{ij} = 2 P^{S=2}_{i, j} + const. @f$.
+/// in [Affleck1987](https://doi.org/10.1103/PhysRevLett.59.799), except we drop the constant part
+/// of 1/3 per bond and rescale with a factor of 2, i.e. @f$ h_{ij} = 2 P^{S=2}_{i, j} + const.
+/// @f$.
 ///
 /// It was defined for spin-1 degrees of freedom in the original work, but we allow any site
 /// with a spin DOF. Note that the coupling simplifies to a Heisenberg coupling for spin-1/2.
@@ -225,6 +230,7 @@ class Coupling
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
 /// @param J Prefactor, as given above. By default use ``1``.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling aklt_coupling(std::vector<Site::Ptr> sites,
                                      float64 J = 1,
                                      py::object backend = py::none(),
@@ -240,6 +246,7 @@ class Coupling
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
 /// @param J Prefactor, as given above. By default use ``1``, i.e. an anti-ferromagnetic coupling.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling heisenberg_coupling(std::vector<Site::Ptr> sites,
                                            float64 J = 1,
                                            py::object backend = py::none(),
@@ -255,6 +262,7 @@ class Coupling
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
 /// @param chi Prefactor, as given above. By default use ``1``.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling chiral_3spin_coupling(std::vector<Site::Ptr> sites,
                                              float64 chi = 1,
                                              py::object backend = py::none(),
@@ -274,6 +282,7 @@ class Coupling
 /// @param mu Chemical potential, as defined above.
 /// @param species If given, the chemical potential only couples to the occupation of this species.
 /// By default, it couples to the total occupation of all species.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling chemical_potential(std::vector<Site::Ptr> sites,
                                           float64 mu,
                                           py::object species = py::none(),
@@ -294,6 +303,7 @@ class Coupling
 /// @param U Prefactor, as defined above. By default, use ``1``, i.e. a repulsive interaction.
 /// @param species If given, we use only the occupation of this one species as the density @f$ n_i
 /// @f$. By default, we use the total occupation of all species.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling onsite_interaction(std::vector<Site::Ptr> sites,
                                           float64 U = 1,
                                           py::object species = py::none(),
@@ -315,6 +325,7 @@ class Coupling
 /// @param species_i, species_j If given, we use only the occupation of this one species as the
 /// density @f$ n_{i/j} @f$. By default, we use the total occupation of all species. Note that if
 /// the two species are different, this coupling alone is not hermitian!
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling density_density_interaction(std::vector<Site::Ptr> sites,
                                                    float64 V = 1,
                                                    py::object species_i = py::none(),
@@ -336,6 +347,7 @@ class Coupling
 /// @param species Which species should participate (the sum above goes over ``k_i, k_j in
 /// zip(*species)``). By default, we let @f$ k_i = k_j @f$ go over all species, i.e. include all
 /// "species preserving" hoppings.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling hopping(std::vector<Site::Ptr> sites,
                                float64 t = 1,
                                py::object species = py::none(),
@@ -360,6 +372,7 @@ class Coupling
 /// @param species Which species should participate (the sum above goes over ``k_i, k_j in
 /// zip(*species)``). By default, we let @f$ k_i = k_j @f$ go over all species, i.e. include all
 /// "same-species" pairings. onsite_pairing
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling pairing(std::vector<Site::Ptr> sites,
                                float64 Delta = 1,
                                py::object species = py::none(),
@@ -380,6 +393,7 @@ class Coupling
 /// @param species Which species should participate (the sum above goes over ``k_1, k_2 in
 /// zip(*species)``). By default, we let @f$ k_1 = k_2 @f$ go over all species, i.e. include all
 /// "same-species" pairings. pairing
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling onsite_pairing(std::vector<Site::Ptr> sites,
                                       float64 Delta = 1,
                                       py::object species = py::none(),
@@ -396,6 +410,7 @@ class Coupling
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
 /// @param Jx, Jz Prefactor, as given above. By default, all prefactors vanish.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling clock_clock_coupling(std::vector<Site::Ptr> sites,
                                             float64 Jx = 0,
                                             float64 Jz = 0,
@@ -412,6 +427,7 @@ class Coupling
 /// @param sites The sites that the coupling acts on. Note that the order matters for the final leg
 /// order.
 /// @param hx, hz Prefactor, as given above. By default, all prefactors vanish.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling clock_field_coupling(std::vector<Site::Ptr> sites,
                                             std::optional<float64> hx = std::nullopt,
                                             std::optional<float64> hz = std::nullopt,
@@ -442,6 +458,7 @@ class Coupling
 /// order.
 /// @param J Prefactor, as given above. By default ``1``. Positive `J` energetically favor the
 /// trivial fusion channel, i.e. they are the "antiferromagnetic" analog.
+/// @param backend, device, name Optional tensor backend, device, and coupling name.
 [[nodiscard]] Coupling gold_coupling(std::vector<Site::Ptr> sites,
                                      float64 J = 1,
                                      py::object backend = py::none(),

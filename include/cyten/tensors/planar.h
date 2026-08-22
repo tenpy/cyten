@@ -416,15 +416,16 @@ class PlanarDiagram
     /// TODO should we allow to reference the existing diagram as a whole, instead of its
     ///      individual tensors?
     ///
-    /// @param tensor Same as the parameter to `PlanarDiagram`, but expect only a single tensor
-    ///     to be added to the diagram.
+    /// `extra_dims` is the same as the parameter to `PlanarDiagram`, but applies only to the new
+    /// tensor.
+    ///
+    /// @param extra_tensors Same as the parameter to `PlanarDiagram`, but expect only the
+    /// additional tensors to be added to the diagram.
     /// @param extra_definition Same as the parameter to `PlanarDiagram`. Should define for each
     ///     leg of the new tensor whether it is an open leg or contracted with another leg.
     ///     The new `definition` is given by this extra definition together with the old
     ///     definition, except for entries that correspond to legs that were open in the original
     ///     diagram and are now contracted with the new tensor.
-    /// @param extra_dims Same as the parameter to `PlanarDiagram`, but applies only to the new
-    ///     `tensor`.
     /// @param order Same as the parameter to `PlanarDiagram`, applies to the entire new diagram.
     [[nodiscard]] PlanarDiagram add_tensor(TensorPlaceholderMap extra_tensors,
                                            std::vector<DiagramInstruction> extra_definition,
@@ -814,7 +815,7 @@ class PlanarLinearOperator : public LinearOperator
 /// It leaves the `legs` unchanged up to cyclical permutation.
 /// It is fully specified by assigning each leg to either the new codomain or the new domain.
 ///
-/// @param tensor The tensor whose legs are to be permuted.
+/// @param T The tensor whose legs are to be permuted.
 /// @param codomain, domain The legs that should be in the new (co)domain, in the correct order.
 /// Only one of `codomain`, `domain` is required when the other can be unambiguously inferred. This
 /// is the case when the specified `codomain` or `domain` contains at least one leg.

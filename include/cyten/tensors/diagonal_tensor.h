@@ -24,8 +24,11 @@ namespace cyten {
 /// i.e. it is given by @f$ \bigoplus_a \lambda_a \eye_a @f$, where the sum goes over sectors
 /// @f$ a @f$ of the `leg` @f$ V = \bigoplus_a a @f$.
 ///
-/// This is the natural type e.g. for singular values or eigenvalue and allows
-/// `elementwise <diagonal_elementwise>` operations.
+/// This is the natural type e.g. for singular values or eigenvalues and allows
+/// elementwise operations (for example `complex_conj`, `sqrt`, `exp`).
+///
+/// If a function can be defined as a power series in ``D`` and ``D.hc``, its action can be
+/// achieved by applying that power series to the diagonal elements individually.
 ///
 /// @param data The numerical data ("free parameters") comprising the tensor. type is
 /// backend-specific
@@ -35,14 +38,6 @@ namespace cyten {
 /// one for the domain. Or a single flat list for all legs in the order of the `legs`, such that
 /// ``[codomain_labels, domain_labels]`` is equivalent to ``[*codomain_legs,
 /// *reversed(domain_legs)]``.
-/// @param .. _diagonal_elementwise
-/// @param Elementwise Functions
-/// @param ---------------------
-/// @param A bunch of "elementwise" functions can be defined for diagonal tensors.
-/// @param If a function can be defined as a power series in ``D`` and ``D.hc``, its action can be
-/// achieved
-/// @param by applying that power series to the diagonal elements individually.
-/// @param E.g. `complex_conj`, `sqrt`, `exp` etc.
 class DiagonalTensor : public SymmetricTensor
 {
   public:
@@ -80,15 +75,16 @@ class DiagonalTensor : public SymmetricTensor
     /// parameters of the tensor in the `data`. The concrete meaning of these blocks depends
     /// on the backend.
     ///
-    /// @param func A function with two possible signatures. If `shape_kw` is given, we expect::
-    /// ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``  Otherwise::  ``func(shape:
-    /// tuple[int, ...], **kwargs) -> BlockLike``  Where ``shape`` is the shape of the block to be
-    /// generate and `func_kwargs` are passed as ``kwargs``. The output is converted to
+    /// `func` has two possible signatures. If `shape_kw` is given, we expect
+    /// ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``. Otherwise
+    /// ``func(shape: tuple[int, ...], **kwargs) -> BlockLike``. ``shape`` is the shape of the
+    /// block to generate and `func_kwargs` are passed as ``kwargs``. The output is converted to
     /// backend-specific blocks via ``backend.as_block``. In particular, it may be modified
-    /// in-place after that.
-    /// @param codomain, domain, backend, labels Arguments for constructor of `SymmetricTensor`.
-    /// @param func_kwargs Additional keyword arguments to be passed to ``func``.
-    /// @param shape_kw If given, the shape is passed to `func` as a kwarg with this keyword.
+    /// in-place after that. If `shape_kw` is given, the shape is passed to `func` as a kwarg with
+    /// this keyword.
+    ///
+    /// @param func The block factory, see above.
+    /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
     /// @param dtype If given, the resulting blocks from `func` are converted to this dtype.
     /// @param device If given, the resulting blocks are moved to that device. Per default, if
     /// `func` returns backend-specific blocks, their device is used and otherwise the default
@@ -117,6 +113,8 @@ class DiagonalTensor : public SymmetricTensor
     /// converted using `as_block`. This includes e.g. nested python iterables or numpy arrays.
     /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
     /// @param dtype If given, `diag` is converted to this dtype.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
+    /// @param tol Tolerance for converting / validating the diagonal entries.
     /// diagonal_as_block, diagonal_as_numpy
     ///     Inverse methods that recover the `diag` entries.
     [[nodiscard]] static Ptr from_diag_block(BlockBackend::BlockPtr diag,
@@ -131,6 +129,7 @@ class DiagonalTensor : public SymmetricTensor
     ///
     /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
     /// @param dtype The dtype for the entries.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       TensorBackend::Ptr backend = nullptr,
                                       std::optional<LegLabels> labels = std::nullopt,
@@ -151,6 +150,7 @@ class DiagonalTensor : public SymmetricTensor
     /// @param mean The mean of the distribution. ``None`` is equivalent to zero mean.
     /// @param sigma The standard deviation of the distribution
     /// @param dtype The dtype for the entries.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_random_normal(Space::Ptr leg = nullptr,
                                                 TensorCPtr mean = nullptr,
                                                 float64 sigma = 1.0,
@@ -172,6 +172,7 @@ class DiagonalTensor : public SymmetricTensor
     ///
     /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
     /// @param dtype The dtype for the entries.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_random_uniform(Space::Ptr leg,
                                                  TensorBackend::Ptr backend = nullptr,
                                                  std::optional<LegLabels> labels = std::nullopt,
@@ -192,15 +193,14 @@ class DiagonalTensor : public SymmetricTensor
     /// block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
     /// in the codomain.
     ///
-    /// @param func A function with the following signature::  ``func(shape: tuple[int, ...],
-    /// coupled: Sector, **kwargs) -> BlockLike``  Where ``shape`` is the shape of the block to be
-    /// generated, ``coupled`` is the current coupled sector and `func_kwargs` are passed as
-    /// ``kwargs``. The output is converted to backend-specific blocks via
-    /// ``backend.block_backend.as_block``.
-    /// @param codomain, domain, backend, labels Arguments, like for constructor of
-    /// `SymmetricTensor`.
-    /// @param func_kwargs Additional keyword arguments to be passed to ``func``.
-    /// @param shape_kw If given, the shape is passed to `func` as a kwarg with this keyword.
+    /// `func` has signature ``func(shape: tuple[int, ...], coupled: Sector, **kwargs) ->
+    /// BlockLike``. ``shape`` is the shape of the block to be generated, ``coupled`` is the
+    /// current coupled sector and `func_kwargs` are passed as ``kwargs``. The output is converted
+    /// to backend-specific blocks via ``backend.block_backend.as_block``. If `shape_kw` is given,
+    /// the shape is passed to `func` as a kwarg with this keyword.
+    ///
+    /// @param func The block factory, see above.
+    /// @param leg, backend, labels Arguments, like for constructor of `DiagonalTensor`.
     /// @param dtype If given, the resulting blocks from `func` are converted to this dtype.
     /// @param device If given, the resulting blocks are moved to that device. Per default, if
     /// `func` returns backend-specific blocks, their device is used and otherwise the default
@@ -348,12 +348,13 @@ class DiagonalTensor : public SymmetricTensor
 
     /// Common implementation for the binary dunder methods ``__mul__`` etc.
     ///
+    /// If `return_NotImplemented` is set, `NotImplemented` should be returned on a non-scalar
+    /// and non-`Tensor` `other`.
+    ///
     /// @param other Either a number or a DiagonalTensor.
     /// @param func The function with signature ``func(self_block: Block, other_block: Block) ->
     /// Block`` Scalars get passed the (0D) block representation of the scalar.
     /// @param operand A string representation of the operand, used in error messages
-    /// @param return_NotImplemented Whether `NotImplemented` should be returned on a non-scalar
-    /// and non-`Tensor` other.
     /// @param right If this is the "right" version, i.e. ``func(other, self)``.
     [[nodiscard]] virtual Ptr _binary_operand(BlockBackend::Scalar other,
                                               BlockBinaryFn func,
@@ -413,6 +414,7 @@ class Identity : public DiagonalTensor
     ///
     /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
     /// @param dtype The dtype for the entries.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       TensorBackend::Ptr backend = nullptr,
                                       std::optional<LegLabels> labels = std::nullopt,

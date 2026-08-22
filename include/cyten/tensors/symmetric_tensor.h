@@ -81,15 +81,16 @@ class SymmetricTensor : public Tensor
     /// parameters of the tensor in the `data`. The concrete meaning of these blocks depends
     /// on the backend.
     ///
-    /// @param func A function with two possible signatures. If `shape_kw` is given, we expect::
-    /// ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``  Otherwise::  ``func(shape:
-    /// tuple[int, ...], **kwargs) -> BlockLike``  Where ``shape`` is the shape of the block to be
-    /// generate and `func_kwargs` are passed as ``kwargs``. The output is converted to
+    /// `func` has two possible signatures. If `shape_kw` is given, we expect
+    /// ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``. Otherwise
+    /// ``func(shape: tuple[int, ...], **kwargs) -> BlockLike``. ``shape`` is the shape of the
+    /// block to generate and `func_kwargs` are passed as ``kwargs``. The output is converted to
     /// backend-specific blocks via ``backend.as_block``. In particular, it may be modified
-    /// in-place after that.
+    /// in-place after that. If `shape_kw` is given, the shape is passed to `func` as a kwarg with
+    /// this keyword.
+    ///
+    /// @param func The block factory, see above.
     /// @param codomain, domain, backend, labels Arguments for constructor of `SymmetricTensor`.
-    /// @param func_kwargs Additional keyword arguments to be passed to ``func``.
-    /// @param shape_kw If given, the shape is passed to `func` as a kwarg with this keyword.
     /// @param dtype If given, the resulting blocks from `func` are converted to this dtype.
     /// @param device If given, the resulting blocks are moved to that device. Per default, if
     /// `func` returns backend-specific blocks, their device is used and otherwise the default
@@ -163,6 +164,7 @@ class SymmetricTensor : public Tensor
     /// @param codomain, domain, backend, labels Arguments, like for constructor of
     /// `SymmetricTensor`.
     /// @param dtype The dtype for the tensor.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_random_uniform(TensorProduct::Ptr codomain,
                                                  TensorProduct::Ptr domain = nullptr,
                                                  TensorBackend::Ptr backend = nullptr,
@@ -184,15 +186,15 @@ class SymmetricTensor : public Tensor
     /// block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
     /// in the codomain.
     ///
-    /// @param func A function with the following signature::  ``func(shape: tuple[int, ...],
-    /// coupled: Sector, **kwargs) -> BlockLike``  Where ``shape`` is the shape of the block to be
-    /// generated, ``coupled`` is the current coupled sector and `func_kwargs` are passed as
-    /// ``kwargs``. The output is converted to backend-specific blocks via
-    /// ``backend.block_backend.as_block``.
+    /// `func` has signature ``func(shape: tuple[int, ...], coupled: Sector, **kwargs) ->
+    /// BlockLike``. ``shape`` is the shape of the block to be generated, ``coupled`` is the
+    /// current coupled sector and `func_kwargs` are passed as ``kwargs``. The output is converted
+    /// to backend-specific blocks via ``backend.block_backend.as_block``. If `shape_kw` is given,
+    /// the shape is passed to `func` as a kwarg with this keyword.
+    ///
+    /// @param func The block factory, see above.
     /// @param codomain, domain, backend, labels Arguments, like for constructor of
     /// `SymmetricTensor`.
-    /// @param func_kwargs Additional keyword arguments to be passed to ``func``.
-    /// @param shape_kw If given, the shape is passed to `func` as a kwarg with this keyword.
     /// @param dtype If given, the resulting blocks from `func` are converted to this dtype.
     /// @param device If given, the resulting blocks are moved to that device. Per default, if
     /// `func` returns backend-specific blocks, their device is used and otherwise the default
@@ -229,6 +231,8 @@ class SymmetricTensor : public Tensor
     /// array ``coeffs``).
     /// @param codomain, domain, backend, labels Arguments, like for constructor of
     /// `SymmetricTensor`.
+    /// @param dtype The dtype of the resulting tensor.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_tree_pairs(py::object trees,
                                              TensorProduct::Ptr codomain,
                                              TensorProduct::Ptr domain = nullptr,

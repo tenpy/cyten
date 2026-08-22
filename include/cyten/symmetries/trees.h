@@ -224,7 +224,7 @@ class FusionTree
     /// Optional Python ``TensorBackend`` may be passed via the pybind binding instead.
     ///
     /// @param backend The backend for the resulting block. By default, we return a numpy array.
-    /// @param dtye The dtype for the resulting block. By default, inferred from the symmetry
+    /// @param dtype The dtype for the resulting block. By default, inferred from the symmetry
     /// @param understood_braiding For symmetries with non-trivial (but symmetric) braiding, e.g.
     /// fermions, the resulting dense block does no longer capture the braiding statistics
     /// correctly. This means that `permute_legs` is not consistently reproduced by e.g.

@@ -453,6 +453,7 @@ class BlockBackend
     virtual BlockPtr mul(complex128 a, const BlockCPtr& b);
     /// The p-norm vector-norm of a block.
     ///
+    /// @param a The block.
     /// @param order The order @f$ p @f$ of the norm. Unlike numpy, we always compute vector norms,
     /// never matrix norms. We only support p-norms @f$ \Vert x \Vert = \sqrt[p]{\sum_i
     /// \abs{x_i}^p} @f$.
@@ -468,7 +469,7 @@ class BlockBackend
     virtual BlockPtr permute_axes(const BlockCPtr& a, const std::vector<int64>& permutation) = 0;
     /// For a matrix `a` with two combined multi-indices, permute the sub-indices.
     ///
-    /// @param a A matrix with combined axes ``[(m1.m2...mJ), (n1.n2...nK)]``.
+    /// @param block A matrix with combined axes ``[(m1.m2...mJ), (n1.n2...nK)]``.
     /// @param dims1 The dimensions of the subindices ``[m1, m2, ..., mJ]``.
     /// @param idcs1 Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the
     /// first multi-index of the result.
@@ -487,7 +488,7 @@ class BlockBackend
                                      const std::vector<int64>& idcs2);
     /// For a matrix `a` with a single combined multi-index, permute sub-indices.
     ///
-    /// @param a A matrix with axes ``[M, N]``, where either ``M = (m1.m2...mJ)`` or ``N =
+    /// @param block A matrix with axes ``[M, N]``, where either ``M = (m1.m2...mJ)`` or ``N =
     /// (n1.n2...nK)`` is a multi-index *but not both*.
     /// @param axis Which of the two axes has the multi-indices
     /// @param dims The dimensions of the sub-indices, e.g. ``[m1, m2, ..., mJ]``.

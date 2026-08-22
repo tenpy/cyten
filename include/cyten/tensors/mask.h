@@ -127,6 +127,7 @@ class Mask : public Tensor
     ///
     /// @param leg The single leg for the Mask, equal to both its small and large leg.
     /// @param is_projection, backend, labels Arguments, like for constructor of `Mask`.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     /// from_zero
     ///     The projection Mask that discards all states and keeps none.
     [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
@@ -147,6 +148,7 @@ class Mask : public Tensor
     /// it is kept.
     /// @param large_leg The large leg, in the domain of the projection
     /// @param backend, labels Arguments, like for the constructor
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_block_mask(BlockBackend::BlockPtr block_mask,
                                              Space::Ptr large_leg,
                                              TensorBackend::Ptr backend = nullptr,
@@ -174,6 +176,7 @@ class Mask : public Tensor
     /// @param indices Valid index/indices for a 1D numpy array. The elements of the public basis
     /// of `large_leg` with these indices are kept by the projection.
     /// @param large_leg, backend, labels Same as for `__init__`.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_indices(py::object indices,
                                           Space::Ptr large_leg,
                                           TensorBackend::Ptr backend = nullptr,
@@ -193,6 +196,8 @@ class Mask : public Tensor
     /// Is ignored if `small_leg` is given, since it determines the number of kept sectors.
     /// @param min_keep If `small_leg` is not given, the minimum number of sectors kept. Is ignored
     /// of `small_leg` is given.
+    /// @param device The device of the tensor. If omitted, use the default device of the backend.
+    /// @param np_random Optional numpy random generator used when sampling the mask.
     [[nodiscard]] static Ptr from_random(Space::Ptr large_leg,
                                          Space::Ptr small_leg = nullptr,
                                          TensorBackend::Ptr backend = nullptr,

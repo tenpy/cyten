@@ -279,6 +279,26 @@ class LegPipe : public virtual Leg
 
 /// A `Space` that is defined as (the dual of) a direct sum of sectors.
 ///
+/// While every `Space` is isomorphic to a direct sum of sectors, an `ElementarySpace`
+/// is by definition *equal* to such a direct sum, or to the dual of such a sum. We distinguish
+/// "ket" spaces @f$ V_k := a_1 \oplus a_2 \oplus \dots \plus a_N @f$ with ``is_dual=False``
+/// and "bra" spaces @f$ V_b := [b_1 \oplus b_2 \oplus \dots \plus b_N]^* @f$ with
+/// ``is_dual=True``. The listed sectors, @f$ \{a_n\} @f$ for the ket space @f$ V_k @f$ and the
+/// @f$ \{b_n\} @f$ for the bra space, are the `defining_sectors` of the space. For a ket
+/// space, they coincide with the `sector_decomposition`, while for a bra space they are
+/// mutually dual, since we have @f$ V_b \cong \bar{b}_1 \oplus \bar{b}_2 \oplus \dots \plus
+/// \bar{b}_N @f$.
+///
+/// We impose a canonical order of sectors, such that the `defining_sectors` are sorted.
+/// This in turn means that the `sector_order` is ``'sorted'`` for ket spaces and
+/// ``'dual_sorted'`` for bra spaces.
+///
+/// If the symmetry `can_be_dropped`, there is a notion of a basis for the
+/// spaces. We demand the basis to be compatible with the symmetry, i.e. each basis vector
+/// needs to lie in one of the sectors of the symmetry. The *internal* basis order that results
+/// from demanding that the sectors are contiguous and sorted may, however, not be the desired
+/// basis order, e.g. for matrix representations.
+///
 /// Note that `Space::symmetry` / `Leg::symmetry` and `Space::dim` /
 /// `Leg::dim` are separate members of the two bases. They are kept in sync; access them
 /// through the `Space` base within this class.
@@ -597,23 +617,7 @@ class AbelianLegPipe
                             bool combine_cstyle = true);
     ~AbelianLegPipe() override = default;
 
-    /// Change the symmetry by specifying how the sectors change.
-    ///
-    /// .. note ::
-    ///     This interface assumes that a single sector of the old symmetry is mapped to a single
-    ///     sector of the new symmetry, i.e. that the functor that we realize here preserves
-    ///     simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
-    ///     subgroup.
-    ///
-    /// @param symmetry The symmetry of the new space
-    /// @param sector_map A map of sectors (2D int arrays), such that ``new_sectors =
-    /// sector_map(old_sectors)``. The map is assumed to cooperate with duality, i.e. we assume
-    /// without checking that ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
-    /// ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
-    /// @param injective If ``True``, the `sector_map` is assumed to be injective, i.e. produce a
-    /// list of unique outputs, if the inputs are unique.
-    /// @returns A space with the new symmetry. The order of the basis is preserved, but every
-    /// basis element lives in a new sector, according to `sector_map`.
+    /// Perform sanity checks.
     void test_sanity() const override;
 
     py::object as_Space() override;
@@ -688,6 +692,7 @@ class AbelianLegPipe
     /// @param dim The dimension of the space.
     /// @param symmetry The symmetry of the space. Defaults to ``no_symmetry``.
     /// @param is_dual If the space should be bra or a ket space.
+    /// @param basis_perm Optional permutation of the public computational basis.
     static Ptr from_trivial_sector(int64 dim = 1,
                                    Symmetry::Ptr symmetry = nullptr,
                                    bool is_dual = false,
@@ -710,40 +715,10 @@ class AbelianLegPipe
     bool operator==(Leg const& other) const override;
     bool operator==(Space const& other) const override;
 
-    /// A `Space` that is defined as (the dual of) a direct sum of sectors.
+    /// String representation of this pipe.
     ///
-    /// While every `Space` is isomorphic to a direct sum of sectors, an `ElementarySpace`
-    /// is by definition *equal* to such a direct sum, or to the dual of such a sum. We distinguish
-    /// "ket" spaces @f$ V_k := a_1 \oplus a_2 \oplus \dots \plus a_N @f$ with ``is_dual=False``
-    /// and "bra" spaces @f$ V_b := [b_1 \oplus b_2 \oplus \dots \plus b_N]^* @f$ with
-    /// ``is_dual=True``. The listed sectors, @f$ \{a_n\} @f$ for the ket space @f$ V_k @f$ and the
-    /// @f$ \{b_n\} @f$ for the bra space, are the `defining_sectors` of the space. For a ket
-    /// space, they coincide with the `sector_decomposition`, while for a bra space they are
-    /// mutually dual, since we have @f$ V_b \cong \bar{b}_1 \oplus \bar{b}_2 \oplus \dots \plus
-    /// \bar{b}_N @f$.
-    ///
-    /// We impose a canonical order of sectors, such that the `defining_sectors` are sorted.
-    /// This in turn means that the `sector_order` is ``'sorted'`` for ket spaces and
-    /// ``'dual_sorted'`` for bra spaces.
-    ///
-    /// If the symmetry `can_be_dropped`, there is a notion of a basis for the
-    /// spaces. We demand the basis to be compatible with the symmetry, i.e. each basis vector
-    /// needs to lie in one of the sectors of the symmetry. The *internal* basis order that results
-    /// from demanding that the sectors are contiguous and sorted may, however, not be the desired
-    /// basis order, e.g. for matrix representations.
-    ///
-    /// @param symmetry, sectors, multiplicities, is_dual, basis_perm Like attributes of the same
-    /// name, except nested sequences are allowed in place of arrays.
-    ///
-    /// Attributes:
-    ///
-    /// is_dual: bool
-    ///     If this is a ket space (``False``) or a bra space (``True``).
-    /// defining_sectors: 2D array of int
-    ///     The defining sectors, see class docstring of `ElementarySpace`.
-    ///     Is ``np.lexsort( .T)``-ed.
-    ///     The `sector_decomposition` is equal for ket spaces (``is_dual=False``) or given by
-    ///     the respective `dual_sectors` for bra spaces.
+    /// @param show_symmetry If the symmetry should be included in the string.
+    /// @param one_line If the result should be a single line.
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
 
     /// The permutation of basis elements that is introduced by the fusion.

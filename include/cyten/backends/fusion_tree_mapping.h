@@ -170,6 +170,7 @@ class TensorMapping
     /// @param codomain_idcs, domain_idcs The permutations such that ``new_(co)domain[i] =
     /// old_legs[(co)domain_idcs[i]]``. This permutation acts on the uncoupled multiplicity
     /// indices.
+    /// @param block_backend The block backend used to build the transformed tree-pair data.
     [[nodiscard]] virtual FusionTreeData::Ptr transform_tensor(
       FusionTreeData const& data,
       TensorProduct::Ptr codomain,

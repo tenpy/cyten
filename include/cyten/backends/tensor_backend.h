@@ -119,20 +119,28 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     ///
     /// A trivial leg is one-dimensional and consists only of the trivial sector of the symmetry.
     ///
-    /// @param tens The tensor to add a leg to. Since `DiagonalTensor` and `Mask` do not support
+    /// The position of the new leg can be specified in three mutually exclusive ways. If the
+    /// positional argument `leg_pos` is used, ``result.legs[leg_pos]`` will be the trivial leg.
+    /// In most cases that unambiguously assigns it to either the domain or the codomain. If
+    /// ambiguous (``if legs_pos == num_codomain_legs``), it is added to the codomain.
+    /// Alternatively, it can be added to the codomain at ``codomain[codomain_pos]`` or to the
+    /// domain at ``domain_pos``. Note the implications for the ``is_dual`` argument! Per default,
+    /// we use ``0``, i.e. add at ``legs[0]`` / ``codomain[0]``.
+    ///
+    /// The `label` is the label for the new leg. `is_dual` chooses if we add a dual (bra-like) or
+    /// ket-like leg. Note that if `leg_pos` is given, we have
+    /// ``result.legs[leg_pos].is_dual == is_dual``, but if `domain_pos` is given, we have
+    /// ``result.domain[domain_pos].is_dual == is_dual``, which are mutually opposite.
+    ///
+    /// This backend method receives the already resolved placement as `add_to_domain` and
+    /// `co_domain_pos`, together with the resulting (co)domains.
+    ///
+    /// @param a The tensor to add a leg to. Since `DiagonalTensor` and `Mask` do not support
     /// adding legs, they will be converted to `SymmetricTensor` first.
-    /// @param legs_pos, codomain_pos, domain_pos The position of the new leg can be specified in
-    /// three mutually exclusive ways. If the positional argument `leg_pos` is used,
-    /// ``result.legs[leg_pos]`` will be the trivial leg. In most cases that unambiguously assigns
-    /// it to either the domain or the codomain. If ambiguous (``if legs_pos ==
-    /// num_codomain_legs``), it is added to the codomain. Alternatively, it can be added to the
-    /// codomain at ``codomain[codomain_pos]`` or to the domain at ``domain_pos``. Note the
-    /// implications for the ``is_dual`` argument! Per default, we use ``0``, i.e. add at
-    /// ``legs[0]`` / ``codomain[0]``.
-    /// @param label The label for the new leg.
-    /// @param is_dual If we add a dual (bra-like) or ket-like leg. Note that if `leg_pos` is
-    /// given, we have ``result.legs[leg_pos].is_dual == is_dual``, but if `domain_pos` is given,
-    /// we have ``result.domain[domain_pos].is_dual == is_dual``, which are mutually opposite.
+    /// @param legs_pos Position of the new leg in `a.legs`.
+    /// @param add_to_domain If true, add the leg to the domain, otherwise to the codomain.
+    /// @param co_domain_pos Position of the new leg in that (co)domain.
+    /// @param new_codomain, new_domain The (co)domain of the result.
     virtual DataPtr add_trivial_leg(TensorCPtr a,
                                     int64 legs_pos,
                                     bool add_to_domain,
@@ -148,10 +156,11 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// Note that this is a basis-dependent and backend-dependent notion of distance, which does
     /// not come from a norm in the strict mathematical sense.
     ///
-    /// @param tensor_1, tensor_2 The tensors to compare.
-    /// @param atol, rtol Absolute and relative tolerance, see above.
-    /// @param allow_different_types If ``True``, we convert types, e.g. via `as_SymmetricTensor`
+    /// If `allow_different_types` is ``True``, we convert types, e.g. via `as_SymmetricTensor`
     /// to allow comparison. If ``False``, we raise on mismatching types.
+    ///
+    /// @param a, b The tensors to compare.
+    /// @param atol, rtol Absolute and relative tolerance, see above.
     ///
     /// Notes:
     ///
@@ -170,17 +179,18 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// - Legs have been permuted, such that each group of legs to be combined appears contiguously
     ///   and either entirely in the codomain or entirely in the domain
     ///
+    /// `new_codomain_combine` is a list of tuples ``(positions, combined)``, where positions are
+    /// all the codomain-indices which should be combined and ``combined`` is the resulting
+    /// `LegPipe`, i.e. ``combined == LegPipe([tensor.codomain[n] for n in positions])``.
+    /// `new_domain_combine` is similar as `new_codomain_combine` but for the domain. Note that
+    /// ``positions`` are domain-indices, i.e ``n = positions[i]`` refers to ``tensor.domain[n]``,
+    /// *not* ``tensor.legs[n]`` !
+    ///
     /// @param tensor The tensor to modify
     /// @param leg_idcs_combine A list of groups. Each group a list of integer leg indices, to be
     /// combined. Must be in ascending order.
     /// @param pipes The resulting pipes. Same length and order as `leg_idcs_combine`. In the
     /// domain, this is the product space as it will appear in the domain, not in legs.
-    /// @param new_codomain_combine A list of tuples ``(positions, combined)``, where positions are
-    /// all the codomain-indices which should be combined and ``combined`` is the resulting
-    /// `LegPipe`, i.e. ``combined == LegPipe([tensor.codomain[n] for n in positions])``
-    /// @param new_domain_combine Similar as `new_codomain_combine` but for the domain. Note that
-    /// ``positions`` are domain-indices, i.e ``n = positions[i]`` refers to ``tensor.domain[n]``,
-    /// *not* ``tensor.legs[n]`` !
     /// @param new_codomain, new_domain The codomain and domain of the resulting tensor
     virtual DataPtr combine_legs(TensorCPtr tensor,
                                  std::vector<std::vector<int64>> leg_idcs_combine,
@@ -406,6 +416,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     ///
     /// Should be equivalent to ``a.to_numpy()[tuple(idcs)].item()``.
     ///
+    /// @param a The tensor.
     /// @param idcs The indices. Checks have already been performed, i.e. we may assume that -
     /// len(idcs) == a.num_legs - 0 <= idx < leg.dim
     virtual BlockBackend::Scalar get_element(SymmetricTensorCPtr a, std::vector<int64> idcs) = 0;
@@ -415,6 +426,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// Should be equivalent to ``a.to_numpy()[idx, idx].item()`` or
     /// ``a.diagonal_as_numpy()[idx].item()``.
     ///
+    /// @param a The diagonal tensor.
     /// @param idx The index for both legs. Checks have already been performed, i.e. we may assume
     /// that ``0 <= idx < leg.dim``
     virtual BlockBackend::Scalar get_element_diagonal(DiagonalTensorCPtr a, int64 idx) = 0;
@@ -425,6 +437,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     ///
     /// Should be equivalent to ``a.to_numpy()[tuple(idcs)].item()``.
     ///
+    /// @param a The mask.
     /// @param idcs The indices. Checks have already been performed, i.e. we may assume that -
     /// len(idcs) == a.num_legs == 2 - 0 <= idx < leg.dim
     virtual BlockBackend::Scalar get_element_mask(MaskCPtr a, std::vector<int64> idcs) = 0;
@@ -457,7 +470,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
 
     /// The LQ decomposition of a tensor.
     ///
-    /// A `tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
+    /// A tensor decomposition (see `decompositions`) ``tensor ~ L @ Q`` with the following
     /// properties:
     ///
     /// - ``L`` has a lower triangular structure *in the coupled basis*.
@@ -478,15 +491,16 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// We always compute the "reduced", a.k.a. "economic" version.
     /// To group the legs differently, use `permute_legs` or `combine_to_matrix` first.
     ///
+    /// Labels for the new legs can be given as two labels ``[a, b]`` s.t. ``L.labels[-1] == a``
+    /// and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
+    /// `new_leg_dual` chooses if the new leg should be a ket space (``False``) or bra space
+    /// (``True``). `charge_leg_top` fixes whether the charge leg of a decomposed `ChargedTensor`
+    /// should end up in the top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``).
+    /// The corresponding tensor is then also a `ChargedTensor`. Is ignored if the input tensor is
+    /// not a `ChargedTensor`.
+    ///
     /// @param tensor The tensor to decompose.
-    /// @param new_labels Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1]
-    /// == a`` and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
-    /// @param new_leg_dual If the new leg should be a ket space (``False``) or bra space
-    /// (``True``).
-    /// @param charge_leg_top Fixes whether the charge leg of a decomposed `ChargedTensor` should
-    /// end up in the top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``). The
-    /// corresponding tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not
-    /// a `ChargedTensor`.
+    /// @param new_co_domain The (co)domain of the new connecting leg.
     virtual std::tuple<DataPtr, DataPtr> lq(SymmetricTensorCPtr tensor,
                                             TensorProduct::Ptr new_co_domain) = 0;
 
@@ -645,7 +659,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
 
     /// The singular value decomposition (SVD) of a tensor.
     ///
-    /// A `tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
+    /// A tensor decomposition (see `decompositions`) ``tensor ~ U @ S @ Vh`` with the following
     /// properties:
     ///
     /// - ``Vh`` and ``U`` are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
@@ -676,17 +690,18 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     ///
     /// To group the legs differently, use `permute_legs` or `combine_to_matrix` first.
     ///
-    /// @param tensor The tensor to decompose.
-    /// @param new_labels The labels for the new legs can be specified in the following three ways;
-    /// Four labels ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
+    /// Labels for the new legs can be specified in the following three ways: Four labels
+    /// ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
     /// ``Vh.labels[0] == d``. Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``. A single
     /// label ``a`` is equivalent to ``[a, a*, a, a*]``. The new legs are unlabelled by default.
-    /// @param new_leg_dual If the new leg should be a ket space (``False``) or bra space
-    /// (``True``).
-    /// @param charge_leg_top Fixes whether the charge leg of a decomposed `ChargedTensor` should
-    /// end up in the top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``). The
-    /// corresponding tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not
-    /// a `ChargedTensor`.
+    /// `new_leg_dual` chooses if the new leg should be a ket space (``False``) or bra space
+    /// (``True``). `charge_leg_top` fixes whether the charge leg of a decomposed `ChargedTensor`
+    /// should end up in the top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``).
+    /// The corresponding tensor is then also a `ChargedTensor`. Is ignored if the input tensor is
+    /// not a `ChargedTensor`.
+    ///
+    /// @param a The tensor to decompose.
+    /// @param new_co_domain The (co)domain of the new connecting legs.
     /// @param algorithm The algorithm (a.k.a. "driver") for the block-wise svd. Choices are
     /// backend-specific. See `possible_svd_algorithms`.
     /// @returns U: SymmetricTensor | ChargedTensor S: DiagonalTensor Vh: SymmetricTensor |
@@ -741,12 +756,12 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
 
     /// Helper function for `truncate_singular_values`.
     ///
-    /// @param S_np A numpy array of singular values S[i]
+    /// @param S A numpy array of singular values S[i]
     /// @param qdims A numpy array of the quantum dimensions. ``None`` means all qdims are one.
     /// @param chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min, minimize_error Constraints for
     /// truncation. See `truncate_singular_values`.
-    /// @returns mask : 1D numpy array of bool A boolean mask, indicating that ``S_np[mask]``
-    /// should be kept err : float The truncation error ``norm(S_discard) == norm(S - S_keep)``.
+    /// @returns mask : 1D numpy array of bool A boolean mask, indicating that ``S[mask]``
+    /// should be kept; err : float The truncation error ``norm(S_discard) == norm(S - S_keep)``.
     /// new_norm The norm ``norm(S_keep)`` of the approximation.
     std::tuple<py::array, float64, float64> _truncate_singular_values_selection(
       py::array S,
@@ -760,6 +775,9 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
 
     /// Data for a zero tensor.
     ///
+    /// @param codomain, domain The (co)domain of the tensor.
+    /// @param dtype The dtype of the entries.
+    /// @param device The device of the tensor.
     /// @param all_blocks Some specific backends can omit zero blocks ("sparsity"). By default
     /// (``False``), omit them if possible. If ``True``, force all blocks to be created, with zero
     /// entries.
