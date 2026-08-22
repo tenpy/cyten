@@ -1,7 +1,8 @@
 Cyten documentation
 ===================
 
-If you're new here, start with the :doc:`readme_wrap`.
+If you're new here, start with the :doc:`readme_wrap` and the
+:doc:`intro/first_steps` example.
 
 .. toctree::
     :caption: User guide
@@ -9,6 +10,7 @@ If you're new here, start with the :doc:`readme_wrap`.
 
     readme_wrap
     INSTALL
+    intro/first_steps
     introductions
     guidelines/code_style
 
