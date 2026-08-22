@@ -35,11 +35,11 @@ namespace cyten {
 /// ``W`` leg in the codomain, while indices ``3`` and ``-2`` both refer to the ``X`` leg in the
 /// domain. Graphically, the leg indices are arranged as follows::
 ///
-/// |      11  10   9   8   7   6
-/// |      ┏┷━━━┷━━━┷━━━┷━━━┷━━━┷┓
-/// |      ┃          T          ┃
-/// |      ┗┯━━━┯━━━┯━━━┯━━━┯━━━┯┛
-/// |       0   1   2   3   4   5
+///     |      11  10   9   8   7   6
+///     |      ┏┷━━━┷━━━┷━━━┷━━━┷━━━┷┓
+///     |      ┃          T          ┃
+///     |      ┗┯━━━┯━━━┯━━━┯━━━┯━━━┯┛
+///     |       0   1   2   3   4   5
 ///
 /// A similar graphical representation is available as `ascii_diagram` and can be
 /// printed to stdout using `dbg`.

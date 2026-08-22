@@ -14,11 +14,11 @@ namespace cyten {
 ///
 /// The domain and codomain of a diagonal tensor are the same and consist of a single leg::
 ///
-/// |        │
-/// |      ┏━┷━┓
-/// |      ┃ D ┃
-/// |      ┗━┯━┛
-/// |        │
+///     |        │
+///     |      ┏━┷━┓
+///     |      ┃ D ┃
+///     |      ┗━┯━┛
+///     |        │
 ///
 /// A diagonal tensor then is a map that is a multiple of the identity on each sector of the leg,
 /// i.e. it is given by @f$ \bigoplus_a \lambda_a \eye_a @f$, where the sum goes over sectors
