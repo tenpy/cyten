@@ -354,14 +354,14 @@ def doxygen_comment_to_numpy(doc: str) -> str:
                 if cur_lines:
                     cur_lines.append('')
             else:
-                cur_lines.append(stripped)
+                cur_lines.append(line.rstrip())
             continue
         if mode == 'returns':
             if stripped == '':
                 if cur_lines:
                     cur_lines.append('')
             else:
-                cur_lines.append(stripped)
+                cur_lines.append(line.rstrip())
             continue
 
         prose.append(raw)
@@ -381,6 +381,7 @@ def doxygen_comment_to_numpy(doc: str) -> str:
         out.append('Parameters')
         out.append('----------')
         for names, desc_lines in params:
+            desc_lines = _keep_literal_block_indent(desc_lines)
             # Trim trailing empty continuation lines
             while desc_lines and desc_lines[-1].strip() == '':
                 desc_lines.pop()
@@ -397,6 +398,7 @@ def doxygen_comment_to_numpy(doc: str) -> str:
                 else:
                     out.append(f'    {cont}')
     if returns:
+        returns = _keep_literal_block_indent(returns)
         while returns and returns[-1].strip() == '':
             returns.pop()
         if out:
@@ -410,8 +412,11 @@ def doxygen_comment_to_numpy(doc: str) -> str:
     # Doxygen display math → Sphinx ``.. math::`` (before inline, so ``\f[`` is not
     # confused with ``\f$``).
     text = _display_math_to_sphinx(text)
-    # Markdown `code` → reST ``code`` (avoid touching already-doubled ticks).
-    text = re.sub(r'(?<!`)`([^`]+)`(?!`)', r'``\1``', text)
+    # Markdown `code` → reST ``code``. Leave Sphinx roles (:math:`, :meth:`, …) alone.
+    text = _markdown_ticks_to_rest(text)
+    # RST: inline literals cannot span lines; ``Foo``s is not a valid end-string.
+    text = _join_wrapped_inline_literals(text)
+    text = re.sub(r'``(\w+)``s\b', r'``\1``\\ s', text)
     # Doxygen inline math → Sphinx math role (after backtick upgrade).
     text = _inline_math_to_sphinx(text)
     return text
@@ -419,6 +424,72 @@ def doxygen_comment_to_numpy(doc: str) -> str:
 
 _DISPLAY_MATH_RE = re.compile(r'(?:@f\[|\\f\[)(.*?)(?:@f\]|\\f\])', re.DOTALL)
 _INLINE_MATH_RE = re.compile(r'(?:@f\$|\\f\$)(.*?)(?:@f\$|\\f\$)', re.DOTALL)
+
+
+def _markdown_ticks_to_rest(text: str) -> str:
+    """Upgrade markdown `` `code` `` to reST ``code``, without touching Sphinx roles."""
+    protected: list[str] = []
+
+    def stash(m: re.Match[str]) -> str:
+        protected.append(m.group(0))
+        return f'\x00ROLE{len(protected) - 1}\x00'
+
+    text = re.sub(r':[\w]+:`[^`\n]+`', stash, text)
+    text = re.sub(r'(?<!`)`([^`\n]+)`(?!`)', r'``\1``', text)
+    for i, role in enumerate(protected):
+        text = text.replace(f'\x00ROLE{i}\x00', role)
+    return text
+
+
+def _keep_literal_block_indent(lines: list[str]) -> list[str]:
+    """Lstrip wrapped prose; keep extra indent only in a ``::`` literal block.
+
+    Doxygen continues ``@param`` / ``@returns`` with a 4-space wrap. That extra
+    indent is invalid RST inside a NumPy Parameters/Returns section unless it
+    follows ``::``.
+    """
+    out: list[str] = []
+    in_literal = False
+    lit_indent: int | None = None
+    for line in lines:
+        raw = line.rstrip()
+        if in_literal:
+            if not raw.strip():
+                out.append('')
+                continue
+            indent = len(raw) - len(raw.lstrip(' '))
+            if lit_indent is None:
+                lit_indent = indent
+            if indent >= max(lit_indent, 1):
+                out.append(raw)
+                continue
+            in_literal = False
+            lit_indent = None
+        out.append(raw.strip())
+        if raw.strip().endswith('::'):
+            in_literal = True
+            lit_indent = None
+    return out
+
+
+def _join_wrapped_inline_literals(text: str) -> str:
+    """Join lines that split an inline ``...`` literal (RST cannot span those)."""
+    out: list[str] = []
+    buf: list[str] | None = None
+    for line in text.split('\n'):
+        if buf is None:
+            if line.count('``') % 2 == 1:
+                buf = [line]
+            else:
+                out.append(line)
+            continue
+        buf.append(line.strip())
+        if ''.join(buf).count('``') % 2 == 0:
+            out.append(' '.join(buf))
+            buf = None
+    if buf:
+        out.extend(buf)
+    return '\n'.join(out)
 
 
 def _inline_math_to_sphinx(text: str) -> str:

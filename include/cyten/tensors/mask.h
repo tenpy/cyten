@@ -77,6 +77,7 @@ namespace cyten {
 ///     small_leg_perm_inv = [2, 0, 1]
 ///
 /// Which maps an ordered basis as follows ::
+///
 ///     {e0, e1, e2, e3, e4}
 ///     ---large_leg_perm--> {e2, e4, e0, e1, e3}
 ///     ---mask_in_internal_basis--> {e2, e4, e1}

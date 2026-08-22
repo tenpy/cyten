@@ -392,9 +392,7 @@ bind_block_backend(py::module_& m)
            "As complex (real/bool have zero imaginary part).")
       .def("as_int64", &BlockBackend::Scalar::as_int64, "As int64; raises if dtype is not Int64.")
       .def("as_bool", &BlockBackend::Scalar::as_bool, "As bool; raises if dtype is not Bool.")
-      .def("to_numpy",
-           &BlockBackend::Scalar::to_numpy,
-           "Return as numpy scalar (np.bool_, np.float64, etc.).")
+      .def("to_numpy", &BlockBackend::Scalar::to_numpy, DOC(cyten, BlockBackend, Scalar, to_numpy))
       .def(
         "__bool__",
         [](const BlockBackend::Scalar& self) {

@@ -67,7 +67,7 @@ bind_cost_polynomials(py::module_& m)
     py::class_<BigOMonomial> big_omonomial(m, "BigOMonomial");
     py::class_<BigOPolynomial> big_opolynomial(m, "BigOPolynomial");
 
-    big_omonomial.doc() = doc_cpp_ref(R"pydoc(BigOPolynomial)pydoc", "cyten::BigOPolynomial");
+    big_omonomial.doc() = doc_cpp_ref(R"pydoc(BigOMonomial)pydoc", "cyten::BigOMonomial", "class");
 
     big_omonomial.def(py::init<std::map<std::string, int64>>(), py::arg("factors"))
       .def_readwrite("factors", &BigOMonomial::factors)
@@ -123,9 +123,10 @@ bind_cost_polynomials(py::module_& m)
                 ovec.push_back(item.cast<BigOMonomial>());
             return self.is_negligible(ovec, optional_relations(relations));
         },
-        doc_cpp_ref(R"pydoc(is_negligible)pydoc", "cyten::BigOPolynomial::is_negligible()"));
+        doc_cpp_ref(R"pydoc(is_negligible)pydoc", "cyten::BigOMonomial::is_negligible()"));
 
-    big_opolynomial.doc() = doc_cpp_ref(R"pydoc(BigOPolynomial)pydoc", "cyten::BigOPolynomial");
+    big_opolynomial.doc() =
+      doc_cpp_ref(R"pydoc(BigOPolynomial)pydoc", "cyten::BigOPolynomial", "class");
 
     big_opolynomial
       .def(py::init([](py::object terms) {

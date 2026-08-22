@@ -10,6 +10,7 @@ If you're new here, start with the :doc:`readme_wrap`.
     readme_wrap
     INSTALL
     introductions
+    guidelines/code_style
 
 .. toctree::
     :caption: Python Reference

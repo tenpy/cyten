@@ -71,8 +71,8 @@ class BlockBackend
         virtual BlockBackend* get_backend() const = 0;
         /// convert to numpy array, might be copy or (immutable) view
         virtual py::array to_numpy() const = 0;
-        /// convert to numpy array with given Dtype (default impl: to_numpy() then asarray(...,
-        /// dtype)).
+        /// convert to numpy array with given Dtype
+        // default impl: `to_numpy()` then `asarray(..., dtype))`.
         virtual py::array to_numpy(Dtype dtype) const;
 
         /// Shape of the block (one size per axis).
@@ -188,8 +188,9 @@ class BlockBackend
         int64 as_int64() const;
         /// As a bool scalar. Throws if dtype is not Int64.
         bool as_bool() const;
-        /// Return as a numpy scalar (np.bool_, np.float32, np.float64, np.complex64,
-        /// np.complex128).
+        /// Return as a numpy scalar (``np.bool_``, ``np.float32``, ``np.float64``,
+        /// ``np.complex64``,
+        /// ``np.complex128``).
         py::object to_numpy() const;
 
         Scalar operator+(const Scalar& other) const;

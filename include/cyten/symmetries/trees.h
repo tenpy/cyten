@@ -188,7 +188,7 @@ class FusionTree
 
     /// For the ``n``-th fusion vertex, get the respective sectors.
     ///
-    /// @returns The sectors and multiplicity label around the ``n``-th vertex of the tree::
+    /// The sectors and multiplicity label around the ``n``-th vertex of the tree::
     ///
     ///         |   (n-1 higher vertices)      │
     ///         |                      │       │
@@ -197,6 +197,8 @@ class FusionTree
     ///         |                          c
     ///         |                          │
     ///         |                          (possibly lower vertices)
+    ///
+    /// @returns The uncoupled sectors ``a``, ``b``, multiplicity ``µ``, and coupled sector ``c``.
     [[nodiscard]] std::tuple<Sector, Sector, int64, Sector> vertex_labels(int64 n) const;
 
     /// Update the multiplicity and the three sectors around the ``n``-th vertex.

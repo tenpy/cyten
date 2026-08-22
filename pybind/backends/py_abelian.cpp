@@ -138,12 +138,11 @@ bind_abelian_backend(py::module_& m)
       DOC(cyten, AbelianBackend, partial_trace));
 
     // Expose under both the C++ name and the Python private name.
-    m.def(
-      "valid_block_inds",
-      &valid_block_inds,
-      py::arg("codomain"),
-      py::arg("domain"),
-      doc_cpp_ref(R"pydoc(valid_block_inds)pydoc", "cyten::AbelianBackend::valid_block_inds()"));
+    m.def("valid_block_inds",
+          &valid_block_inds,
+          py::arg("codomain"),
+          py::arg("domain"),
+          doc_cpp_ref(R"pydoc(valid_block_inds)pydoc", "cyten::valid_block_inds()"));
     m.attr("_valid_block_inds") = m.attr("valid_block_inds");
 }
 

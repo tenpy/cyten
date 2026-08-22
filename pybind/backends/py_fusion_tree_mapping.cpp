@@ -17,7 +17,8 @@ void
 bind_fusion_tree_mapping(py::module_& m)
 {
     py::class_<BraidInstruction> braid_cls(m, "BraidInstruction");
-    braid_cls.doc() = doc_cpp_ref(R"pydoc(BraidInstruction)pydoc", "cyten::BraidInstruction");
+    braid_cls.doc() =
+      doc_cpp_ref(R"pydoc(BraidInstruction)pydoc", "cyten::BraidInstruction", "class");
 
     braid_cls
       .def(
@@ -32,7 +33,8 @@ bind_fusion_tree_mapping(py::module_& m)
       });
 
     py::class_<BendInstruction> bend_cls(m, "BendInstruction");
-    bend_cls.doc() = doc_cpp_ref(R"pydoc(BendInstruction)pydoc", "cyten::BendInstruction");
+    bend_cls.doc() =
+      doc_cpp_ref(R"pydoc(BendInstruction)pydoc", "cyten::BendInstruction", "class");
 
     bend_cls.def(py::init<bool>(), py::arg("bend_down"))
       .def_readwrite("bend_down", &BendInstruction::bend_down)
@@ -42,7 +44,8 @@ bind_fusion_tree_mapping(py::module_& m)
       });
 
     py::class_<TwistInstruction> twist_cls(m, "TwistInstruction");
-    twist_cls.doc() = doc_cpp_ref(R"pydoc(TwistInstruction)pydoc", "cyten::TwistInstruction");
+    twist_cls.doc() =
+      doc_cpp_ref(R"pydoc(TwistInstruction)pydoc", "cyten::TwistInstruction", "class");
 
     twist_cls
       .def(py::init<bool, std::vector<int64>, bool>(),
@@ -184,8 +187,8 @@ bind_fusion_tree_mapping(py::module_& m)
                     "cyten::FactorizedTreeMapping::transform_tensor()"));
 
     py::class_<PermuteLegsInstructionEngine> perm_cls(m, "PermuteLegsInstructionEngine");
-    perm_cls.doc() = doc_cpp_ref(R"pydoc(PermuteLegsInstructionEngine)pydoc",
-                                 "cyten::PermuteLegsInstructionEngine");
+    perm_cls.doc() = doc_cpp_ref(
+      R"pydoc(PermuteLegsInstructionEngine)pydoc", "cyten::PermuteLegsInstructionEngine", "class");
 
     perm_cls
       .def(py::init<int64,

@@ -157,7 +157,7 @@ bind_no_symmetry_backend(py::module_& m)
       "item",
       [](NoSymmetryBackend& self, TensorCPtr a) { return self.item(a); },
       py::arg("a"),
-      doc_cpp_ref(R"pydoc(item)pydoc", "cyten::NoSymmetryBackend::item()"));
+      doc_cpp_ref(R"pydoc(item)pydoc", "cyten::TensorBackend::item()"));
     cls.def(
       "data_item",
       [](NoSymmetryBackend& self, py::object a) { return self.data_item(py_data(a)); },

@@ -436,8 +436,8 @@ using LevelsSpec = std::vector<std::optional<int64>>;
 /// The transpose of a tensor.
 ///
 /// For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
-/// the transpose matrix :math:`(M^\text{T})_{i,j} = M_{j, i}` .
-/// For a map :math:`f: V \to W`, the transpose is a map :math:`f: W^* \to V^*`::
+/// the transpose matrix @f$ (M^\text{T})_{i,j} = M_{j, i} @f$.
+/// For a map @f$ f: V \to W @f$, the transpose is a map @f$ f: W^* \to V^* @f$::
 ///
 ///     |          │   │   │             ╭───────────╮
 ///     |          │   │   │             │ ╭─────╮   │     │ │ │
@@ -448,17 +448,18 @@ using LevelsSpec = std::vector<std::optional<int64>>;
 ///     |            │   │               │ │   │   ╰─────────╯ │
 ///     |            │   │               │ │   ╰───────────────╯
 ///
-/// @returns The transposed tensor. Its legs and labels fulfill e.g.::
+/// Its legs and labels fulfill e.g.::
 ///
-///        transpose(A).codomain == A.domain.dual == [W2.dual, W1.dual]  # if A.domain == [W1, W2]
-///        transpose(A).domain == A.codomain.dual == [V2.dual, V1.dual]  # if A.codomain == [V1,
-///        V2] transpose(A).legs == [W2.dual, W1.dual, V1, V2]  # compared to A.legs == [V1, V2,
-///        W2.dual, W1.dual] transpose(A).labels == [*reversed(A.domain_labels),
-///        *A.codomain_labels]
+///     transpose(A).codomain == A.domain.dual == [W2.dual, W1.dual]  # if A.domain == [W1, W2]
+///     transpose(A).domain == A.codomain.dual == [V2.dual, V1.dual]  # if A.codomain == [V1, V2]
+///     transpose(A).legs == [W2.dual, W1.dual, V1, V2]  # compared to A.legs == [V1, V2, W2.dual,
+///     W1.dual] transpose(A).labels == [*reversed(A.domain_labels), *A.codomain_labels]
 ///
-///    Note that the resulting `Tensor.legs` depend not only on the input `Tensor.legs`,
-///    but also on how they are partitioned into domain and codomain.
-///    We use the "same" labels, up to the permutation.
+/// Note that the resulting `Tensor.legs` depend not only on the input `Tensor.legs`,
+/// but also on how they are partitioned into domain and codomain.
+/// We use the "same" labels, up to the permutation.
+///
+/// @returns The transposed tensor.
 [[nodiscard]] TensorPtr transpose(TensorCPtr tensor);
 
 } // namespace cyten

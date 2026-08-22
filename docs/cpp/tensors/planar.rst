@@ -55,10 +55,10 @@ Free functions
 .. doxygenfunction:: cyten::planar_lq
    :project: cyten
 
-.. doxygenfunction:: cyten::planar_partial_trace(TensorCPtr, std::vector<std::pair<LegRef, LegRef>> const &)
+.. doxygenfunction:: cyten::planar_partial_trace(TensorCPtr, std::vector<std::vector<LegRef>>)
    :project: cyten
 
-.. doxygenfunction:: cyten::planar_partial_trace(TensorPlaceholder const &, std::vector<std::pair<LegRef, LegRef>> const &)
+.. doxygenfunction:: cyten::planar_partial_trace(TensorPlaceholder const &, std::vector<std::vector<LegRef>>)
    :project: cyten
 
 .. doxygenfunction:: cyten::planar_permute_legs

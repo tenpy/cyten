@@ -512,8 +512,7 @@ bind_tensor_backend(py::module_& m)
           py::overload_cast<py::object, py::object>(&conventional_leg_order),
           py::arg("tensor_or_codomain"),
           py::arg("domain") = py::none(),
-          doc_cpp_ref(R"pydoc(conventional_leg_order)pydoc",
-                      "cyten::TensorBackend::conventional_leg_order()"));
+          doc_cpp_ref(R"pydoc(conventional_leg_order)pydoc", "cyten::conventional_leg_order()"));
 
     m.def(
       "get_same_backend",
@@ -527,7 +526,7 @@ bind_tensor_backend(py::module_& m)
               vec.emplace_back(py::reinterpret_borrow<py::object>(o));
           return get_same_backend(vec, std::move(error_msg));
       },
-      doc_cpp_ref(R"pydoc(get_same_backend)pydoc", "cyten::TensorBackend::get_same_backend()"));
+      doc_cpp_ref(R"pydoc(get_same_backend)pydoc", "cyten::get_same_backend()"));
 }
 
 } // namespace cyten

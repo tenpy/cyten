@@ -1123,12 +1123,12 @@ bind_abelian_leg_pipe(py::module_& m)
           &swap_gate,
           py::arg("V"),
           py::arg("W"),
-          doc_cpp_ref(DOC(cyten, AbelianLegPipe), "cyten::AbelianLegPipe::swap_gate()"));
+          doc_cpp_ref(DOC(cyten, AbelianLegPipe), "cyten::swap_gate()"));
 
     m.def("twist_gate",
           &twist_gate,
           py::arg("V"),
-          doc_cpp_ref(DOC(cyten, AbelianLegPipe), "cyten::AbelianLegPipe::twist_gate()"));
+          doc_cpp_ref(DOC(cyten, AbelianLegPipe), "cyten::twist_gate()"));
 
     m.def("_twist_gate_diag", &twist_gate_diag, py::arg("V"));
 
