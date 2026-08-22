@@ -25,3 +25,4 @@ these stubs.
    cpp/block_backend
    cpp/symmetries
    cpp/tensors
+   cpp/models

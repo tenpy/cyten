@@ -1,5 +1,11 @@
-cyten.config
-============
+config
+======
+
+- full name: cyten.config
+- parent module: :mod:`cyten`
+- type: module
+
+.. py:module:: cyten.config
 
 Declared in ``cyten/config.py`` (bindings in ``pybind/py_config.cpp``).
 

@@ -12,19 +12,14 @@ Cyten main module
 Pybind11 classes and functions (``R"pydoc(...)pydoc"`` docstrings from
 ``pybind/``) are documented in the stubs below.
 
-.. toctree::
-   :maxdepth: 2
-
-   python/config
-   python/backends
-   python/block_backends
-   python/symmetries
-   python/tensors
-   python/tools
-
 .. autosummary::
-    :toctree: reference
 
+    config
+    backends
+    block_backends
+    symmetries
+    tensors
+    tools
     models
 
 .. rubric:: Module description
@@ -35,6 +30,6 @@ Pybind11 classes and functions (``R"pydoc(...)pydoc"`` docstrings from
 .. autosummary::
     :toctree: reference
 
-    show_config
+    show_version
 
 .. autodata:: __version__

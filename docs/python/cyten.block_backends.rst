@@ -1,5 +1,11 @@
-cyten.block_backends
-====================
+block_backends
+==============
+
+- full name: cyten.block_backends
+- parent module: :mod:`cyten`
+- type: module
+
+.. py:module:: cyten.block_backends
 
 Dense-block backends. Bindings live in ``pybind/block_backend/``.
 

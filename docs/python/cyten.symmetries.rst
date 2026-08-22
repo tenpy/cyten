@@ -1,5 +1,11 @@
-cyten.symmetries
-================
+symmetries
+==========
+
+- full name: cyten.symmetries
+- parent module: :mod:`cyten`
+- type: module
+
+.. py:module:: cyten.symmetries
 
 Symmetry types. Bindings live in ``pybind/symmetries/``.
 

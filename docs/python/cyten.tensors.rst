@@ -1,9 +1,22 @@
-cyten.tensors
-=============
+tensors
+=======
+
+- full name: cyten.tensors
+- parent module: :mod:`cyten`
+- type: module
+
+.. py:module:: cyten.tensors
 
 Tensor types and operations. Bindings live in ``pybind/tensors/``.
 
 Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+
+.. toctree::
+   :maxdepth: 1
+
+   tensors/sparse
+   tensors/planar
+   tensors/krylov_based
 
 cyten.tensors.LabelledLegs
 --------------------------

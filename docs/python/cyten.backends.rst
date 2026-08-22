@@ -1,5 +1,11 @@
-cyten.backends
-==============
+backends
+========
+
+- full name: cyten.backends
+- parent module: :mod:`cyten`
+- type: module
+
+.. py:module:: cyten.backends
 
 Tensor backends. Bindings live in ``pybind/backends/``.
 

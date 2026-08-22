@@ -137,19 +137,18 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(spin_spin_coupling)pydoc", "cyten::Coupling::spin_spin_coupling()"));
+          DOC(cyten, spin_spin_coupling));
 
-    m.def(
-      "spin_field_coupling",
-      &spin_field_coupling,
-      py::arg("sites"),
-      py::arg("hx") = 0,
-      py::arg("hy") = 0,
-      py::arg("hz") = 0,
-      py::arg("backend") = py::none(),
-      py::arg("device") = py::none(),
-      py::arg("name") = py::none(),
-      doc_cpp_ref(R"pydoc(spin_field_coupling)pydoc", "cyten::Coupling::spin_field_coupling()"));
+    m.def("spin_field_coupling",
+          &spin_field_coupling,
+          py::arg("sites"),
+          py::arg("hx") = 0,
+          py::arg("hy") = 0,
+          py::arg("hz") = 0,
+          py::arg("backend") = py::none(),
+          py::arg("device") = py::none(),
+          py::arg("name") = py::none(),
+          DOC(cyten, spin_field_coupling));
 
     m.def("aklt_coupling",
           &aklt_coupling,
@@ -158,17 +157,16 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(aklt_coupling)pydoc", "cyten::Coupling::aklt_coupling()"));
+          DOC(cyten, aklt_coupling));
 
-    m.def(
-      "heisenberg_coupling",
-      &heisenberg_coupling,
-      py::arg("sites"),
-      py::arg("J") = 1,
-      py::arg("backend") = py::none(),
-      py::arg("device") = py::none(),
-      py::arg("name") = py::none(),
-      doc_cpp_ref(R"pydoc(heisenberg_coupling)pydoc", "cyten::Coupling::heisenberg_coupling()"));
+    m.def("heisenberg_coupling",
+          &heisenberg_coupling,
+          py::arg("sites"),
+          py::arg("J") = 1,
+          py::arg("backend") = py::none(),
+          py::arg("device") = py::none(),
+          py::arg("name") = py::none(),
+          DOC(cyten, heisenberg_coupling));
 
     m.def("chiral_3spin_coupling",
           &chiral_3spin_coupling,
@@ -177,8 +175,7 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(chiral_3spin_coupling)pydoc",
-                      "cyten::Coupling::chiral_3spin_coupling()"));
+          DOC(cyten, chiral_3spin_coupling));
 
     m.def("chemical_potential",
           &chemical_potential,
@@ -188,7 +185,7 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(chemical_potential)pydoc", "cyten::Coupling::chemical_potential()"));
+          DOC(cyten, chemical_potential));
 
     m.def("onsite_interaction",
           &onsite_interaction,
@@ -198,7 +195,7 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(onsite_interaction)pydoc", "cyten::Coupling::onsite_interaction()"));
+          DOC(cyten, onsite_interaction));
 
     m.def("density_density_interaction",
           &density_density_interaction,
@@ -209,8 +206,7 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(density_density_interaction)pydoc",
-                      "cyten::Coupling::density_density_interaction()"));
+          DOC(cyten, density_density_interaction));
 
     m.def("hopping",
           &hopping,
@@ -220,7 +216,7 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(hopping)pydoc", "cyten::Coupling::hopping()"));
+          DOC(cyten, hopping));
 
     m.def("pairing",
           &pairing,
@@ -230,7 +226,7 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(pairing)pydoc", "cyten::Coupling::pairing()"));
+          DOC(cyten, pairing));
 
     m.def("onsite_pairing",
           &onsite_pairing,
@@ -240,29 +236,27 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(onsite_pairing)pydoc", "cyten::Coupling::onsite_pairing()"));
+          DOC(cyten, onsite_pairing));
 
-    m.def(
-      "clock_clock_coupling",
-      &clock_clock_coupling,
-      py::arg("sites"),
-      py::arg("Jx") = 0,
-      py::arg("Jz") = 0,
-      py::arg("backend") = py::none(),
-      py::arg("device") = py::none(),
-      py::arg("name") = py::none(),
-      doc_cpp_ref(R"pydoc(clock_clock_coupling)pydoc", "cyten::Coupling::clock_clock_coupling()"));
+    m.def("clock_clock_coupling",
+          &clock_clock_coupling,
+          py::arg("sites"),
+          py::arg("Jx") = 0,
+          py::arg("Jz") = 0,
+          py::arg("backend") = py::none(),
+          py::arg("device") = py::none(),
+          py::arg("name") = py::none(),
+          DOC(cyten, clock_clock_coupling));
 
-    m.def(
-      "clock_field_coupling",
-      &clock_field_coupling,
-      py::arg("sites"),
-      py::arg("hx") = py::none(),
-      py::arg("hz") = py::none(),
-      py::arg("backend") = py::none(),
-      py::arg("device") = py::none(),
-      py::arg("name") = py::none(),
-      doc_cpp_ref(R"pydoc(clock_field_coupling)pydoc", "cyten::Coupling::clock_field_coupling()"));
+    m.def("clock_field_coupling",
+          &clock_field_coupling,
+          py::arg("sites"),
+          py::arg("hx") = py::none(),
+          py::arg("hz") = py::none(),
+          py::arg("backend") = py::none(),
+          py::arg("device") = py::none(),
+          py::arg("name") = py::none(),
+          DOC(cyten, clock_field_coupling));
 
     m.def("sector_projection_coupling",
           &sector_projection_coupling,
@@ -272,8 +266,7 @@ bind_models_couplings(py::module_& m)
           py::arg("name"),
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
-          doc_cpp_ref(R"pydoc(sector_projection_coupling)pydoc",
-                      "cyten::Coupling::sector_projection_coupling()"));
+          DOC(cyten, sector_projection_coupling));
 
     m.def("gold_coupling",
           &gold_coupling,
@@ -282,7 +275,7 @@ bind_models_couplings(py::module_& m)
           py::arg("backend") = py::none(),
           py::arg("device") = py::none(),
           py::arg("name") = py::none(),
-          doc_cpp_ref(R"pydoc(gold_coupling)pydoc", "cyten::Coupling::gold_coupling()"));
+          DOC(cyten, gold_coupling));
 }
 
 } // namespace cyten
