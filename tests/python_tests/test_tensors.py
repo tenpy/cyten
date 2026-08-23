@@ -366,6 +366,12 @@ def test_SymmetricTensor_from_random_normal(leg_nums, dtype, make_compatible_ten
             npt.assert_allclose(np.var(np.abs(samples)), (4 - np.pi) / 4 * true_var, rtol=tol)
 
 
+def test_from_random_normal_rejects_nonpositive_sigma(make_compatible_tensor):
+    T: SymmetricTensor = make_compatible_tensor(1, 1)
+    with pytest.raises(ValueError, match='sigma'):
+        SymmetricTensor.from_random_normal(codomain=T.codomain, domain=T.domain, sigma=0.0, backend=T.backend)
+
+
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)], ids=['1->1', '1->2', '0->3', '3->0'])
 def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_random):
     T: SymmetricTensor = make_compatible_tensor(*leg_nums, use_pipes=False)

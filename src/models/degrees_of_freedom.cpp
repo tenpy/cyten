@@ -23,6 +23,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -249,14 +250,55 @@ is_all_species(py::object const& species)
     return species.is(all_species_sentinel());
 }
 
-py::array
-as_immutable_array(py::object a, py::object dtype)
+namespace {
+
+void
+check_state_labels(std::map<std::string, int64> const& state_labels, int64 dim, bool can_drop)
 {
-    auto np = numpy();
-    py::object arr = dtype.is_none() ? np.attr("asarray")(a) : np.attr("asarray")(a, dtype);
-    arr.attr("setflags")(py::arg("write") = false);
-    return arr.cast<py::array>();
+    if (!can_drop && !state_labels.empty()) {
+        throw std::invalid_argument(
+          "state_labels are meaningless when the symmetry cannot be dropped");
+    }
+    for (auto const& [label, idx] : state_labels) {
+        if (idx < 0 || idx >= dim) {
+            throw std::invalid_argument(std::format(
+              "state_label '{}' index {} is out of range for dim {}", label, idx, dim));
+        }
+    }
 }
+
+void
+check_buffer_shape_3d(py::buffer_info const& buf,
+                      py::ssize_t d0,
+                      py::ssize_t d1,
+                      py::ssize_t d2,
+                      std::string_view name)
+{
+    if (buf.ndim != 3 || buf.shape[0] != d0 || buf.shape[1] != d1 || buf.shape[2] != d2) {
+        throw std::invalid_argument(
+          std::format("{} must have shape ({}, {}, {}), got ndim={} shape=({}, {}, ...)",
+                      name,
+                      d0,
+                      d1,
+                      d2,
+                      buf.ndim,
+                      buf.ndim > 0 ? buf.shape[0] : 0,
+                      buf.ndim > 1 ? buf.shape[1] : 0));
+    }
+}
+
+void
+check_square_matrix(py::object arr, int64 dim, std::string_view name)
+{
+    auto s0 = arr.attr("shape").attr("__getitem__")(0).cast<int64>();
+    auto s1 = arr.attr("shape").attr("__getitem__")(1).cast<int64>();
+    if (s0 != dim || s1 != dim) {
+        throw std::invalid_argument(
+          std::format("{} must have shape ({}, {}), got ({}, {})", name, dim, dim, s0, s1));
+    }
+}
+
+} // namespace
 
 Site::Site(ElementarySpace::Ptr leg,
            std::map<std::string, int64> state_labels,
@@ -268,6 +310,8 @@ Site::Site(ElementarySpace::Ptr leg,
   , backend(backend ? std::move(backend) : get_backend(leg_symmetry(this->leg)))
   , default_device(default_device.value_or("cpu"))
 {
+    check_state_labels(
+      this->state_labels, static_cast<int64>(dim()), this->symmetry()->can_be_dropped());
     auto const sym = leg_symmetry(this->leg);
     Dtype id_dtype = sym->has_complex_topological_data ? Dtype::Complex128 : Dtype::Float64;
     add_onsite_operator("Id",
@@ -282,18 +326,26 @@ Site::test_sanity()
     leg->test_sanity();
 
     if (!symmetry()->can_be_dropped()) {
-        assert(state_labels.empty());
+        if (!state_labels.empty()) {
+            throw std::invalid_argument(
+              "state_labels are meaningless when the symmetry cannot be dropped");
+        }
     }
     for (auto const& [label, idx] : state_labels) {
-        assert(py::isinstance<py::str>(py::cast(label)));
-        assert(0 <= idx && idx < static_cast<int64>(dim()));
+        if (idx < 0 || idx >= static_cast<int64>(dim())) {
+            throw std::invalid_argument(std::format(
+              "state_label '{}' index {} is out of range for dim {}", label, idx, dim()));
+        }
     }
 
     for (auto const& [name, op] : onsite_operators) {
         (void)name;
-        assert(single_leg_matches(leg, op->codomain));
-        assert(single_leg_matches(leg, op->domain));
-        assert(leg_labels_are_p_pstar(op->labels()));
+        if (!single_leg_matches(leg, op->codomain) || !single_leg_matches(leg, op->domain)) {
+            throw std::invalid_argument("onsite operator legs must match the site leg");
+        }
+        if (!leg_labels_are_p_pstar(op->labels())) {
+            throw std::invalid_argument("onsite operator labels must be ('p', 'p*')");
+        }
         op->test_sanity();
     }
 }
@@ -326,11 +378,13 @@ Site::add_onsite_operator(std::string const& name,
     SymmetricTensorPtr tensor_op;
     if (is_symmetric_tensor(op)) {
         tensor_op = as_symmetric_tensor(op);
-        if (is_diagonal.has_value()) {
-            assert(is_diagonal_tensor(py::cast(tensor_op)) == *is_diagonal);
+        if (is_diagonal.has_value() && is_diagonal_tensor(py::cast(tensor_op)) != *is_diagonal) {
+            throw std::invalid_argument("is_diagonal does not match the given operator");
         }
-        assert(single_leg_matches(leg, tensor_op->codomain));
-        assert(single_leg_matches(leg, tensor_op->domain));
+        if (!single_leg_matches(leg, tensor_op->codomain) ||
+            !single_leg_matches(leg, tensor_op->domain)) {
+            throw std::invalid_argument("operator legs must match the site leg");
+        }
         if (!leg_labels_are_p_pstar(tensor_op->labels())) {
             tensor_op =
               std::dynamic_pointer_cast<SymmetricTensor>(tensor_op->copy(/*deep=*/false));
@@ -542,10 +596,8 @@ SpinDOF::SpinDOF(ElementarySpace::Ptr leg,
   : Site(leg, state_labels, {}, backend, default_device)
 {
     auto buf = spin_vector.request();
-    assert(buf.ndim == 3);
-    assert(buf.shape[0] == static_cast<py::ssize_t>(leg_dim(leg)));
-    assert(buf.shape[1] == static_cast<py::ssize_t>(leg_dim(leg)));
-    assert(buf.shape[2] == 3);
+    auto const d = static_cast<py::ssize_t>(leg_dim(leg));
+    check_buffer_shape_3d(buf, d, d, 3, "spin_vector");
     this->spin_vector = as_immutable_array(spin_vector);
     add_onsite_operators_from_map(*this, onsite_operators);
 }
@@ -572,10 +624,8 @@ SpinDOF::spin_vector_from_Sp(py::array Sz, py::array Sp)
 {
     auto np = numpy();
     auto dim = Sz.attr("shape").attr("__getitem__")(0).cast<int64>();
-    assert(Sz.attr("shape").attr("__getitem__")(0).cast<int64>() == dim);
-    assert(Sz.attr("shape").attr("__getitem__")(1).cast<int64>() == dim);
-    assert(Sp.attr("shape").attr("__getitem__")(0).cast<int64>() == dim);
-    assert(Sp.attr("shape").attr("__getitem__")(1).cast<int64>() == dim);
+    check_square_matrix(Sz, dim, "Sz");
+    check_square_matrix(Sp, dim, "Sp");
     py::array Sm = np.attr("conj")(Sp.attr("T"));
     py::object Sp_obj = Sp;
     py::object Sm_obj = Sm;
@@ -613,10 +663,8 @@ ClockDOF::ClockDOF(ElementarySpace::Ptr leg,
   : Site(leg, state_labels, {}, backend, default_device)
 {
     auto buf = clock_operators.request();
-    assert(buf.ndim == 3);
-    assert(buf.shape[0] == static_cast<py::ssize_t>(leg_dim(leg)));
-    assert(buf.shape[1] == static_cast<py::ssize_t>(leg_dim(leg)));
-    assert(buf.shape[2] == 2);
+    auto const d = static_cast<py::ssize_t>(leg_dim(leg));
+    check_buffer_shape_3d(buf, d, d, 2, "clock_operators");
     this->clock_operators = as_immutable_array(clock_operators);
     add_onsite_operators_from_map(*this, onsite_operators);
 
@@ -665,7 +713,12 @@ AnyonDOF::AnyonDOF(ElementarySpace::Ptr leg,
     if (sector_names.empty()) {
         sector_names.assign(static_cast<std::size_t>(leg->num_sectors), std::string{});
     }
-    assert(sector_names.size() == static_cast<std::size_t>(leg->num_sectors));
+    if (sector_names.size() != static_cast<std::size_t>(leg->num_sectors)) {
+        throw std::invalid_argument(
+          std::format("sector_names length {} does not match number of sectors {}",
+                      sector_names.size(),
+                      leg->num_sectors));
+    }
     this->sector_names = sector_names;
 
     std::map<std::string, SymmetricTensorPtr> ops = onsite_operators;
@@ -702,14 +755,14 @@ OccupationDOF::OccupationDOF(ElementarySpace::Ptr leg,
     auto const d = leg_dim(leg);
     auto creators_buf = creators.request();
     auto annihilators_buf = annihilators.request();
-    assert(creators_buf.ndim == 3);
-    assert(annihilators_buf.ndim == 3);
-    assert(creators_buf.shape[0] == static_cast<py::ssize_t>(d));
-    assert(creators_buf.shape[1] == static_cast<py::ssize_t>(d));
-    assert(creators_buf.shape[2] == static_cast<py::ssize_t>(num_species));
-    assert(annihilators_buf.shape[0] == static_cast<py::ssize_t>(d));
-    assert(annihilators_buf.shape[1] == static_cast<py::ssize_t>(d));
-    assert(annihilators_buf.shape[2] == static_cast<py::ssize_t>(num_species));
+    auto const ns = static_cast<py::ssize_t>(num_species);
+    check_buffer_shape_3d(
+      creators_buf, static_cast<py::ssize_t>(d), static_cast<py::ssize_t>(d), ns, "creators");
+    check_buffer_shape_3d(annihilators_buf,
+                          static_cast<py::ssize_t>(d),
+                          static_cast<py::ssize_t>(d),
+                          ns,
+                          "annihilators");
 
     this->creators = as_immutable_array(creators);
     this->annihilators = as_immutable_array(annihilators);
@@ -718,7 +771,12 @@ OccupationDOF::OccupationDOF(ElementarySpace::Ptr leg,
     if (species_names.empty()) {
         species_names.assign(static_cast<std::size_t>(num_species), std::nullopt);
     } else {
-        assert(static_cast<int64>(species_names.size()) == num_species);
+        if (static_cast<int64>(species_names.size()) != num_species) {
+            throw std::invalid_argument(
+              std::format("species_names length {} does not match num_species {}",
+                          species_names.size(),
+                          num_species));
+        }
     }
     this->species_names = species_names;
     species_name_to_idx.clear();
@@ -904,12 +962,19 @@ BosonicDOF::BosonicDOF(ElementarySpace::Ptr leg,
           number_operators.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), k));
         double N_k_max_ = np.attr("max")(np.attr("diag")(N_k)).cast<double>();
         int64 N_k_max = static_cast<int64>(std::llround(N_k_max_));
-        assert(std::abs(N_k_max - N_k_max_) < 1e-9);
-        assert(leg_dim(leg) % (N_k_max + 1) == 0);
+        if (std::abs(N_k_max - N_k_max_) >= 1e-9) {
+            throw std::invalid_argument("occupation eigenvalues must be integer");
+        }
+        if (leg_dim(leg) % (N_k_max + 1) != 0) {
+            throw std::invalid_argument(
+              "leg dimension must be a multiple of (N_k_max + 1) for each species");
+        }
         Nmax_list.append(N_k_max);
     }
     Nmax = as_immutable_array(np.attr("asarray")(Nmax_list, py::dtype("int")));
-    assert(py_object_to_int64(np.attr("min")(Nmax)) > 0);
+    if (py_object_to_int64(np.attr("min")(Nmax)) <= 0) {
+        throw std::invalid_argument("Nmax must be positive for every species");
+    }
     JW = as_immutable_array(np.attr("diag")(np.attr("ones")(leg_dim(leg))));
 
     add_onsite_operators_from_map(*this, onsite_operators);
@@ -998,8 +1063,13 @@ std::pair<py::array, py::array>
 BosonicDOF::creation_annihilation_op_from_single_Nmax(int64 Nmax, int64 dim)
 {
     auto np = numpy();
-    assert(Nmax > 0);
-    assert(dim == Nmax + 1);
+    if (!(Nmax > 0)) {
+        throw std::invalid_argument("Nmax must be positive");
+    }
+    if (dim != Nmax + 1) {
+        throw std::invalid_argument(
+          std::format("dim must be Nmax + 1 (got dim={}, Nmax={})", dim, Nmax));
+    }
     py::array B = np.attr("zeros")(py::make_tuple(dim, dim), py::dtype("float64"));
     for (int64 n = 1; n < dim; ++n) {
         B.attr("__setitem__")(py::make_tuple(n - 1, n), np.attr("sqrt")(static_cast<double>(n)));
@@ -1012,7 +1082,9 @@ BosonicDOF::creation_annihilation_ops_from_Nmax(py::array Nmax, int64 dim)
 {
     auto np = numpy();
     py::array Nmax_ = np.attr("asarray")(Nmax, py::dtype("int"));
-    assert(np.attr("allclose")(Nmax_, Nmax).cast<bool>());
+    if (!np.attr("allclose")(Nmax_, Nmax).cast<bool>()) {
+        throw std::invalid_argument("Nmax must be integer-valued");
+    }
     py::list creators_i;
     py::list annihilators_i;
     for (auto N : Nmax_) {
@@ -1084,7 +1156,10 @@ FermionicDOF::FermionicDOF(ElementarySpace::Ptr leg,
             ++fermion_factor_count;
         }
     }
-    assert(fermion_factor_count == 1);
+    if (fermion_factor_count != 1) {
+        throw std::invalid_argument(
+          "FermionicDOF requires a symmetry with exactly one fermionic factor");
+    }
 
     if (dynamic_cast<BosonicDOF*>(this)) {
         throw SymmetryError("FermionicDOF and BosonicDOF are incompatible.");
@@ -1113,8 +1188,12 @@ FermionicDOF::FermionicDOF(ElementarySpace::Ptr leg,
           number_operators.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), k));
         double N_k_max_ = np.attr("max")(np.attr("diag")(N_k)).cast<double>();
         int64 N_k_max = static_cast<int64>(std::llround(N_k_max_));
-        assert(std::abs(N_k_max - N_k_max_) < 1e-9);
-        assert(N_k_max == 1);
+        if (std::abs(N_k_max - N_k_max_) >= 1e-9) {
+            throw std::invalid_argument("occupation eigenvalues must be integer");
+        }
+        if (N_k_max != 1) {
+            throw std::invalid_argument("FermionicDOF occupation numbers must be 0 or 1");
+        }
     }
 
     add_onsite_operators_from_map(*this, onsite_operators);
@@ -1189,6 +1268,15 @@ FermionicDOF::creation_annihilation_ops(int64 num_species)
     py::array Nmax = np.attr("ones")(num_species, py::dtype("int"));
     int64 dim = num_species >= 0 ? (int64{ 1 } << num_species) : 1;
     return BosonicDOF::creation_annihilation_ops_from_Nmax(Nmax, dim);
+}
+
+py::array
+as_immutable_array(py::object a, py::object dtype)
+{
+    auto np = numpy();
+    py::object arr = dtype.is_none() ? np.attr("asarray")(a) : np.attr("asarray")(a, dtype);
+    arr.attr("setflags")(py::arg("write") = false);
+    return arr.cast<py::array>();
 }
 
 } // namespace cyten

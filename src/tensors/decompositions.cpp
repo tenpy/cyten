@@ -297,8 +297,12 @@ py::object
 apply_mask_DiagonalTensor_py(py::object tensor, py::object mask)
 {
     same_device2(tensor, mask);
-    assert(mask.attr("is_projection").cast<bool>());
-    assert(py_eq(mask.attr("large_leg"), tensor.attr("leg")));
+    if (!mask.attr("is_projection").cast<bool>()) {
+        throw std::invalid_argument("mask must be a projection");
+    }
+    if (!py_eq(mask.attr("large_leg"), tensor.attr("leg"))) {
+        throw std::invalid_argument("mask.large_leg must match the tensor leg");
+    }
     auto backend = get_same_backend({ tensor, mask });
     if (is_Identity(tensor)) {
         return tensors_mod().attr("Identity")(mask.attr("small_leg"),
@@ -350,7 +354,9 @@ eigh_py(py::object tensor, py::object new_labels, bool new_leg_dual, py::object 
           std::format("Expected 1, 2 or 3 new_labels. Got {}.", static_cast<int>(nlab)));
     }
 
-    assert(py_eq(tensor.attr("domain"), tensor.attr("codomain")));
+    if (!py_eq(tensor.attr("domain"), tensor.attr("codomain"))) {
+        throw std::invalid_argument("eigh requires matching domain and codomain");
+    }
     if (is_ChargedTensor(tensor)) {
         // do not define decompositions for ChargedTensors.
         throw NotImplemented("eigh for ChargedTensor");
@@ -434,7 +440,9 @@ entropy_py(py::object p, py::object n)
           "entropy_py does not support Identity. It is never a normalized distribution.");
     }
     if (is_DiagonalTensor(p)) {
-        assert(p.attr("dtype").attr("is_real").cast<bool>());
+        if (!p.attr("dtype").attr("is_real").cast<bool>()) {
+            throw std::invalid_argument("entropy requires a real dtype");
+        }
         if (py_eq(n, py::int_(1))) {
             py::object logged = py::cast(stable_log(p.cast<DiagonalTensorCPtr>(), 1e-30));
             py::object prod = p.attr("__mul__")(logged);
@@ -619,9 +627,13 @@ svd_py(py::object tensor,
 std::tuple<py::object, py::object, py::object>
 svd_apply_mask_py(py::object U, py::object S, py::object Vh, py::object mask)
 {
-    assert(mask.attr("is_projection").cast<bool>());
-    assert(
-      py_eq(mask.attr("domain").attr("__getitem__")(0), S.attr("domain").attr("__getitem__")(0)));
+    if (!mask.attr("is_projection").cast<bool>()) {
+        throw std::invalid_argument("mask must be a projection");
+    }
+    if (!py_eq(mask.attr("domain").attr("__getitem__")(0),
+               S.attr("domain").attr("__getitem__")(0))) {
+        throw std::invalid_argument("mask domain leg must match the singular-value tensor");
+    }
 
     U = py::cast(_compose_with_Mask(
       U.cast<TensorCPtr>(), std::dynamic_pointer_cast<Mask>(dagger(mask.cast<TensorCPtr>())), -1));
@@ -640,7 +652,9 @@ truncate_singular_values_py(py::object S,
                             bool minimize_error,
                             py::object mask_labels)
 {
-    assert(S.attr("dtype").attr("is_real").cast<bool>());
+    if (!S.attr("dtype").attr("is_real").cast<bool>()) {
+        throw std::invalid_argument("truncate_singular_values requires a real dtype");
+    }
     auto backend = S.attr("backend").cast<TensorBackend::Ptr>();
     auto [mask_data, new_leg, err, new_norm] =
       backend->truncate_singular_values(S.cast<DiagonalTensorCPtr>(),

@@ -233,20 +233,28 @@ DiagonalTensor::from_random_normal(Space::Ptr leg,
                                    Dtype dtype,
                                    std::optional<std::string> device)
 {
-    assert(dtype::is_complex(dtype));
-    assert(sigma > 0.0);
+    if (!dtype::is_complex(dtype)) {
+        throw std::invalid_argument("from_random_normal requires a complex dtype");
+    }
+    if (!(sigma > 0.0)) {
+        throw std::invalid_argument(std::format("sigma must be positive, got {}", sigma));
+    }
     if (mean) {
         auto mean_diag = std::dynamic_pointer_cast<DiagonalTensor const>(mean);
         Space::Ptr mean_leg = mean_diag ? mean_diag->leg() : as_space(mean->codomain->factors[0]);
         if (!leg) {
             leg = mean_leg;
         } else {
-            assert(*mean_leg == *leg);
+            if (!(*mean_leg == *leg)) {
+                throw std::invalid_argument("mean.leg must match the given leg");
+            }
         }
         if (!backend) {
             backend = mean->backend;
         } else {
-            assert(mean->backend == backend);
+            if (mean->backend != backend) {
+                throw std::invalid_argument("mean.backend must match the given backend");
+            }
         }
         if (!labels.has_value()) {
             labels = mean->labels();
@@ -342,8 +350,12 @@ DiagonalTensor::from_sector_block_func(SectorBlockFactoryFn func,
 DiagonalTensor::Ptr
 DiagonalTensor::from_tensor(SymmetricTensorCPtr tens, std::optional<float64> tol)
 {
-    assert(tens->num_legs == 2);
-    assert(tens->domain->operator==(*tens->codomain));
+    if (tens->num_legs != 2) {
+        throw std::invalid_argument("from_tensor requires a two-leg tensor");
+    }
+    if (!(tens->domain->operator==(*tens->codomain))) {
+        throw std::invalid_argument("from_tensor requires matching domain and codomain");
+    }
     auto data = tens->backend->diagonal_tensor_from_full_tensor(tens, tol);
     auto leg = as_space(tens->codomain->factors[0]);
     return std::make_shared<DiagonalTensor>(
@@ -585,7 +597,9 @@ DiagonalTensor::_elementwise_unary(BlockUnaryFn func, bool maps_zero_to_zero)
 BlockBackend::Scalar
 DiagonalTensor::_get_item(std::vector<int64> const& idx)
 {
-    assert(idx.size() == 2);
+    if (idx.size() != 2) {
+        throw std::invalid_argument(std::format("expected 2 indices, got {}", idx.size()));
+    }
     int64 i1 = idx[0];
     int64 i2 = idx[1];
     if (i1 != i2) {
@@ -620,7 +634,9 @@ DiagonalTensor::any() const
 BlockBackend::Scalar
 DiagonalTensor::max() const
 {
-    assert(dtype::is_real(dtype));
+    if (!dtype::is_real(dtype)) {
+        throw std::invalid_argument("max is only defined for real dtypes");
+    }
     auto bb = backend->block_backend;
     return backend->reduce_DiagonalTensor(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
@@ -635,7 +651,9 @@ DiagonalTensor::max() const
 BlockBackend::Scalar
 DiagonalTensor::min() const
 {
-    assert(dtype::is_real(dtype));
+    if (!dtype::is_real(dtype)) {
+        throw std::invalid_argument("min is only defined for real dtypes");
+    }
     auto bb = backend->block_backend;
     return backend->reduce_DiagonalTensor(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
@@ -1027,7 +1045,9 @@ Identity::_elementwise_binary(DiagonalTensorCPtr other,
 BlockBackend::Scalar
 Identity::_get_item(std::vector<int64> const& idx)
 {
-    assert(idx.size() == 2);
+    if (idx.size() != 2) {
+        throw std::invalid_argument(std::format("expected 2 indices, got {}", idx.size()));
+    }
     if (idx[0] != idx[1]) {
         return backend->block_backend->as_scalar(dtype::zero_scalar(dtype), dtype);
     }
@@ -1057,14 +1077,18 @@ Identity::any() const
 BlockBackend::Scalar
 Identity::max() const
 {
-    assert(dtype::is_real(dtype));
+    if (!dtype::is_real(dtype)) {
+        throw std::invalid_argument("max is only defined for real dtypes");
+    }
     return backend->block_backend->as_scalar(dtype::one_scalar(dtype), dtype);
 }
 
 BlockBackend::Scalar
 Identity::min() const
 {
-    assert(dtype::is_real(dtype));
+    if (!dtype::is_real(dtype)) {
+        throw std::invalid_argument("min is only defined for real dtypes");
+    }
     return backend->block_backend->as_scalar(dtype::one_scalar(dtype), dtype);
 }
 

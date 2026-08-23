@@ -155,14 +155,29 @@ Mask::Mask(TensorBackend::DataPtr data_in,
         throw std::invalid_argument("Expected ElementarySpace.");
     }
     if (is_projection) {
-        assert(space_dim(*space_in) >= space_dim(*space_out));
-        assert(space_out->is_subspace_of(*space_in));
+        if (!(space_dim(*space_in) >= space_dim(*space_out))) {
+            throw std::invalid_argument("projection mask requires the incoming space to be at "
+                                        "least as large as the outgoing space");
+        }
+        if (!space_out->is_subspace_of(*space_in)) {
+            throw std::invalid_argument("projection mask requires the outgoing space to be a "
+                                        "subspace of the incoming space");
+        }
     } else {
-        assert(space_dim(*space_in) <= space_dim(*space_out));
-        assert(space_in->is_subspace_of(*space_out));
+        if (!(space_dim(*space_in) <= space_dim(*space_out))) {
+            throw std::invalid_argument("inclusion mask requires the outgoing space to be at "
+                                        "least as large as the incoming space");
+        }
+        if (!space_in->is_subspace_of(*space_out)) {
+            throw std::invalid_argument(
+              "inclusion mask requires the incoming space to be a subspace of the outgoing space");
+        }
     }
-    assert(std::dynamic_pointer_cast<ElementarySpace>(space_out)->is_dual ==
-           std::dynamic_pointer_cast<ElementarySpace>(space_in)->is_dual);
+    auto es_out = std::dynamic_pointer_cast<ElementarySpace>(space_out);
+    auto es_in = std::dynamic_pointer_cast<ElementarySpace>(space_in);
+    if (!es_out || !es_in || es_out->is_dual != es_in->is_dual) {
+        throw std::invalid_argument("mask legs must have matching duality");
+    }
 }
 
 std::vector<Dtype> const&
@@ -292,8 +307,12 @@ Mask::from_block_mask(BlockBackend::BlockPtr block_mask,
 Mask::Ptr
 Mask::from_DiagonalTensor(DiagonalTensorCPtr diag)
 {
-    assert(diag);
-    assert(diag->dtype == Dtype::Bool);
+    if (!diag) {
+        throw std::invalid_argument("diag must be non-null");
+    }
+    if (diag->dtype != Dtype::Bool) {
+        throw std::invalid_argument("Mask.from_DiagonalTensor requires bool dtype");
+    }
     auto [data_out, small_leg] = diag->backend->diagonal_to_mask(diag);
     return std::make_shared<Mask>(data_out,
                                   as_space(diag->domain->factors[0]),
@@ -346,7 +365,9 @@ Mask::from_random(Space::Ptr large_leg_in,
     }
 
     if (!small_leg_in) {
-        assert(0. <= p_keep && p_keep <= 1.);
+        if (!(0. <= p_keep && p_keep <= 1.)) {
+            throw std::invalid_argument(std::format("p_keep must be in [0, 1], got {}", p_keep));
+        }
         auto diag =
           DiagonalTensor::from_random_uniform(large_leg, backend, labels, Dtype::Float32, device);
         float64 cutoff = 2. * p_keep - 1.; // diagonal entries are uniform in [-1, 1].
@@ -358,7 +379,12 @@ Mask::from_random(Space::Ptr large_leg_in,
         }
 
         int64 large_leg_sector_num = sum_multiplicities(*large_leg);
-        assert(min_keep <= large_leg_sector_num); // min_keep can not be fulfilled
+        if (min_keep > large_leg_sector_num) {
+            throw std::invalid_argument(
+              std::format("min_keep={} cannot be fulfilled for a leg with {} sectors",
+                          min_keep,
+                          large_leg_sector_num));
+        }
         if (min_keep == large_leg_sector_num) {
             return from_eye(large_leg, /*is_projection=*/true, backend, labels, device);
         }

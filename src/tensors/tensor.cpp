@@ -183,8 +183,12 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
         PyErr_SetString(PyExc_AssertionError, "backend does not support this symmetry");
         throw py::error_already_set();
     }
-    assert(codomain->symmetry && symmetry && codomain->symmetry->equals(*symmetry));
-    assert(domain->symmetry && symmetry && domain->symmetry->equals(*symmetry));
+    if (!codomain->symmetry || !symmetry || !codomain->symmetry->equals(*symmetry)) {
+        throw std::invalid_argument("codomain symmetry must match tensor symmetry");
+    }
+    if (!domain->symmetry || !symmetry || !domain->symmetry->equals(*symmetry)) {
+        throw std::invalid_argument("domain symmetry must match tensor symmetry");
+    }
 
     shape.clear();
     shape.reserve(static_cast<std::size_t>(codomain->num_factors + domain->num_factors));
@@ -195,7 +199,11 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
         shape.push_back((*it)->dim);
     }
 
-    assert(static_cast<int64>(labels.size()) == codomain->num_factors + domain->num_factors);
+    if (static_cast<int64>(labels.size()) != codomain->num_factors + domain->num_factors) {
+        throw std::invalid_argument(std::format("expected {} labels, got {}",
+                                                codomain->num_factors + domain->num_factors,
+                                                labels.size()));
+    }
     num_legs = static_cast<int64>(labels.size());
     _labels = std::move(labels);
     _labelmap.clear();
@@ -255,8 +263,12 @@ Tensor::_init_parse_args(TensorProduct::Ptr codomain,
         PyErr_SetString(PyExc_AssertionError, "backend does not support this symmetry");
         throw py::error_already_set();
     }
-    assert(codomain->symmetry && symmetry && codomain->symmetry->equals(*symmetry));
-    assert(domain->symmetry && symmetry && domain->symmetry->equals(*symmetry));
+    if (!codomain->symmetry || !symmetry || !codomain->symmetry->equals(*symmetry)) {
+        throw std::invalid_argument("codomain symmetry must match tensor symmetry");
+    }
+    if (!domain->symmetry || !symmetry || !domain->symmetry->equals(*symmetry)) {
+        throw std::invalid_argument("domain symmetry must match tensor symmetry");
+    }
     return { std::move(codomain), std::move(domain), std::move(backend), std::move(symmetry) };
 }
 
@@ -267,14 +279,17 @@ Tensor::_init_parse_labels(std::optional<LegLabels> labels,
                            bool is_endomorphism)
 {
     int64 const num_legs = codomain->num_factors + domain->num_factors;
-    if (is_endomorphism) {
-        assert(codomain->num_factors == domain->num_factors);
+    if (is_endomorphism && codomain->num_factors != domain->num_factors) {
+        throw std::invalid_argument(
+          "endomorphism requires the same number of domain and codomain legs");
     }
     if (!labels.has_value()) {
         return LegLabels(static_cast<std::size_t>(num_legs), std::nullopt);
     }
     if (labels->empty()) {
-        assert(num_legs == 0);
+        if (num_legs != 0) {
+            throw std::invalid_argument("empty labels are only allowed for tensors with no legs");
+        }
         return {};
     }
     if (is_endomorphism && static_cast<int64>(labels->size()) == codomain->num_factors) {
@@ -284,7 +299,10 @@ Tensor::_init_parse_labels(std::optional<LegLabels> labels,
         }
         return out;
     }
-    assert(static_cast<int64>(labels->size()) == num_legs);
+    if (static_cast<int64>(labels->size()) != num_legs) {
+        throw std::invalid_argument(
+          std::format("expected {} labels, got {}", num_legs, labels->size()));
+    }
     return *labels;
 }
 
@@ -345,8 +363,9 @@ parse_tensor_init_labels(py::object labels,
     // case 3: a flat list for the legs
     // ---
     int64 const num_legs = codomain->num_factors + domain->num_factors;
-    if (is_endomorphism) {
-        assert(codomain->num_factors == domain->num_factors);
+    if (is_endomorphism && codomain->num_factors != domain->num_factors) {
+        throw std::invalid_argument(
+          "endomorphism requires the same number of domain and codomain legs");
     }
 
     if (labels.is_none()) {
@@ -379,7 +398,11 @@ parse_tensor_init_labels(py::object labels,
         } else {
             codomain_labels = sequence_as_leg_labels(codomain_labels_obj);
         }
-        assert(static_cast<int64>(codomain_labels.size()) == codomain->num_factors);
+        if (static_cast<int64>(codomain_labels.size()) != codomain->num_factors) {
+            throw std::invalid_argument(std::format("expected {} codomain labels, got {}",
+                                                    codomain->num_factors,
+                                                    codomain_labels.size()));
+        }
 
         if (domain_labels_obj.is_none()) {
             if (is_endomorphism) {
@@ -393,7 +416,10 @@ parse_tensor_init_labels(py::object labels,
         } else {
             domain_labels = sequence_as_leg_labels(domain_labels_obj);
         }
-        assert(static_cast<int64>(domain_labels.size()) == domain->num_factors);
+        if (static_cast<int64>(domain_labels.size()) != domain->num_factors) {
+            throw std::invalid_argument(std::format(
+              "expected {} domain labels, got {}", domain->num_factors, domain_labels.size()));
+        }
 
         LegLabels out = codomain_labels;
         for (auto it = domain_labels.rbegin(); it != domain_labels.rend(); ++it) {

@@ -680,7 +680,10 @@ _svd_new_labels(std::optional<LegLabels> new_labels)
         throw std::invalid_argument(
           std::format("Expected 1, 2 or 4 new_labels. Got {}", labels.size()));
     }
-    assert(!(b.has_value() && c.has_value() && *b == *c));
+    if (b.has_value() && c.has_value() && *b == *c) {
+        throw std::invalid_argument(
+          "new_labels for SVD must not reuse the same label on both sides");
+    }
     return { a, b, c, d };
 }
 

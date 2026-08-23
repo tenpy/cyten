@@ -182,8 +182,10 @@ inverse_permutation_local(std::vector<int64> const& perm)
     std::vector<int64> inv(perm.size());
     for (std::size_t i = 0; i < perm.size(); ++i) {
         auto const idx = perm[i];
-        assert(idx >= 0);
-        assert(static_cast<std::size_t>(idx) < perm.size());
+        if (idx < 0 || static_cast<std::size_t>(idx) >= perm.size()) {
+            throw std::invalid_argument(
+              std::format("permutation index {} is out of range for length {}", idx, perm.size()));
+        }
         inv[static_cast<std::size_t>(idx)] = static_cast<int64>(i);
     }
     return inv;
@@ -267,7 +269,13 @@ bend_legs_py(py::object tensor,
     } else {
         n_cod = *num_codomain_legs;
         n_dom = *num_domain_legs;
-        assert(n_cod + n_dom == num_legs);
+        if (n_cod + n_dom != num_legs) {
+            throw std::invalid_argument(
+              std::format("num_codomain_legs ({}) + num_domain_legs ({}) must equal num_legs ({})",
+                          n_cod,
+                          n_dom,
+                          num_legs));
+        }
         (void)n_dom;
     }
 
@@ -466,7 +474,10 @@ permute_legs_py(py::object tensor,
                 levels_v.push_back(item.cast<int64>());
             }
         }
-        assert(static_cast<int64>(levels_v.size()) == num_legs);
+        if (static_cast<int64>(levels_v.size()) != num_legs) {
+            throw std::invalid_argument(
+              std::format("expected {} levels, got {}", num_legs, levels_v.size()));
+        }
     }
 
     // parse bend_right to format list[bool | None]
@@ -501,7 +512,10 @@ permute_legs_py(py::object tensor,
             }
         }
     } else if (!bend_right.is_none() && is_iterable(bend_right)) {
-        assert(static_cast<int64>(py::len(bend_right)) == num_legs);
+        if (static_cast<int64>(py::len(bend_right)) != num_legs) {
+            throw std::invalid_argument(std::format(
+              "expected {} bend_right entries, got {}", num_legs, py::len(bend_right)));
+        }
         for (auto item : bend_right) {
             if (item.is_none()) {
                 bend_right_v.push_back(std::nullopt);
@@ -837,7 +851,11 @@ combine_legs_py(py::object tensor,
     if (pipe_dualities.is_none()) {
         pipe_dualities_v.assign(which_legs_v.size(), false);
     } else if (is_iterable(pipe_dualities)) {
-        assert(static_cast<std::size_t>(py::len(pipe_dualities)) == which_legs_v.size());
+        if (static_cast<std::size_t>(py::len(pipe_dualities)) != which_legs_v.size()) {
+            throw std::invalid_argument(std::format("expected {} pipe_dualities entries, got {}",
+                                                    which_legs_v.size(),
+                                                    py::len(pipe_dualities)));
+        }
         for (auto item : pipe_dualities) {
             pipe_dualities_v.push_back(as_py_bool(py::reinterpret_borrow<py::object>(item)));
         }

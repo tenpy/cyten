@@ -516,7 +516,9 @@ apply_mask_py(py::object tensor, py::object mask, py::object leg)
     auto parsed = tensor.attr("_parse_leg_idx")(leg);
     bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
     int64 leg_idx = parsed.attr("__getitem__")(2).cast<int64>();
-    assert(mask.attr("is_projection").cast<bool>());
+    if (!mask.attr("is_projection").cast<bool>()) {
+        throw std::invalid_argument("mask must be a projection");
+    }
     if (in_domain) {
         mask = transpose_py(mask);
     }
@@ -533,7 +535,9 @@ enlarge_leg_py(py::object tensor, py::object mask, py::object leg)
     auto parsed = tensor.attr("_parse_leg_idx")(leg);
     bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
     int64 leg_idx = parsed.attr("__getitem__")(2).cast<int64>();
-    assert(!mask.attr("is_projection").cast<bool>());
+    if (mask.attr("is_projection").cast<bool>()) {
+        throw std::invalid_argument("enlarge_leg requires a non-projection mask");
+    }
     if (in_domain) {
         mask = transpose_py(mask);
     }
@@ -1103,8 +1107,11 @@ outer_py(py::object tensor1,
     // construct new labels
     // ---
     (void)same_device2(tensor1, tensor2);
-    assert(
-      tensor1.attr("symmetry").attr("is_equivalent_to")(tensor2.attr("symmetry")).cast<bool>());
+    if (!tensor1.attr("symmetry")
+           .attr("is_equivalent_to")(tensor2.attr("symmetry"))
+           .cast<bool>()) {
+        throw SymmetryError("outer requires equivalent symmetries");
+    }
 
     if (is_Mask(tensor1) || is_DiagonalTensor(tensor1)) {
         char const* msg =
@@ -1587,7 +1594,9 @@ scale_axis_py(py::object tensor, py::object diag, py::object leg)
     int64 leg_idx = parsed.attr("__getitem__")(2).cast<int64>();
     py::object tens_leg = in_domain ? tensor.attr("domain").attr("__getitem__")(co_domain_idx)
                                     : tensor.attr("codomain").attr("__getitem__")(co_domain_idx);
-    assert(tensor.attr("symmetry").attr("is_equivalent_to")(diag.attr("symmetry")).cast<bool>());
+    if (!tensor.attr("symmetry").attr("is_equivalent_to")(diag.attr("symmetry")).cast<bool>()) {
+        throw SymmetryError("scale_axis requires equivalent symmetries");
+    }
     if (py_eq(tens_leg, diag.attr("leg"))) {
         // pass
     } else if (py_eq(tens_leg, diag.attr("leg").attr("dual"))) {

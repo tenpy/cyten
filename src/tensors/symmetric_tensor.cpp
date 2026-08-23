@@ -245,8 +245,13 @@ SymmetricTensor::from_dense_block(BlockBackend::BlockPtr block,
           "this error by setting ``understood_braiding=True``.");
     }
     auto block_ptr = backend_tp->block_backend->as_block(py::cast(block), dtype, device);
-    assert(static_cast<int64>(backend_tp->block_backend->get_shape(block_ptr).size()) ==
-           codomain_tp->num_factors + domain_tp->num_factors);
+    if (static_cast<int64>(backend_tp->block_backend->get_shape(block_ptr).size()) !=
+        codomain_tp->num_factors + domain_tp->num_factors) {
+        throw std::invalid_argument(
+          std::format("dense block rank {} does not match number of legs {}",
+                      backend_tp->block_backend->get_shape(block_ptr).size(),
+                      codomain_tp->num_factors + domain_tp->num_factors));
+    }
     block_ptr = backend_tp->block_backend->apply_basis_perm(
       block_ptr, legs_from_py(conventional_leg_order(codomain_tp, domain_tp)));
     auto data = backend_tp->from_dense_block(block_ptr, codomain_tp, domain_tp, tol);
@@ -266,7 +271,9 @@ SymmetricTensor::from_dense_block_trivial_sector(BlockBackend::BlockPtr vector,
                                                  std::optional<std::string> device,
                                                  LegLabel label)
 {
-    assert(space);
+    if (!space) {
+        throw std::invalid_argument("space must be specified");
+    }
     if (!backend) {
         backend = get_backend(space->symmetry);
     }
@@ -276,8 +283,12 @@ SymmetricTensor::from_dense_block_trivial_sector(BlockBackend::BlockPtr vector,
     // Inverse of the permutation applied in to_dense_block_trivial_sector.
     if (space->has_custom_basis_perm()) {
         auto i = space_as_space->sector_decomposition_where(space->symmetry->trivial_sector);
-        assert(i.has_value());
-        assert(space_as_space->slices.has_value());
+        if (!i.has_value()) {
+            throw std::invalid_argument("space does not contain the trivial sector");
+        }
+        if (!space_as_space->slices.has_value()) {
+            throw std::invalid_argument("space is missing sector slices");
+        }
         auto const& sl = (*space_as_space->slices)[static_cast<std::size_t>(*i)];
         auto basis_perm = space->basis_perm();
         std::vector<int64> segment(basis_perm.begin() + sl[0], basis_perm.begin() + sl[1]);
@@ -311,7 +322,9 @@ SymmetricTensor::from_random_normal(TensorProduct::Ptr codomain,
                                     std::optional<Dtype> dtype,
                                     std::optional<std::string> device)
 {
-    assert(sigma > 0.0);
+    if (!(sigma > 0.0)) {
+        throw std::invalid_argument(std::format("sigma must be positive, got {}", sigma));
+    }
     Symmetry::Ptr symmetry;
     TensorProduct::Ptr codomain_tp;
     TensorProduct::Ptr domain_tp;
@@ -321,17 +334,23 @@ SymmetricTensor::from_random_normal(TensorProduct::Ptr codomain,
         if (!codomain) {
             codomain = mean->codomain;
         } else {
-            assert(mean->codomain->operator==(*codomain));
+            if (!mean->codomain->operator==(*codomain)) {
+                throw std::invalid_argument("mean.codomain must match the given codomain");
+            }
         }
         if (!domain) {
             domain = mean->domain;
         } else {
-            assert(mean->domain->operator==(*domain));
+            if (!mean->domain->operator==(*domain)) {
+                throw std::invalid_argument("mean.domain must match the given domain");
+            }
         }
         if (!backend) {
             backend = mean->backend;
         } else {
-            assert(mean->backend == backend);
+            if (mean->backend != backend) {
+                throw std::invalid_argument("mean.backend must match the given backend");
+            }
         }
         auto [c, d, b, s] = _init_parse_args(std::move(codomain), std::move(domain), backend);
         codomain_tp = std::move(c);
@@ -341,12 +360,16 @@ SymmetricTensor::from_random_normal(TensorProduct::Ptr codomain,
         if (!labels.has_value()) {
             labels = mean->labels();
         } else {
-            assert(mean->labels() == _init_parse_labels(labels, codomain_tp, domain_tp));
+            if (mean->labels() != _init_parse_labels(labels, codomain_tp, domain_tp)) {
+                throw std::invalid_argument("mean.labels must match the given labels");
+            }
         }
         if (!dtype.has_value()) {
             dtype = mean->dtype;
         } else {
-            assert(mean->dtype == *dtype);
+            if (mean->dtype != *dtype) {
+                throw std::invalid_argument("mean.dtype must match the given dtype");
+            }
         }
         if (!device.has_value()) {
             device = mean->device;
@@ -426,7 +449,9 @@ SymmetricTensor::from_sector_projection(TensorProduct::Ptr co_domain,
       _init_parse_args(co_domain, co_domain, std::move(backend));
     (void)unused_domain;
     (void)unused_symm;
-    assert(co_domain_tp->symmetry->is_valid_sector(sector));
+    if (!co_domain_tp->symmetry->is_valid_sector(sector)) {
+        throw std::invalid_argument("sector is not valid for this symmetry");
+    }
     if (co_domain_tp->sector_multiplicity(sector) == 0) {
         warn("Sector does not appear. from_sector_projection yields zero");
     }
@@ -516,12 +541,20 @@ SymmetricTensor::from_tree_pairs(py::object trees_obj,
         auto key_tup = key_obj.cast<py::tuple>();
         FusionTree X = key_tup[0].cast<FusionTree>();
         FusionTree Y = key_tup[1].cast<FusionTree>();
-        assert(X.coupled == Y.coupled);
-        assert(X.are_dual == X_are_dual);
-        assert(Y.are_dual == Y_are_dual);
+        if (X.coupled != Y.coupled) {
+            throw std::invalid_argument("fusion-tree pair must share the same coupled sector");
+        }
+        if (X.are_dual != X_are_dual) {
+            throw std::invalid_argument("fusion tree X dualities must match the codomain legs");
+        }
+        if (Y.are_dual != Y_are_dual) {
+            throw std::invalid_argument("fusion tree Y dualities must match the domain legs");
+        }
         auto block = backend_tp->block_backend->as_block(
           py::reinterpret_borrow<py::object>(item.second), dtype, device_s);
-        assert(backend_tp->block_backend->get_device(block) == device_s);
+        if (backend_tp->block_backend->get_device(block) != device_s) {
+            throw std::invalid_argument("tree-pair blocks must live on the requested device");
+        }
         trees[key_obj] = py::cast(block);
         block_trees.emplace(std::make_pair(std::move(X), std::move(Y)), std::move(block));
     }
@@ -761,16 +794,24 @@ SymmetricTensor::to_dense_block_trivial_sector() const
     // --- hints from Python SymmetricTensor.to_dense_block_trivial_sector ---
     // TODO assuming this for now to construct the perm. should we keep that?
     // ---
-    assert(num_legs == 1);
+    if (num_legs != 1) {
+        throw std::invalid_argument("to_dense_block_trivial_sector requires a single-leg tensor");
+    }
     auto block = backend->to_dense_block_trivial_sector(shared_from_this());
-    assert(num_codomain_legs() ==
-           1); // TODO assuming this for now to construct the perm. should we keep that?
+    if (num_codomain_legs() != 1) {
+        throw std::invalid_argument(
+          "to_dense_block_trivial_sector currently requires a single codomain leg");
+    }
     auto space = as_space(codomain->factors[0]);
     auto leg = codomain->factors[0];
     if (leg->has_custom_basis_perm()) {
         auto i = space->sector_decomposition_where(symmetry->trivial_sector);
-        assert(i.has_value());
-        assert(space->slices.has_value());
+        if (!i.has_value()) {
+            throw std::invalid_argument("space does not contain the trivial sector");
+        }
+        if (!space->slices.has_value()) {
+            throw std::invalid_argument("space is missing sector slices");
+        }
         auto const& sl = (*space->slices)[static_cast<std::size_t>(*i)];
         auto basis_perm = leg->basis_perm();
         std::vector<int64> segment(basis_perm.begin() + sl[0], basis_perm.begin() + sl[1]);
