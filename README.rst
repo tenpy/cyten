@@ -11,6 +11,11 @@ Cyten
    :alt: GitHub issues
    :target: https://github.com/tenpy/cyten/issues
 
+.. warning::
+
+   Cyten is still in **alpha** and under heavy development.
+   The API is not stable and may change without notice.
+
 Cyten (pronounced like "sci-ten") is a C++ library with Python bindings for tensors whose
 block-sparse structure is imposed by symmetries.
 It serves as the linear algebra backend for `TeNPy <https://github.com/tenpy/tenpy>`_,

@@ -2,7 +2,7 @@ name: cyten
 channels:
   - conda-forge
 dependencies:
-  - python>=3.12
+  - python>=3.14
   - pip
   - setuptools>=68.0.0
   - pybind11>=3.0
@@ -12,6 +12,7 @@ dependencies:
   - scipy
   - openblas
   - cmake
+  - compilers  # C/C++ toolchain to build the pybind11 extension (e.g. on Read the Docs)
   - doxygen  # required: generates pybind/docstrings/ DOC() headers at build time
   - pytorch
   # alteratively use MKL instead of openblas
