@@ -2,7 +2,7 @@ name: cyten
 channels:
   - conda-forge
 dependencies:
-  - python>=3.12
+  - python>=3.14
   - pip
   - setuptools>=68.0.0
   - pybind11>=3.0
@@ -12,6 +12,8 @@ dependencies:
   - scipy
   - openblas
   - cmake
+  - compilers  # C/C++ toolchain to build the pybind11 extension (e.g. on Read the Docs)
+  - doxygen  # required: generates pybind/docstrings/ DOC() headers at build time
   - pytorch
   # alteratively use MKL instead of openblas
   # - mkl
@@ -28,17 +30,18 @@ dependencies:
   - flake8-rst-docstrings
   - sphinx-lint
 
-  # building docs
-  - doxygen
+  # building Sphinx docs
   - sphinx
   - sphinx_rtd_theme
   - graphviz
   - sphinx-copybutton
-  - pip:
-    - breathe  # conde-forge version seems incompatible
 
   # I/O
   - hdf5
   - h5py
   - pyyaml
   - toml
+
+  # pip last: packages after a `pip:` block are ignored by conda
+  - pip:
+    - breathe  # conda-forge version seems incompatible

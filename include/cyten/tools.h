@@ -12,6 +12,8 @@ class NotImplemented : public std::logic_error
 };
 
 /// Format elements of an iterable as if it were a plain list.
+///
+/// This means surrounding them with brackets and separating them by `', '`.
 std::string format_like_list(py::iterable it);
 
 /// If the given object is iterable.
@@ -28,3 +30,4 @@ int64 to_valid_idx(int64 idx, int64 length);
 
 #include <cyten/tools/cost_polynomials.h>
 #include <cyten/tools/mappings.h>
+#include <cyten/tools/version.h>

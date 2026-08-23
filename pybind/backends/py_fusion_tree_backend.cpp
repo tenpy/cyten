@@ -1,4 +1,6 @@
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+#include "docstrings/backends/fusion_tree_backend.h"
 
 #include "backends/casters.hpp"
 
@@ -41,29 +43,7 @@ void
 bind_fusion_tree_data(py::module_& m)
 {
     py::class_<FusionTreeData, TensorBackend::Data, py::smart_holder> cls(m, "FusionTreeData");
-    cls.doc() = R"pydoc(
-Data stored in a Tensor for :class:`FusionTreeBackend`.
-
-Attributes
-----------
-block_inds : BlockInds
-    Indices that specify the coupled sectors of the non-zero blocks.
-    Shape ``(N, 2)``. ``block_inds[n] == [i, j]`` indicates that the coupled sector for
-    ``blocks[n]`` is given by ``tensor.codomain.sector_decomposition[i] == coupled ==
-    tensor.domain.sector_decomposition[j]``.
-blocks : list of 2D Block
-    The nonzero blocks, ``blocks[n]`` corresponding to ``coupled_sectors[n]``.
-dtype : Dtype
-    The dtype of the tensor (and of the `blocks`).
-device : str
-    The device on which the blocks are currently stored.
-    We currently only support tensors which have all blocks on a single device.
-    Should be the device returned by :func:`BlockBackend.as_device`.
-is_sorted : bool
-    If ``False`` (default), we permute `blocks` and `block_inds` according to
-    ``np.lexsort(block_inds.T)``.
-    If ``True``, we assume they are sorted *without* checking.
-)pydoc";
+    cls.doc() = DOC(cyten, FusionTreeData);
 
     cls.def(py::init([](BlockInds block_inds,
                         std::vector<BlockBackend::BlockPtr> blocks,
@@ -89,23 +69,11 @@ is_sorted : bool
            &FusionTreeData::block_ind_from_coupled,
            py::arg("coupled"),
            py::arg("domain"),
-           R"pydoc(
-Return `ind` such that ``blocks[ind]`` is associated with the `coupled` sector.
-
-This is such that ``domain.sector_decomposition[block_inds[res][1]] == coupled``.
-
-Note: we use the domain (and not the codomain), since only the :attr:`block_inds[:, 1]`
-are sorted.
-)pydoc")
+           DOC(cyten, FusionTreeData, block_ind_from_coupled))
       .def("block_ind_from_domain_sector_ind",
            &FusionTreeData::block_ind_from_domain_sector_ind,
            py::arg("domain_sector_ind"),
-           R"pydoc(
-Return `ind` such that ``block_inds[ind, 1] == domain_sector_ind``
-
-Note: we use the domain (and not the codomain), since only the :attr:`block_inds[:, 1]`
-are sorted.
-)pydoc")
+           DOC(cyten, FusionTreeData, block_ind_from_domain_sector_ind))
       .def(
         "discard_zero_blocks",
         [](FusionTreeData& self, py::object backend, float64 eps) {
@@ -113,9 +81,7 @@ are sorted.
         },
         py::arg("backend"),
         py::arg("eps"),
-        R"pydoc(
-        Discard blocks whose norm is below the threshold `eps`
-        )pydoc")
+        DOC(cyten, FusionTreeData, discard_zero_blocks))
       .def("save_hdf5",
            &FusionTreeData::save_hdf5,
            py::arg("hdf5_saver"),
@@ -132,13 +98,7 @@ void
 bind_fusion_tree_backend(py::module_& m)
 {
     py::class_<FusionTreeBackend, TensorBackend, py::smart_holder> cls(m, "FusionTreeBackend");
-    cls.doc() = R"pydoc(
-        A backend based on fusion trees.
-
-        Notes
-        -----
-        Data is :class:`FusionTreeData` (coupled-sector ``block_inds`` + forest blocks).
-        )pydoc";
+    cls.doc() = DOC(cyten, FusionTreeBackend);
 
     cls.def(py::init([](py::object block_backend) {
                 return std::make_shared<FusionTreeBackend>(as_shared_block_backend(block_backend));
@@ -172,11 +132,7 @@ bind_fusion_tree_backend(py::module_& m)
       py::arg("tensor"),
       py::arg("pairs"),
       py::arg("levels") = py::none(),
-      R"pydoc(
-      Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-
-      Returns ``data, codomain, domain``.
-      )pydoc");
+      DOC(cyten, FusionTreeBackend, partial_trace));
 
     cls.def("apply_instructions",
             &FusionTreeBackend::apply_instructions,
@@ -187,9 +143,7 @@ bind_fusion_tree_backend(py::module_& m)
             py::arg("new_codomain"),
             py::arg("new_domain"),
             py::arg("mixes_codomain_domain"),
-            R"pydoc(
-Apply a sequence of braid/bend/twist instructions (used by :meth:`permute_legs`).
-)pydoc");
+            DOC(cyten, FusionTreeBackend, apply_instructions));
 }
 
 } // namespace cyten

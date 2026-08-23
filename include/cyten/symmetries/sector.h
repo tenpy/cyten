@@ -23,7 +23,8 @@ inline constexpr std::size_t max_sector_ind_len = 7;
 /// Owning sector: fixed capacity, runtime length. Fits in 16 bytes (128 bit).
 ///
 /// Exposed to Python as ``cyten.Sector``. Factor helpers should view storage via
-/// ``as_span<N>()`` / ``subspan<N>()``, not via a separate owning fixed-N type.
+/// ``as_span()`` / ``subspan()`` with a compile-time length, not via a separate owning
+/// fixed-N type.
 ///
 /// ``len()`` is always in ``[0, max_sector_ind_len]`` and is fixed at construction
 /// (default, initializer list, or ``from_span``).
@@ -144,6 +145,7 @@ class Sector
 
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
+    /// A batch of sectors with shape ``(num_sectors, sector_ind_len)``.
     static Sector from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 
   private:

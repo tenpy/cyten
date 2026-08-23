@@ -11,8 +11,8 @@ namespace cyten {
 
 /// A block-backend based on a generic Array API compliant library.
 ///
-/// Holds a Python Array-API namespace (`numpy`, etc.) and dispatches ops through it.
-/// Designed to be subclassed from Python (trampoline: ``PyArrayApiBlockBackend``).
+/// Construct with an Array-API namespace (e.g. ``numpy``) and optional default device.
+/// Intended to be subclassed from Python to fill in missing operations.
 class ArrayApiBlockBackend : public BlockBackend
 {
   public:

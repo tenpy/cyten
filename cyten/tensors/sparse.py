@@ -83,11 +83,6 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         The numpy dtype for this operator.
     labels : list of str, optional
         The labels for inputs to `cyten_matvec`.
-    charge_sector : None | Sector | 'trivial'
-        If given, only the specified charge sector is considered.
-        If ``'trivial'`` is given, the trivial sector of the symmetry is used.
-        ``None`` stands for *all* sectors, represented via :class:`~cyten.tensors.ChargedTensor`
-        with a specified :attr:`~cyten.tensors.ChargedTensor.charged_state`.
     matvec_count : int
         The number of times `cyten_matvec` was called.
     N : int
@@ -284,6 +279,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
 
     @property
     def charge_sector(self):
+        """Charge sector this operator acts in, ``'trivial'``, or ``None`` for all sectors."""
         return self._charge_sector
 
     @charge_sector.setter

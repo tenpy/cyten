@@ -8,6 +8,8 @@
 namespace cyten {
 
 /// The dtype of (entries in) a tensor.
+///
+/// Encoding: ``value ≈ num_bytes * 2 + int(not is_real)`` (except for `Bool` and `Int64`).
 enum class Dtype : std::uint8_t
 {
     // value ~= num_bytes * 2 + int(not is_real)

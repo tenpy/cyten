@@ -1,8 +1,5 @@
 #pragma once
 
-/// Owning dense array for topological symmetry data (F/R/C/B symbols, fusion tensors, …).
-/// Rank is at most 4; dtype is Float64 or Complex128.
-
 #include "../block_backend/block_backend.h"
 #include "../block_backend/dtypes.h"
 #include "../cyten.h"
@@ -22,6 +19,9 @@
 
 namespace cyten {
 
+/// Owning dense array for topological symmetry data (F/R/C/B symbols, fusion tensors, …).
+///
+/// Rank is at most 4; dtype is Float64 or Complex128.
 class FusionSymbol
 {
   public:

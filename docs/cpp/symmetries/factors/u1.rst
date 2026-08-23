@@ -1,0 +1,12 @@
+u1.h
+====
+
+Declared in ``include/cyten/symmetries/factors/u1.h``.
+
+cyten::U1
+---------
+
+.. doxygenclass:: cyten::U1
+   :project: cyten
+   :members:
+   :undoc-members:

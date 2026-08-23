@@ -20,7 +20,7 @@
 namespace cyten {
 
 /// Sentinel for summing over all species in fermion/boson couplings.
-/// Python exposes ``ALL_SPECIES = object()``; :func:`all_species_sentinel` is the unique
+/// Python exposes ``ALL_SPECIES = object()``; `all_species_sentinel` is the unique
 /// identity used for ``is`` comparison and pybind default arguments (process-lifetime).
 struct AllSpeciesTag
 {};
@@ -30,6 +30,25 @@ inline AllSpeciesTag const ALL_SPECIES{};
 [[nodiscard]] bool is_all_species(py::object const& species);
 
 /// Collects necessary information about a local site of a lattice model.
+///
+/// A site defines the local Hilbert space in terms of its `leg`.
+/// This involves a choice for the local basis.
+/// Moreover, it exposes the symmetric single-site operators.
+/// Multi-site operators, on the other hand, are represented by `Coupling` s.
+///
+/// Attributes:
+///
+/// leg : ElementarySpace
+///     The local physical Hilbert space.
+/// state_labels : {str: int}
+///     Optional labels for the local basis states. Any state may have multiple labels, or none.
+/// onsite_operators : {str: SymmetricTensor}
+///     The available on-site operators. Note: which operators are available typically depends
+///     on what symmetry is enforced. Operators that are symmetric under a small symmetry may
+///     not be symmetric under a larger symmetry, and are thus not available as `onsite_operators`.
+///     Each must have the `leg` of the site as the only factor in its domain and codomain.
+///
+/// TODO put some
 class Site : public virtual std::enable_shared_from_this<Site>
 {
   public:
@@ -50,26 +69,67 @@ class Site : public virtual std::enable_shared_from_this<Site>
 
     virtual ~Site() = default;
 
+    /// Perform sanity checks.
     virtual void test_sanity();
 
     [[nodiscard]] Symmetry::Ptr symmetry() const;
     [[nodiscard]] float64 dim() const;
 
+    /// Add an operator to the `onsite_operators`.
     void add_onsite_operator(std::string const& name,
                              py::object op,
                              std::optional<bool> is_diagonal = std::nullopt,
                              bool understood_braiding = false);
 
+    /// Whether `name` labels a valid onsite operator of this site.
     [[nodiscard]] bool valid_opname(std::string const& name) const;
+    /// Return operator of given name.
+    ///
+    /// @param name The name of the operator to be returned. In case of multiple operator names
+    /// separated by whitespace, we multiply them together to a single on-site operator (with the
+    /// one on the right acting first).
+    /// @returns op : `SymmetricTensor` The operator given by `name`, with labels ``'p', 'p*'``. If
+    /// name already was an onsite operator, it's directly returned.
     [[nodiscard]] SymmetricTensorPtr get_op(std::string const& name);
+    /// Multiply operator names together.
+    ///
+    /// Join the operator names in `names` such that `get_op` returns the product of the
+    /// corresponding operators.
+    ///
+    /// @param names List of valid operator labels.
+    /// @returns combined_opname : str A valid operator name Operator name representing the product
+    /// of operators in `names`.
     [[nodiscard]] std::string multiply_op_names(std::vector<std::string> const& names) const;
+    /// Multiply local operators (possibly given by their names) together.
+    ///
+    /// @param operators List of valid operator names (to be translated with `get_op`) or directly
+    /// on-site operators in the form of tensors with ``'p', 'p*'`` labels. The operators are
+    /// multiplied left-to-right.
+    /// @returns combined_operator : `SymmetricTensor` The product of the given `operators` in a
+    /// left-to-right multiplication following the usual mathematical convention. For example, if
+    /// ``operators=['Sz', 'Sp', 'Sx']``, the final operator is equivalent to ``site.get_op('Sz Sp
+    /// Sx')``, with the ``'Sx'`` operator acting first on any physical state.
     [[nodiscard]] SymmetricTensorPtr multiply_operators(std::vector<py::object> const& operators);
+    /// Build an identity MPO tensor for this site with the given virtual legs.
+    ///
+    /// Returns a 4-leg tensor with legs ``[wL, p, wR, p*]``; the physical legs carry `leg`.
+    /// This tensor acts as identity map between wL and wR, and is symmetric under the symmetry of
+    /// this site.
+    ///
+    /// @param w Virtual leg for the `wL` and `wR` legs (they are the same) of the returned tensor.
+    /// @param overbraid Braiding direction when the virtual leg is permuted past the physical leg.
+    /// ``True`` (default) uses an over-braid (``bend_right=False`` in `permute_legs`); ``False``
+    /// uses an under-braid (``bend_right=True``).
+    /// @returns Identity tensor with legs ``[wL, p, wR, p*]``.
     [[nodiscard]] SymmetricTensorPtr identity_tensor(ElementarySpace::Ptr w,
                                                      bool overbraid = true);
+    /// The index of a basis state.
     [[nodiscard]] int64 state_index(py::object label) const;
+    /// The indices of multiple basis states
     [[nodiscard]] std::vector<int64> state_indices(std::vector<py::object> const& labels) const;
     [[nodiscard]] std::string repr() const;
 
+    /// Export `self` into a HDF5 file.
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
     static py::object from_hdf5(py::object cls,
                                 py::object hdf5_loader,
@@ -77,11 +137,19 @@ class Site : public virtual std::enable_shared_from_this<Site>
                                 std::string const& subpath);
 
   protected:
-    /// Constructor keyword arguments used by :meth:`save_hdf5` / :meth:`from_hdf5`.
+    /// Constructor keyword arguments used by `save_hdf5` / `from_hdf5`.
     [[nodiscard]] virtual py::dict hdf5_init_kwargs() const;
     [[nodiscard]] py::dict hdf5_backend_kwargs() const;
 };
 
+/// Common base class for sites that have a spin degree of freedom.
+///
+/// Attributes:
+///
+/// spin_vector : 3D array
+///     The vector of spin operators as a numpy array with axes ``[p, p*, i]`` and shape
+///     ``(dim, dim, 3)``. These operators include the factor of the total spin,
+///     e.g. for spin-1/2, these are ``.5`` times the pauli matrices.
 class SpinDOF : public virtual Site
 {
   public:
@@ -96,13 +164,19 @@ class SpinDOF : public virtual Site
             TensorBackend::Ptr backend = nullptr,
             std::optional<std::string> default_device = std::nullopt);
 
+    /// Perform sanity checks.
     void test_sanity() override;
 
+    /// Build the spin_vector from ``Sz`` and ``Sp = Sx + i Sy``
     [[nodiscard]] static py::array spin_vector_from_Sp(py::array Sz, py::array Sp);
+    /// Translate conservation law for a spin to a symmetry.
+    /// Translate conservation law for individual / all bosons to a symmetry.
+    /// Translate conservation law for individual / all fermions to a symmetry.
     [[nodiscard]] static Symmetry::Ptr conservation_law_to_symmetry(
       std::optional<std::string> conserve);
 };
 
+/// Common base class for sites that have a quantum clock degree of freedom.
 class ClockDOF : public virtual Site
 {
   public:
@@ -117,12 +191,15 @@ class ClockDOF : public virtual Site
              TensorBackend::Ptr backend = nullptr,
              std::optional<std::string> default_device = std::nullopt);
 
+    /// Perform sanity checks.
     void test_sanity() override;
 
+    /// Translate conservation law for a clock to a symmetry.
     [[nodiscard]] static Symmetry::Ptr conservation_law_to_symmetry(
       std::optional<std::string> conserve);
 };
 
+/// Common base class for sites that have an anyonic degree of freedom.
 class AnyonDOF : public virtual Site
 {
   public:
@@ -137,9 +214,36 @@ class AnyonDOF : public virtual Site
              TensorBackend::Ptr backend = nullptr,
              std::optional<std::string> default_device = std::nullopt);
 
+    /// Perform sanity checks.
     void test_sanity() override;
 };
 
+/// Common base class for sites that have a bosonic or fermionic degree of freedom.
+///
+/// Requires that the local basis is such that the `number_operators` of all species
+/// are diagonal.
+///
+/// Attributes:
+///
+/// num_species : int
+///     Number of boson species.
+/// creators : 3D array
+///     The vector of creation operators as a numpy array with shape ``(dim, dim, num_species)``
+///     and axes ``[p, p*, i]``, where `i` corresponds to the different species of bosons (i.e.,
+///     ``[Bd0, Bd1`, ...]`` stacked along axis 2).
+/// annihilators : 3D array
+///     The vector of annihilation operators as a numpy array with shape ``(dim, dim,
+///     num_species)`` and axes ``[p, p*, i]``, where `i` corresponds to the different species of
+///     bosons (i.e.,
+///     ``[B0, B1`, ...]`` stacked along axis 2).
+/// anti_commute_sign : float
+///     ``+1`` for bosons, ``-1`` for fermions.
+/// species_names : list of (str | None)
+///     Names for each of the species.
+/// number_operators : 3D array
+///     The vector of occupation number operators with shape ``(dim, dim, num_species)``.
+/// n_tot : 2D array
+///     The total occupation number operator with shape ``(dim, dim)``.
 class OccupationDOF : public virtual Site
 {
   public:
@@ -165,14 +269,22 @@ class OccupationDOF : public virtual Site
 
     void test_sanity() override;
 
+    /// Add occupation and parity operators for each species.
     virtual void add_individual_occupation_ops();
     void add_total_occupation_ops();
 
+    /// Wrapper around ``annihilators[:, :, species]``, optionally including JW strings.
+    ///
+    /// If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
     [[nodiscard]] virtual py::array get_annihilator_numpy(py::object species,
                                                           bool include_JW = false) = 0;
+    /// Wrapper around ``creators[:, :, species]``, optionally including JW strings.
+    ///
+    /// If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
     [[nodiscard]] virtual py::array get_creator_numpy(py::object species,
                                                       bool include_JW = false) = 0;
 
+    /// Get the occupation number operator for some or multiple species as a numpy array.
     [[nodiscard]] py::array get_occupation_numpy(py::object species = py::none());
     [[nodiscard]] int64 get_species_idx(py::object species) const;
 
@@ -180,6 +292,19 @@ class OccupationDOF : public virtual Site
     std::map<std::string, int64> species_name_to_idx;
 };
 
+/// Common base class for sites that have a bosonic degree of freedom.
+///
+/// Requires that the local basis is such that the `number_operators` of all species
+/// are diagonal.
+///
+/// Mutually exclusive with `FermionicDOF`. Sites containing both bosonic and fermionic
+/// degrees of freedom can be realized by grouping of a bosonic site with a fermionic one.
+///
+/// Attributes:
+///
+/// Nmax : 1D array of int
+///     Cutoff defining the maximum number of bosons per species and site. ``Nmax[i]`` corresponds
+///     to the cutoff for the `i`th species; a value of ``Nmax[i] = 1`` describes hard-core bosons.
 class BosonicDOF : public OccupationDOF
 {
   public:
@@ -221,6 +346,13 @@ class BosonicDOF : public OccupationDOF
     creation_annihilation_ops(int64 num_species, py::array Nmax, int64 dim);
 };
 
+/// Common base class for sites that have a fermionic degree of freedom.
+///
+/// Requires that the local basis is such that the `number_operators` of all species
+/// are diagonal.
+///
+/// Mutually exclusive with `BosonicDOF`. Sites containing both bosonic and fermionic
+/// degrees of freedom can be realized by grouping of a bosonic site with a fermionic one.
 class FermionicDOF : public OccupationDOF
 {
   public:

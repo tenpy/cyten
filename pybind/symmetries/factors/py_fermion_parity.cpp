@@ -1,3 +1,5 @@
+#include "../../doc_plus.h"
+#include "docstrings/symmetries/factors/fermion_parity.h"
 #include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
@@ -12,13 +14,8 @@ namespace cyten {
 void
 bind_fermion_parity(py::module_& m)
 {
-    py::class_<FermionParity, SymmetryFactor, py::smart_holder> cls(m,
-                                                                    "FermionParity",
-                                                                    R"pydoc(
-                                                                    Fermionic Parity.
-
-                                                                    Allowed sectors are arrays with a single entry; either ``[0]`` (even) or ``1`` (odd).
-                                                                    )pydoc");
+    py::class_<FermionParity, SymmetryFactor, py::smart_holder> cls(
+      m, "FermionParity", DOC(cyten, FermionParity));
     cls
       .def(py::init<std::optional<std::string>, bool>(),
            py::arg("descriptive_name") = py::none(),

@@ -1,5 +1,5 @@
 #include <cyten/config.h>
-#include <cyten/warn.h>
+#include <cyten/tools/warn.h>
 
 #include <cctype>
 #include <cstdlib>

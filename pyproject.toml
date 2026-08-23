@@ -2,7 +2,7 @@
 name = "cyten"
 dynamic = ["version"]  # set during packaging/build from git description
 description = ""
-readme = {file = "README.md", content-type = "text/markdown"}
+readme = {file = "README.rst", content-type = "text/x-rst"}
 requires-python = ">=3.14"
 license = {text = "Apache_v2"}
 # authors = [
@@ -51,6 +51,8 @@ docbuild = [
     "sphinx-rtd-theme",
     "sphinxcontrib-bibtex",
     "sphinx_copybutton",
+    "clang",
+    "pybind11-mkdoc",
 ]
 # bundles
 dev = ["cyten[io, test, lint, docbuild]"]

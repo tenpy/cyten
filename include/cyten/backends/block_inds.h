@@ -19,6 +19,9 @@
 
 namespace cyten {
 
+/// Owning 2D int64 array with shape ``(num_blocks, num_legs)``.
+///
+/// Used for abelian ``block_inds``. Lex order matches ``np.lexsort(arr.T)``.
 class BlockInds
 {
   public:

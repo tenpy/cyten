@@ -1,3 +1,5 @@
+#include "../../doc_plus.h"
+#include "docstrings/symmetries/factors/su2_k_anyon_category.h"
 #include "py_cyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
@@ -11,11 +13,8 @@ namespace cyten {
 void
 bind_su2_k_anyon_category(py::module_& m)
 {
-    py::class_<SU2_kAnyonCategory, SymmetryFactor, py::smart_holder> cls(m,
-                                                                         "SU2_kAnyonCategory",
-                                                                         R"pydoc(
-                                                                         :math:`SU(2)_k` anyon category.
-                                                                         )pydoc");
+    py::class_<SU2_kAnyonCategory, SymmetryFactor, py::smart_holder> cls(
+      m, "SU2_kAnyonCategory", DOC(cyten, SU2_kAnyonCategory));
     cls.def(py::init<int, std::string>(), py::arg("k"), py::arg("handedness") = "left")
       .def_static("from_hdf5",
                   &SU2_kAnyonCategory::from_hdf5,

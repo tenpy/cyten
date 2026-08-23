@@ -45,7 +45,7 @@ class BigOMonomial
 
 /// A symbolic representation of an algorithmic cost as a polynomial.
 ///
-/// A polynomial is a sum of :class:`BigOMonomial`\ s, e.g. ``x^a y^b + y^c z^d``.
+/// A polynomial is a sum of `BigOMonomial`\ s, e.g. ``x^a y^b + y^c z^d``.
 class BigOPolynomial
 {
   public:

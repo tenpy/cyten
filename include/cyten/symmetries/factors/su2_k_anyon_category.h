@@ -11,7 +11,7 @@
 
 namespace cyten {
 
-/// :math:`SU(2)_k` anyon category.
+/// @f$ SU(2)_k @f$ anyon category.
 ///
 /// Allowed sectors are 1D arrays ``[jj]`` with ``jj = 0, 1, …, k`` (spin ``jj/2``, cutoff at
 /// ``k/2``).

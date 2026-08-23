@@ -5,7 +5,7 @@
 #include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/tools.h>
-#include <cyten/warn.h>
+#include <cyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
@@ -116,12 +116,14 @@ make_mask(TensorBackend::DataPtr data,
 
 } // namespace
 
+/// @cond
 std::vector<Dtype> Mask::_forbidden_dtypes = {
     Dtype::Float32,
     Dtype::Float64,
     Dtype::Complex64,
     Dtype::Complex128,
 };
+/// @endcond
 
 Mask::Mask(TensorBackend::DataPtr data_in,
            Space::Ptr space_in,

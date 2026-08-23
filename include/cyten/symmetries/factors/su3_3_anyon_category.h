@@ -10,10 +10,10 @@
 
 namespace cyten {
 
-/// :math:`SU(3)_3` anyon category.
+/// @f$ SU(3)_3 @f$ anyon category.
 ///
 /// Allowed sectors are 1D arrays ``[j]`` with ``j = 0, 1, 2, 3`` (``1``, ``8``, ``10``,
-/// ``\bar{10}``).
+/// ``\\bar{10}``).
 class SU3_3AnyonCategory : public SymmetryFactor
 {
   public:

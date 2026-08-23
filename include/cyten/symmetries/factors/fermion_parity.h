@@ -9,6 +9,8 @@
 namespace cyten {
 
 /// Fermionic parity (Z_2 fusion, fermionic braid).
+///
+/// Allowed sectors are arrays with a single entry; either ``[0]`` (even) or ``[1]`` (odd).
 class FermionParity : public SymmetryFactor
 {
   public:

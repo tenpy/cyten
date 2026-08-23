@@ -4,7 +4,10 @@
 #include <cyten/tensors/tensor.h>
 #include <cyten/tools.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+
+#include "docstrings/tensors/decompositions.h"
 
 #include <cmath>
 #include <limits>
@@ -75,7 +78,7 @@ bind_tensors_decompositions(py::module_& m)
           &apply_mask_DiagonalTensor,
           py::arg("tensor"),
           py::arg("mask"),
-          R"pydoc(Apply a mask to *both* legs of a diagonal tensor.)pydoc");
+          DOC(cyten, apply_mask_DiagonalTensor));
 
     m.def(
       "eigh",
@@ -89,7 +92,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("new_labels"),
       py::arg("new_leg_dual"),
       py::arg("sort") = py::none(),
-      R"pydoc(The eigen-decomposition of a hermitian tensor.)pydoc");
+      DOC(cyten, eigh));
 
     m.def(
       "entropy",
@@ -107,7 +110,11 @@ bind_tensors_decompositions(py::module_& m)
       },
       py::arg("p"),
       py::arg("n") = 1,
-      R"pydoc(The entropy of a probability distribution.)pydoc");
+      doc_plus(DOC(cyten, entropy),
+               R"pydoc(
+In Python, ``p`` may also be a NumPy array / sequence of floats. The DiagonalTensor path
+returns a NumPy scalar via ``.to_numpy()``.
+)pydoc"));
 
     m.def(
       "lq",
@@ -118,7 +125,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("new_labels") = py::none(),
       py::arg("new_leg_dual") = false,
       py::arg("charge_leg_top") = true,
-      R"pydoc(The LQ decomposition of a tensor.)pydoc");
+      DOC(cyten, lq));
 
     m.def(
       "qr",
@@ -129,7 +136,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("new_labels") = py::none(),
       py::arg("new_leg_dual") = false,
       py::arg("charge_leg_top") = true,
-      R"pydoc(The QR decomposition of a tensor.)pydoc");
+      DOC(cyten, qr));
 
     m.def(
       "svd",
@@ -149,7 +156,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("new_leg_dual") = false,
       py::arg("charge_leg_top") = true,
       py::arg("algorithm") = py::none(),
-      R"pydoc(The singular value decomposition (SVD) of a tensor.)pydoc");
+      DOC(cyten, svd));
 
     m.def("svd_apply_mask",
           &svd_apply_mask,
@@ -157,7 +164,7 @@ bind_tensors_decompositions(py::module_& m)
           py::arg("S"),
           py::arg("Vh"),
           py::arg("mask"),
-          R"pydoc(Truncate an existing SVD)pydoc");
+          DOC(cyten, svd_apply_mask));
 
     m.def(
       "truncate_singular_values",
@@ -195,7 +202,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("svd_min") = 0,
       py::arg("minimize_error") = true,
       py::arg("mask_labels") = py::none(),
-      R"pydoc(Given *normalized* singular values, determine which to keep.)pydoc");
+      DOC(cyten, truncate_singular_values));
 
     m.def(
       "truncated_svd",
@@ -246,7 +253,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("degeneracy_tol") = 0,
       py::arg("trunc_cut") = 0,
       py::arg("svd_min") = 0,
-      R"pydoc(Truncated version of :func:`svd`.)pydoc");
+      DOC(cyten, truncated_svd));
 }
 
 } // namespace cyten

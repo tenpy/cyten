@@ -1,5 +1,7 @@
 #include <cyten/tools.h>
 
+#include "doc_plus.h"
+#include "docstrings/tools.h"
 #include "py_cyten_pybind11.h"
 
 namespace py = pybind11;
@@ -20,11 +22,7 @@ bind_tools(py::module_& m)
 
     m.def("format_like_list",
           &cyten::format_like_list,
-          R"pydoc(
-          Format elements of an iterable as if it were a plain list.
-
-          This means surrounding them with brackets and separating them by `', '`.
-          )pydoc",
+          doc_cpp_ref(R"pydoc(format_like_list)pydoc", "cyten::format_like_list"),
           py::arg("it"));
 
     m.def("is_iterable", &cyten::is_iterable, py::arg("a"), "If the given object is iterable.");

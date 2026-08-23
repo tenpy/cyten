@@ -1,7 +1,9 @@
 #include <cyten/backends/fusion_tree_mapping.h>
 #include <cyten/backends/fusion_tree_permute.h>
 
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
+#include "docstrings/backends/fusion_tree_mapping.h"
 
 #include <format>
 #include <memory>
@@ -15,42 +17,8 @@ void
 bind_fusion_tree_mapping(py::module_& m)
 {
     py::class_<BraidInstruction> braid_cls(m, "BraidInstruction");
-    braid_cls.doc() = R"pydoc(
-        Instruction to braid two neighboring legs.
-
-        Attributes
-        ----------
-        codomain : bool
-            If the braid is in the codomain, otherwise in the domain.
-        idx : int
-            Which leg of the (co-)domain braids.
-            We braid ``(co)domain[idx]`` with ``(co)domain[idx + 1]``
-        overbraid : bool
-            Specifies the chirality of the braid. An overbraid is a braid where the leg that goes
-            from bottom left to top right is on top, see notes below.
-
-        Notes
-        -----
-        Examples for over-braids::
-
-            |    │    ╲ ╱    │                      │   │   │   │
-            |    │     ╱     │                     ┏┷━━━┷━━━┷━━━┷┓
-            |    │    ╱ ╲    │                     ┃             ┃
-            |   ┏┷━━━┷━━━┷━━━┷┓                    ┗━━┯━━━┯━━━┯━━┛
-            |   ┃             ┃         OR             ╲ ╱    │
-            |   ┗━━┯━━━┯━━━┯━━┛                         ╱     │
-            |      │   │   │                           ╱ ╲    │
-
-        Examples for under-braids::
-
-            |    │    ╲ ╱    │                      │   │   │   │
-            |    │     ╲     │                     ┏┷━━━┷━━━┷━━━┷┓
-            |    │    ╱ ╲    │                     ┃             ┃
-            |   ┏┷━━━┷━━━┷━━━┷┓                    ┗━━┯━━━┯━━━┯━━┛
-            |   ┃             ┃         OR             ╲ ╱    │
-            |   ┗━━┯━━━┯━━━┯━━┛                         ╲     │
-            |      │   │   │                           ╱ ╲    │
-        )pydoc";
+    braid_cls.doc() =
+      doc_cpp_ref(R"pydoc(BraidInstruction)pydoc", "cyten::BraidInstruction", "class");
 
     braid_cls
       .def(
@@ -65,9 +33,8 @@ bind_fusion_tree_mapping(py::module_& m)
       });
 
     py::class_<BendInstruction> bend_cls(m, "BendInstruction");
-    bend_cls.doc() = R"pydoc(
-        Instruction to bend the rightmost leg of the codomain down (of the domain up).
-        )pydoc";
+    bend_cls.doc() =
+      doc_cpp_ref(R"pydoc(BendInstruction)pydoc", "cyten::BendInstruction", "class");
 
     bend_cls.def(py::init<bool>(), py::arg("bend_down"))
       .def_readwrite("bend_down", &BendInstruction::bend_down)
@@ -77,63 +44,8 @@ bind_fusion_tree_mapping(py::module_& m)
       });
 
     py::class_<TwistInstruction> twist_cls(m, "TwistInstruction");
-    twist_cls.doc() = R"pydoc(
-        Instruction to apply a twist on one leg.
-
-        Attributes
-        ----------
-        codomain : bool
-            If the twist is in the codomain, otherwise in the domain.
-        idcs : list of int
-            Which legs of the (co-)domain are twisted; we twist ``(co)domain[idcs]``.
-            Must be contiguous.
-        overtwist : bool
-            Specifies the chirality of the twist. An overtwist (undertwist) has an overbraid
-            (underbraid) at the center, and a cup and cap.
-
-        Notes
-        -----
-        Let us first illustrate how the chirality is given by :attr:`overtwist`.
-        For simplicity, we always show ``idcs=[-1]``.
-        Example for over-twists::
-
-            |    │   │   │   │   ╭─╮             │   │   │   │
-            |    │   │   │    ╲ ╱  │            ┏┷━━━┷━━━┷━━━┷┓
-            |    │   │   │     ╱   │            ┃             ┃
-            |    │   │   │    ╱ ╲  │            ┗━━┯━━━┯━━━┯━━┛╭─╮
-            |   ┏┷━━━┷━━━┷━━━┷┓  ╰─╯               │   │    ╲ ╱  │
-            |   ┃             ┃         OR         │   │     ╱   │
-            |   ┗━━┯━━━┯━━━┯━━┛                    │   │    ╱ ╲  │
-            |      │   │   │                       │   │   │   ╰─╯
-
-        Examples for under-twists::
-
-            |    │   │   │   │   ╭─╮             │   │   │   │
-            |    │   │   │    ╲ ╱  │            ┏┷━━━┷━━━┷━━━┷┓
-            |    │   │   │     ╲   │            ┃             ┃
-            |    │   │   │    ╱ ╲  │            ┗━━┯━━━┯━━━┯━━┛╭─╮
-            |   ┏┷━━━┷━━━┷━━━┷┓  ╰─╯               │   │    ╲ ╱  │
-            |   ┃             ┃         OR         │   │     ╲   │
-            |   ┗━━┯━━━┯━━━┯━━┛                    │   │    ╱ ╲  │
-            |      │   │   │                       │   │   │   ╰─╯
-
-        For multiple legs (``len(idcs) > 1``), we twist them together, e.g.::
-
-            |
-            |
-            |    │   │   │   │   ╭──────╮
-            |    │   │    ╲   ╲ ╱       │
-            |    │   │     ╲   ╱   ╭─╮  │
-            |    │   │      ╲ ╱ ╲ ╱  │  │
-            |    │   │       ╱   ╱   │  │
-            |    │   │      ╱ ╲ ╱ ╲  │  │
-            |    │   │     ╱   ╱   ╰─╯  │
-            |    │   │    ╱   ╱ ╲       │
-            |   ┏┷━━━┷━━━┷━━━┷┓  ╰──────╯
-            |   ┃             ┃
-            |   ┗━━┯━━━┯━━━┯━━┛
-            |      │   │   │
-        )pydoc";
+    twist_cls.doc() =
+      doc_cpp_ref(R"pydoc(TwistInstruction)pydoc", "cyten::TwistInstruction", "class");
 
     twist_cls
       .def(py::init<bool, std::vector<int64>, bool>(),
@@ -160,13 +72,7 @@ bind_fusion_tree_mapping(py::module_& m)
       });
 
     py::class_<TreePairMapping> tree_pair(m, "TreePairMapping");
-    tree_pair.doc() = R"pydoc(
-        A :class:`TensorMapping`, defined at the level of tree-pairs, i.e. the general case.
-
-        We store the component ``f_{JI} = <X_J @ Y_J | f(X_I @ Y_I)>``,
-        which represents ``X_I @ Y_I \mapsto f_{JI} X_J @ Y_J`` as ``mapping[I][J] = f_{JI}``.
-        In practice, the keys are ``I = (X_I, Y_I)`` tuples of two FusionTrees.
-        )pydoc";
+    tree_pair.doc() = DOC(cyten, TreePairMapping);
 
     tree_pair
       .def(py::init<SparseMappingFusionTreePair, bool>(), py::arg("mapping"), py::arg("is_real"))
@@ -177,19 +83,7 @@ bind_fusion_tree_mapping(py::module_& m)
                   py::arg("codomain"),
                   py::arg("domain"),
                   py::arg("block_inds") = py::none(),
-                  R"pydoc(
-                  The identity mapping.
-
-                  Parameters
-                  ----------
-                  codomain, domain : TensorProduct
-                      The codomain and domain that determine the possible fusion and splitting trees.
-                  block_inds : 2D array
-                      Same format and meaning as the :attr:`FusionTreeData.block_inds`.
-                      If given, we only initialize those components ``X_I @ Y_I -> X_I @ Y_I``
-                      where the coupled sector of the tree-pair is pointed to by a row in the `block_inds`,
-                      i.e. if we have ``coupled == codomain.sector_decomposition[block_inds[some_idx, 0]]``.
-                  )pydoc")
+                  DOC(cyten, TreePairMapping, from_identity))
       .def_static("from_instructions",
                   &TreePairMapping::from_instructions,
                   py::arg("instructions"),
@@ -199,9 +93,7 @@ bind_fusion_tree_mapping(py::module_& m)
       .def("prune",
            &TreePairMapping::prune,
            py::arg("tol") = 1e-15,
-           R"pydoc(
-           Remove small contributions with ``abs(coefficient) < tol`` in-place.
-           )pydoc")
+           doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::TreePairMapping::prune()"))
       .def(
         "transform_tensor",
         [](TreePairMapping const& self,
@@ -231,36 +123,11 @@ bind_fusion_tree_mapping(py::module_& m)
         py::arg("codomain_idcs"),
         py::arg("domain_idcs"),
         py::arg("block_backend"),
-        R"pydoc(
-        Transform a tensor by applying the mapping to its tree-pairs. See class docstring.
-
-        Parameters
-        ----------
-        data : FusionTreeData
-            The data of the input tensor.
-        codomain, domain : TensorProduct
-            The (co)domain of the input tensor.
-        new_codomain, new_domain : TensorProduct
-            The (co)domain of the output tensor.
-        codomain_idcs, domain_idcs : list of int
-            The permutations such that ``new_(co)domain[i] = old_legs[(co)domain_idcs[i]]``.
-            This permutation acts on the uncoupled multiplicity indices.
-        )pydoc");
+        doc_cpp_ref(R"pydoc(transform_tensor)pydoc",
+                    "cyten::TreePairMapping::transform_tensor()"));
 
     py::class_<FactorizedTreeMapping> fact(m, "FactorizedTreeMapping");
-    fact.doc() = R"pydoc(
-        A :class:`TensorMapping` that factorizes into maps on single trees.
-
-        In particular, the action of the mapping on a tree pair factorizes as::
-
-            f(X @ Y) = g(X) @ h(Y)
-
-        and we store the component ``X \mapsto g_{X2, X} X2`` as
-        ``g_{X2, X} = splitting_tree_mapping[X2][X] = <X2 | X>`` and similarly
-        ``h_{Y2, Y} = fusion_tree_mapping[Y2][Y] = <Y2 | Y>`` for ``Y \mapsto h_{Y2, Y} Y2``.
-        Note that ``g`` contains the coefficients in a linear combination of splitting trees,
-        which are conjugated compared to the analogous linear combination of fusion trees.
-        )pydoc";
+    fact.doc() = DOC(cyten, FactorizedTreeMapping);
 
     fact
       .def(py::init<FusionTreeMappingVariant, FusionTreeMappingVariant, bool>(),
@@ -270,24 +137,13 @@ bind_fusion_tree_mapping(py::module_& m)
       .def_readwrite("is_real", &FactorizedTreeMapping::is_real)
       .def_readwrite("splitting_tree_mapping", &FactorizedTreeMapping::splitting_tree_mapping)
       .def_readwrite("fusion_tree_mapping", &FactorizedTreeMapping::fusion_tree_mapping)
-      .def_static("from_identity",
-                  &FactorizedTreeMapping::from_identity,
-                  py::arg("codomain"),
-                  py::arg("domain"),
-                  py::arg("block_inds") = py::none(),
-                  R"pydoc(
-                  The identity mapping.
-
-                  Parameters
-                  ----------
-                  codomain, domain : TensorProduct
-                      The codomain and domain that determine the possible fusion and splitting trees.
-                  block_inds : 2D array
-                      Same format and meaning as the :attr:`FusionTreeData.block_inds`.
-                      If given, we only initialize those components ``X_I @ Y_I -> X_I @ Y_I``
-                      where the coupled sector of the tree-pair is pointed to by a row in the `block_inds`,
-                      i.e. if we have ``coupled == codomain.sector_decomposition[block_inds[some_idx, 0]]``.
-                  )pydoc")
+      .def_static(
+        "from_identity",
+        &FactorizedTreeMapping::from_identity,
+        py::arg("codomain"),
+        py::arg("domain"),
+        py::arg("block_inds") = py::none(),
+        doc_cpp_ref(R"pydoc(from_identity)pydoc", "cyten::FactorizedTreeMapping::from_identity()"))
       .def_static("from_instructions",
                   &FactorizedTreeMapping::from_instructions,
                   py::arg("instructions"),
@@ -297,9 +153,7 @@ bind_fusion_tree_mapping(py::module_& m)
       .def("prune",
            &FactorizedTreeMapping::prune,
            py::arg("tol") = 1e-15,
-           R"pydoc(
-           Remove small contributions with ``abs(coefficient) < tol`` in-place.
-           )pydoc")
+           doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::FactorizedTreeMapping::prune()"))
       .def(
         "transform_tensor",
         [](FactorizedTreeMapping const& self,
@@ -329,33 +183,12 @@ bind_fusion_tree_mapping(py::module_& m)
         py::arg("codomain_idcs"),
         py::arg("domain_idcs"),
         py::arg("block_backend"),
-        R"pydoc(
-        Transform a tensor by applying the mapping to its tree-pairs. See class docstring.
-
-        Parameters
-        ----------
-        data : FusionTreeData
-            The data of the input tensor.
-        codomain, domain : TensorProduct
-            The (co)domain of the input tensor.
-        new_codomain, new_domain : TensorProduct
-            The (co)domain of the output tensor.
-        codomain_idcs, domain_idcs : list of int
-            The permutations such that ``new_(co)domain[i] = old_legs[(co)domain_idcs[i]]``.
-            This permutation acts on the uncoupled multiplicity indices.
-        )pydoc");
+        doc_cpp_ref(R"pydoc(transform_tensor)pydoc",
+                    "cyten::FactorizedTreeMapping::transform_tensor()"));
 
     py::class_<PermuteLegsInstructionEngine> perm_cls(m, "PermuteLegsInstructionEngine");
-    perm_cls.doc() = R"pydoc(
-        Helper class to build the basic instructions that realized a leg permutation.
-
-        The strategy is to have a stateful instance of this class that represents a list
-        of :attr:`instructions` that have already been deduced, as well as attributes that encode
-        what needs to be done still.
-
-        Typical usage is to call :meth:`evaluate_instructions` once and consider the rest of the
-        methods as internals.
-        )pydoc";
+    perm_cls.doc() = doc_cpp_ref(
+      R"pydoc(PermuteLegsInstructionEngine)pydoc", "cyten::PermuteLegsInstructionEngine", "class");
 
     perm_cls
       .def(py::init<int64,
@@ -393,25 +226,7 @@ bind_fusion_tree_mapping(py::module_& m)
            py::arg("num_domain_legs"),
            py::arg("codomain_idcs"),
            py::arg("domain_idcs"),
-           R"pydoc(
-           Verify that the :attr:`instructions` reproduce the target leg permutation.
-
-           Note: we only check if the legs end up where they are supposed to, we do not verify
-           braid chiralities.
-           TODO should we?
-
-           Parameters
-           ----------
-           num_codomain_legs, num_domain_legs
-               The leg numbers of the original non-permuted tensor
-           codomain_idcs, domain_idcs
-               The target permutations.
-
-           Raises
-           ------
-           AssertionError
-               If an instruction can not be applied or if the target permutation is not reproduced.
-           )pydoc");
+           doc_cpp_ref(R"pydoc(verify)pydoc", "cyten::PermuteLegsInstructionEngine::verify()"));
 }
 
 } // namespace cyten

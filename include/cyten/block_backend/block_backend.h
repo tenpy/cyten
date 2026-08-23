@@ -71,8 +71,8 @@ class BlockBackend
         virtual BlockBackend* get_backend() const = 0;
         /// convert to numpy array, might be copy or (immutable) view
         virtual py::array to_numpy() const = 0;
-        /// convert to numpy array with given Dtype (default impl: to_numpy() then asarray(...,
-        /// dtype)).
+        /// convert to numpy array with given Dtype
+        // default impl: `to_numpy()` then `asarray(..., dtype))`.
         virtual py::array to_numpy(Dtype dtype) const;
 
         /// Shape of the block (one size per axis).
@@ -188,8 +188,9 @@ class BlockBackend
         int64 as_int64() const;
         /// As a bool scalar. Throws if dtype is not Int64.
         bool as_bool() const;
-        /// Return as a numpy scalar (np.bool_, np.float32, np.float64, np.complex64,
-        /// np.complex128).
+        /// Return as a numpy scalar (``np.bool_``, ``np.float32``, ``np.float64``,
+        /// ``np.complex64``,
+        /// ``np.complex128``).
         py::object to_numpy() const;
 
         Scalar operator+(const Scalar& other) const;
@@ -222,7 +223,13 @@ class BlockBackend
         Scalar imag() const;
         Scalar abs() const;
         Scalar sqrt() const;
+        /// The *elementwise* exponential.
+        ///
+        /// Not to be confused with `matrix_exp`, the *matrix* exponential.
         Scalar exp() const;
+        /// The *elementwise* natural logarithm.
+        ///
+        /// Not to be confused with the matrix logarithm (not implemented).
         Scalar log() const;
         Scalar pow(const Scalar& exponent) const;
 
@@ -277,7 +284,10 @@ class BlockBackend
 
     /// The absolute value of a complex number, elementwise.
     virtual BlockPtr abs(const BlockCPtr& a) = 0;
-    /// Apply :attr:`~cyten.symmetries.spaces.Leg.basis_perm` (or its inverse) on every axis.
+    /// Apply `basis_perm` (or its inverse) on every axis.
+    ///
+    /// Apply ``basis_perm`` of a `Leg` (or its inverse)
+    /// on every axis of a dense block.
     BlockPtr apply_basis_perm(const BlockCPtr& block,
                               const std::vector<LegCPtr>& legs,
                               bool inv = false);
@@ -285,10 +295,23 @@ class BlockBackend
     virtual BlockPtr apply_leg_permutations(const BlockCPtr& block,
                                             const std::vector<py::array_t<int64>>& perms) = 0;
     /// Convert objects to blocks.
+    ///
+    /// Should support blocks, numpy arrays, nested python containers. May support more.
+    /// If `a` is already a block of correct dtype on the correct device, it may be returned
+    /// un-modified.
+    ///
+    /// @returns block: Block The new block
+    ///
+    /// block_copy
+    ///     Guarantees an independent copy.
     virtual BlockPtr as_block(py::object a,
                               std::optional<Dtype> dtype = std::nullopt,
                               std::optional<std::string> device = std::nullopt) = 0;
     /// Convert input string to unambiguous device name.
+    ///
+    /// In particular, this should map any possible aliases to one unique name, e.g.
+    /// for PyTorch, map ``'cuda'`` to ``'cuda:0'``.
+    /// Also checks if that device is valid and available.
     virtual std::string as_device(std::optional<std::string> device) = 0;
     /// Return the indices (one per axis) of the largest entry (by magnitude) of the block
     virtual std::vector<int64> abs_argmax(const BlockCPtr& block) = 0;
@@ -309,12 +332,29 @@ class BlockBackend
     /// Apply a mask (1D boolean block) to a block, slicing/projecting that axis
     virtual BlockPtr apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int64 ax) = 0;
     /// Return the permutation that would sort a block along one axis.
+    ///
+    /// @param block The block to sort.
+    /// @param sort Specify how the arguments should be sorted.  ====================
+    /// ============================= `sort`               order ====================
+    /// ============================= ``'m>', 'LM'``       Largest magnitude first
+    /// -------------------- ----------------------------- ``'m<', 'SM'``       Smallest magnitude
+    /// first -------------------- ----------------------------- ``'>', 'LR', 'LA'``  Largest real
+    /// part first -------------------- ----------------------------- ``'<', 'SR', 'SA'``  Smallest
+    /// real part first -------------------- ----------------------------- ``'LI'`` Largest
+    /// imaginary part first -------------------- ----------------------------- ``'SI'`` Smallest
+    /// imaginary part first ==================== =============================
+    /// @param axis The axis along which to sort
+    /// @returns The indices that would sort the block
     BlockPtr argsort(const BlockCPtr& block,
                      std::optional<std::string> sort = std::nullopt,
                      int64 axis = 0);
-    /// Like :meth:`argsort` but can assume real valued block, and sort ascending
+    /// Like `argsort` but can assume real valued block, and sort ascending
     virtual BlockPtr _argsort(const BlockCPtr& block, int64 axis) = 0;
     /// Combine each group of legs in `leg_idcs_combine` into a single leg.
+    ///
+    /// The group of legs in each entry of `leg_idcs_combine` must be contiguous.
+    /// The legs can be combined in C style (default) or F style; the style can
+    /// be specified for each group of legs independently.
     BlockPtr combine_legs(const BlockCPtr& a,
                           const std::vector<std::vector<int64>>& leg_idcs_combine,
                           const std::vector<bool>& cstyles);
@@ -324,6 +364,11 @@ class BlockBackend
     /// Complex conjugate of a block
     virtual BlockPtr conj(const BlockCPtr& a) = 0;
     /// Create a new, independent block with the same data
+    ///
+    /// @param a The block to copy
+    /// @param device The device for the new block. Per default, use the same device as the old
+    /// block. as_block
+    ///     Function to guarantee dtype and device, without forcing copies.
     virtual BlockPtr copy_block(const BlockCPtr& a,
                                 std::optional<std::string> device = std::nullopt) = 0;
     /// The elementwise cutoff-inverse: ``1 / a`` where ``abs(a) >= cutoff``, otherwise ``0``.
@@ -332,10 +377,20 @@ class BlockBackend
     BlockPtr dagger(const BlockCPtr& a);
     Dtype get_dtype(const BlockCPtr& a);
     /// Eigenvalue decomposition of a 2D hermitian block.
+    ///
+    /// Return a 1D block of eigenvalues and a 2D block of eigenvectors
+    ///
+    /// @param block The block to decompose
+    /// @param sort How the eigenvalues are sorted
     virtual std::tuple<BlockPtr, BlockPtr> eigh(
       const BlockCPtr& block,
       std::optional<std::string> sort = std::nullopt) = 0;
     /// Eigenvalues of a 2D hermitian block.
+    ///
+    /// Return a 1D block of eigenvalues
+    ///
+    /// @param block The block to decompose
+    /// @param sort How the eigenvalues are sorted
     virtual BlockPtr eigvalsh(const BlockCPtr& block,
                               std::optional<std::string> sort = std::nullopt) = 0;
     virtual BlockPtr enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis) = 0;
@@ -344,6 +399,10 @@ class BlockBackend
     /// Return a 2D square block that has the 1D ``diag`` on the diagonal
     virtual BlockPtr block_from_diagonal(const BlockCPtr& diag) = 0;
     /// Convert a mask to a full block.
+    ///
+    /// Return a (N, M) of numbers (float or complex dtype) from a 1D bool-valued block shape (M,)
+    /// where N is the number of True entries. The result is the coefficient matrix of the
+    /// projection map.
     virtual BlockPtr block_from_mask(const BlockCPtr& mask, Dtype dtype) = 0;
     virtual BlockPtr block_from_numpy(const py::array& a,
                                       std::optional<Dtype> dtype = std::nullopt,
@@ -355,13 +414,30 @@ class BlockBackend
     /// The imaginary part of a complex number, elementwise.
     virtual BlockPtr imag(const BlockCPtr& a) = 0;
     /// Dense block version of tensors.inner.
+    ///
+    /// If do dagger, ``sum(conj(a[i1, i2, ..., iN]) * b[i1, ..., iN])``
+    /// otherwise, ``sum(a[i1, ..., iN] * b[iN, ..., i2, i1])``.
     virtual Scalar inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger);
     /// If the block is comprised of real numbers.
+    ///
+    /// Complex numbers with small or zero imaginary part still cause a `False` return.
     bool is_real(const BlockCPtr& a);
     /// Assumes that data is a scalar (i.e. has only one entry). Returns that scalar as python
     /// float or complex
     virtual Scalar item(const BlockCPtr& a) = 0;
     /// The kronecker product.
+    ///
+    /// @param a, b Two blocks with the same number of dimensions.
+    ///
+    /// Notes:
+    ///
+    /// The elements are products of elements from `a` and `b`::
+    ///     kron(a, b)[k0, k1, ..., kN] = a[i0, i1, ..., iN] * b[j0, j1, ..., jN]
+    ///
+    /// where::
+    ///     kt = it * st + jt,  t = 0,...,N
+    ///
+    /// (Taken from numpy docs)
     virtual BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) = 0;
     virtual BlockPtr linear_combination(const Scalar& a_coef,
                                         const BlockCPtr& v,
@@ -376,19 +452,52 @@ class BlockBackend
     virtual BlockPtr mul(float64 a, const BlockCPtr& b);
     virtual BlockPtr mul(complex128 a, const BlockCPtr& b);
     /// The p-norm vector-norm of a block.
+    ///
+    /// @param a The block.
+    /// @param order The order @f$ p @f$ of the norm. Unlike numpy, we always compute vector norms,
+    /// never matrix norms. We only support p-norms @f$ \Vert x \Vert = \sqrt[p]{\sum_i
+    /// \abs{x_i}^p} @f$.
+    /// @param axis ``axis=None`` means "all axes", i.e. norm of the flattened block. An integer
+    /// means to broadcast the norm over all other axes.
     virtual Scalar norm(const BlockCPtr& a,
                         float64 order = 2,
                         std::optional<int64> axis = std::nullopt) = 0;
     /// Outer product of blocks.
+    ///
+    /// ``res[i1,...,iN,j1,...,jM] = a[i1,...,iN] * b[j1,...,jM]``
     virtual BlockPtr outer(const BlockCPtr& a, const BlockCPtr& b) = 0;
     virtual BlockPtr permute_axes(const BlockCPtr& a, const std::vector<int64>& permutation) = 0;
     /// For a matrix `a` with two combined multi-indices, permute the sub-indices.
+    ///
+    /// @param block A matrix with combined axes ``[(m1.m2...mJ), (n1.n2...nK)]``.
+    /// @param dims1 The dimensions of the subindices ``[m1, m2, ..., mJ]``.
+    /// @param idcs1 Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the
+    /// first multi-index of the result.
+    /// @param dims2 The dimensions of the subindices ``[n1, n2, ..., nK]``.
+    /// @param idcs2 Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the
+    /// second multi-index of the result.
+    /// @returns A matrix with the same entries as `a`, but rearranged to the new axis order, e.g.
+    /// ``[M, N]``, where ``M == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs1])`` and ``N ==
+    /// combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``.
+    ///
+    /// permute_combined_idx
     BlockPtr permute_combined_matrix(const BlockCPtr& block,
                                      const std::vector<int64>& dims1,
                                      const std::vector<int64>& idcs1,
                                      const std::vector<int64>& dims2,
                                      const std::vector<int64>& idcs2);
     /// For a matrix `a` with a single combined multi-index, permute sub-indices.
+    ///
+    /// @param block A matrix with axes ``[M, N]``, where either ``M = (m1.m2...mJ)`` or ``N =
+    /// (n1.n2...nK)`` is a multi-index *but not both*.
+    /// @param axis Which of the two axes has the multi-indices
+    /// @param dims The dimensions of the sub-indices, e.g. ``[m1, m2, ..., mJ]``.
+    /// @param idcs The order of the sub-indices in the results, such that the result has axes
+    /// ``[[m1, m2, ..., mJ][i] for i in idcs]``.
+    /// @returns A matrix with the same entries as `a`, but rearranged to the new axis order, i.e.
+    /// ``[M_new, N_new]`` where e.g. ``M_new = combined([m1, m2, ..., mJ][idcs])``.
+    ///
+    /// permute_combined_matrix
     BlockPtr permute_combined_idx(const BlockCPtr& block,
                                   int64 axis,
                                   const std::vector<int64>& dims,
@@ -403,6 +512,8 @@ class BlockBackend
     /// The real part of a complex number, elementwise.
     virtual BlockPtr real(const BlockCPtr& a) = 0;
     /// If a block is close to its real part, return the real part.
+    ///
+    /// Otherwise the original block. Elementwise.
     virtual BlockPtr real_if_close(const BlockCPtr& a, float64 tol) = 0;
     /// Repeat a (1d) block multiple times. Similar to numpy.tile and torch.Tensor.repeat.
     virtual BlockPtr tile(const BlockCPtr& a, int64 repeats) = 0;
@@ -412,9 +523,17 @@ class BlockBackend
                                                        int64 max_lines) = 0;
     virtual BlockPtr reshape(const BlockCPtr& a, const std::vector<int64>& shape) = 0;
     /// Multiply block with the factors (a 1D block), along a given axis.
+    ///
+    /// E.g. if block is 4D and ``axis==2`` with numpy-like broadcasting, this is would be
+    /// ``block * factors[None, None, :, None]``.
     virtual BlockPtr scale_axis(const BlockCPtr& block, const BlockCPtr& factors, int64 axis) = 0;
     std::vector<int64> get_shape(const BlockCPtr& a);
     /// Split legs into groups of legs with specified dimensions.
+    ///
+    /// The splitting of a leg can be in C style (default) or F style. In the
+    /// latter case, the specified dimensions of the resulting group of legs
+    /// *are reversed*. The style can be specified for each group of legs
+    /// independently.
     BlockPtr split_legs(const BlockCPtr& a,
                         const std::vector<int64>& idcs,
                         const std::vector<std::vector<int64>>& dims,
@@ -431,6 +550,8 @@ class BlockBackend
     /// The sum over a single axis.
     virtual BlockPtr sum(const BlockCPtr& a, int64 ax) = 0;
     /// The sum of all entries of the block.
+    ///
+    /// If the block contains boolean values, this should return the number of ``True`` entries.
     virtual Scalar sum_all(const BlockCPtr& a) = 0;
     virtual BlockPtr multiply_blocks(const BlockCPtr& a, const BlockCPtr& b) = 0; // elementwise
     virtual BlockPtr tdot(const BlockCPtr& a,
@@ -438,6 +559,12 @@ class BlockBackend
                           const std::vector<int64>& idcs_a,
                           const std::vector<int64>& idcs_b) = 0;
     /// Version of ``tensors.outer`` on blocks.
+    ///
+    /// Note the different leg order to usual outer products::
+    ///
+    ///     res[i1,...,iK,j1,...,jM,i{K+1},...,iN] == a[i1,...,iN] * b[j1,...,jM]
+    ///
+    /// intended to be used with ``K == a_num_codomain_legs``.
     BlockPtr tensor_outer(const BlockCPtr& a, const BlockCPtr& b, int64 K);
     virtual BlockPtr to_dtype(const BlockCPtr& a, Dtype dtype) = 0;
     py::object to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype = std::nullopt);
@@ -447,6 +574,12 @@ class BlockBackend
                                    const std::vector<int64>& idcs2,
                                    const std::vector<int64>& remaining_idcs) = 0;
     /// The identity matrix, reshaped to a block.
+    ///
+    /// Note the unusual leg order ``[m1,...,mJ,mJ*,...,m1*]``,
+    /// which is chosen to match `eye_data`.
+    ///
+    /// Note also that the ``legs`` only specify the dimensions of the first half,
+    /// namely ``m1,...,mJ``.
     BlockPtr eye_block(const std::vector<int64>& legs,
                        Dtype dtype,
                        std::optional<std::string> device = std::nullopt);
@@ -456,6 +589,15 @@ class BlockBackend
                                 std::optional<std::string> device = std::nullopt) = 0;
     virtual Scalar get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) = 0;
     /// Get an element of a mask.
+    ///
+    /// Mask elements are `True` if the entry `a[large_leg_idx]` is the `small_leg_idx`-th `True`
+    /// in the block.
+    ///
+    /// @param a The mask block
+    /// @param large_leg_idx, small_leg_idx The block indices
+    /// @param sum_block Number of `True` entries in the block, i.e., ``sum_block ==
+    /// self.sum_all(a)``. Agrees with the sector multiplicity of the small leg. (Only important if
+    /// the sector dimension is larger than 1.)
     virtual Scalar get_block_mask_element(const BlockCPtr& a,
                                           int64 large_leg_idx,
                                           int64 small_leg_idx,
@@ -466,7 +608,7 @@ class BlockBackend
     std::tuple<BlockPtr, BlockPtr> matrix_lq(const BlockCPtr& a, bool full);
     /// QR decomposition of a 2D block
     virtual std::tuple<BlockPtr, BlockPtr> matrix_qr(const BlockCPtr& a, bool full) = 0;
-    /// Internal version of :meth:`matrix_svd`, to be implemented by subclasses.
+    /// Internal version of `matrix_svd`, to be implemented by subclasses.
     virtual std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
       const BlockCPtr& a,
       std::optional<std::string> algorithm = std::nullopt) = 0;

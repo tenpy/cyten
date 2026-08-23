@@ -1,3 +1,5 @@
+#include "../doc_plus.h"
+#include "docstrings/block_backend/numpy.h"
 // NOTE: this file is #included from py_block_backend.cpp
 
 #include "py_trampolines.hpp"
@@ -11,12 +13,7 @@ bind_block_backend_numpy(py::module_& m)
 
     py::class_<NumpyBlockBackend, BlockBackend, py::smart_holder> numpy_block_backend(
       m, "NumpyBlockBackend");
-    numpy_block_backend.doc() = R"pydoc(
-        A block backend using numpy.
-
-        No constructor available, use from_factory instead.
-        Not to be subclassed.
-        )pydoc";
+    numpy_block_backend.doc() = DOC(cyten, NumpyBlockBackend);
     numpy_block_backend.def_static(
       "from_factory",
       &NumpyBlockBackend::from_factory,

@@ -1,5 +1,7 @@
+#include "../doc_plus.h"
 #include "../py_cyten_pybind11.h"
 #include "../tensors/py_callbacks.hpp"
+#include "docstrings/backends/no_symmetry.h"
 
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/block_backend/numpy.h>
@@ -62,23 +64,7 @@ bind_no_symmetry_backend(py::module_& m)
       .def_readwrite("block", &NoSymmetryBackend::BlockData::block);
 
     py::class_<NoSymmetryBackend, TensorBackend, py::smart_holder> cls(m, "NoSymmetryBackend");
-    cls.doc() = R"pydoc(
-Abstract base class for backends that do not enforce any symmetry.
-
-Notes
------
-The data stored for the various tensor classes defined in ``cyten.tensors`` is::
-
-    - ``SymmetricTensor``:
-        A single Block with as many axes as there a legs on the tensor.
-        Same leg order as ``Tensor.legs``, i.e. ``[*codomain, *reversed(domain)]``.
-
-    - ``DiagonalTensor`` :
-        A single 1D Block. The diagonal of the corresponding 2D block of a ``Tensor``.
-
-    - ``Mask``:
-        The bool values indicate which indices of the large leg are kept for the small leg.
-)pydoc";
+    cls.doc() = DOC(cyten, NoSymmetryBackend);
 
     cls.def(py::init([](py::object block_backend) {
                 return std::make_shared<NoSymmetryBackend>(as_shared_block_backend(block_backend));
@@ -102,21 +88,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a"),
       py::arg("block_method"),
       py::arg("dtype_map"),
-      R"pydoc(
-      Apply functions like exp() and log() on a (square) block-diagonal `a`.
-
-      Assumes the block_method returns blocks on the same device.
-
-      Parameters
-      ----------
-      a : Tensor
-          The tensor to act on. Can assume ``a.codomain == a.domain``.
-      block_method : function
-          A function with signature ``block_method(a: Block) -> Block`` acting on backend-blocks.
-      dtype_map : function or None
-          Specify how the result dtype depends on the input dtype. ``None`` means unchanged.
-          This is needed in abelian and fusion-tree backends, in case there are 0 blocks.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, act_block_diagonal_square_matrix));
     cls.def(
       "add_trivial_leg",
       [](NoSymmetryBackend& self,
@@ -135,33 +107,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("co_domain_pos"),
       py::arg("new_codomain"),
       py::arg("new_domain"),
-      R"pydoc(
-      Add a trivial leg to a tensor.
-
-      A trivial leg is one-dimensional and consists only of the trivial sector of the symmetry.
-
-      Parameters
-      ----------
-      tens: Tensor
-          The tensor to add a leg to. Since :class:`DiagonalTensor` and :class:`Mask` do not
-          support adding legs, they will be converted to :class:`SymmetricTensor` first.
-      legs_pos, codomain_pos, domain_pos: int
-          The position of the new leg can be specified in three mutually exclusive ways.
-          If the positional argument `leg_pos` is used, ``result.legs[leg_pos]`` will be the trivial
-          leg. In most cases that unambiguously assigns it to either the domain or the codomain.
-          If ambiguous (``if legs_pos == num_codomain_legs``), it is added to the codomain.
-          Alternatively, it can be added to the codomain at ``codomain[codomain_pos]``
-          or to the domain at ``domain_pos``.
-          Note the implications for the ``is_dual`` argument!
-          Per default, we use ``0``, i.e. add at ``legs[0]`` / ``codomain[0]``.
-      label: str
-          The label for the new leg.
-      is_dual: bool
-          If we add a dual (bra-like) or ket-like leg.
-          Note that if `leg_pos` is given, we have ``result.legs[leg_pos].is_dual == is_dual``,
-          but if `domain_pos` is given, we have ``result.domain[domain_pos].is_dual == is_dual``,
-          which are mutually opposite.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, add_trivial_leg));
     cls.def(
       "apply_mask_to_DiagonalTensor",
       [](NoSymmetryBackend& self, DiagonalTensorCPtr tensor, MaskCPtr mask) {
@@ -185,35 +131,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("pipes"),
       py::arg("new_codomain"),
       py::arg("new_domain"),
-      R"pydoc(
-      Implementation of :func:`cyten.tensors.combine_legs`.
-
-      Assumptions:
-
-      - Legs have been permuted, such that each group of legs to be combined appears contiguously
-        and either entirely in the codomain or entirely in the domain
-
-      Parameters
-      ----------
-      tensor: SymmetricTensor
-          The tensor to modify
-      leg_idcs_combine: list of list of int
-          A list of groups. Each group a list of integer leg indices, to be combined. Must be in
-          ascending order.
-      pipes: list of LegPipe
-          The resulting pipes. Same length and order as `leg_idcs_combine`.
-          In the domain, this is the product space as it will appear in the domain, not in legs.
-      new_codomain_combine:
-          A list of tuples ``(positions, combined)``, where positions are all the codomain-indices
-          which should be combined and ``combined`` is the resulting :class:`LegPipe`,
-          i.e. ``combined == LegPipe([tensor.codomain[n] for n in positions])``
-      new_domain_combine:
-          Similar as `new_codomain_combine` but for the domain. Note that ``positions`` are
-          domain-indices, i.e ``n = positions[i]`` refers to ``tensor.domain[n]``, *not*
-          ``tensor.legs[n]`` !
-      new_codomain, new_domain: TensorProduct
-          The codomain and domain of the resulting tensor
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, combine_legs));
     cls.def(
       "compose",
       [](NoSymmetryBackend& self, SymmetricTensorCPtr a, SymmetricTensorCPtr b) {
@@ -221,12 +139,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("b"),
-      R"pydoc(
-      Assumes ``a.domain == b.codomain`` and performs contraction over those legs.
-
-      Assumes there is at least one open leg, i.e. the codomain of `a` and the domain of `b` are
-      not both empty. Assumes both input tensors are on the same device.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, compose));
     cls.def(
       "copy_data",
       [](NoSymmetryBackend& self, TensorCPtr a, std::optional<std::string> device) {
@@ -234,77 +147,22 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("device") = py::none(),
-      R"pydoc(
-      Return a copy.
-
-      The main requirement is that future in-place operations on the output data do not affect
-      the input data
-
-      Parameters
-      ----------
-      a : Tensor
-          The tensor to copy
-      device : str, optional
-          The device for the result. Per default (or if ``None``), use the same device as `a`.
-
-      See Also
-      --------
-      move_to_device
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, copy_data));
     cls.def(
       "dagger",
       [](NoSymmetryBackend& self, TensorCPtr a) { return py_block(self.dagger(a)); },
       py::arg("a"),
-      R"pydoc(
-      The hermitian conjugate tensor, a.k.a the dagger of a tensor.
-
-      For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
-      the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
-      For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
-      Graphically::
-
-          |          e   d             a   b   c
-          |          │   │             │   │   │
-          |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
-          |       ┃    A    ┃         ┃dagger(A)┃
-          |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
-          |        │   │   │             │   │
-          |        a   b   c             e   d
-
-      Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
-
-      Returns
-      -------
-      The hermitian conjugate tensor. Its legs and labels are::
-
-          dagger(A).codomain == A.domain
-          dagger(A).domain == A.codomain
-          dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
-          dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
-
-      Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
-      on their bipartition into domain and codomain.
-      For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
-      then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, dagger));
     cls.def(
       "item",
       [](NoSymmetryBackend& self, TensorCPtr a) { return self.item(a); },
       py::arg("a"),
-      R"pydoc(
-      Convert tensor to a python scalar.
-
-      Assumes that tensor is a scalar (i.e. has only one entry).
-      )pydoc");
+      doc_cpp_ref(R"pydoc(item)pydoc", "cyten::TensorBackend::item()"));
     cls.def(
       "data_item",
       [](NoSymmetryBackend& self, py::object a) { return self.data_item(py_data(a)); },
       py::arg("a"),
-      R"pydoc(
-      Assumes that data is a scalar (as defined in tensors.is_scalar).
-
-      Return that scalar as python float or complex
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, data_item));
     cls.def(
       "diagonal_elementwise_binary",
       [](NoSymmetryBackend& self,
@@ -321,17 +179,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("func"),
       py::arg("func_kwargs"),
       py::arg("partial_zero_is_zero"),
-      R"pydoc(
-      Return a modified copy of the data, resulting from applying an elementwise function.
-
-      Apply a function ``func(a_block: Block, b_block: Block, **kwargs) -> Block`` to all
-      pairs of elements.
-      Input tensors are both DiagonalTensor and have equal legs.
-      ``partial_zero_is_zero=True`` promises that ``func(any_block, zero_block) == zero_block``,
-      and similarly for the second argument.
-
-      Assumes both tensors are on the same device.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, diagonal_elementwise_binary));
     cls.def(
       "diagonal_elementwise_unary",
       [](NoSymmetryBackend& self,
@@ -346,12 +194,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("func"),
       py::arg("func_kwargs"),
       py::arg("maps_zero_to_zero"),
-      R"pydoc(
-      Return a modified copy of the data, resulting from applying an elementwise function.
-
-      Apply ``func(block: Block, **kwargs) -> Block`` to all elements of a diagonal tensor.
-      ``maps_zero_to_zero=True`` promises that ``func(zero_block) == zero_block``.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, diagonal_elementwise_unary));
     cls.def(
       "diagonal_from_block",
       [](NoSymmetryBackend& self,
@@ -361,9 +204,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a"),
       py::arg("co_domain"),
       py::arg("tol"),
-      R"pydoc(
-      The DiagonalData from a 1D block in *internal* basis order.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, diagonal_from_block));
     cls.def(
       "diagonal_from_sector_block_func",
       [](NoSymmetryBackend& self, py::function func, TensorProduct::Ptr co_domain) {
@@ -372,12 +213,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("func"),
       py::arg("co_domain"),
-      R"pydoc(
-      Generate diagonal data from a function.
-
-      Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
-      Assumes all generated blocks are on the same device.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, diagonal_from_sector_block_func));
     cls.def(
       "diagonal_tensor_from_full_tensor",
       [](NoSymmetryBackend& self, SymmetricTensorCPtr a, std::optional<float64> tol) {
@@ -385,11 +221,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("tol") = 1e-12,
-      R"pydoc(
-      Get the DiagonalData corresponding to a tensor with two legs.
-
-      Can assume that domain and codomain consist of the same single leg.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, diagonal_tensor_from_full_tensor));
     cls.def(
       "diagonal_to_mask",
       [](NoSymmetryBackend& self, DiagonalTensorCPtr tens) {
@@ -397,12 +229,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
           return std::make_tuple(py_block(std::move(data)), std::move(leg));
       },
       py::arg("tens"),
-      R"pydoc(
-      Convert a DiagonalTensor to a Mask.
-
-      May assume that dtype is bool.
-      Returns ``mask_data, small_leg``.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, diagonal_to_mask));
     cls.def(
       "diagonal_transpose",
       [](NoSymmetryBackend& self, DiagonalTensorCPtr tens) {
@@ -410,9 +237,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
           return std::make_tuple(std::move(leg), py_block(std::move(data)));
       },
       py::arg("tens"),
-      R"pydoc(
-      Transpose a diagonal tensor. Also return the new leg ``tens.leg.dual``
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, diagonal_transpose));
     cls.def(
       "eigh",
       [](NoSymmetryBackend& self,
@@ -425,31 +250,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a"),
       py::arg("new_leg_dual"),
       py::arg("sort") = py::none(),
-      R"pydoc(
-      Eigenvalue decomposition of a hermitian tensor
-
-      Note that this does *not* guarantee to return the duality given by `new_leg_dual`.
-      In particular, for the abelian backend, the duality is fixed.
-
-      Parameters
-      ----------
-      a
-          The input tensor. Assumed to be hermitian without checking!
-      new_leg_dual : bool
-          If the new leg should be dual or not.
-      sort : {'m>', 'm<', '>', '<'}
-          How the eigenvalues are sorted *within* each charge block.
-          See :func:`argsort` for details.
-
-      Returns
-      -------
-      w_data
-          Data for the :class:`DiagonalTensor` of eigenvalues
-      v_data
-          Data for the :class:`Tensor` of eigenvectors
-      new_leg
-          The new leg.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, eigh));
     cls.def(
       "eye_data",
       [](NoSymmetryBackend& self, TensorProduct::Ptr co_domain, Dtype dtype, std::string device) {
@@ -458,11 +259,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("co_domain"),
       py::arg("dtype"),
       py::arg("device"),
-      R"pydoc(
-      Data for :meth:``SymmetricTensor.eye``.
-
-      The result has legs ``first_legs + [l.dual for l in reversed(firs_legs)]``.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, eye_data));
     cls.def(
       "from_dense_block",
       [](NoSymmetryBackend& self,
@@ -476,15 +273,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("codomain"),
       py::arg("domain"),
       py::arg("tol"),
-      R"pydoc(
-      Convert a dense block to the data for a symmetric tensor.
-
-      Block is in the *internal* basis order of the respective legs and the leg order is
-      ``[*codomain, *reversed(domain)]``.
-
-      If the block is not symmetric, measured by ``allclose(a, projected, atol, rtol)``,
-      where ``projected`` is `a` projected to the space of symmetric tensors, raise a ``ValueError``.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, from_dense_block));
     cls.def(
       "from_dense_block_trivial_sector",
       [](NoSymmetryBackend& self, BlockBackend::BlockPtr block, Space::Ptr leg) {
@@ -492,11 +281,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("block"),
       py::arg("leg"),
-      R"pydoc(
-      Data of a single-leg `Tensor` from the *part of* the coefficients in the trivial sector.
-
-      Is given in the *internal* basis order.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, from_dense_block_trivial_sector));
     cls.def(
       "from_grid",
       [](NoSymmetryBackend& self,
@@ -522,33 +307,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("right_mult_slices"),
       py::arg("dtype"),
       py::arg("device"),
-      R"pydoc(
-      Data from a grid of tensors.
-
-      Parameters
-      ----------
-      grid: list[list[SymmetricTensor | None]]
-          Contains the tensors from which a single tensor is constructed. `None` entries are
-          interpreted as tensors with all blocks equal to zero.
-      new_codomain: TensorProduct
-          Codomain of the resulting tensor after stacking the tensors in the grid.
-      new_domain: TensorProduct
-          Domain of the resulting tensor after stacking the tensors in the grid.
-      left_mult_slices: list[list[int]]
-          Multiplicity slices for each sector for the stacking in the codomain. That is,
-          ``slice(left_mult_slices[sector_idx][i], left_mult_slices[sector_idx][i + 1])`` is the
-          slice that is contributed from the tensors in the `i`th column to the sector
-          ``new_codomain[0].sector_decomposition[sector_idx]`` of the leg ``new_codomain[0]``.
-      right_mult_slices: list[list[int]]
-          Multiplicity slices for each sector for the stacking in the domain. That is,
-          ``slice(right_mult_slices[sector_idx][i], right_mult_slices[sector_idx][i + 1])`` is
-          the slice that is contributed from the tensors in the `i`th row to the sector
-          ``new_domain[-1].sector_decomposition[sector_idx]`` of the leg ``new_domain[-1]``.
-      dtype: Dtype
-          The new dtype of the block.
-      device: str
-          The device for the block.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, from_grid));
     cls.def(
       "from_random_normal",
       [](NoSymmetryBackend& self,
@@ -577,9 +336,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("func"),
       py::arg("codomain"),
       py::arg("domain"),
-      R"pydoc(
-      Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, from_sector_block_func));
     cls.def(
       "from_tree_pairs",
       [](NoSymmetryBackend& self,
@@ -596,9 +353,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("domain"),
       py::arg("dtype"),
       py::arg("device"),
-      R"pydoc(
-      Compute the data for :meth:`SymmetricTensor.from_tree_pairs`.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, from_tree_pairs));
     cls.def(
       "full_data_from_diagonal_tensor",
       [](NoSymmetryBackend& self, DiagonalTensorCPtr a) {
@@ -612,16 +367,12 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("dtype"),
-      R"pydoc(
-      May assume that the mask is a projection.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, full_data_from_mask));
     cls.def(
       "get_device_from_data",
       [](NoSymmetryBackend& self, py::object a) { return self.get_device_from_data(py_data(a)); },
       py::arg("a"),
-      R"pydoc(
-      Extract the device from the data object
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, get_device_from_data));
     cls.def(
       "get_dtype_from_data",
       [](NoSymmetryBackend& self, py::object a) { return self.get_dtype_from_data(py_data(a)); },
@@ -638,11 +389,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("vector"),
       py::arg("space"),
       py::arg("charge_leg"),
-      R"pydoc(
-      Data for the invariant part used in ChargedTensor.from_dense_block_single_sector
-
-      The vector is given in the *internal* basis order of `spaces`.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, inv_part_from_dense_block_single_sector));
     cls.def(
       "linear_combination",
       [](NoSymmetryBackend& self,
@@ -654,11 +401,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("v"),
       py::arg("b"),
       py::arg("w"),
-      R"pydoc(
-      Form the linear combinations ``a * v + b * w``.
-
-      Assumes `v` and `w` are on the same device.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, linear_combination));
     cls.def(
       "lq",
       [](NoSymmetryBackend& self, SymmetricTensorCPtr tensor, TensorProduct::Ptr new_co_domain) {
@@ -667,45 +410,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("tensor"),
       py::arg("new_co_domain"),
-      R"pydoc(
-      The LQ decomposition of a tensor.
-
-      A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
-      properties:
-
-      - ``L`` has a lower triangular structure *in the coupled basis*.
-      - ``Q`` is an isometry: ``dagger(Q) @ Q ~ eye``.
-
-      Graphically::
-
-          |                                 │   │   │   │
-          |                                ┏┷━━━┷━━━┷━━━┷┓
-          |        │   │   │   │           ┃      Q      ┃
-          |       ┏┷━━━┷━━━┷━━━┷┓          ┗━━━━━━┯━━━━━━┛
-          |       ┃   tensor    ┃    ==           │
-          |       ┗━━┯━━━┯━━━┯━━┛          ┏━━━━━━┷━━━━━━┓
-          |          │   │   │             ┃      L      ┃
-          |                                ┗━━┯━━━┯━━━┯━━┛
-          |                                   │   │   │
-
-      We always compute the "reduced", a.k.a. "economic" version.
-      To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
-
-      Parameters
-      ----------
-      tensor: :class:`Tensor`
-          The tensor to decompose.
-      new_labels: (list of) str
-          Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1] == a``
-          and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
-      new_leg_dual: bool
-          If the new leg should be a ket space (``False``) or bra space (``True``).
-      charge_leg_top: bool
-          Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
-          top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``). The corresponding
-          tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
-          `ChargedTensor`.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, lq));
     cls.def(
       "mask_binary_operand",
       [](NoSymmetryBackend& self, MaskCPtr mask1, MaskCPtr mask2, py::function func) {
@@ -716,16 +421,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("mask1"),
       py::arg("mask2"),
       py::arg("func"),
-      R"pydoc(
-      Elementwise binary function acting on two masks.
-
-      May assume that both masks are a projection (from large to small leg)
-      and that the large legs match.
-
-      Assumes that `mask1` and `mask2` are on the same device.
-
-      returns ``mask_data, new_small_leg``
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, mask_binary_operand));
     cls.def(
       "mask_contract_large_leg",
       [](NoSymmetryBackend& self, TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) {
@@ -736,14 +432,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg_idx"),
-      R"pydoc(
-      Contraction with the large leg of a Mask.
-
-      Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
-      the large leg of the mask is contracted.
-      Note that the mask may be a projection to be applied to the codomain or an inclusion
-      to be contracted on the domain.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, mask_contract_large_leg));
     cls.def(
       "mask_contract_small_leg",
       [](NoSymmetryBackend& self, TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) {
@@ -754,14 +443,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg_idx"),
-      R"pydoc(
-      Contraction with the small leg of a Mask.
-
-      Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
-      the small leg of the mask is contracted.
-      Note that the mask may be an inclusion to be applied to the codomain or a projection
-      to be contracted on the domain.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, mask_contract_small_leg));
     cls.def(
       "mask_dagger",
       [](NoSymmetryBackend& self, MaskCPtr mask) { return py_block(self.mask_dagger(mask)); },
@@ -774,11 +456,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("large_leg"),
-      R"pydoc(
-      Data for a *projection* Mask, and the resulting small leg, from a 1D block.
-
-      a: 1D block, the Mask in *internal* basis order of `large_leg`.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, mask_from_block));
     cls.def(
       "mask_to_diagonal",
       [](NoSymmetryBackend& self, MaskCPtr a, Dtype dtype) {
@@ -793,11 +471,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
           return std::make_tuple(std::move(s_in), std::move(s_out), py_block(std::move(data)));
       },
       py::arg("tens"),
-      R"pydoc(
-      Transpose a mask. Also return the new ``space_in`` and ``space_out``.
-
-      Those spaces are the duals of the respective other in the old mask.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, mask_transpose));
     cls.def(
       "mask_unary_operand",
       [](NoSymmetryBackend& self, MaskCPtr mask, py::function func) {
@@ -806,12 +480,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("mask"),
       py::arg("func"),
-      R"pydoc(
-      Elementwise function acting on a mask.
-
-      May assume that mask is a projection (from large to small leg).
-      Returns ``mask_data, new_small_leg``
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, mask_unary_operand));
     cls.def(
       "move_to_device",
       [](NoSymmetryBackend& self, TensorCPtr a, std::string device) {
@@ -819,16 +488,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("device"),
-      R"pydoc(
-      Move tensor to a given device.
-
-      The result is *not* guaranteed to be a copy. In particular, if `a` already is on the
-      target device, it is returned without modification.
-
-      See Also
-      --------
-      copy_data
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, move_to_device));
     cls.def(
       "mul",
       [](NoSymmetryBackend& self, BlockBackend::Scalar a, TensorCPtr b) {
@@ -843,11 +503,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("b"),
-      R"pydoc(
-      Form the outer product, or tensor product of maps.
-
-      Assumes that `a` and `b` are on the same device.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, outer));
     cls.def(
       "partial_compose",
       [](NoSymmetryBackend& self,
@@ -863,12 +519,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a_first_leg"),
       py::arg("new_codomain"),
       py::arg("new_domain"),
-      R"pydoc(
-      Contract the codomain (domain) of `b` with the a part of the domain (codomain) of `a`.
-
-      Assumes that there is at least one open leg in the domain (codomain) of the resulting
-      tensor. Assumes both input tensors are on the same device.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, partial_compose));
     cls.def(
       "partial_trace",
       [](NoSymmetryBackend& self,
@@ -887,11 +538,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("tensor"),
       py::arg("pairs"),
       py::arg("levels") = py::none(),
-      R"pydoc(
-      Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-
-      Returns ``data, codomain, domain``.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, partial_trace));
     cls.def(
       "permute_legs",
       [](NoSymmetryBackend& self,
@@ -920,35 +567,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("mixes_codomain_domain"),
       py::arg("levels"),
       py::arg("bend_right"),
-      R"pydoc(
-      Permute legs on the tensors.
-
-      Parameters
-      ----------
-      a : SymmetricTensor
-          The tensor to act on.
-      codomain_idcs, domain_idcs:
-          Which of the legs should end up in the (co-)domain.
-          All are leg indices (``0 <= i < a.num_legs``).
-      new_codomain, new_domain : TensorProduct
-          The (co)domain of the result.
-      mixes_codomain_domain : bool
-          If any leg moves from the codomain to the domain or vv during the permutation.
-      levels:
-          The levels. Must support comparison with ``<`` or be ``None``, meaning unspecified.
-      bend_right:
-          For each leg, whether it bends to the left or right of the tensor.
-          ``None`` is allowed as a placeholder, only if that leg does not bend at all.
-          Note that non-bending legs do not necessarily have a ``None`` entry, however.
-
-      Returns
-      -------
-      data:
-          The data for the permuted tensor, or ``None`` if `levels` are required but were not
-          specified.
-      codomain, domain
-          The (co-)domain of the new tensor.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, permute_legs));
     cls.def(
       "qr",
       [](NoSymmetryBackend& self, SymmetricTensorCPtr a, TensorProduct::Ptr new_co_domain) {
@@ -957,13 +576,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("new_co_domain"),
-      R"pydoc(
-      Perform a QR decomposition.
-
-      With ``a == Q @ R``
-      ``Q.domain == a.domain``, ``Q.codomain == new_codomain``
-      ``R.domain == new_codomain``, ``R.codomain == a.codomain``
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, qr));
     cls.def(
       "scale_axis",
       [](NoSymmetryBackend& self, TensorCPtr a, DiagonalTensorCPtr b, int64 leg) {
@@ -972,12 +585,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a"),
       py::arg("b"),
       py::arg("leg"),
-      R"pydoc(
-      Scale axis ``leg`` of ``a`` with ``b``.
-
-      Can assume ``a.get_leg_co_domain(leg) == b.leg``.
-      Assumes that `a` and `b` are on the same device.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, scale_axis));
     cls.def(
       "split_legs",
       [](NoSymmetryBackend& self,
@@ -991,19 +599,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("leg_idcs"),
       py::arg("new_codomain"),
       py::arg("new_domain"),
-      R"pydoc(
-      Split (multiple) product space legs.
-
-      Parameters
-      ----------
-      a
-          The tensor to split legs on.
-      leg_idcs:
-          List of leg-indices, fulfilling ``0 <= i < a.num_legs``, to split. Must be in
-          ascending order.
-      new_codomain, new_domain
-          The new (co-)domain, after splitting. Has same sectors and multiplicities.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, split_legs));
     cls.def(
       "squeeze_legs",
       [](NoSymmetryBackend& self, TensorCPtr a, std::vector<int64> idcs) {
@@ -1011,9 +607,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("idcs"),
-      R"pydoc(
-      Assume the legs at given indices are trivial and get rid of them
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, squeeze_legs));
     cls.def(
       "svd",
       [](NoSymmetryBackend& self,
@@ -1027,68 +621,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a"),
       py::arg("new_co_domain"),
       py::arg("algorithm") = py::none(),
-      R"pydoc(
-      The singular value decomposition (SVD) of a tensor.
-
-      A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
-      properties:
-
-      - ``Vh`` and ``U`` are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
-      - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
-      - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
-        reproduces the usual matrix SVD.
-
-      .. note ::
-          The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
-          e.g., :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
-
-      Graphically::
-
-          |                                 │   │   │   │
-          |                                ┏┷━━━┷━━━┷━━━┷┓
-          |                                ┃      Vh     ┃
-          |        │   │   │   │           ┗━━━━━━┯━━━━━━┛
-          |       ┏┷━━━┷━━━┷━━━┷┓               ┏━┷━┓
-          |       ┃   tensor    ┃    ==         ┃ S ┃
-          |       ┗━━┯━━━┯━━━┯━━┛               ┗━┯━┛
-          |          │   │   │             ┏━━━━━━┷━━━━━━┓
-          |                                ┃      U      ┃
-          |                                ┗━━┯━━━┯━━━┯━━┛
-          |                                   │   │   │
-
-      We always compute the "reduced", a.k.a. "economic" version of SVD, where the isometries are
-      (in general) not full unitaries.
-
-      To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
-
-      Parameters
-      ----------
-      tensor: :class:`Tensor`
-          The tensor to decompose.
-      new_labels: (list of) str, optional
-          The labels for the new legs can be specified in the following three ways;
-          Four labels ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
-          ``Vh.labels[0] == d``.
-          Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
-          A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
-          The new legs are unlabelled by default.
-      new_leg_dual: bool
-          If the new leg should be a ket space (``False``) or bra space (``True``).
-      charge_leg_top: bool
-          Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
-          top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``). The corresponding
-          tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
-          `ChargedTensor`.
-      algorithm: str, optional
-          The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
-          See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
-
-      Returns
-      -------
-      U: SymmetricTensor | ChargedTensor
-      S: DiagonalTensor
-      Vh: SymmetricTensor | ChargedTensor
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, svd));
     cls.def(
       "to_block_backend",
       [](NoSymmetryBackend& self,
@@ -1110,9 +643,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("dtype"),
-      R"pydoc(
-      Cast to given dtype. No copy if already has dtype.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, to_dtype));
     cls.def(
       "trace_full",
       [](NoSymmetryBackend& self,
@@ -1145,20 +676,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("trunc_cut"),
       py::arg("svd_min"),
       py::arg("minimize_error") = true,
-      R"pydoc(
-      Implementation of :func:`cyten.tensors.truncate_singular_values`.
-
-      Returns
-      -------
-      mask_data
-          Data for the mask
-      new_leg : ElementarySpace
-          The new leg after truncation, i.e. the small leg of the mask
-      err : float
-          The truncation error ``norm(S_discard) == norm(S - S_keep)``.
-      new_norm
-          The norm ``norm(S_keep)`` of the approximation.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, truncate_singular_values));
     cls.def(
       "zero_data",
       [](NoSymmetryBackend& self,
@@ -1174,16 +692,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("dtype"),
       py::arg("device"),
       py::arg("all_blocks") = false,
-      R"pydoc(
-      Data for a zero tensor.
-
-      Parameters
-      ----------
-      all_blocks: bool
-          Some specific backends can omit zero blocks ("sparsity").
-          By default (``False``), omit them if possible.
-          If ``True``, force all blocks to be created, with zero entries.
-      )pydoc");
+      DOC(cyten, NoSymmetryBackend, zero_data));
     cls.def(
       "zero_diagonal_data",
       [](NoSymmetryBackend& self, TensorProduct::Ptr co_domain, Dtype dtype, std::string device) {

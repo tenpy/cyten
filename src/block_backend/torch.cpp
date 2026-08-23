@@ -1,6 +1,6 @@
 #include <cyten/block_backend/torch.h>
 #include <cyten/tools.h>
-#include <cyten/warn.h>
+#include <cyten/tools/warn.h>
 
 #include <map>
 #include <mutex>

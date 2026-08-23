@@ -24,7 +24,6 @@ coverage.*
 *.ipynb
 *.pkl
 docs/build_docs
-docs/reference
 .conda
 .venv
 src/version.h
@@ -33,3 +32,8 @@ cyten/_version.py
 
 # Local checkouts / scratch (not for commit)
 tmp/
+
+# Generated DOC() headers (doxygen → scripts/doxygen_xml_to_docstrings.py)
+pybind/docstrings/**/*.h
+# and auto-generated python reference stubs
+docs/reference
