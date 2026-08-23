@@ -263,7 +263,7 @@ def test_spinless_fermion_site(block_backend, np_random, num_species):
     check_same_operators(site_list)
 
     for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             _ = sites.SpinlessFermionSite(num_species, all_conserve[0], backend=backend)
 
 
@@ -302,7 +302,7 @@ def test_spin_half_fermion_site(block_backend, np_random):
     check_same_operators(site_list)
 
     for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             _ = sites.SpinHalfFermionSite(all_conserve_N[0], all_conserve_S[0], backend=backend)
 
 

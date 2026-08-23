@@ -1159,7 +1159,7 @@ def test_PlanarDiagram_verify_diagram():
         )
 
     # contract leg twice
-    with pytest.raises(AssertionError, match='duplicate legs'):
+    with pytest.raises(ValueError, match='duplicate legs'):
         _ = ct.PlanarDiagram(
             tensors='T1[l1, l2, l3], T2[l1, l2]',
             definition='T1:l1 -> l1, T1:l2 @ T2:l2, T1:l3 @ T2:l2',
@@ -1175,7 +1175,7 @@ def test_PlanarDiagram_verify_diagram():
         )
 
     # unknown tensor
-    with pytest.raises(AssertionError, match='No tensor with name T2'):
+    with pytest.raises(ValueError, match='No tensor with name T2'):
         _ = ct.PlanarDiagram(
             tensors='T1[l1, l2, l3]',
             definition='T1:l2 @ T2:l1, T1:l1 -> l1, T1:l3 -> l3',
@@ -1183,7 +1183,7 @@ def test_PlanarDiagram_verify_diagram():
         )
 
     # unknown label
-    with pytest.raises(AssertionError, match='Tensor T1 has no leg l4'):
+    with pytest.raises(ValueError, match='Tensor T1 has no leg l4'):
         _ = ct.PlanarDiagram(
             tensors='T1[l1, l2, l3], T2[l1, l2]',
             definition='T1:l1 @ T2:l1, T1:l3 @ T2:l2, T1:l4 -> l4, T1:l3 -> l3',

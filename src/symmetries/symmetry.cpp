@@ -344,9 +344,7 @@ Symmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) 
     // it remains to concatenate them along the last axis
     // ---
     if (!is_abelian()) {
-        PyErr_SetString(PyExc_AssertionError,
-                        "fusion_outcomes_broadcast requires an abelian symmetry");
-        throw py::error_already_set();
+        throw std::invalid_argument("fusion_outcomes_broadcast requires an abelian symmetry");
     }
     std::vector<SectorArray> components;
     components.reserve(factors.size());

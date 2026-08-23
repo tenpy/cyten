@@ -56,9 +56,6 @@ Public API input checks must throw, not use C ``assert``. ``assert`` is compiled
   ``SymmetryError``.
 - Keep C ``assert`` only for hot-path internal invariants and expensive algebraic sanity
   checks that cannot fail if callers already passed the public checks.
-- Some Python tests still expect ``AssertionError`` for historical ``assert`` sites. Those
-  continue to use ``PyErr_SetString(PyExc_AssertionError, ...)``; do not convert them to
-  ``ValueError``.
 
 
 

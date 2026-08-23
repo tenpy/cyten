@@ -102,21 +102,6 @@ warn(std::string const& msg, int stacklevel = 1)
     }
 }
 
-[[noreturn]] void
-assertion_error(std::string const& msg)
-{
-    PyErr_SetString(PyExc_AssertionError, msg.c_str());
-    throw py::error_already_set();
-}
-
-void
-py_assert(bool cond, std::string const& msg)
-{
-    if (!cond) {
-        assertion_error(msg);
-    }
-}
-
 [[nodiscard]] std::string
 format_str_list(std::vector<std::string> const& v)
 {
@@ -1507,15 +1492,14 @@ PlanarDiagram::verify_diagram()
 {
     int64 num_legs = 0;
     for (auto const& [t1, l1, t2, l2] : definition) {
-        py_assert(tensors.contains(t1), std::format("No tensor with name {}", t1));
-        py_assert(tensors.at(t1).has_label(l1), std::format("Tensor {} has no leg {}", t1, l1));
+        check(tensors.contains(t1), std::format("No tensor with name {}", t1));
+        check(tensors.at(t1).has_label(l1), std::format("Tensor {} has no leg {}", t1, l1));
         num_legs += 1;
         if (!t2) {
-            py_assert(is_valid_leg_label(LegLabel{ l2 }), std::format("Invalid leg label {}", l2));
+            check(is_valid_leg_label(LegLabel{ l2 }), std::format("Invalid leg label {}", l2));
         } else {
-            py_assert(tensors.contains(*t2), std::format("No tensor with name {}", *t2));
-            py_assert(tensors.at(*t2).has_label(l2),
-                      std::format("Tensor {} has no leg {}", *t2, l2));
+            check(tensors.contains(*t2), std::format("No tensor with name {}", *t2));
+            check(tensors.at(*t2).has_label(l2), std::format("Tensor {} has no leg {}", *t2, l2));
             num_legs += 1;
         }
     }
@@ -2946,8 +2930,8 @@ parse_leg_bipartition(std::vector<int64> const& legs, int64 num_legs)
     {
         std::set<int64> seen;
         for (auto l : legs) {
-            py_assert(seen.insert(l).second, "duplicate legs");
-            py_assert(0 <= l && l < num_legs, "leg index out of range");
+            check(seen.insert(l).second, "duplicate legs");
+            check(0 <= l && l < num_legs, "leg index out of range");
         }
     }
     // special cases

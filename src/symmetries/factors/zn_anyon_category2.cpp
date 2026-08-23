@@ -55,14 +55,11 @@ ZNAnyonCategory2::ZNAnyonCategory2(int N_, int n_, std::optional<std::string> de
   , _phase(make_phase(n, N))
 {
     if (N <= 1) {
-        PyErr_SetString(PyExc_AssertionError,
-                        ("invalid ZNAnyonCategory2(N=" + std::to_string(N) + ")").c_str());
-        throw py::error_already_set();
+        throw std::invalid_argument("invalid ZNAnyonCategory2(N=" + std::to_string(N) + ")");
     }
     if (N % 2 != 0) {
-        PyErr_SetString(PyExc_AssertionError,
-                        ("ZNAnyonCategory2 requires even N, got N=" + std::to_string(N)).c_str());
-        throw py::error_already_set();
+        throw std::invalid_argument("ZNAnyonCategory2 requires even N, got N=" +
+                                    std::to_string(N));
     }
 }
 

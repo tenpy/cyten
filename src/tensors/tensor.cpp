@@ -178,10 +178,8 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
     if (!backend) {
         backend = get_backend(symmetry);
     }
-    // Use Python AssertionError (not C assert) so callers can catch with pytest.raises.
     if (!backend->supports_symmetry(symmetry)) {
-        PyErr_SetString(PyExc_AssertionError, "backend does not support this symmetry");
-        throw py::error_already_set();
+        throw std::invalid_argument("backend does not support this symmetry");
     }
     if (!codomain->symmetry || !symmetry || !codomain->symmetry->equals(*symmetry)) {
         throw std::invalid_argument("codomain symmetry must match tensor symmetry");
@@ -260,8 +258,7 @@ Tensor::_init_parse_args(TensorProduct::Ptr codomain,
         backend = get_backend(symmetry);
     }
     if (!backend->supports_symmetry(symmetry)) {
-        PyErr_SetString(PyExc_AssertionError, "backend does not support this symmetry");
-        throw py::error_already_set();
+        throw std::invalid_argument("backend does not support this symmetry");
     }
     if (!codomain->symmetry || !symmetry || !codomain->symmetry->equals(*symmetry)) {
         throw std::invalid_argument("codomain symmetry must match tensor symmetry");

@@ -212,28 +212,21 @@ BaseSymmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const&
     // self.fusion_outcomes(s_a, s_b) is a 2D array with with shape [1, num_q]
     // stack the outcomes along the trivial first axis
     // ---
-    // Use Python AssertionError (not C assert) so callers can catch with pytest.raises.
     if (!is_abelian()) {
-        PyErr_SetString(PyExc_AssertionError,
-                        "fusion_outcomes_broadcast requires an abelian symmetry");
-        throw py::error_already_set();
+        throw std::invalid_argument("fusion_outcomes_broadcast requires an abelian symmetry");
     }
     if (a.size() != b.size()) {
-        PyErr_SetString(PyExc_AssertionError, "fusion_outcomes_broadcast: mismatched batch sizes");
-        throw py::error_already_set();
+        throw std::invalid_argument("fusion_outcomes_broadcast: mismatched batch sizes");
     }
     if (a.sector_ind_len() != sector_ind_len || b.sector_ind_len() != sector_ind_len) {
-        PyErr_SetString(PyExc_AssertionError,
-                        "fusion_outcomes_broadcast: mismatched sector_ind_len");
-        throw py::error_already_set();
+        throw std::invalid_argument("fusion_outcomes_broadcast: mismatched sector_ind_len");
     }
     SectorArray out(a.size(), sector_ind_len);
     for (std::size_t i = 0; i < a.size(); ++i) {
         auto outcomes = fusion_outcomes(a[i], b[i]);
         if (outcomes.size() != 1) {
-            PyErr_SetString(PyExc_AssertionError,
-                            "fusion_outcomes_broadcast: expected unique fusion outcome");
-            throw py::error_already_set();
+            throw std::invalid_argument(
+              "fusion_outcomes_broadcast: expected unique fusion outcome");
         }
         out[i] = outcomes[0];
     }
