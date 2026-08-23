@@ -121,10 +121,15 @@ set_property(TARGET cyten PROPERTY VISIBILITY_INLINES_HIDDEN ON)
 # CXX_VISIBILITY_PRESET is ignored for STATIC libraries; pybind11 still needs
 # -fvisibility=hidden on every TU that includes pybind types (see FAQ:
 # "'SomeClass' declared with greater visibility than the type of its field").
-# pybind11_add_module(_core) already adds the flag; cyten must get it explicitly.
+# PUBLIC so dependents (examples, ctests, user programs) get the same flag;
+# otherwise SpinSite/Coupling headers warn about py::array / py::object fields.
+# pybind11_add_module(_core) already adds the flag for the extension module.
 target_compile_options(cyten PRIVATE
   $<$<COMPILE_LANGUAGE:C>:-fvisibility=hidden>
+)
+target_compile_options(cyten PUBLIC
   $<$<COMPILE_LANGUAGE:CXX>:-fvisibility=hidden>
+  $<$<COMPILE_LANGUAGE:CXX>:-fvisibility-inlines-hidden>
 )
 
 target_include_directories(cyten

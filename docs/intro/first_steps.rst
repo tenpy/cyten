@@ -53,7 +53,10 @@ C++
 
 The C++ API mirrors the Python one. A standalone program must start an
 embedded Python interpreter and ``import cyten`` so that backends and
-pybind11 type casters are registered.
+pybind11 type casters are registered. Compile with ``-fvisibility=hidden``
+(the CMake ``cyten`` target passes this on); otherwise GCC/Clang warn that
+classes such as :cpp:class:`cyten::SpinSite` have greater visibility than
+their pybind11 members.
 
 .. literalinclude:: examples/heisenberg_two_site.cpp
    :language: c++

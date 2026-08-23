@@ -41,4 +41,8 @@ target_include_directories(example_heisenberg_two_site
   PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
 target_link_libraries(example_heisenberg_two_site PUBLIC cyten pybind11::embed)
+set_target_properties(example_heisenberg_two_site PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+)
 add_test(NAME example_heisenberg_two_site COMMAND example_heisenberg_two_site)
