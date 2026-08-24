@@ -367,7 +367,11 @@ def _cpp_url_for_qname(qname, ids=None):
 
 
 def _python_source_url(obj):
-    """URL for a pure-Python object whose source file lives in this repo."""
+    """URL for a pure-Python object whose source file lives in this repo.
+
+    The generated autodoc stub ``cyten/_core.py`` is skipped so linkcode can
+    fall back to the C++ GitHub location (same target as the ``[C++]`` badge).
+    """
     try:
         obj = inspect.unwrap(obj)
     except Exception:
@@ -385,6 +389,9 @@ def _python_source_url(obj):
         return None
     rel = rel.replace('\\', '/')
     if rel.startswith('..'):
+        return None
+    # Generated stub for RTD — not a useful [source] target.
+    if rel == 'cyten/_core.py':
         return None
     try:
         source, lineno = inspect.getsourcelines(obj)
