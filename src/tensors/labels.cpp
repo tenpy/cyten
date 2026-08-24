@@ -106,7 +106,9 @@ LegLabels
 _split_leg_label(LegLabel const& label, std::optional<int64> num)
 {
     if (!label) {
-        assert(num.has_value());
+        if (!num.has_value()) {
+            throw std::invalid_argument("num is required when splitting an unset combined label");
+        }
         return LegLabels(static_cast<std::size_t>(*num), std::nullopt);
     }
     if (label->starts_with('(') && label->ends_with(')')) {
@@ -128,7 +130,10 @@ _split_leg_label(LegLabel const& label, std::optional<int64> num)
             }
             start = dot + 1;
         }
-        assert(!num.has_value() || static_cast<int64>(labels.size()) == *num);
+        if (num.has_value() && static_cast<int64>(labels.size()) != *num) {
+            throw std::invalid_argument(std::format(
+              "expected {} components in combined label, got {}", *num, labels.size()));
+        }
         return labels;
     }
     throw std::invalid_argument("Invalid format for a combined label");
@@ -359,8 +364,23 @@ LabelledLegs::set_label(int64 pos, LegLabel label)
 LabelledLegs&
 LabelledLegs::set_labels(LegLabels labels)
 {
-    assert(duplicate_leg_labels(labels).empty());
-    assert(static_cast<int64>(labels.size()) == num_legs);
+    auto const dups = duplicate_leg_labels(labels);
+    if (!dups.empty()) {
+        std::string joined;
+        bool first = true;
+        for (auto const& d : dups) {
+            if (!first) {
+                joined += ", ";
+            }
+            first = false;
+            joined += d;
+        }
+        throw std::invalid_argument(std::format("Duplicate leg labels: {}", joined));
+    }
+    if (static_cast<int64>(labels.size()) != num_legs) {
+        throw std::invalid_argument(
+          std::format("expected {} labels, got {}", num_legs, labels.size()));
+    }
     _labels = std::move(labels);
     _labelmap = build_labelmap(_labels);
     return *this;

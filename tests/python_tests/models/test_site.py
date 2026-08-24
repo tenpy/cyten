@@ -93,6 +93,13 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
     #     npt.assert_equal(site_op, site2_op)
 
 
+def test_site_rejects_out_of_range_state_label(block_backend):
+    backend = cyten.get_backend(block_backend=block_backend, symmetry='no_symmetry')
+    leg = cyten.ElementarySpace.from_trivial_sector(dim=2)
+    with pytest.raises(ValueError, match='state_label'):
+        degrees_of_freedom.Site(leg, backend=backend, state_labels={'bad': 5})
+
+
 @pytest.mark.parametrize('spin', [0.5, 1, 1.5, 2, 5])
 def test_spin_site(any_backend, spin):
     if isinstance(any_backend, backends.NoSymmetryBackend):
@@ -256,7 +263,7 @@ def test_spinless_fermion_site(block_backend, np_random, num_species):
     check_same_operators(site_list)
 
     for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             _ = sites.SpinlessFermionSite(num_species, all_conserve[0], backend=backend)
 
 
@@ -295,7 +302,7 @@ def test_spin_half_fermion_site(block_backend, np_random):
     check_same_operators(site_list)
 
     for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             _ = sites.SpinHalfFermionSite(all_conserve_N[0], all_conserve_S[0], backend=backend)
 
 

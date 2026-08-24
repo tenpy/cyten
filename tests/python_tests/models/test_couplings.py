@@ -77,7 +77,7 @@ def generate_fermionic_dofs(
         # fermionic exchange cannot be encoded
         # do it like this (rather than fixing the backend from the start) such that
         # a potential extension of the ablian backend to fermions automatically works
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             _ = sites.SpinlessFermionSite(num_species=1, backend=backend)
         return site_list
     for num_species in [1, 2]:

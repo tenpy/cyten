@@ -24,8 +24,10 @@ namespace {
 [[nodiscard]] std::size_t
 dim_as_size(float64 dim)
 {
-    assert(dim >= 0.);
-    assert(std::floor(dim) == dim);
+    if (!(dim >= 0.) || std::floor(dim) != dim) {
+        throw std::invalid_argument(
+          std::format("dimension must be a non-negative integer, got {}", dim));
+    }
     return static_cast<std::size_t>(dim);
 }
 
@@ -40,11 +42,16 @@ arange(std::size_t n)
 [[nodiscard]] std::vector<int64>
 inverse_permutation(std::vector<int64> const& perm)
 {
-    std::vector<int64> inv(perm.size());
+    std::vector<int64> inv(perm.size(), int64{ -1 });
     for (std::size_t i = 0; i < perm.size(); ++i) {
         auto const idx = perm[i];
-        assert(idx >= 0);
-        assert(static_cast<std::size_t>(idx) < perm.size());
+        if (idx < 0 || static_cast<std::size_t>(idx) >= perm.size() ||
+            inv[static_cast<std::size_t>(idx)] != -1) {
+            throw std::invalid_argument(
+              std::format("basis_perm must be a permutation of 0..{}, got invalid index {}",
+                          perm.size() - 1,
+                          idx));
+        }
         inv[static_cast<std::size_t>(idx)] = static_cast<int64>(i);
     }
     return inv;
@@ -94,7 +101,10 @@ Leg::init_leg(Symmetry::Ptr symmetry_,
         if (!symmetry->can_be_dropped()) {
             throw SymmetryError(std::format("basis_perm is meaningless for {}.", symmetry->str()));
         }
-        assert(basis_perm->size() == dim_as_size(dim));
+        if (basis_perm->size() != dim_as_size(dim)) {
+            throw std::invalid_argument(
+              std::format("basis_perm length {} does not match dim {}", basis_perm->size(), dim));
+        }
         _basis_perm = std::move(basis_perm);
         _inverse_basis_perm = inverse_permutation(*_basis_perm);
     }
@@ -157,7 +167,10 @@ Leg::set_basis_perm(std::optional<std::vector<int64>> basis_perm)
         _inverse_basis_perm = std::nullopt;
         return;
     }
-    assert(basis_perm->size() == dim_as_size(dim));
+    if (basis_perm->size() != dim_as_size(dim)) {
+        throw std::invalid_argument(
+          std::format("basis_perm length {} does not match dim {}", basis_perm->size(), dim));
+    }
     _basis_perm = std::move(basis_perm);
     _inverse_basis_perm = inverse_permutation(*_basis_perm);
 }
@@ -182,7 +195,10 @@ Leg::set_inverse_basis_perm(std::optional<std::vector<int64>> inverse_basis_perm
         _inverse_basis_perm = std::nullopt;
         return;
     }
-    assert(inverse_basis_perm->size() == dim_as_size(dim));
+    if (inverse_basis_perm->size() != dim_as_size(dim)) {
+        throw std::invalid_argument(std::format(
+          "inverse_basis_perm length {} does not match dim {}", inverse_basis_perm->size(), dim));
+    }
     _inverse_basis_perm = std::move(inverse_basis_perm);
     _basis_perm = inverse_permutation(*_inverse_basis_perm);
 }
@@ -242,7 +258,9 @@ Leg::apply_basis_perm(py::object arr, int64 axis, bool inverse, bool pre_compose
     }
     auto perm_arr = vector_to_array(*perm);
     if (pre_compose) {
-        assert(axis == 0);
+        if (axis != 0) {
+            throw std::invalid_argument("pre_compose currently requires axis == 0");
+        }
         return perm_arr[py::make_tuple(arr)];
     }
     auto np = py::module_::import("numpy");
@@ -334,7 +352,12 @@ Space::Space(Symmetry::Ptr symmetry_,
         multiplicities.assign(n, 1);
     } else {
         multiplicities = std::move(*multiplicities_);
-        assert(multiplicities.size() == n);
+        if (multiplicities.size() != n) {
+            throw std::invalid_argument(
+              std::format("multiplicities length {} does not match number of sectors {}",
+                          multiplicities.size(),
+                          n));
+        }
     }
     if (symmetry->can_be_dropped()) {
         sector_dims = symmetry->batch_sector_dim(sector_decomposition);
@@ -663,19 +686,27 @@ LegPipe::LegPipe(std::vector<Leg::Ptr> legs_, bool is_dual_, bool combine_cstyle
   , num_legs(static_cast<int64>(legs.size()))
   , combine_cstyle(combine_cstyle_)
 {
-    assert(num_legs > 0);
+    if (num_legs <= 0) {
+        throw std::invalid_argument("LegPipe requires at least one leg");
+    }
+    auto const& symmetry0 = legs.at(0)->symmetry;
     float64 dim_prod = 1.;
     for (auto const& leg : legs) {
+        if (!leg->symmetry->equals(*symmetry0)) {
+            throw std::invalid_argument("all legs of a LegPipe must have the same symmetry");
+        }
         dim_prod *= leg->dim;
     }
-    init_leg(legs.at(0)->symmetry, dim_prod, is_dual_, combined_basis_perm(legs, combine_cstyle));
+    init_leg(symmetry0, dim_prod, is_dual_, combined_basis_perm(legs, combine_cstyle));
 }
 
 void
 LegPipe::test_sanity() const
 {
     for (auto const& leg : legs) {
-        assert(leg->symmetry->equals(*symmetry));
+        if (!leg->symmetry->equals(*symmetry)) {
+            throw std::invalid_argument("all legs of a LegPipe must have the same symmetry");
+        }
         leg->test_sanity();
     }
     Leg::test_sanity();
@@ -1038,7 +1069,9 @@ ElementarySpace::ElementarySpace(Symmetry::Ptr symmetry_,
                    : std::optional<std::string>{ "sorted" })
   , defining_sectors(std::move(defining_sectors_))
 {
-    assert(symmetry_->are_valid_sectors(defining_sectors));
+    if (!symmetry_->are_valid_sectors(defining_sectors)) {
+        throw std::invalid_argument("defining_sectors contains invalid sectors for this symmetry");
+    }
     init_leg(Space::symmetry, Space::dim, is_dual_, std::move(basis_perm_));
 }
 
@@ -1108,10 +1141,15 @@ ElementarySpace::from_independent_symmetries(std::vector<Ptr> const& independent
     // ---
     // OPTIMIZE this can be implemented better. if many consecutive basis elements have the same
     //          resulting sector, we can skip over all of them.
-    assert(!independent_descriptions.empty());
+    if (independent_descriptions.empty()) {
+        throw std::invalid_argument(
+          "from_independent_symmetries requires at least one description");
+    }
     auto const dim = independent_descriptions[0]->Space::dim;
-    assert(std::ranges::all_of(independent_descriptions,
-                               [dim](Ptr const& s) { return s->Space::dim == dim; }));
+    if (!std::ranges::all_of(independent_descriptions,
+                             [dim](Ptr const& s) { return s->Space::dim == dim; })) {
+        throw std::invalid_argument("all independent descriptions must have the same dimension");
+    }
     // ignore those with no_symmetry
     auto const no_sym = no_symmetry_product();
     std::vector<Ptr> descriptions;
@@ -1236,7 +1274,12 @@ ElementarySpace::from_defining_sectors(Symmetry::Ptr symmetry,
 {
     std::vector<int64> multiplicities =
       multiplicities_.value_or(std::vector<int64>(defining_sectors.size(), 1));
-    assert(multiplicities.size() == defining_sectors.size());
+    if (multiplicities.size() != defining_sectors.size()) {
+        throw std::invalid_argument(
+          std::format("multiplicities length {} does not match number of defining sectors {}",
+                      multiplicities.size(),
+                      defining_sectors.size()));
+    }
 
     // sort sectors
     std::vector<std::size_t> sort;
@@ -1263,7 +1306,9 @@ ElementarySpace::from_defining_sectors(Symmetry::Ptr symmetry,
     } else {
         std::tie(defining_sectors, multiplicities, sort) =
           sort_sectors(defining_sectors, multiplicities);
-        assert(!basis_perm);
+        if (basis_perm) {
+            throw std::invalid_argument("basis_perm is meaningless for this symmetry");
+        }
     }
     // combine duplicate sectors (does not affect basis_perm)
     if (!unique_sectors) {
@@ -1595,9 +1640,13 @@ ElementarySpace::direct_sum(std::vector<Ptr> const& others) const
     if (others.empty()) {
         return shared_es();
     }
-    assert(std::ranges::all_of(
-      others, [this](Ptr const& o) { return o->Space::symmetry->equals(*Space::symmetry); }));
-    assert(std::ranges::all_of(others, [this](Ptr const& o) { return o->is_dual == is_dual; }));
+    if (!std::ranges::all_of(
+          others, [this](Ptr const& o) { return o->Space::symmetry->equals(*Space::symmetry); })) {
+        throw std::invalid_argument("direct_sum requires matching symmetries");
+    }
+    if (!std::ranges::all_of(others, [this](Ptr const& o) { return o->is_dual == is_dual; })) {
+        throw std::invalid_argument("direct_sum requires matching duality");
+    }
     std::optional<std::vector<int64>> basis_perm_;
     if (Space::symmetry->can_be_dropped()) {
         auto perm = basis_perm();
@@ -3231,13 +3280,20 @@ AbelianLegPipe::ascii_arrow() const
 AbelianLegPipe::Ptr
 AbelianLegPipe::from_independent_symmetries(std::vector<Ptr> const& independent_descriptions)
 {
-    assert(!independent_descriptions.empty());
+    if (independent_descriptions.empty()) {
+        throw std::invalid_argument(
+          "from_independent_symmetries requires at least one description");
+    }
     auto const is_dual = independent_descriptions.front()->is_dual;
-    assert(std::ranges::all_of(independent_descriptions,
-                               [is_dual](Ptr const& i) { return i->is_dual == is_dual; }));
+    if (!std::ranges::all_of(independent_descriptions,
+                             [is_dual](Ptr const& i) { return i->is_dual == is_dual; })) {
+        throw std::invalid_argument("independent descriptions must have matching duality");
+    }
     auto const num_legs = independent_descriptions.front()->num_legs;
-    assert(std::ranges::all_of(independent_descriptions,
-                               [num_legs](Ptr const& i) { return i->num_legs == num_legs; }));
+    if (!std::ranges::all_of(independent_descriptions,
+                             [num_legs](Ptr const& i) { return i->num_legs == num_legs; })) {
+        throw std::invalid_argument("independent descriptions must have the same number of legs");
+    }
     std::vector<ElementarySpace::Ptr> legs;
     legs.reserve(static_cast<std::size_t>(num_legs));
     for (std::size_t k = 0; k < static_cast<std::size_t>(num_legs); ++k) {
@@ -3540,8 +3596,10 @@ is_plain_leg_pipe(Leg::Ptr const& leg)
 [[nodiscard]] std::size_t
 leg_dim_as_size(Leg const& leg)
 {
-    assert(leg.dim >= 0.);
-    assert(std::floor(leg.dim) == leg.dim);
+    if (!(leg.dim >= 0.) || std::floor(leg.dim) != leg.dim) {
+        throw std::invalid_argument(
+          std::format("leg dimension must be a non-negative integer, got {}", leg.dim));
+    }
     return static_cast<std::size_t>(leg.dim);
 }
 

@@ -268,6 +268,11 @@ def check_basis_perm(perm, inv_perm=None):
         npt.assert_array_equal(inv_perm[perm], np.arange(len(perm)))
 
 
+def test_basis_perm_rejects_wrong_length():
+    with pytest.raises(ValueError, match='basis_perm'):
+        spaces.ElementarySpace.from_trivial_sector(dim=4, basis_perm=[0, 1, 2])
+
+
 def test_LegPipe_basis_perm(np_random):
     block_backend = NumpyBlockBackend.from_factory('cpu')
     a = spaces.ElementarySpace.from_trivial_sector(dim=5, is_dual=True, basis_perm=np_random.permutation(5))

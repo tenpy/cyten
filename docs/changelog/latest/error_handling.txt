@@ -1,0 +1,3 @@
+- Public C++ API input checks now throw always-on exceptions (typically ``ValueError``)
+  instead of C ``assert`` or Python ``AssertionError``, so they still run in Release
+  builds without debug flags.

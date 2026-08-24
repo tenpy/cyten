@@ -37,7 +37,10 @@ ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr ch
       inv->symmetry,
       [&]() {
           auto labs = inv->labels();
-          assert(!labs.empty());
+          if (labs.empty()) {
+              throw std::invalid_argument(
+                "ChargedTensor invariant_part must have a charge-leg label");
+          }
           return LegLabels(labs.begin(), labs.end() - 1);
       }(),
       inv->dtype,
@@ -47,9 +50,15 @@ ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr ch
   // Match Python: keep the domain factor as-is (ElementarySpace or LegPipe).
   , charge_leg(invariant_part->domain->factors[0])
 {
-    assert(invariant_part->domain->num_factors > 0);
+    if (invariant_part->domain->num_factors <= 0) {
+        throw std::invalid_argument(
+          "ChargedTensor invariant_part must have a charge leg in the domain");
+    }
     auto labs = invariant_part->labels();
-    assert(!labs.empty() && labs.back() && *labs.back() == _CHARGE_LEG_LABEL);
+    if (labs.empty() || !labs.back() || *labs.back() != _CHARGE_LEG_LABEL) {
+        throw std::invalid_argument(
+          std::format("ChargedTensor invariant_part last label must be '{}'", _CHARGE_LEG_LABEL));
+    }
     if (!supports_symmetry(invariant_part->symmetry)) {
         throw SymmetryError(std::format("ChargedTensor is not well-defined for symmetry {}.",
                                         invariant_part->symmetry->repr()));
@@ -103,7 +112,9 @@ std::tuple<TensorProduct::Ptr, Space::Ptr>
 ChargedTensor::_parse_inv_domain(TensorProduct::Ptr domain,
                                  std::variant<ElementarySpace::Ptr, Sector> charge)
 {
-    assert(domain); // call _init_parse_args first?
+    if (!domain) {
+        throw std::invalid_argument("domain must be parsed before constructing ChargedTensor");
+    }
     Space::Ptr charge_leg_sp;
     if (auto const* es = std::get_if<ElementarySpace::Ptr>(&charge)) {
         charge_leg_sp = *es;
@@ -215,7 +226,9 @@ ChargedTensor::from_dense_block_single_sector(BlockBackend::BlockPtr vector,
                                               std::optional<std::string> label,
                                               std::optional<std::string> device)
 {
-    assert(space);
+    if (!space) {
+        throw std::invalid_argument("space must be specified");
+    }
     if (!backend) {
         backend = get_backend(space->symmetry);
     }
@@ -245,7 +258,9 @@ ChargedTensor::from_invariant_part(SymmetricTensor::Ptr inv, BlockBackend::Block
     // --- hints from Python ChargedTensor.from_invariant_part ---
     // OPTIMIZE ?
     // ---
-    assert(inv);
+    if (!inv) {
+        throw std::invalid_argument("invariant_part must be specified");
+    }
     if (inv->num_legs == 1) {
         if (!charged_state) {
             throw std::invalid_argument(
@@ -269,9 +284,15 @@ ChargedTensor::from_two_charge_legs(SymmetricTensor::Ptr invariant_part,
     // Uses combine_legs free function — keep via Python helper when needed.
     auto inv_obj = py::cast(invariant_part);
     auto labs = invariant_part->labels();
-    assert(labs.size() >= 2);
-    assert(labs[labs.size() - 1] && labs[labs.size() - 1]->starts_with(_CHARGE_LEG_LABEL));
-    assert(labs[labs.size() - 2] && labs[labs.size() - 2]->starts_with(_CHARGE_LEG_LABEL));
+    if (labs.size() < 2) {
+        throw std::invalid_argument("from_two_charge_legs requires at least two labels");
+    }
+    if (!labs[labs.size() - 1] || !labs[labs.size() - 1]->starts_with(_CHARGE_LEG_LABEL) ||
+        !labs[labs.size() - 2] || !labs[labs.size() - 2]->starts_with(_CHARGE_LEG_LABEL)) {
+        throw std::invalid_argument(
+          std::format("from_two_charge_legs requires the last two labels to start with '{}'",
+                      _CHARGE_LEG_LABEL));
+    }
     auto inv_part = tensors_mod().attr("combine_legs")(inv_obj, py::make_tuple(-2, -1));
     inv_part.attr("set_label")(-1, _CHARGE_LEG_LABEL);
     BlockBackend::BlockPtr state;

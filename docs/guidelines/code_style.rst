@@ -45,6 +45,18 @@ C++ Guidelines
 Use modern C++ style, e.g. the auto keyword and the ranges library.
 We compile with the C++23 standard, and have no need for backwards compatibility to older C++ versions.
 
+Error handling
+^^^^^^^^^^^^^^
+Public API input checks must throw, not use C ``assert``. ``assert`` is compiled out under
+``NDEBUG`` (typical Release builds), so caller mistakes would otherwise go unchecked.
+
+- Use ``cyten::check`` for a fixed message, or ``throw std::invalid_argument`` /
+  ``std::out_of_range`` / ``cyten::SymmetryError`` with ``std::format`` when the
+  message should include values. These map to Python ``ValueError``, ``IndexError``, and
+  ``SymmetryError``.
+- Keep C ``assert`` only for hot-path internal invariants and expensive algebraic sanity
+  checks that cannot fail if callers already passed the public checks.
+
 
 
 Linter rules

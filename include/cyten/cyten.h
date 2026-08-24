@@ -7,6 +7,8 @@
 #include <stdfloat>
 #include <utility>
 
+#include <cyten/check.h>
+
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>

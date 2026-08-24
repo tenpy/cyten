@@ -808,7 +808,7 @@ def test_product_symmetry(np_random):
     npt.assert_array_equal(outcomes, expect)
 
     print('checking fusion_outcomes_broadcast')
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         # sym is not abelian, so this should raise
         _ = sym.fusion_outcomes_broadcast(s1[None, :], s2[None, :])
     outcomes = u1_z3.fusion_outcomes_broadcast(np.array([[42, 2], [-2, 0]]), np.array([[1, 1], [2, 1]]))
@@ -978,7 +978,7 @@ def test_su2_symmetry(np_random):
     npt.assert_array_equal(sym.fusion_outcomes(spin_1, spin_3_half), np.array([[1], [3], [5]]))
 
     print('checking fusion_outcomes_broadcast')
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         # sym is not abelian, so this should raise
         _ = sym.fusion_outcomes_broadcast(spin_1[None, :], spin_3_half[None, :])
 
@@ -1293,7 +1293,7 @@ def test_SU3_3AnyonCategory(np_random):
 @pytest.mark.parametrize('cls', [symmetries.ZNAnyonCategory, symmetries.ZNAnyonCategory2])
 def test_ZNAnyonCategories(cls, N, n, np_random):
     if cls is symmetries.ZNAnyonCategory2 and N % 2 != 0:
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             _ = cls(N, n)
         return  # error is expected behavior
 
