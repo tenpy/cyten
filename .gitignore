@@ -34,6 +34,11 @@ cyten/_core.py
 # Local checkouts / scratch (not for commit)
 tmp/
 
+# Benchmark outputs
+tests/benchmark/*.txt
+tests/benchmark/*.png
+tests/benchmark/*.prof
+
 # Generated DOC() headers (doxygen → scripts/doxygen_xml_to_docstrings.py)
 pybind/docstrings/**/*.h
 # and auto-generated python reference stubs
