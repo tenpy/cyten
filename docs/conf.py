@@ -106,6 +106,7 @@ extensions = [
     'sphinx.ext.graphviz',
     'sphinx.ext.inheritance_diagram',
     'cyten_inheritance',  # pybind re-exports; after inheritance_diagram
+    'doxygen_inheritance',  # Doxygen CLASS_GRAPH PNGs on C++ pages
     'sphinx_rtd_theme',
     'sphinx_copybutton',
 ]
