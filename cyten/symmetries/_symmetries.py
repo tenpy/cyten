@@ -34,7 +34,6 @@ from .._core import (
     ZNAnyonCategory,  # noqa: F401
     ZNAnyonCategory2,  # noqa: F401
 )
-from ..tools.misc import as_immutable_array
 from .sector_utils import (  # noqa: F401
     as_sector,
     as_sector_array,
@@ -48,14 +47,6 @@ try:
     h5py_version = h5py.version.version_tuple
 except ImportError, AttributeError:
     h5py_version = (0, 0)
-
-
-# these are the known results for e.g. N symbols, F symbols, ... in some special cases
-one_1D = as_immutable_array(np.ones((1), dtype=int))
-one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
-one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
-one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
-one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
 
 
 def _default_c_symbol(sym, a, b, c, d, e, f):
