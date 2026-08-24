@@ -105,6 +105,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.graphviz',
     'sphinx.ext.inheritance_diagram',
+    'cyten_inheritance',  # pybind re-exports; after inheritance_diagram
     'sphinx_rtd_theme',
     'sphinx_copybutton',
 ]

@@ -5,6 +5,10 @@ Declared in ``cyten/backends/abelian.py`` (bindings in ``pybind/backends/py_abel
 
 Classes and functions imported from the pybind11 module :mod:`cyten._core`.
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.backends.abelian.AbelianBackend
 -------------------------------------
 

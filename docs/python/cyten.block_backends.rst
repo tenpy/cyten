@@ -19,6 +19,10 @@ Classes and functions imported from the pybind11 module :mod:`cyten._core`.
    block_backends/torch
    block_backends/array_api
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.block_backends.BlockBackend
 ---------------------------------
 

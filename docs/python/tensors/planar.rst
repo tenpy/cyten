@@ -5,6 +5,10 @@ Declared in ``cyten/tensors/planar.py`` (bindings in ``pybind/tensors/py_planar.
 
 Classes and functions imported from the pybind11 module :mod:`cyten._core`.
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.tensors.planar.TensorPlaceholder
 --------------------------------------
 

@@ -11,6 +11,10 @@ Declared in ``cyten/config.py`` (bindings in ``pybind/py_config.cpp``).
 
 Classes and functions imported from the pybind11 module :mod:`cyten._core`.
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.config.CytenConfig
 ------------------------
 

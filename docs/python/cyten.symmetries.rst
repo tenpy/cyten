@@ -17,6 +17,10 @@ Classes and functions imported from the pybind11 module :mod:`cyten._core`.
    symmetries/spaces
    symmetries/trees
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.symmetries.SymmetryError
 ------------------------------
 

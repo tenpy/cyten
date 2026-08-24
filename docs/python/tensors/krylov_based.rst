@@ -5,6 +5,10 @@ Declared in ``cyten/tensors/krylov_based.py`` (bindings in ``pybind/tensors/py_k
 
 Classes and functions imported from the pybind11 module :mod:`cyten._core`.
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.tensors.krylov_based.KrylovBased
 --------------------------------------
 

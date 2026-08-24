@@ -18,6 +18,10 @@ Classes and functions imported from the pybind11 module :mod:`cyten._core`.
    backends/no_symmetry
    backends/fusion_tree_backend
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.backends.TensorBackend
 ----------------------------
 
