@@ -18,6 +18,10 @@ Classes and functions imported from the pybind11 module :mod:`cyten._core`.
    tensors/planar
    tensors/krylov_based
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.tensors.LabelledLegs
 --------------------------
 

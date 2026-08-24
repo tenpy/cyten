@@ -17,6 +17,10 @@ Classes and functions imported from the pybind11 module :mod:`cyten._core`.
    symmetries/spaces
    symmetries/trees
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.symmetries.SymmetryError
 ------------------------------
 
@@ -143,6 +147,16 @@ cyten.symmetries.ZNAnyonCategory2
    :undoc-members:
    :show-inheritance:
 
+cyten.symmetries.semion_category
+--------------------------------
+
+.. autofunction:: cyten.symmetries.semion_category
+
+cyten.symmetries.double_semion_category
+---------------------------------------
+
+.. autofunction:: cyten.symmetries.double_semion_category
+
 cyten.symmetries.IsingAnyonCategory
 -----------------------------------
 
@@ -222,14 +236,3 @@ cyten.symmetries.BraidingStyle
    :members:
    :undoc-members:
    :show-inheritance:
-
-Module-level instances
-----------------------
-
-Convenience :class:`~cyten.symmetries.Symmetry` instances:
-
-* ``no_symmetry``, ``z2_symmetry`` … ``z9_symmetry``
-* ``u1_symmetry``, ``su2_symmetry``
-* ``fermion_parity``, ``fermion_number``
-* ``fibonacci_anyon_category``, ``ising_anyon_category``
-* ``semion_category``, ``double_semion_category``, ``toric_code_category``

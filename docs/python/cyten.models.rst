@@ -7,6 +7,10 @@ models
 
 Sites and couplings that can be used to define lattice models.
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 .. currentmodule:: cyten.models
 
 .. automodule:: cyten.models

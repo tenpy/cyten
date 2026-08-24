@@ -12,6 +12,10 @@ from cyten import backends
 from cyten.models import degrees_of_freedom, sites
 from cyten.testing import random_symmetry_sectors
 
+u1_symmetry = cyten.U1().as_Symmetry()
+z3_symmetry = cyten.ZN(N=3).as_Symmetry()
+no_symmetry = cyten.NoSymmetry().as_Symmetry()
+
 
 def check_same_operators(sites: list[degrees_of_freedom.Site]):
     """Check that the given sites have equivalent operators.
@@ -45,9 +49,9 @@ def check_operator_availability(site: degrees_of_freedom.Site, expect_onsite_ops
 def test_site(np_random, block_backend, symmetry_backend, use_sym):
     backend = cyten.get_backend(block_backend=block_backend, symmetry=symmetry_backend)
     if use_sym:
-        sym = cyten.u1_symmetry * cyten.z3_symmetry
+        sym = u1_symmetry * z3_symmetry
     else:
-        sym = cyten.no_symmetry
+        sym = no_symmetry
     dim = 8
     some_sectors = random_symmetry_sectors(sym, num=dim, sort=False, np_random=np_random)
     leg = cyten.ElementarySpace.from_basis(sym, np_random.choice(some_sectors, size=dim, replace=True))
@@ -81,7 +85,7 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
 
     # if use_sym:
     #     leg2 = leg.drop_symmetry(1)
-    #     leg2 = leg2.change_symmetry(symmetry=cyten.z3_symmetry, sector_map=lambda s: s % 3)
+    #     leg2 = leg2.change_symmetry(symmetry=z3_symmetry, sector_map=lambda s: s % 3)
     # else:
     #     leg2 = leg
     # leg2.test_sanity()

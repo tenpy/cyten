@@ -54,3 +54,7 @@ jobs:
       #       To use the version we just installed, it is important to run `pytest`
       #       instead of `python -m pytest`.
       run: pytest --block-backends "numpy" -vv
+
+    - name: Check _core stub parity
+      # Regenerates the autodoc stub from bindings and compares to the live extension.
+      run: python scripts/check_core_stub_parity.py --generate

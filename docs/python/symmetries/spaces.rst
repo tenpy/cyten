@@ -5,6 +5,10 @@ Declared in ``cyten/symmetries/spaces.py``.
 
 Classes and functions imported from the pybind11 module :mod:`cyten._core`.
 
+.. rubric:: Inheritance Diagram
+
+.. cyten-inheritance-diagram::
+
 cyten.symmetries.spaces.Leg
 ---------------------------
 

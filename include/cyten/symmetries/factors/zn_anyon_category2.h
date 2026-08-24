@@ -1,8 +1,9 @@
 #pragma once
 
-#include "../symmetry_factor.h"
+#include "../symmetry.h"
 
 #include <complex>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -53,5 +54,23 @@ class ZNAnyonCategory2 : public SymmetryFactor
                    std::string const& subpath) const override;
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
+
+/// Semion category @f$ Z_2^{(1/2)} @f$ as a product `Symmetry`.
+[[nodiscard]] inline Symmetry::Ptr
+semion_category()
+{
+    return std::make_shared<Symmetry>(
+      std::vector<SymmetryFactor::Ptr>{ std::make_shared<ZNAnyonCategory2>(2, 0) });
+}
+
+/// Double-semion category @f$ Z_2^{(1/2)} \times Z_2^{(3/2)} @f$ as a product `Symmetry`.
+[[nodiscard]] inline Symmetry::Ptr
+double_semion_category()
+{
+    return std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{
+      std::make_shared<ZNAnyonCategory2>(2, 0),
+      std::make_shared<ZNAnyonCategory2>(2, 1),
+    });
+}
 
 } // namespace cyten

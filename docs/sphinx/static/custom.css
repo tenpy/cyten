@@ -7,3 +7,7 @@ dl.config table td p {
 .wy-nav-content {
    max-width: none;
 }
+.doxygen-inheritance-diagram {
+   overflow-x: auto;
+   margin: 1em 0;
+}

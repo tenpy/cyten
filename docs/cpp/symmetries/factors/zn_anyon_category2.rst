@@ -10,3 +10,15 @@ cyten::ZNAnyonCategory2
    :project: cyten
    :members:
    :undoc-members:
+
+cyten::semion_category
+----------------------
+
+.. doxygenfunction:: cyten::semion_category
+   :project: cyten
+
+cyten::double_semion_category
+-----------------------------
+
+.. doxygenfunction:: cyten::double_semion_category
+   :project: cyten

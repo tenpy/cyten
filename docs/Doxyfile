@@ -2556,7 +2556,9 @@ DOT_FONTPATH           =
 # Possible values are: NO, YES, TEXT, GRAPH and BUILTIN.
 # The default value is: YES.
 
-CLASS_GRAPH            = YES
+# BUILTIN keeps Doxygen's compact label layout (vertical buses for many
+# siblings). Graphviz CLASS_GRAPH=GRAPH spreads those labels and collides.
+CLASS_GRAPH            = BUILTIN
 
 # If the COLLABORATION_GRAPH tag is set to YES then doxygen will generate a
 # graph for each documented class showing the direct and indirect implementation

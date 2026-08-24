@@ -637,22 +637,25 @@ def format_entry(macro: str, doc: str) -> str:
     return f'static const char* {macro} =\n  R"doc({body})doc";\n'
 
 
-def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
+def generate_entries(
+    xml_dir: Path, header_rel: str, source_root: Path
+) -> list[tuple[list[str], int | None, str]]:
+    """Return ``(macro_parts, overload_suffix, docstring)`` for one header.
+
+    ``macro_parts`` matches ``DOC(part1, part2, ...)`` (e.g. ``['cyten', 'compose']``).
+    ``overload_suffix`` is ``None`` for the first overload, else ``2``, ``3``, …
+    """
     source_path = source_root / 'include' / 'cyten' / header_rel
     if not source_path.is_file():
-        raise SystemExit(f'source header not found: {source_path}')
+        raise FileNotFoundError(f'source header not found: {source_path}')
     source_lines = source_path.read_text(encoding='utf-8').splitlines()
 
     symbols = collect_symbols(xml_dir, header_rel)
-    # Prefer symbols that have doxygen docs OR a /// block we can extract.
-    entries: list[tuple[list[str], int | None, str]] = []
-    # Group by qualified path for overload suffixes
     by_key: dict[tuple[str, ...], list[Symbol]] = defaultdict(list)
     for s in symbols:
         key = (*s.namespace_parts, s.name)
         by_key[key].append(s)
 
-    # Emit in first-seen (line) order across all keys
     ordered: list[tuple[tuple[str, ...], Symbol, int | None, bool]] = []
     for key, group in by_key.items():
         group = sorted(group, key=lambda s: s.line)
@@ -662,6 +665,7 @@ def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
             ordered.append((key, s, suffix, has_overloads))
     ordered.sort(key=lambda t: t[1].line)
 
+    entries: list[tuple[list[str], int | None, str]] = []
     for key, sym, suffix, has_overloads in ordered:
         doc = extract_slash_comment(source_lines, sym.line)
         if doc is None:
@@ -672,9 +676,31 @@ def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
             doc = doc.rstrip() + '\n' + marker
             if not doc.endswith('\n'):
                 doc += '\n'
-        parts = list(key)
-        entries.append((parts, suffix, doc))
+        entries.append((list(key), suffix, doc))
+    return entries
 
+
+def entries_to_macro_map(
+    entries: list[tuple[list[str], int | None, str]],
+) -> dict[str, str]:
+    """Map ``mkd_doc_…`` macro names (as produced by ``DOC(...)``) to docstrings."""
+    return {_macro_name(parts, suffix): doc for parts, suffix, doc in entries}
+
+
+def lookup_doc(doc_map: dict[str, str], *doc_args: str | int) -> str | None:
+    """Resolve ``DOC(cyten, name, …)`` args against a macro-name docstring map."""
+    parts: list[str] = []
+    suffix: int | None = None
+    for arg in doc_args:
+        if isinstance(arg, int):
+            suffix = arg
+        else:
+            parts.append(str(arg))
+    return doc_map.get(_macro_name(parts, suffix))
+
+
+def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
+    entries = generate_entries(xml_dir, header_rel, source_root)
     if not entries:
         raise SystemExit(f'no documented symbols found for {header_rel} in {xml_dir}')
 
@@ -684,6 +710,173 @@ def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
         out.append('\n')
     out.append('#if defined(__GNUG__)\n#pragma GCC diagnostic pop\n#endif\n')
     return ''.join(out)
+
+
+# Headers that participate in DOC() generation (kept in sync with CMakeLists.txt).
+CYTEN_MKDOC_HEADERS: tuple[str, ...] = (
+    'tensors/ops_algebra.h',
+    'tensors/constructors.h',
+    'tensors/ops_elementwise.h',
+    'tensors/ops_legs.h',
+    'tensors/decompositions.h',
+    'tensors/helpers.h',
+    'tensors/labels.h',
+    'tensors/vector_like.h',
+    'tensors/direct_sum.h',
+    'tensors/tensor.h',
+    'tensors/symmetric_tensor.h',
+    'tensors/diagonal_tensor.h',
+    'tensors/mask.h',
+    'tensors/charged_tensor.h',
+    'tensors/sparse.h',
+    'tensors/planar.h',
+    'tensors/krylov_based.h',
+    'symmetries/factors/fermion_number.h',
+    'symmetries/factors/fermion_parity.h',
+    'symmetries/factors/fibonacci_anyon_category.h',
+    'symmetries/factors/ising_anyon_category.h',
+    'symmetries/factors/no_symmetry.h',
+    'symmetries/factors/quantum_double_zn_anyon_category.h',
+    'symmetries/factors/su2.h',
+    'symmetries/factors/su2_k_anyon_category.h',
+    'symmetries/factors/su3_3_anyon_category.h',
+    'symmetries/factors/sun.h',
+    'symmetries/factors/toric_code_category.h',
+    'symmetries/factors/u1.h',
+    'symmetries/factors/zn.h',
+    'symmetries/factors/zn_anyon_category.h',
+    'symmetries/factors/zn_anyon_category2.h',
+    'symmetries/abelian_group.h',
+    'symmetries/base_symmetry.h',
+    'symmetries/exceptions.h',
+    'symmetries/group.h',
+    'symmetries/sector.h',
+    'symmetries/spaces.h',
+    'symmetries/styles.h',
+    'symmetries/symmetry.h',
+    'symmetries/symmetry_factor.h',
+    'symmetries/trees.h',
+    'backends/abelian.h',
+    'backends/backend_factory.h',
+    'backends/block_inds.h',
+    'backends/fusion_tree_backend.h',
+    'backends/fusion_tree_mapping.h',
+    'backends/no_symmetry.h',
+    'backends/tensor_backend.h',
+    'block_backend/array_api.h',
+    'block_backend/block_backend.h',
+    'block_backend/dtypes.h',
+    'block_backend/numpy.h',
+    'block_backend/torch.h',
+    'tools/cost_polynomials.h',
+    'tools/mappings.h',
+    'models/couplings.h',
+    'models/degrees_of_freedom.h',
+    'models/sites.h',
+    'tools.h',
+)
+
+
+def run_scoped_doxygen(
+    header_rel: str,
+    source_root: Path,
+    xml_out: Path,
+    *,
+    doxygen: str = 'doxygen',
+) -> Path:
+    """Run a scoped Doxygen XML build for one header; return the ``xml/`` directory."""
+    import subprocess
+    import tempfile
+
+    src_hdr = source_root / 'include' / 'cyten' / header_rel
+    if not src_hdr.is_file():
+        raise FileNotFoundError(src_hdr)
+    xml_out.mkdir(parents=True, exist_ok=True)
+    doxyfile = tempfile.NamedTemporaryFile('w', suffix='.doxyfile', delete=False, encoding='utf-8')
+    try:
+        doxyfile.write(
+            f"""PROJECT_NAME           = cyten
+OUTPUT_DIRECTORY       = {xml_out}
+INPUT                  = {src_hdr}
+RECURSIVE              = NO
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+EXTRACT_ALL            = YES
+QUIET                  = YES
+WARNINGS               = NO
+MARKDOWN_SUPPORT       = NO
+AUTOLINK_SUPPORT       = NO
+"""
+        )
+        doxyfile.close()
+        subprocess.run([doxygen, doxyfile.name], check=True, capture_output=True)
+    finally:
+        Path(doxyfile.name).unlink(missing_ok=True)
+    xml_dir = xml_out / 'xml'
+    if not xml_dir.is_dir():
+        raise RuntimeError(f'Doxygen did not write XML under {xml_out}')
+    return xml_dir
+
+
+def build_doc_map(
+    source_root: Path,
+    *,
+    headers: tuple[str, ...] | list[str] = CYTEN_MKDOC_HEADERS,
+    work_dir: Path | None = None,
+    doxygen: str = 'doxygen',
+    reuse_cmake_xml: Path | None = None,
+) -> dict[str, str]:
+    """Build a full ``mkd_doc_…`` → docstring map without configuring CMake.
+
+    If ``reuse_cmake_xml`` points at a CMake ``docstrings_doxygen`` tree (with
+    per-header subdirs ``…/<safe_rel>/xml``), reuse that XML. Otherwise run
+    scoped Doxygen into ``work_dir``.
+    """
+    import shutil
+
+    source_root = source_root.resolve()
+    if work_dir is None:
+        work_dir = source_root / 'build' / 'stub_docstrings_doxygen'
+    work_dir = work_dir.resolve()
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    merged: dict[str, str] = {}
+    for header_rel in headers:
+        safe = header_rel.replace('/', '_').replace('.', '_')
+        if reuse_cmake_xml is not None:
+            xml_dir = Path(reuse_cmake_xml) / safe / 'xml'
+            if not xml_dir.is_dir():
+                raise FileNotFoundError(f'missing CMake docstring XML: {xml_dir}')
+        else:
+            xml_root = work_dir / safe
+            if xml_root.exists():
+                shutil.rmtree(xml_root)
+            xml_dir = run_scoped_doxygen(header_rel, source_root, xml_root, doxygen=doxygen)
+        entries = generate_entries(xml_dir, header_rel, source_root)
+        merged.update(entries_to_macro_map(entries))
+    return merged
+
+
+def parse_docstring_headers(docstrings_dir: Path) -> dict[str, str]:
+    """Parse already-generated ``pybind/docstrings/**/*.h`` into a macro → doc map.
+
+    Faster than re-running Doxygen when CMake has already produced the headers.
+    """
+    doc_re = re.compile(
+        r'static const char\*\s+(mkd_doc_[A-Za-z0-9_]+)\s*=\s*'
+        r'R"doc\((.*?)\)doc"\s*;',
+        re.DOTALL,
+    )
+    out: dict[str, str] = {}
+    for path in sorted(docstrings_dir.rglob('*.h')):
+        text = path.read_text(encoding='utf-8')
+        for m in doc_re.finditer(text):
+            body = m.group(2)
+            if '\n' in body and not body.endswith('\n'):
+                body = body + '\n'
+            out[m.group(1)] = body
+    return out
 
 
 def main() -> int:
