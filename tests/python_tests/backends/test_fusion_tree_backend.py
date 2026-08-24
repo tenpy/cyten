@@ -16,21 +16,25 @@ from cyten.block_backends.dtypes import Dtype
 from cyten.config import get_option
 from cyten.symmetries import (
     SU2,
+    U1,
+    ZN,
     ElementarySpace,
     FibonacciAnyonCategory,
     FusionTree,
+    IsingAnyonCategory,
     SectorArray,
     SU2_kAnyonCategory,
     SU3_3AnyonCategory,
     Symmetry,
     TensorProduct,
-    fibonacci_anyon_category,
-    ising_anyon_category,
-    u1_symmetry,
-    z5_symmetry,
 )
 from cyten.tensors import DiagonalTensor, SymmetricTensor, permute_legs, transpose
 from cyten.testing import assert_tensors_almost_equal, random_ElementarySpace, random_tensor
+
+fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left').as_Symmetry()
+ising_anyon_category = IsingAnyonCategory(nu=1).as_Symmetry()
+u1_symmetry = U1().as_Symmetry()
+z5_symmetry = ZN(N=5).as_Symmetry()
 
 
 def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Generator):

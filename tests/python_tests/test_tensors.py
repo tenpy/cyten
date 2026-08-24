@@ -16,23 +16,29 @@ from cyten.block_backends import NumpyBlockBackend, Scalar
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
     SU2,
+    U1,
+    ZN,
     AbelianLegPipe,
     ElementarySpace,
+    FermionParity,
+    FibonacciAnyonCategory,
     LegPipe,
+    NoSymmetry,
     SectorArray,
     SymmetryError,
     TensorProduct,
-    fermion_parity,
-    fibonacci_anyon_category,
-    no_symmetry,
-    su2_symmetry,
-    u1_symmetry,
-    z3_symmetry,
-    z4_symmetry,
 )
 from cyten.tensors import ChargedTensor, DiagonalTensor, Mask, SymmetricTensor, Tensor
 from cyten.testing import assert_equivalent_legs, assert_tensors_almost_equal, random_tensor, swap_gate_numpy
 from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
+
+fermion_parity = FermionParity().as_Symmetry()
+fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left').as_Symmetry()
+no_symmetry = NoSymmetry().as_Symmetry()
+su2_symmetry = SU2().as_Symmetry()
+u1_symmetry = U1().as_Symmetry()
+z3_symmetry = ZN(N=3).as_Symmetry()
+z4_symmetry = ZN(N=4).as_Symmetry()
 
 # TENSOR CLASSES
 
@@ -1681,8 +1687,9 @@ def test_combine_split(use_pipes, make_compatible_tensor):
 
 
 def test_swap_gate_numpy(np_random):
-    from cyten import fermion_parity as symm
     from cyten.testing import random_tensor
+
+    symm = fermion_parity
 
     leg = ElementarySpace.from_basis(symm, [[0], [1]])
     T = random_tensor(symm, [leg, leg], [leg, leg], list('abcd'), max_multiplicity=1, np_random=np_random)

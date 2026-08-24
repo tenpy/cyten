@@ -15,9 +15,11 @@ pytest.importorskip('torch')
 from cyten.backends.backend_factory import get_backend
 from cyten.block_backends import TorchBlockBackend
 from cyten.block_backends.dtypes import Dtype
-from cyten.symmetries import no_symmetry
+from cyten.symmetries import NoSymmetry
 from cyten.tensors import SymmetricTensor
 from cyten.testing import random_tensor
+
+no_symmetry = NoSymmetry().as_Symmetry()
 
 
 @pytest.mark.torch

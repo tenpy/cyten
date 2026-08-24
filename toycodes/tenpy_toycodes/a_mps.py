@@ -204,7 +204,7 @@ def init_Fib_anyon_MPS(L, bc='finite', backend=None):
     """Return the Fib anyon symmetric MPS with tau charges on all bonds."""
     if backend is None:
         backend = ct.get_backend('fusion_tree', 'numpy')
-    sym = ct.fibonacci_anyon_category
+    sym = ct.FibonacciAnyonCategory(handedness='left').as_Symmetry()
     p = ct.ElementarySpace.from_defining_sectors(sym, [[1]])
     v = p
     B = ct.SymmetricTensor.from_block_func(

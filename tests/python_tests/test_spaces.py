@@ -6,17 +6,21 @@ from numpy import testing as npt
 from cyten import SymmetryError, get_backend, symmetries
 from cyten.block_backends import NumpyBlockBackend
 from cyten.symmetries import (
+    U1,
+    FermionParity,
+    NoSymmetry,
     SectorArray,
     as_sector_array,
     assert_sectors_equal,
-    fermion_parity,
-    no_symmetry,
     spaces,
     trees,
-    u1_symmetry,
 )
 from cyten.testing import random_ElementarySpace, random_LegPipe
 from cyten.tools import is_permutation, make_grid
+
+fermion_parity = FermionParity().as_Symmetry()
+no_symmetry = NoSymmetry().as_Symmetry()
+u1_symmetry = U1().as_Symmetry()
 
 # TODO test all cases of Space.as_ElementarySpace
 
@@ -32,7 +36,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     s2 = spaces.ElementarySpace.from_trivial_sector(dim=8)
 
     print('checking ElementarySpace.sector_decomposition')
-    assert_sectors_equal(s2.sector_decomposition, SectorArray.from_sector(symmetries.no_symmetry.trivial_sector))
+    assert_sectors_equal(s2.sector_decomposition, SectorArray.from_sector(no_symmetry.trivial_sector))
 
     print('checking str and repr')
     _ = str(s1)

@@ -27,6 +27,9 @@ bind_zn_anyon_category2(py::module_& m)
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
+
+    m.def("semion_category", &semion_category, DOC(cyten, semion_category));
+    m.def("double_semion_category", &double_semion_category, DOC(cyten, double_semion_category));
 }
 
 } // namespace cyten

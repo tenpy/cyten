@@ -53,23 +53,7 @@ from .symmetries._symmetries import (
     ZNAnyonCategory,
     ZNAnyonCategory2,
     double_semion_category,
-    fermion_number,
-    fermion_parity,
-    fibonacci_anyon_category,
-    ising_anyon_category,
-    no_symmetry,
     semion_category,
-    su2_symmetry,
-    toric_code_category,
-    u1_symmetry,
-    z2_symmetry,
-    z3_symmetry,
-    z4_symmetry,
-    z5_symmetry,
-    z6_symmetry,
-    z7_symmetry,
-    z8_symmetry,
-    z9_symmetry,
 )
 from .symmetries.spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
 from .symmetries.trees import FusionTree, fusion_trees

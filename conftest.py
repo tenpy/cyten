@@ -238,16 +238,16 @@ _block_backend_params = dict(
 )
 _symmetries = {
     # groups:
-    'NoSymm': ct.no_symmetry,
-    'U1': ct.u1_symmetry,
+    'NoSymm': ct.NoSymmetry().as_Symmetry(),
+    'U1': ct.U1().as_Symmetry(),
     'Z4_named': ct.ZN(4, 'My_Z4_symmetry').as_Symmetry(),
-    'U1xZ3': ct.u1_symmetry * ct.z3_symmetry,
-    'SU2': ct.su2_symmetry,
+    'U1xZ3': ct.U1() * ct.ZN(3),
+    'SU2': ct.SU2().as_Symmetry(),
     # anyons:
-    'fermion': ct.fermion_parity,
-    'FibonacciAnyon': ct.fibonacci_anyon_category,
-    'IsingAnyon': ct.ising_anyon_category,
-    'Fib_U1': ct.fibonacci_anyon_category * ct.u1_symmetry,
+    'fermion': ct.FermionParity().as_Symmetry(),
+    'FibonacciAnyon': ct.FibonacciAnyonCategory(handedness='left').as_Symmetry(),
+    'IsingAnyon': ct.IsingAnyonCategory(nu=1).as_Symmetry(),
+    'Fib_U1': ct.FibonacciAnyonCategory(handedness='left') * ct.U1(),
 }
 
 
@@ -332,7 +332,7 @@ def make_any_block(any_backend, np_random):
 # "COMPATIBLE" FIXTURES  ->  only go over those pairings of backend and symmetry that are compatible
 
 # build the compatible pairs
-_compatible_pairs = {'NoSymmetry': ('no_symmetry', ct.no_symmetry)}  # {id: param}
+_compatible_pairs = {'NoSymmetry': ('no_symmetry', ct.NoSymmetry().as_Symmetry())}  # {id: param}
 for _sym_name, _sym in _symmetries.items():
     if _sym.is_abelian and _sym.has_trivial_braid:
         _compatible_pairs[f'AbelianBackend-{_sym_name}'] = ('abelian', _sym)

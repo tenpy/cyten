@@ -5,6 +5,11 @@ import pytest
 import cyten as ct
 from cyten.block_backends import Scalar
 
+no_symmetry = ct.NoSymmetry().as_Symmetry()
+u1_symmetry = ct.U1().as_Symmetry()
+fermion_parity = ct.FermionParity().as_Symmetry()
+fibonacci_anyon_category = ct.FibonacciAnyonCategory(handedness='left').as_Symmetry()
+
 
 def is_cyclical_perm(seq: list[int]) -> bool:
     if len(seq) == 0:
@@ -103,11 +108,11 @@ planar_combine_cases = {
 @pytest.mark.parametrize(
     'symmetry, backend',
     [
-        (ct.no_symmetry, 'no_symmetry'),
-        (ct.u1_symmetry, 'abelian'),
-        (ct.u1_symmetry, 'fusion_tree'),
-        (ct.fermion_parity, 'fusion_tree'),
-        (ct.fibonacci_anyon_category, 'fusion_tree'),
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
     ],
 )
 def test_planar_combine_legs(
@@ -211,11 +216,11 @@ planar_contraction_cases = {
 @pytest.mark.parametrize(
     'symmetry, backend',
     [
-        (ct.no_symmetry, 'no_symmetry'),
-        (ct.u1_symmetry, 'abelian'),
-        (ct.u1_symmetry, 'fusion_tree'),
-        (ct.fermion_parity, 'fusion_tree'),
-        (ct.fibonacci_anyon_category, 'fusion_tree'),
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
     ],
 )
 def test_planar_contraction(
@@ -373,11 +378,11 @@ def trace_partial_np(a: np.ndarray, idcs1: list[int], idcs2: list[int], remainin
 @pytest.mark.parametrize(
     'symmetry, backend',
     [
-        (ct.no_symmetry, 'no_symmetry'),
-        (ct.u1_symmetry, 'abelian'),
-        (ct.u1_symmetry, 'fusion_tree'),
-        (ct.fermion_parity, 'fusion_tree'),
-        (ct.fibonacci_anyon_category, 'fusion_tree'),
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
     ],
 )
 def test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
@@ -477,11 +482,11 @@ planar_permute_legs_cases = {
 @pytest.mark.parametrize(
     'symmetry, backend',
     [
-        (ct.no_symmetry, 'no_symmetry'),
-        (ct.u1_symmetry, 'abelian'),
-        (ct.u1_symmetry, 'fusion_tree'),
-        (ct.fermion_parity, 'fusion_tree'),
-        (ct.fibonacci_anyon_category, 'fusion_tree'),
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
     ],
 )
 def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_random):
@@ -708,7 +713,7 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
         assert ct.planar.planar_almost_equal(Vh, Vh2)
 
 
-@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+@pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry, fibonacci_anyon_category])
 def test_PlanarDiagram(symmetry, np_random):
     # ===========================================
     # define a diagram
@@ -806,7 +811,7 @@ def test_PlanarDiagram(symmetry, np_random):
     assert ct.planar.planar_almost_equal(res, expect2)
 
 
-@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+@pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry, fibonacci_anyon_category])
 def test_PlanarDiagram_add_remove_tensor(symmetry, np_random):
     # ===========================================
     # define a diagram
@@ -890,7 +895,7 @@ def test_PlanarDiagram_add_remove_tensor(symmetry, np_random):
     assert ct.almost_equal(partial_res, partial_res2)
 
 
-@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+@pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry, fibonacci_anyon_category])
 def test_PlanarDiagram_contraction_orders(symmetry, np_random):
     # ===========================================
     # define a diagram
@@ -1004,7 +1009,7 @@ def test_PlanarDiagram_contraction_orders(symmetry, np_random):
     assert ct.planar.planar_almost_equal(res1_, res1)
 
 
-@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+@pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry, fibonacci_anyon_category])
 def test_PlanarDiagram_with_traces(symmetry, np_random):
     # ===========================================
     # define a diagram
@@ -1207,7 +1212,7 @@ def test_PlanarDiagram_verify_diagram():
         )
 
 
-@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+@pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry, fibonacci_anyon_category])
 def test_PlanarLinearOperator(symmetry):
     # ===========================================
     # define an operator
@@ -1344,7 +1349,7 @@ def _drop_charged_state(t: ct.ChargedTensor) -> ct.ChargedTensor:
     return ct.ChargedTensor(t.invariant_part, None)
 
 
-@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry])
+@pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry])
 def test_PlanarDiagram_single_charged_tensor(symmetry, np_random):
     diagram = ct.PlanarDiagram(
         tensors='theta[vL, p, vR], op[p, p*, !]',
@@ -1377,7 +1382,7 @@ def test_PlanarDiagram_single_charged_tensor(symmetry, np_random):
     assert ct.planar.planar_almost_equal(res_sym, ct.planar.planar_contraction(theta, op_sym, 'p', 'p*'))
 
 
-@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry])
+@pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry])
 def test_PlanarDiagram_transfer_matrix_charged(symmetry, np_random):
     diagram = ct.PlanarDiagram(
         tensors='LP[vR*, vR], ket[vL, p, vR, !], bra[vR*, p*, vL*, !]',
@@ -1435,7 +1440,7 @@ def test_PlanarDiagram_transfer_matrix_charged(symmetry, np_random):
     assert set(res_mixed.labels) == {'vR', 'vR*'}
 
 
-@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry])
+@pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry])
 def test_PlanarDiagram_two_open_charge_legs(symmetry, np_random):
     contiguous = ct.PlanarDiagram(
         tensors='A[a, b, !], B[b, c, !]',

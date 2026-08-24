@@ -11,6 +11,8 @@ from cyten.backends import get_backend
 from cyten.block_backends import Block
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
+    U1,
+    ZN,
     ElementarySpace,
     Sector,
     SectorArray,
@@ -20,10 +22,11 @@ from cyten.symmetries import (
     as_sector_array,
     assert_sectors_equal,
     trees,
-    u1_symmetry,
-    z3_symmetry,
 )
 from cyten.testing import random_symmetry_sectors
+
+u1_symmetry = U1().as_Symmetry()
+z3_symmetry = ZN(N=3).as_Symmetry()
 
 
 def random_fusion_tree(

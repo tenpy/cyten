@@ -142,15 +142,15 @@ Symmetries instead of ``ChargeInfo``
    * - TeNPy
      - Cyten
    * - ``npc.ChargeInfo()`` (trivial)
-     - ``ct.no_symmetry``
+     - ``ct.NoSymmetry()``
    * - ``npc.ChargeInfo([1])`` (:math:`U(1)`)
-     - ``ct.u1_symmetry`` / :class:`~cyten.symmetries.U1`
+     - ``ct.U1()`` / :class:`~cyten.symmetries.U1`
    * - ``npc.ChargeInfo([2])`` (:math:`\mathbb{Z}_2`)
-     - ``ct.z2_symmetry`` / :class:`~cyten.symmetries.ZN` ``(2)``
+     - ``ct.ZN(2)`` / :class:`~cyten.symmetries.ZN` ``(2)``
    * - ``npc.ChargeInfo([1, 2], names=['N', 'P'])``
-     - ``ct.u1_symmetry * ct.z2_symmetry``
+     - ``ct.U1("N") * ct.ZN(2, "P")``
    * - (not available)
-     - ``ct.su2_symmetry``, ``ct.fermion_parity``, anyon categories, …
+     - ``ct.SU2()``, ``ct.FermionParity()``, anyon categories, …
 
 Sectors are 1D integer arrays. For a single :math:`U(1)` they look like
 ``[n]``, same as TeNPy's 1-column charge arrays. For a product symmetry they
@@ -166,7 +166,7 @@ A local space is built from the sector of every basis state — the analogue of
     p_leg = npc.LegCharge.from_qflat(chinfo, [[1], [-1]])  # |↑⟩, |↓⟩
 
     # Cyten
-    p = ct.ElementarySpace.from_basis(ct.u1_symmetry, [[1], [-1]])
+    p = ct.ElementarySpace.from_basis(ct.U1(), [[1], [-1]])
 
 :meth:`~cyten.symmetries.spaces.ElementarySpace.from_defining_sectors` is
 closer to :meth:`~tenpy.linalg.charges.LegCharge.from_qind`: list each sector
@@ -559,7 +559,7 @@ Porting checklist
 -----------------
 
 1. Replace ``import tenpy.linalg.np_conserved as npc`` with ``import cyten as ct``.
-2. Replace ``ChargeInfo([1, 2, ...])`` with ``ct.u1_symmetry * ct.z2_symmetry * ...``.
+2. Replace ``ChargeInfo([1, 2, ...])`` with ``ct.U1() * ct.ZN(2) * ...``.
 3. Replace ``LegCharge.from_qflat(...)`` with
    :meth:`~cyten.symmetries.spaces.ElementarySpace.from_basis` (or
    :meth:`~cyten.symmetries.spaces.ElementarySpace.from_defining_sectors`).
