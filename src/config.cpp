@@ -1,5 +1,5 @@
 #include <cyten/config.h>
-#include <cyten/tools/warn.h>
+#include <cyten/warn.h>
 
 #include <cctype>
 #include <cstdlib>
@@ -98,24 +98,31 @@ is_allowed(const std::string& value, const std::vector<std::string>& allowed)
 std::string
 home_directory()
 {
-    if (const char* home = std::getenv("HOME"))
+    if (const char* home = std::getenv("HOME"); home != nullptr && *home != '\0')
         return home;
+#ifdef _WIN32
+    if (const char* profile = std::getenv("USERPROFILE"); profile != nullptr && *profile != '\0')
+        return profile;
+    const char* drive = std::getenv("HOMEDRIVE");
+    const char* path = std::getenv("HOMEPATH");
+    if (drive != nullptr && path != nullptr)
+        return std::string(drive) + path;
+#endif
     return {};
 }
 
+/// Login name, mirroring the lookup order of Python's ``getpass.getuser()``. Used only to build
+/// the default SU(N) data path, which is defined (by the external data-generating repo) in terms
+/// of ``getpass.getuser()`` -- matching the order keeps the two in agreement whenever several of
+/// these are set to different values (e.g. under ``sudo -E``, or in some CI/container setups).
 std::string
-expand_user(std::string path)
+login_name()
 {
-    if (path.empty() || path[0] != '~')
-        return path;
-    const std::string home = home_directory();
-    if (home.empty())
-        return path;
-    if (path.size() == 1)
-        return home;
-    if (path[1] == '/' || path[1] == '\\')
-        return home + path.substr(1);
-    return path; // ~user forms are not expanded
+    for (const char* var : { "LOGNAME", "USER", "LNAME", "USERNAME" }) {
+        if (const char* v = std::getenv(var); v != nullptr && *v != '\0')
+            return v;
+    }
+    return "unknown";
 }
 
 /// Empty string if no usable user config path.
@@ -168,14 +175,40 @@ try_update_from_file(CytenConfig& config, const std::string& path)
 
 } // namespace
 
+std::string
+expand_user(std::string path)
+{
+    if (path.empty() || path[0] != '~')
+        return path;
+    const std::string home = home_directory();
+    if (home.empty())
+        return path;
+    if (path.size() == 1)
+        return home;
+    if (path[1] == '/' || path[1] == '\\')
+        return home + path.substr(1);
+    return path; // ~user forms are not expanded
+}
+
+std::string
+default_su_n_data_path()
+{
+    // Deliberately the literal POSIX form on all platforms -- see the doc comment in config.h.
+    // Touches only std::getenv (via login_name()), never py:: calls: this runs during dynamic
+    // initialization of _global_config, before the Python interpreter state can be relied on.
+    return "/home/" + login_name() + "/.tenpy/su_n_symmetry_data";
+}
+
 CytenConfig _global_config;
 
 const std::vector<std::string>&
 CytenConfig::all_option_keys()
 {
     static const std::vector<std::string> keys = {
-        "print_linewidth", "print_indent",           "maxlines_spaces",       "maxlines_tensors",
-        "check_fusion",    "default_tensor_backend", "default_block_backend", "fusion_tree_eps",
+        "print_linewidth",         "print_indent",    "maxlines_spaces",
+        "maxlines_tensors",        "check_fusion",    "default_tensor_backend",
+        "default_block_backend",   "fusion_tree_eps", "su_n_data_path",
+        "su_n_data_filename_base",
     };
     return keys;
 }
@@ -259,6 +292,12 @@ CytenConfig::set_option(const std::string& key, const std::string& value)
         if (!is_allowed(value, allowed))
             throw py::value_error("Invalid default_block_backend: " + value);
         default_block_backend = value;
+    } else if (key == "su_n_data_path") {
+        su_n_data_path = value;
+    } else if (key == "su_n_data_filename_base") {
+        if (value.empty())
+            throw py::value_error("Config option 'su_n_data_filename_base' must not be empty");
+        su_n_data_filename_base = value;
     } else {
         throw py::key_error("Invalid config option: " + key);
     }
@@ -358,6 +397,10 @@ CytenConfig::get_option(const std::string& key) const
         return py::cast(default_block_backend);
     if (key == "fusion_tree_eps")
         return py::cast(fusion_tree_eps);
+    if (key == "su_n_data_path")
+        return py::cast(su_n_data_path);
+    if (key == "su_n_data_filename_base")
+        return py::cast(su_n_data_filename_base);
     throw py::key_error("Invalid option name: " + key);
 }
 

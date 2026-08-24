@@ -33,9 +33,10 @@ from .._core import (
     ToricCodeCategory,  # noqa: F401
     ZNAnyonCategory,  # noqa: F401
     ZNAnyonCategory2,  # noqa: F401
-    double_semion_category,  # noqa: F401
-    semion_category,  # noqa: F401
+    su_n_data_file_path,  # noqa: F401
+    su_n_data_filename,  # noqa: F401
 )
+from ..tools.misc import as_immutable_array
 from .sector_utils import (  # noqa: F401
     as_sector,
     as_sector_array,
@@ -51,6 +52,14 @@ except ImportError, AttributeError:
     h5py_version = (0, 0)
 
 
+# these are the known results for e.g. N symbols, F symbols, ... in some special cases
+one_1D = as_immutable_array(np.ones((1), dtype=int))
+one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
+one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
+one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
+
+
 def _default_c_symbol(sym, a, b, c, d, e, f):
     """C-symbol from R and F symbols (same formula as ``BaseSymmetry._c_symbol``).
 
@@ -61,3 +70,23 @@ def _default_c_symbol(sym, a, b, c, d, e, f):
     F = sym._f_symbol(c, a, b, d, e, f)
     R2 = sym._r_symbol(a, c, f)
     return R1.reshape(1, -1, 1, 1) * F * np.conj(R2).reshape(1, 1, -1, 1)
+
+
+no_symmetry = NoSymmetry().as_Symmetry()
+z2_symmetry = ZN(N=2).as_Symmetry()
+z3_symmetry = ZN(N=3).as_Symmetry()
+z4_symmetry = ZN(N=4).as_Symmetry()
+z5_symmetry = ZN(N=5).as_Symmetry()
+z6_symmetry = ZN(N=6).as_Symmetry()
+z7_symmetry = ZN(N=7).as_Symmetry()
+z8_symmetry = ZN(N=8).as_Symmetry()
+z9_symmetry = ZN(N=9).as_Symmetry()
+u1_symmetry = U1().as_Symmetry()
+su2_symmetry = SU2().as_Symmetry()
+fermion_number = FermionNumber().as_Symmetry()
+fermion_parity = FermionParity().as_Symmetry()
+semion_category = ZNAnyonCategory2(2, 0).as_Symmetry()
+toric_code_category = ToricCodeCategory().as_Symmetry()
+double_semion_category = ZNAnyonCategory2(2, 0) * ZNAnyonCategory2(2, 1)
+fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left').as_Symmetry()
+ising_anyon_category = IsingAnyonCategory(nu=1).as_Symmetry()

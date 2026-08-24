@@ -23,6 +23,7 @@ from . import (
 )
 
 # import pybind11 bindings from C++ code
+from ._core import add
 from .backends import TensorBackend, get_backend
 from .block_backends import Block, BlockBackend, Dtype, NumpyBlockBackend, TorchBlockBackend
 
@@ -53,7 +54,25 @@ from .symmetries._symmetries import (
     ZNAnyonCategory,
     ZNAnyonCategory2,
     double_semion_category,
+    fermion_number,
+    fermion_parity,
+    fibonacci_anyon_category,
+    ising_anyon_category,
+    no_symmetry,
     semion_category,
+    su2_symmetry,
+    su_n_data_file_path,
+    su_n_data_filename,
+    toric_code_category,
+    u1_symmetry,
+    z2_symmetry,
+    z3_symmetry,
+    z4_symmetry,
+    z5_symmetry,
+    z6_symmetry,
+    z7_symmetry,
+    z8_symmetry,
+    z9_symmetry,
 )
 from .symmetries.spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
 from .symmetries.trees import FusionTree, fusion_trees
@@ -125,8 +144,8 @@ from .tensors import (
 from ._version import __version__, __version_tuple__, __commit_id__
 
 
-def show_version():
-    """Print information about the version of cyten and used libraries.
+def show_config():
+    """Print information about the version of tenpy and used libraries.
 
     The information printed is :attr:`cyten.version.version_summary`.
     """
