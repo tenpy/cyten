@@ -1097,8 +1097,33 @@ def _py_str(doc: str) -> str:
     return repr(doc)
 
 
+def _stub_body_for_dunder(name: str) -> str | None:
+    """Return a safe stub body for special methods that must return a typed value."""
+    bodies = {
+        '__repr__': 'return f"{self.__class__.__qualname__}(...)"',
+        '__str__': 'return f"{self.__class__.__qualname__}(...)"',
+        '__bytes__': 'return b""',
+        '__format__': 'return ""',
+        '__bool__': 'return False',
+        '__len__': 'return 0',
+        '__hash__': 'return 0',
+        '__index__': 'return 0',
+        '__int__': 'return 0',
+        '__float__': 'return 0.0',
+        '__complex__': 'return 0j',
+        '__length_hint__': 'return 0',
+        '__iter__': 'return iter(())',
+        '__reversed__': 'return iter(())',
+        '__contains__': 'return False',
+        '__eq__': 'return NotImplemented',
+        '__ne__': 'return NotImplemented',
+    }
+    return bodies.get(name)
+
+
 def _emit_member(lines: list[str], mem: Member, indent: str) -> None:
     doc = _py_str(mem.doc)
+    stub_body = _stub_body_for_dunder(mem.name)
     if mem.kind == 'property' or mem.kind == 'readonly':
         lines.append(f'{indent}@property')
         lines.append(f'{indent}def {mem.name}(self):')
@@ -1119,13 +1144,13 @@ def _emit_member(lines: list[str], mem: Member, indent: str) -> None:
         lines.append(f'{indent}@staticmethod')
         lines.append(f'{indent}def {mem.name}(*args, **kwargs):')
         lines.append(f'{indent}    {doc}')
-        lines.append(f'{indent}    ...')
+        lines.append(f'{indent}    {stub_body or "..."}')
         lines.append('')
     elif mem.kind == 'classmethod':
         lines.append(f'{indent}@classmethod')
         lines.append(f'{indent}def {mem.name}(cls, *args, **kwargs):')
         lines.append(f'{indent}    {doc}')
-        lines.append(f'{indent}    ...')
+        lines.append(f'{indent}    {stub_body or "..."}')
         lines.append('')
     else:
         if mem.name == '__init__':
@@ -1135,7 +1160,7 @@ def _emit_member(lines: list[str], mem: Member, indent: str) -> None:
         else:
             lines.append(f'{indent}def {mem.name}(self, *args, **kwargs):')
             lines.append(f'{indent}    {doc}')
-            lines.append(f'{indent}    ...')
+            lines.append(f'{indent}    {stub_body or "..."}')
         lines.append('')
 
 
