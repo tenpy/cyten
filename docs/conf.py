@@ -125,7 +125,7 @@ pygments_style = 'sphinx'  # syntax highlighting style
 
 html_theme = 'sphinx_rtd_theme'
 
-html_logo = 'images/cyten_logo.png'
+#  html_logo = 'images/cyten_logo.png'
 #  html_favicon = "images/logo.ico"
 html_static_path = ['sphinx/static']
 html_last_updated_fmt = '%b %d, %Y'
@@ -206,7 +206,7 @@ inheritance_graph_attrs = {
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'numpy': ('https://numpy.org/doc/stable', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/reference/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'tenpy': ('https://tenpy.readthedocs.org/en/stable', None),
     'matplotlib': ('https://matplotlib.org', None),
     'h5py': ('https://docs.h5py.org/en/stable/', None),
