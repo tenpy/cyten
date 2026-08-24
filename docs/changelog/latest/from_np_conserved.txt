@@ -1,0 +1,2 @@
+- Added a user guide for migrating tensor code from TeNPy's ``np_conserved``
+  to Cyten (``docs/intro/from_np_conserved.rst``).
