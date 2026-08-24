@@ -1,34 +1,15 @@
-name: cyten
+name: cyten-docs
 channels:
   - conda-forge
 dependencies:
   - python>=3.14
   - pip
   - setuptools>=68.0.0
-  - pybind11>=3.0
-  - scikit-build-core
   - setuptools-scm
   - numpy>=2.0
   - scipy
-  - openblas
-  - cmake
-  - compilers  # C/C++ toolchain to build the pybind11 extension (e.g. on Read the Docs)
-  - doxygen  # required: generates pybind/docstrings/ DOC() headers at build time
-  - pytorch
-  # alteratively use MKL instead of openblas
-  # - mkl
-  # - mkl-devel
-  # - libblas=*=*mkl  # pin BLAS to use MKL
-  # Testing
-  - pytest>=6.0
-  - sympy
-
-  # developer tools
-  - ipython
-  - ruff
-  - flake8
-  - flake8-rst-docstrings
-  - sphinx-lint
+  - doxygen  # Breathe C++ API + DOC() map for _core stubs
+  # Testing not required for docs; keep sympy out to slim the env
 
   # building Sphinx docs
   - sphinx
@@ -36,7 +17,7 @@ dependencies:
   - graphviz
   - sphinx-copybutton
 
-  # I/O
+  # I/O (optional imports in the Python package)
   - hdf5
   - h5py
   - pyyaml

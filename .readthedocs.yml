@@ -9,12 +9,13 @@ build:
     # Miniforge provides conda/mamba. The Python version comes from docs/environment.yml.
     python: "miniforge3-26.3"
   jobs:
-    post_install:
-      # Isolated pip would pull a CUDA PyTorch wheel; CMake must see conda-forge pytorch.
-      - pip install --verbose --no-build-isolation .
     pre_build:
       # Breathe reads Doxygen XML from docs/build_docs/doxy_xml
       - cd docs && doxygen
+      # Version metadata without building the C++ extension
+      - python -c "from setuptools_scm import get_version; get_version(write_to='cyten/_version.py')"
+      # Bag-of-names cyten._core for Sphinx autodoc (no C++ / libtorch compile)
+      - python scripts/generate_core_stubs.py --from-doxygen
 
 sphinx:
   configuration: docs/conf.py

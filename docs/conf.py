@@ -7,17 +7,75 @@ https://www.sphinx-doc.org/en/master/usage/configuration.html
 https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 """
 
+import importlib.machinery
+import importlib.util
 import inspect
 import os
+import subprocess
 import sys
+from pathlib import Path
 
 from sphinx import addnodes
 from sphinx.ext.linkcode import add_linkcode_domain
 
-import cyten
+_DOCS_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _DOCS_DIR.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 # Local Sphinx extensions under docs/sphinx/
-sys.path.insert(0, os.path.abspath('sphinx'))
+sys.path.insert(0, str(_DOCS_DIR / 'sphinx'))
+
+
+def _extension_module_available(name: str = 'cyten._core') -> bool:
+    """True if a compiled extension (not a pure-Python stub) can be loaded."""
+    try:
+        spec = importlib.util.find_spec(name)
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return False
+    if spec is None or spec.origin is None:
+        return False
+    # Extension modules use ExtensionFileLoader; .py stubs use SourceFileLoader.
+    return isinstance(spec.loader, importlib.machinery.ExtensionFileLoader)
+
+
+def _ensure_version_module() -> None:
+    version_py = _REPO_ROOT / 'cyten' / '_version.py'
+    if version_py.is_file():
+        return
+    try:
+        from setuptools_scm import get_version
+
+        get_version(root=str(_REPO_ROOT), write_to=str(version_py))
+    except Exception:
+        version_py.write_text(
+            "version = __version__ = '0.0.0+unknown'\n"
+            "version_tuple = __version_tuple__ = (0, 0, 0, 'unknown')\n"
+            'commit_id = __commit_id__ = None\n',
+            encoding='utf-8',
+        )
+
+
+def _ensure_core_stub() -> None:
+    """Generate ``cyten/_core.py`` when the compiled extension is unavailable."""
+    if _extension_module_available():
+        return
+    stub = _REPO_ROOT / 'cyten' / '_core.py'
+    if stub.is_file():
+        return
+    script = _REPO_ROOT / 'scripts' / 'generate_core_stubs.py'
+    cmd = [sys.executable, str(script), '-o', str(stub)]
+    # Prefer existing pybind/docstrings; fall back to scoped Doxygen.
+    docstrings = _REPO_ROOT / 'pybind' / 'docstrings'
+    if not any(docstrings.rglob('*.h')):
+        cmd.append('--from-doxygen')
+    subprocess.run(cmd, check=True, cwd=str(_REPO_ROOT))
+
+
+_ensure_version_module()
+_ensure_core_stub()
+
+import cyten  # noqa: E402
 
 project = 'Cyten'
 copyright = '2024, Cyten developer team'
@@ -168,9 +226,8 @@ extlinks = {
 # ids are a fallback (readable ``cyten::…`` entries, not ``_CPPv4…``).
 add_linkcode_domain('cpp', ['names', '_toc_parts', 'ids'], override=True)
 
-_DOCS_DIR = os.path.dirname(os.path.abspath(__file__))
-_REPO_ROOT = os.path.abspath(os.path.join(_DOCS_DIR, '..'))
-_DOXY_XML = os.path.join(_DOCS_DIR, 'build_docs', 'doxy_xml')
+_DOXY_XML = str(_DOCS_DIR / 'build_docs' / 'doxy_xml')
+_REPO_ROOT_STR = str(_REPO_ROOT)
 
 
 def _github_ref():
@@ -296,7 +353,7 @@ def _cpp_url_for_qname(qname, ids=None):
         return None
     import cpp_source_map
 
-    mapping = cpp_source_map.get_cpp_source_map(_DOXY_XML, _REPO_ROOT)
+    mapping = cpp_source_map.get_cpp_source_map(_DOXY_XML, _REPO_ROOT_STR)
     loc = cpp_source_map.lookup_cpp_location(mapping, qname, ids)
     if loc is None:
         return None
@@ -323,7 +380,7 @@ def _python_source_url(obj):
         return None
     fn = os.path.abspath(fn)
     try:
-        rel = os.path.relpath(fn, start=_REPO_ROOT)
+        rel = os.path.relpath(fn, start=_REPO_ROOT_STR)
     except ValueError:
         return None
     rel = rel.replace('\\', '/')
