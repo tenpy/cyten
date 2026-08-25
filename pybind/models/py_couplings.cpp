@@ -84,10 +84,8 @@ bind_models_couplings(py::module_& m)
            DOC(cyten, Coupling, stretch_with_identities))
       .def(
         "permute",
-        [](Coupling& self,
-           std::vector<int64> const& permutation,
-           py::object levels,
-           py::object over_braid) -> py::object {
+        [](
+          Coupling& self, std::vector<int64> const& permutation, py::object levels) -> py::object {
             for (auto const& [key, obj] : self._permuted_py) {
                 if (key == permutation) {
                     return obj;
@@ -97,18 +95,13 @@ bind_models_couplings(py::module_& m)
             if (!levels.is_none()) {
                 levels_spec = levels.cast<LevelsSpec>();
             }
-            std::optional<std::vector<std::optional<bool>>> over_braid_spec;
-            if (!over_braid.is_none()) {
-                over_braid_spec = over_braid.cast<std::vector<std::optional<bool>>>();
-            }
-            Coupling result = self.permute(permutation, levels_spec, over_braid_spec);
+            Coupling result = self.permute(permutation, levels_spec);
             py::object result_obj = py::cast(std::move(result));
             self._permuted_py.emplace_back(permutation, result_obj);
             return result_obj;
         },
         py::arg("permutation"),
         py::arg("levels") = py::none(),
-        py::arg("over_braid") = py::none(),
         DOC(cyten, Coupling, permute))
       .def(
         "_key",

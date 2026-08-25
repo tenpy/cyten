@@ -135,27 +135,19 @@ class Coupling
     ///
     /// Results are cached on `self` (not shared with `self`'s other permutations, or with the
     /// result of this call): calling ``self.permute(permutation, ...)`` twice with the same
-    /// `permutation` returns the same (cached) result, using `levels`/`over_braid` only the first
-    /// time; a different `permutation` triggers a new computation.
+    /// `permutation` returns the same (cached) result, using `levels` only the first time; a
+    /// different `permutation` triggers a new computation.
     ///
     /// @param permutation A permutation of ``range(len(self.sites))``. ``permutation[k]`` is the
     /// index (in `self`'s current order) of the site that ends up at new position `k`.
     /// @param levels One entry per site of `self` (in `self`'s current order): its "height", used
-    /// to derive the braid chirality (over/under) for any elementary transposition whose
-    /// `over_braid` entry is ``None``, the same way `Symmetry` legs with a higher level braid over
-    /// those with a lower one. Only needed for symmetries without a symmetric braid (see
-    /// `braiding_style`); ignored otherwise.
-    /// @param over_braid One entry per elementary adjacent-site transposition needed to realize
-    /// `permutation` (i.e. NOT one entry per site -- the number of transpositions depends on
-    /// `permutation`, e.g. via the number of its inversions). Explicitly fixes the braid chirality
-    /// for that transposition (``True`` = the site moving from the lower position over the one
-    /// moving from the higher position); ``None`` derives it from `levels`.
+    /// to derive the braid chirality (over/under) for each elementary transposition, the same way
+    /// `Symmetry` legs with a higher level braid over those with a lower one. Only needed for
+    /// symmetries without a symmetric braid (see `braiding_style`); ignored otherwise.
     /// @returns A new coupling with `sites` (and the represented operator) reordered according to
     /// `permutation`.
-    [[nodiscard]] Coupling permute(
-      std::vector<int64> const& permutation,
-      std::optional<LevelsSpec> levels = std::nullopt,
-      std::optional<std::vector<std::optional<bool>>> over_braid = std::nullopt) const;
+    [[nodiscard]] Coupling permute(std::vector<int64> const& permutation,
+                                   std::optional<LevelsSpec> levels = std::nullopt) const;
 
     [[nodiscard]] std::tuple<py::object, std::vector<Site::Ptr>, std::vector<SymmetricTensorPtr>>
     key() const;
