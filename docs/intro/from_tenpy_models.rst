@@ -2,7 +2,7 @@ From TeNPy models to Cyten
 ==========================
 
 :doc:`from_np_conserved` covers the linear algebra: how to replace
-:mod:`tenpy_v1:tenpy.linalg.np_conserved` with Cyten tensors. This page is
+:external+tenpy_v1:py:mod:`tenpy.linalg.np_conserved` with Cyten tensors. This page is
 the **high-level** counterpart — sites, few-site operators, fermions, and
 the planar diagrams that replace hand-written ``tensordot`` chains in
 algorithms such as DMRG's effective Hamiltonian.
@@ -41,9 +41,9 @@ The change that affects model code:
 
    * - TeNPy v1
      - Cyten
-   * - :class:`tenpy_v1:`~tenpy.networks.site.SpinHalfSite`
+   * - :external+tenpy_v1:py:class:`~tenpy.networks.site.SpinHalfSite`
      - :class:`~cyten.models.SpinSite` ``(S=0.5, ...)``
-   * - :class:`tenpy_v1:`~tenpy.networks.site.FermionSite`
+   * - :external+tenpy_v1:py:class:`~tenpy.networks.site.FermionSite`
      - :class:`~cyten.models.SpinlessFermionSite`
    * - ``site.get_op('Sz')`` / ``site.Sz``
      - ``site.onsite_operators['Sz']`` / ``site.get_op('Sz')``
@@ -51,7 +51,7 @@ The change that affects model code:
      - not an on-site operator; use a :class:`~cyten.models.Coupling`
    * - ``site.op_needs_JW('Cd')``
      - no analogue (see :ref:`no_jw_on_mps`)
-   * - :meth:`tenpy_v1:`~tenpy.models.model.CouplingModel.add_coupling`
+   * - :external+tenpy_v1:py:meth:`~tenpy.models.model.CouplingModel.add_coupling`
      - build a :class:`~cyten.models.Coupling`, then place it on the lattice
 
 
@@ -196,7 +196,7 @@ No Jordan-Wigner strings on the MPS
 -----------------------------------
 
 TeNPy v1 represents fermions as spins plus an extra bookkeeping layer. The
-:doc:`tenpy_v1:intro/JordanWigner` userguide is the reference for that
+:external+tenpy_v1:doc:`intro/JordanWigner` userguide is the reference for that
 convention. The physical operators are *global*:
 
 .. math::
@@ -208,8 +208,8 @@ convention. The physical operators are *global*:
 
 So an MPS that stores only local ``C`` / ``Cd`` tensors is incomplete. Every
 algorithm that inserts those operators — building an MPO,
-:meth:`tenpy_v1:`~tenpy.networks.mps.MPS.correlation_function`,
-:meth:`tenpy_v1:`~tenpy.networks.mps.MPS.expectation_value_term`,
+:external+tenpy_v1:py:meth:`~tenpy.networks.mps.MPS.correlation_function`,
+:external+tenpy_v1:py:meth:`~tenpy.networks.mps.MPS.expectation_value_term`,
 ``apply_local_op``, … — has to multiply extra ``JW`` tensors onto the
 physical legs of the sites to the left (or in between). Sites carry
 ``need_JW_string``; ``add_coupling`` defaults to ``op_string='JW'``.
@@ -382,7 +382,7 @@ way to go from "the operator" to "the operator acting on a vector".
 EffectiveH as a planar linear operator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-TeNPy's :class:`tenpy_v1:`~tenpy.algorithms.mps_common.TwoSiteH` is the
+TeNPy's :external+tenpy_v1:py:class:`~tenpy.algorithms.mps_common.TwoSiteH` is the
 two-site DMRG effective Hamiltonian
 
 ::
@@ -393,7 +393,7 @@ two-site DMRG effective Hamiltonian
     |        |    |   |    |
     |        .---       ---.
 
-and :meth:`~tenpy_v1:tenpy.algorithms.mps_common.TwoSiteH.matvec` is four
+and :external+tenpy_v1:py:meth:`~tenpy.algorithms.mps_common.TwoSiteH.matvec` is four
 ``tensordot``\ s plus an ``itranspose``. The Cyten toycode
 ``toycodes/tenpy_toycodes/d_dmrg.py`` still has a ``HEffective.matvec``
 written that way, with an explicit ``bend_right`` on every
@@ -483,7 +483,7 @@ What not to do
 Porting checklist
 -----------------
 
-1. Replace TeNPy :class:`tenpy_v1:`~tenpy.networks.site.Site` subclasses with
+1. Replace TeNPy :external+tenpy_v1:py:class:`~tenpy.networks.site.Site` subclasses with
    :mod:`cyten.models` sites. Drop ``need_JW`` when adding custom operators;
    only symmetric maps belong in ``onsite_operators``.
 2. Replace ``add_coupling`` / ``add_multi_coupling`` / ``add_onsite`` with
@@ -501,7 +501,7 @@ Porting checklist
    :class:`~cyten.symmetries.FermionParity` replaces them.
 6. Use the fusion-tree backend for fermions. Keep the abelian backend for
    spin / boson models that never braid.
-7. Replace :class:`tenpy_v1:`~tenpy.algorithms.mps_common.TwoSiteH` /
+7. Replace :external+tenpy_v1:py:class:`~tenpy.algorithms.mps_common.TwoSiteH` /
    ``OneSiteH`` ``matvec`` chains with a
    :class:`~cyten.tensors.PlanarLinearOperator`. Store the
    :class:`~cyten.tensors.PlanarDiagram`\ s as class attributes. Use

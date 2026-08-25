@@ -1,13 +1,13 @@
 From TeNPy ``np_conserved`` to Cyten
 ====================================
 
-Cyten replaces :mod:`tenpy_v1:tenpy.linalg.np_conserved` as the tensor library underneath
+Cyten replaces :external+tenpy_v1:py:mod:`tenpy.linalg.np_conserved` as the tensor library underneath
 TeNPy. The Python interface is deliberately similar — labelled legs, block-sparse
 linear algebra, ``tensordot``-style contractions — but it is **not** a drop-in
 import rename. This page lists what changed and how to update existing code.
 
 If you are new to Cyten, start with :doc:`first_steps`. This page assumes you
-already know TeNPy's :class:`tenpy_v1:`~tenpy.linalg.np_conserved.Array`.
+already know TeNPy's :external+tenpy_v1:py:class:`~tenpy.linalg.np_conserved.Array`.
 
 The two scripts under ``docs/intro/examples/`` are Cyten ports of TeNPy's
 ``a_npc_arrays_triv.py`` and ``b_npc_arrays.py`` userguide examples.
@@ -17,9 +17,9 @@ Why the interface changed
 -------------------------
 
 TeNPy v1 implements **abelian** charge conservation only. An
-:class:`tenpy_v1:`~tenpy.linalg.np_conserved.Array` is a numpy-like tensor: a list of legs,
-each with a :class:`tenpy_v1:`~tenpy.linalg.charges.LegCharge` and a ``qconj`` arrow, plus a
-total charge :attr:`tenpy_v1:`~tenpy.linalg.np_conserved.Array.qtotal`.
+:external+tenpy_v1:py:class:`~tenpy.linalg.np_conserved.Array` is a numpy-like tensor: a list of legs,
+each with a :external+tenpy_v1:py:class:`~tenpy.linalg.charges.LegCharge` and a ``qconj`` arrow, plus a
+total charge :external+tenpy_v1:py:attr:`~tenpy.linalg.np_conserved.Array.qtotal`.
 
 Cyten is written for a broader class of symmetries (abelian groups, non-abelian
 groups such as :math:`\mathrm{SU}(2)`, fermions, and anyon categories). That
@@ -31,10 +31,10 @@ forces a few design changes:
   :attr:`~cyten.tensors.Tensor.codomain`, not a structureless multi-index array.
 - There are several tensor types (symmetric, diagonal, mask, identity, charged)
   sharing the abstract :class:`~cyten.tensors.Tensor` base, instead of a single
-  :class:`tenpy_v1:`~tenpy.linalg.np_conserved.Array`.
+  :external+tenpy_v1:py:class:`~tenpy.linalg.np_conserved.Array`.
 - Charge-non-conserving operators are a separate type
   (:class:`~cyten.tensors.ChargedTensor`) instead of a non-zero ``qtotal``.
-- Operations that were :class:`tenpy_v1:`~tenpy.linalg.np_conserved.Array` methods
+- Operations that were :external+tenpy_v1:py:class:`~tenpy.linalg.np_conserved.Array` methods
   (``combine_legs``, ``split_legs``, ``conj``, ``transpose``, …) are **functions**
   (``ct.combine_legs(A, ...)``). In-place ``i*`` methods are gone.
 
@@ -62,15 +62,15 @@ Imports and types
      - Cyten
    * - ``import tenpy.linalg.np_conserved as npc``
      - ``import cyten as ct``
-   * - :class:`tenpy_v1:`~tenpy.linalg.np_conserved.Array`
+   * - :external+tenpy_v1:py:class:`~tenpy.linalg.np_conserved.Array`
      - :class:`~cyten.tensors.Tensor` (abstract) /
        :class:`~cyten.tensors.SymmetricTensor` (the usual case)
-   * - :class:`tenpy_v1:`~tenpy.linalg.charges.ChargeInfo`
+   * - :external+tenpy_v1:py:class:`~tenpy.linalg.charges.ChargeInfo`
      - :class:`~cyten.symmetries.Symmetry` (product of
        :class:`~cyten.symmetries.SymmetryFactor`\s)
-   * - :class:`tenpy_v1:`~tenpy.linalg.charges.LegCharge`
+   * - :external+tenpy_v1:py:class:`~tenpy.linalg.charges.LegCharge`
      - :class:`~cyten.symmetries.spaces.ElementarySpace`
-   * - :class:`tenpy_v1:`~tenpy.linalg.charges.LegPipe`
+   * - :external+tenpy_v1:py:class:`~tenpy.linalg.charges.LegPipe`
      - :class:`~cyten.symmetries.spaces.LegPipe` /
        :class:`~cyten.symmetries.spaces.AbelianLegPipe`
    * - ``Array.rank`` / ``ndim``
@@ -87,13 +87,13 @@ Additional Cyten types you will meet:
 
 :class:`~cyten.tensors.DiagonalTensor`
     SVD singular values, eigenvalues, scaling vectors. The replacement for a
-    1D numpy array of singular values plus a :func:`tenpy_v1:`~tenpy.linalg.np_conserved.diag`
+    1D numpy array of singular values plus a :external+tenpy_v1:py:func:`~tenpy.linalg.np_conserved.diag`
     call.
 :class:`~cyten.tensors.Identity`
     The identity map on a space.
 :class:`~cyten.tensors.Mask`
     A projection / inclusion between a space and a subspace. Replaces
-    :meth:`tenpy_v1:`~tenpy.linalg.np_conserved.Array.iproject` boolean masks.
+    :external+tenpy_v1:py:meth:`~tenpy.linalg.np_conserved.Array.iproject` boolean masks.
 :class:`~cyten.tensors.ChargedTensor`
     A tensor that transforms in a definite non-trivial sector (e.g. :math:`S^+`
     when :math:`S^z` is conserved).
@@ -132,7 +132,7 @@ Integer indices and string labels still refer to positions in ``legs``, so you
 can often ignore the (co)domain split. It becomes visible when you:
 
 - **create** a tensor: you pass ``codomain=`` and ``domain=`` instead of a list
-  of :class:`tenpy_v1:`~tenpy.linalg.charges.LegCharge`;
+  of :external+tenpy_v1:py:class:`~tenpy.linalg.charges.LegCharge`;
 - **compose** maps with ``A @ B`` / :func:`~cyten.tensors.compose`, which
   requires ``A.domain == B.codomain``;
 - run **decompositions** (:func:`~cyten.tensors.svd`, :func:`~cyten.tensors.eigh`,
@@ -176,7 +176,7 @@ are concatenations of the factor sectors. Use
 Python list (the C++ bindings do not always convert ``[2]``).
 
 A local space is built from the sector of every basis state — the analogue of
-:meth:`tenpy_v1:`~tenpy.linalg.charges.LegCharge.from_qflat`::
+:external+tenpy_v1:py:meth:`~tenpy.linalg.charges.LegCharge.from_qflat`::
 
     # TeNPy
     chinfo = npc.ChargeInfo([1])
@@ -186,16 +186,16 @@ A local space is built from the sector of every basis state — the analogue of
     p = ct.ElementarySpace.from_basis(ct.U1(), [[1], [-1]])
 
 :meth:`~cyten.symmetries.spaces.ElementarySpace.from_defining_sectors` is
-closer to :meth:`tenpy_v1:`~tenpy.linalg.charges.LegCharge.from_qind`: list each sector
+closer to :external+tenpy_v1:py:meth:`~tenpy.linalg.charges.LegCharge.from_qind`: list each sector
 once, with a multiplicity. For non-abelian symmetries that is the natural
 constructor (an :math:`\mathrm{SU}(2)` spin-:math:`1/2` is one copy of the
 2-dimensional sector, not two basis entries).
 
 Cyten always stores sectors in a canonical order internally and records the
 public basis order as :attr:`~cyten.symmetries.spaces.Leg.basis_perm`. You do
-not call :meth:`tenpy_v1:`~tenpy.linalg.np_conserved.Array.sort_legcharge`.
+not call :external+tenpy_v1:py:meth:`~tenpy.linalg.np_conserved.Array.sort_legcharge`.
 
-:meth:`tenpy_v1:`~tenpy.linalg.charges.LegCharge.conj` becomes the ``dual`` of a space
+:external+tenpy_v1:py:meth:`~tenpy.linalg.charges.LegCharge.conj` becomes the ``dual`` of a space
 (a property, not a method)::
 
     p.dual          # ElementarySpace with is_dual=True
@@ -239,7 +239,7 @@ Creating tensors
 :class:`~cyten.tensors.SymmetricTensor`. Axis order must match
 :attr:`~cyten.tensors.Tensor.legs`: **codomain first, then domain reversed**.
 Entries that violate the symmetry raise; Cyten does not silently drop them
-the way a ``cutoff`` in :meth:`tenpy_v1:`~tenpy.linalg.np_conserved.Array.from_ndarray`
+the way a ``cutoff`` in :external+tenpy_v1:py:meth:`~tenpy.linalg.np_conserved.Array.from_ndarray`
 does.
 
 A vector is a map :math:`\mathbb{C} \to V``, i.e. one leg in the codomain and
@@ -338,7 +338,7 @@ an operator to a state::
 ``conj``, ``dagger``, and ``transpose``
 ---------------------------------------
 
-TeNPy's :meth:`tenpy_v1:`~tenpy.linalg.np_conserved.Array.conj` complex-conjugates the
+TeNPy's :external+tenpy_v1:py:meth:`~tenpy.linalg.np_conserved.Array.conj` complex-conjugates the
 data, flips every ``qconj``, negates ``qtotal``, and toggles ``*`` on labels
 *without* reversing the legs. That is a per-leg dual, not the hermitian
 conjugate of a linear map.
@@ -440,9 +440,9 @@ Differences:
   decomposition: they treat ``domain → codomain`` as the matrix bipartition.
 
 :func:`~cyten.tensors.squeeze_legs` replaces
-:meth:`tenpy_v1:`~tenpy.linalg.np_conserved.Array.squeeze`.
+:external+tenpy_v1:py:meth:`~tenpy.linalg.np_conserved.Array.squeeze`.
 :func:`~cyten.tensors.add_trivial_leg` replaces
-:meth:`tenpy_v1:`~tenpy.linalg.np_conserved.Array.add_trivial_leg` (``qconj`` →
+:external+tenpy_v1:py:meth:`~tenpy.linalg.np_conserved.Array.add_trivial_leg` (``qconj`` →
 ``is_dual``, and you choose ``legs_pos`` / ``codomain_pos`` / ``domain_pos``).
 
 
@@ -574,7 +574,7 @@ than emulated.
 - ``eig`` / ``eigvals`` / ``eigvalsh`` / ``polar`` / ``orthogonal_columns``.
 - ``from_ndarray(..., cutoff=..., warn_wrong_sector=False)`` (illegal blocks
   are an error).
-- Sharing a mutable :class:`tenpy_v1:`~tenpy.linalg.charges.LegCharge` across arrays and
+- Sharing a mutable :external+tenpy_v1:py:class:`~tenpy.linalg.charges.LegCharge` across arrays and
   mutating it. Spaces are immutable enough that you build a new one instead.
 
 
