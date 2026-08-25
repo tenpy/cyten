@@ -1,0 +1,352 @@
+From TeNPy models to Cyten
+==========================
+
+:doc:`from_np_conserved` covers the linear algebra: how to replace
+:mod:`tenpy_v1:tenpy.linalg.np_conserved` with Cyten tensors. This page is
+the **high-level** counterpart — sites, few-site operators, and fermions —
+for code that used TeNPy's :class:`tenpy_v1:`~tenpy.networks.site.Site`,
+:meth:`tenpy_v1:`~tenpy.models.model.CouplingModel.add_coupling`, and
+explicit Jordan-Wigner (JW) strings on the MPS.
+
+TeNPy v2 is being rewritten against these Cyten objects. The notes below are
+the Cyten side of that conversion.
+
+If you are new to Cyten, start with :doc:`first_steps`. The script
+``docs/intro/examples/from_tenpy_couplings.py`` is a compact version of every
+example on this page.
+
+
+Sites still exist, operators do not all survive
+-----------------------------------------------
+
+A :class:`~cyten.models.Site` is still the local Hilbert space plus a
+dictionary of **symmetric** on-site operators
+(:attr:`~cyten.models.Site.onsite_operators`). The usual constructors live in
+:mod:`cyten.models` (:class:`~cyten.models.SpinSite`,
+:class:`~cyten.models.SpinlessFermionSite`,
+:class:`~cyten.models.SpinHalfFermionSite`, …).
+
+The change that affects model code:
+
+- Operators that conserve the symmetry (``Sz``, ``N``, ``Id``, density-density
+  pieces, …) stay on the site, as :class:`~cyten.tensors.SymmetricTensor`\s.
+- Operators that *change* the charge — TeNPy's ``Sp`` / ``Sm`` at conserved
+  :math:`S^z`, and especially ``C`` / ``Cd`` — are **not** on-site operators.
+  They cannot be :class:`~cyten.tensors.SymmetricTensor`\s. In TeNPy they
+  were arrays with a non-zero ``qtotal`` and a ``need_JW`` flag. In Cyten a
+  lone charged map is a :class:`~cyten.tensors.ChargedTensor`; a *product* of
+  them that is overall symmetric is a :class:`~cyten.models.Coupling`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - TeNPy v1
+     - Cyten
+   * - :class:`tenpy_v1:`~tenpy.networks.site.SpinHalfSite`
+     - :class:`~cyten.models.SpinSite` ``(S=0.5, ...)``
+   * - :class:`tenpy_v1:`~tenpy.networks.site.FermionSite`
+     - :class:`~cyten.models.SpinlessFermionSite`
+   * - ``site.get_op('Sz')`` / ``site.Sz``
+     - ``site.onsite_operators['Sz']`` / ``site.get_op('Sz')``
+   * - ``site.get_op('Cd')`` (charged, ``need_JW=True``)
+     - not an on-site operator; use a :class:`~cyten.models.Coupling`
+   * - ``site.op_needs_JW('Cd')``
+     - no analogue (see :ref:`no_jw_on_mps`)
+   * - :meth:`tenpy_v1:`~tenpy.models.model.CouplingModel.add_coupling`
+     - build a :class:`~cyten.models.Coupling`, then place it on the lattice
+
+
+Couplings are mini-MPOs
+-----------------------
+
+A :class:`~cyten.models.Coupling` is a few-site operator stored as **one
+tensor per site**, i.e. a short MPO. Graphically the operator is the usual
+multi-site map
+
+::
+
+    |        p0   p1   ..   pN
+    |        │    │    │    │
+    |       ┏┷━━━━┷━━━━┷━━━━┷┓
+    |       ┃       h        ┃
+    |       ┗┯━━━━┯━━━━┯━━━━┯┛
+    |        │    │    │    │
+    |        p0*  p1*  ..  pN*
+
+and the factorization that Cyten actually stores is
+
+::
+
+    |      p0         p1               pN
+    |      │          │                │
+    |  wL ┏┷┓ wR  wL ┏┷┓ wR        wL ┏┷┓ wR
+    |  ───┃0┃────────┃1┃──── ···  ────┃N┃───
+    |     ┗┯┛        ┗┯┛              ┗┯┛
+    |      │          │                │
+    |     p0*        p1*              pN*
+
+Each ``factorization[i]`` is a :class:`~cyten.tensors.SymmetricTensor` with
+labels ``['wL', 'p', 'wR', 'p*']``. The physical pair ``p, p*`` is the
+:attr:`~cyten.models.Site.leg` of ``sites[i]``. Contracting the virtual bonds
+``wR`` of site :math:`i` with ``wL`` of site :math:`i+1` recovers ``h``.
+
+Those virtual legs are the high-level replacement for TeNPy's ``qtotal``:
+the charge that ``Sp`` or ``Cd`` would have carried by itself lives on the
+bond *between* the factors. The whole coupling is a symmetric tensor; the
+individual factors are too, because the virtual legs make the local maps
+charge-neutral.
+
+Useful methods:
+
+:meth:`~cyten.models.Coupling.to_tensor`
+    Contract the virtual bonds. Returns a
+    :class:`~cyten.tensors.SymmetricTensor` with labels ``p0, p1, …``
+    (codomain) and ``p0*, p1*, …`` (domain).
+:meth:`~cyten.models.Coupling.from_tensor`
+    Split a multi-site :class:`~cyten.tensors.SymmetricTensor` with
+    :func:`~cyten.tensors.horizontal_factorization`.
+:meth:`~cyten.models.Coupling.from_dense_block`
+    Same, from a numpy (or backend) block whose axes are
+    ``p0, p1, …, p1*, p0*``.
+:meth:`~cyten.models.Coupling.stretch_with_identities`
+    Place the factors on a longer chain, filling every site in between with
+    :meth:`~cyten.models.Site.identity_tensor`. That is how a two-site
+    :math:`c^\dagger_i c_j` becomes an operator on all sites
+    :math:`i, i+1, \ldots, j`.
+
+Factories such as :func:`~cyten.models.heisenberg_coupling`,
+:func:`~cyten.models.hopping`, and
+:func:`~cyten.models.chiral_3spin_coupling` build the factorization for you.
+
+
+Examples
+--------
+
+Heisenberg
+~~~~~~~~~~
+
+The two-site coupling :math:`h_{ij} = J\, \vec{S}_i \cdot \vec{S}_j` is
+
+.. code-block:: python
+
+    site0 = ct.models.SpinSite(S=0.5, conserve='Sz')
+    site1 = ct.models.SpinSite(S=0.5, conserve='Sz')
+    heisenberg = ct.models.heisenberg_coupling([site0, site1], J=1)
+    H = heisenberg.to_tensor()          # four-leg map  p⊗p → p⊗p
+
+With conserved :math:`S^z`, the ``Sz Sz`` piece is charge-neutral while
+``Sp Sm`` (and ``Sm Sp``) exchange charge :math:`\pm 2` between the two
+sites. That charge sits on the virtual bond: ``heisenberg.factorization``
+is two tensors whose ``wR`` / ``wL`` spaces include those sectors. In TeNPy
+you would have written ``add_coupling(0.5, 0, 'Sp', 0, 'Sm', 1, plus_hc=True)``
+plus a separate ``Sz Sz`` term; here it is one coupling.
+
+:doc:`first_steps` diagonalizes this Hamiltonian.
+
+:math:`c^\dagger c`
+~~~~~~~~~~~~~~~~~~~
+
+Fermion hopping in a Hamiltonian is the Hermitian combination
+:math:`-t\,(c^\dagger_i c_j + \mathrm{h.c.})`:
+
+.. code-block:: python
+
+    ferm = ct.models.SpinlessFermionSite(num_species=1, conserve='N')
+    hop = ct.models.hopping([ferm, ferm], t=1)
+
+A correlation function :math:`c^\dagger_i c_j` is the same geometry **without**
+the hermitian conjugate: one creation on the left, one annihilation on the
+right, connected by a virtual bond that carries one fermion (odd
+:class:`~cyten.symmetries.FermionParity`, and :math:`N = 1` if number is
+conserved). ``C`` and ``Cd`` are not on-site operators, so the coupling is
+built from the dense two-site block (axes ``p0, p1, p1*, p0*``):
+
+.. code-block:: python
+
+    Cd = ferm.get_creator_numpy(species=0, include_JW=True)
+    C = ferm.get_annihilator_numpy(species=0, include_JW=True)
+    h = (Cd @ ferm.JW)[:, None, None, :] * C[None, :, :, None]
+    cdag_c = ct.Coupling.from_dense_block(
+        h, [ferm, ferm], name='Cd C', understood_braiding=True
+    )
+
+``include_JW=True`` and the extra ``ferm.JW`` on the *left* factor are the
+**on-site** JW dressing (TeNPy's ``"Cd JW"`` on site :math:`i`). They are
+*not* the string on the sites between :math:`i` and :math:`j` — that string
+is the next section.
+
+Chiral three-spin
+~~~~~~~~~~~~~~~~~
+
+The scalar triple product
+:math:`h_{ijk} = \chi\, \vec{S}_i \cdot (\vec{S}_j \times \vec{S}_k)` is a
+three-site coupling, TeNPy's ``add_multi_coupling`` case:
+
+.. code-block:: python
+
+    chiral = ct.models.chiral_3spin_coupling([site0, site0, site0], chi=1)
+    # chiral.num_sites == 3, two virtual bonds in the mini-MPO
+
+Order of ``sites`` is the operator order. The result is Hermitian and
+traceless.
+
+
+.. _no_jw_on_mps:
+
+No Jordan-Wigner strings on the MPS
+-----------------------------------
+
+TeNPy v1 represents fermions as spins plus an extra bookkeeping layer. The
+:doc:`tenpy_v1:intro/JordanWigner` userguide is the reference for that
+convention. The physical operators are *global*:
+
+.. math::
+
+    c_j \;\leftrightarrow\;
+    \Bigl(\prod_{l < j} \mathrm{JW}_l\Bigr)\, C_j\,,
+    \qquad
+    \mathrm{JW}_l = (-1)^{n_l}\,.
+
+So an MPS that stores only local ``C`` / ``Cd`` tensors is incomplete. Every
+algorithm that inserts those operators — building an MPO,
+:meth:`tenpy_v1:`~tenpy.networks.mps.MPS.correlation_function`,
+:meth:`tenpy_v1:`~tenpy.networks.mps.MPS.expectation_value_term`,
+``apply_local_op``, … — has to multiply extra ``JW`` tensors onto the
+physical legs of the sites to the left (or in between). Sites carry
+``need_JW_string``; ``add_coupling`` defaults to ``op_string='JW'``.
+
+Cyten does **not** do that. Fermions are a symmetry with a non-trivial
+braid: :class:`~cyten.symmetries.FermionParity` (always present on
+:class:`~cyten.models.SpinlessFermionSite` /
+:class:`~cyten.models.SpinHalfFermionSite`; ``conserve='None'`` is invalid).
+The swap of two odd-parity legs is :math:`-1`. The MPS is an ordinary
+tensor network whose physical legs transform under that symmetry. There is
+no ``JW`` operator on the MPS, no ``need_JW``, and no
+``apply_JW_string_left_of_virt_leg``.
+
+The signs still exist: they are produced when **legs cross** in a diagram.
+A correlation function :math:`c^\dagger_i c_j` is specified as the coupling
+above, with a **non-trivial virtual leg** between the two factors. That
+virtual bond carries the odd fermion that was created on the left and has
+not yet been annihilated on the right. Putting the coupling on a chain
+with sites in between means that odd line has to pass those sites — and
+therefore has to cross their physical legs.
+
+The identity that fills a gap
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:meth:`~cyten.models.Coupling.stretch_with_identities` places ``Cd`` and
+``C`` on chosen sites and fills every site in between with
+:meth:`~cyten.models.Site.identity_tensor`:
+
+.. code-block:: python
+
+    # c^dagger_0 c_2  on a three-site chain: identity on site 1.
+    stretched = cdag_c.stretch_with_identities([ferm, ferm, ferm], [0, 2])
+
+::
+
+    |        p0          p1          p2
+    |        │           │           │
+    |    wL ┏┷┓ wR   wL ┏┷┓ wR   wL ┏┷┓ wR
+    |    ───┃Cd┃─────────┃Id┃─────────┃C ┃───
+    |       ┗┯┛         ┗┯┛         ┗┯┛
+    |        │           │           │
+    |       p0*         p1*         p2*
+
+The middle tensor is *not* a Kronecker product of ``Id`` on the physical
+space with ``Id`` on the virtual space. It is built as the identity on
+:math:`p \otimes w` and then **permuted** so that :math:`w` runs left–right
+while :math:`p` runs down. That permutation braids the virtual leg past the
+physical one:
+
+::
+
+    |     p     w                 wL          p
+    |     │     │                  ╲          │
+    |    ┏┷━━━━━┷┓                  ╲         │
+    |    ┃  Id   ┃     permute       ╲        │
+    |    ┗┯━━━━━┯┛     w past p       ╲       │
+    |     │     │                      ╲      │
+    |     p*    w*                      X
+    |                                  ╱      │
+    |                                 ╱       │
+    |                                p*       wR
+
+For an even virtual sector the crossing is trivial. For an **odd** virtual
+sector — exactly the bond of :math:`c^\dagger_i c_j` — the swap gate is
+:math:`(-1)^{n_p}`. Packed back into an MPO tensor, that is TeNPy's local
+``JW`` operator.
+
+In the example script the virtual bond of ``cdag_c`` is one-dimensional
+(one fermion), and the middle factor's dense block *is* ``ferm.JW``:
+
+.. code-block:: python
+
+    wR = cdag_c.factorization[0].get_leg_co_domain('wR')
+    Id_middle = ferm.identity_tensor(wR)
+    jw_block = Id_middle.to_numpy(understood_braiding=True)
+    # jw_block[0, :, 0, :]  ==  ferm.JW  ==  diag(+1, -1)
+
+TeNPy v1 would have inserted the same operator by hand on the physical leg
+of every site between :math:`i` and :math:`j`::
+
+    ["Cd JW", "JW", "C"]     # i < j = i+2, TeNPy on-site names
+
+Cyten inserts nothing on the MPS. The ``JW`` is the crossing *inside* the
+coupling's virtual line.
+
+What this means for measurements
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- :math:`\langle c^\dagger_i c_j \rangle` is the expectation value of the
+  **stretched coupling**, not of two on-site operators plus a JW string.
+- Density-density :math:`n_i n_j` has an even (usually trivial) virtual
+  bond. Stretching it still fills identities, but those identities braid
+  an even line and introduce no signs — the analogue of TeNPy's "JW
+  strings cancel".
+- The virtual bond of a coupling is the charge *in flight*, not the
+  total charge of the operator. :math:`c^\dagger_i c^\dagger_j` is even
+  overall, yet the bond *between* the two creators is odd (one fermion
+  has been created, the second has not). Intermediate identities then
+  contribute JW signs, same as for :math:`c^\dagger_i c_j`.
+- Fermionic sites require a backend that can braid (the fusion-tree
+  backend). The abelian backend that replaced ``np_conserved`` is not
+  enough, which is why
+  :class:`~cyten.models.SpinlessFermionSite` refuses
+  ``NoSymmetryBackend`` / ``AbelianBackend``.
+
+The same crossing rule is why :meth:`~cyten.models.Coupling.permute` of a
+fermionic coupling picks up a minus sign when two odd factors are swapped,
+without anyone multiplying by ``JW``.
+
+
+Porting checklist
+-----------------
+
+1. Replace TeNPy :class:`tenpy_v1:`~tenpy.networks.site.Site` subclasses with
+   :mod:`cyten.models` sites. Drop ``need_JW`` when adding custom operators;
+   only symmetric maps belong in ``onsite_operators``.
+2. Replace ``add_coupling`` / ``add_multi_coupling`` / ``add_onsite`` with
+   :class:`~cyten.models.Coupling` factories, or
+   :meth:`~cyten.models.Coupling.from_tensor` of a symmetric few-site map.
+3. Treat ``Sp``, ``Sm``, ``C``, ``Cd`` as factors of a coupling, not as
+   tensors you insert into an MPS. The virtual bond carries the old
+   ``qtotal``.
+4. For :math:`c^\dagger_i c_j` (Hamiltonian or correlator), build a coupling
+   with a non-trivial virtual leg and
+   :meth:`~cyten.models.Coupling.stretch_with_identities` across the sites
+   in between. Do not multiply ``JW`` onto MPS physical legs.
+5. Delete ``op_string='JW'``, ``str_on_first``, ``autoJW``, and
+   ``apply_JW_string_left_of_virt_leg``. The braid of
+   :class:`~cyten.symmetries.FermionParity` replaces them.
+6. Use the fusion-tree backend for fermions. Keep the abelian backend for
+   spin / boson models that never braid.
+7. Reactivate tests for what has been ported.
+
+Worked example
+--------------
+
+.. literalinclude:: examples/from_tenpy_couplings.py
+   :language: python

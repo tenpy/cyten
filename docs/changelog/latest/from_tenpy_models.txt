@@ -1,0 +1,3 @@
+- Added a user guide for high-level TeNPy conversion: couplings as mini-MPOs,
+  and replacing Jordan-Wigner strings on the MPS by braiding of a Coupling
+  virtual leg (``docs/intro/from_tenpy_models.rst``).

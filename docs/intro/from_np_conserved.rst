@@ -407,7 +407,9 @@ clear how the two charged legs would have to be connected.
     :func:`~cyten.models.heisenberg_coupling` build that factorization for you.
     :meth:`~cyten.models.Coupling.to_tensor` contracts it to a
     :class:`~cyten.tensors.SymmetricTensor` if you need the dense few-site
-    operator. See :doc:`first_steps` for a complete example.
+    operator. See :doc:`from_tenpy_models` for the high-level picture
+    (Heisenberg, :math:`c^\dagger c`, chiral three-spin, and why MPS no
+    longer carry Jordan-Wigner strings).
 
 
 ``combine_legs`` / ``split_legs``

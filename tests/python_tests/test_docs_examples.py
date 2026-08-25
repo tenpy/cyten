@@ -19,3 +19,8 @@ def test_from_npc_trivial_example():
 def test_from_npc_u1_example():
     example = _REPO_ROOT / 'docs' / 'intro' / 'examples' / 'from_npc_u1.py'
     runpy.run_path(str(example))
+
+
+def test_from_tenpy_couplings_example():
+    example = _REPO_ROOT / 'docs' / 'intro' / 'examples' / 'from_tenpy_couplings.py'
+    runpy.run_path(str(example))
