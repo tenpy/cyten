@@ -347,6 +347,81 @@ NoSymmetryBackend::eigh(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<
     return { wrap(std::move(w)), wrap(std::move(v)), std::move(new_leg) };
 }
 
+namespace {
+
+struct NoSymSquareMat
+{
+    BlockBackend::BlockPtr mat;
+    int64 k = 0;
+    int64 J = 0;
+    ElementarySpace::Ptr new_leg;
+};
+
+NoSymSquareMat
+no_sym_as_square_matrix(NoSymmetryBackend& self, SymmetricTensorCPtr a, bool new_leg_dual)
+{
+    NoSymSquareMat out;
+    out.new_leg = py::cast(a->domain)
+                    .attr("as_ElementarySpace")(py::arg("is_dual") = new_leg_dual)
+                    .cast<ElementarySpace::Ptr>();
+    out.J = a->num_codomain_legs();
+    int64 N = 2 * out.J;
+    std::vector<int64> perm;
+    perm.reserve(static_cast<std::size_t>(N));
+    for (int64 i = 0; i < out.J; ++i)
+        perm.push_back(i);
+    for (int64 i = N - 1; i >= out.J; --i)
+        perm.push_back(i);
+    out.mat = self.block_backend->permute_axes(NoSymmetryBackend::block_from_tensor(a), perm);
+    out.k = space_dim_i64(*py::cast(a->domain).cast<TensorProduct::Ptr>());
+    out.mat = self.block_backend->reshape(out.mat, { out.k, out.k });
+    return out;
+}
+
+BlockBackend::BlockPtr
+no_sym_reshape_eigvecs(NoSymmetryBackend& self,
+                       SymmetricTensorCPtr a,
+                       BlockBackend::BlockPtr v,
+                       int64 J,
+                       int64 k)
+{
+    auto shape_codom = shape_from_tensor(a);
+    shape_codom.resize(static_cast<std::size_t>(J));
+    shape_codom.push_back(k);
+    return self.block_backend->reshape(std::move(v), shape_codom);
+}
+
+} // namespace
+
+std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>
+NoSymmetryBackend::eig(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort)
+{
+    auto sq = no_sym_as_square_matrix(*this, a, new_leg_dual);
+    auto [w, v] = block_backend->eig(sq.mat, sort);
+    v = no_sym_reshape_eigvecs(*this, a, std::move(v), sq.J, sq.k);
+    return { wrap(std::move(w)), wrap(std::move(v)), std::move(sq.new_leg) };
+}
+
+std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
+NoSymmetryBackend::eigvalsh(SymmetricTensorCPtr a,
+                            bool new_leg_dual,
+                            std::optional<std::string> sort)
+{
+    auto sq = no_sym_as_square_matrix(*this, a, new_leg_dual);
+    auto w = block_backend->eigvalsh(sq.mat, sort);
+    return { wrap(std::move(w)), std::move(sq.new_leg) };
+}
+
+std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
+NoSymmetryBackend::eigvals(SymmetricTensorCPtr a,
+                           bool new_leg_dual,
+                           std::optional<std::string> sort)
+{
+    auto sq = no_sym_as_square_matrix(*this, a, new_leg_dual);
+    auto w = block_backend->eigvals(sq.mat, sort);
+    return { wrap(std::move(w)), std::move(sq.new_leg) };
+}
+
 TensorBackend::DataPtr
 NoSymmetryBackend::eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::string device)
 {

@@ -731,6 +731,51 @@ class PlanarLinearOperator : public LinearOperator
   bool new_leg_dual = false,
   std::optional<std::string> sort = std::nullopt);
 
+/// Planar eigen-decomposition of a general (not necessarily hermitian) tensor.
+///
+/// A tensor decomposition ``tensor ~ V @ W @ pinv(V)``. Unlike `planar_eigh`, `V` is in general
+/// not unitary and `W` is generally complex.
+///
+/// This planar decomposition differs from `eig` in the sense that it decomposes a tensor into
+/// more general left and right parts rather than into codomain and domain.
+///
+/// Requires that the bent tensor `T` obtained by moving legs according to `codomain_cut` and
+/// `domain_cut` has ``T.domain == T.codomain``.
+///
+/// @param tensor The tensor to decompose.
+/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of
+///     `V`.
+/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `V`.
+/// @param new_labels Labels for the new legs, same convention as `eig` / `planar_eigh`.
+///     Unlabelled by default.
+/// @param new_leg_dual If the new leg should be a ket space (`false`) or bra space (`true`).
+/// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort`.
+/// @returns `(W, V)`: eigenvalues and right eigenvectors.
+[[nodiscard]] std::tuple<DiagonalTensorPtr, TensorPtr> planar_eig(
+  TensorCPtr tensor,
+  int64 codomain_cut,
+  int64 domain_cut,
+  std::optional<LegLabels> new_labels = std::nullopt,
+  bool new_leg_dual = false,
+  std::optional<std::string> sort = std::nullopt);
+
+/// Planar eigenvalues of a general tensor, without eigenvectors.
+///
+/// Same as `planar_eig`, but returns only the eigenvalues `W`.
+///
+/// @param tensor The tensor to decompose.
+/// @param codomain_cut, domain_cut Same as `planar_eig`.
+/// @param new_labels Labels for `W` only. One label `a` is equivalent to `[a, a*]`. Two labels
+///     `[b, c]` set `W.labels == [b, c]`. Unlabelled by default.
+/// @param new_leg_dual If the new leg should be a ket space (`false`) or bra space (`true`).
+/// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort`.
+[[nodiscard]] DiagonalTensorPtr planar_eigvals(TensorCPtr tensor,
+                                               int64 codomain_cut,
+                                               int64 domain_cut,
+                                               std::optional<LegLabels> new_labels = std::nullopt,
+                                               bool new_leg_dual = false,
+                                               std::optional<std::string> sort = std::nullopt);
+
 /// Planar LQ decomposition of a tensor.
 ///
 /// A tensor decomposition ``tensor ~ L @ Q`` with the following

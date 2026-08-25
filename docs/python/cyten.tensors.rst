@@ -109,6 +109,12 @@ Functions
 
 .. autofunction:: cyten.tensors.eigh
 
+.. autofunction:: cyten.tensors.eig
+
+.. autofunction:: cyten.tensors.eigvalsh
+
+.. autofunction:: cyten.tensors.eigvals
+
 .. autofunction:: cyten.tensors.enlarge_leg
 
 .. autofunction:: cyten.tensors.entropy

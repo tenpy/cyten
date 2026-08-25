@@ -241,6 +241,8 @@ enum class PlanarDecompWhich
     qr,
     lq,
     eigh,
+    eig,
+    eigvals,
     svd,
     truncated_svd
 };
@@ -310,6 +312,13 @@ planar_decomposition(TensorCPtr tensor,
         auto [W, V] = eigh(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
         B = std::move(W);
         A = std::move(V);
+    } else if (which == PlanarDecompWhich::eig) {
+        auto [W, V] = eig(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
+        B = std::move(W);
+        A = std::move(V);
+    } else if (which == PlanarDecompWhich::eigvals) {
+        auto W = eigvals(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
+        B = std::move(W);
     } else if (which == PlanarDecompWhich::svd) {
         auto [u, s, vh] = svd(to_decompose, new_labels, new_leg_dual, true, algorithm);
         A = std::move(u);
@@ -336,16 +345,19 @@ planar_decomposition(TensorCPtr tensor,
         throw std::invalid_argument("Invalid decomposition");
     }
 
-    if (which != PlanarDecompWhich::eigh) {
-        // B contains the eigenvalues for eigh
+    if (which != PlanarDecompWhich::eigh && which != PlanarDecompWhich::eig &&
+        which != PlanarDecompWhich::eigvals) {
+        // B contains the eigenvalues for eigh / eig / eigvals
         auto B_codom = range_of(tensor->num_codomain_legs() - codomain_cut + 1);
         auto B_dom = reversed_range(tensor->num_codomain_legs() - codomain_cut + 1, B->num_legs);
         B = planar_permute_legs(B, as_leg_refs(B_codom), as_leg_refs(B_dom));
     }
-    auto A_codom = range_of(domain_cut, A->num_codomain_legs());
-    auto A_dom = reversed_range(0, domain_cut);
-    A_dom.push_back(A->num_codomain_legs());
-    A = planar_permute_legs(A, as_leg_refs(A_codom), as_leg_refs(A_dom));
+    if (A) {
+        auto A_codom = range_of(domain_cut, A->num_codomain_legs());
+        auto A_dom = reversed_range(0, domain_cut);
+        A_dom.push_back(A->num_codomain_legs());
+        A = planar_permute_legs(A, as_leg_refs(A_codom), as_leg_refs(A_dom));
+    }
 
     return { std::move(A), std::move(B), std::move(S), err, renormalize };
 }
@@ -2211,6 +2223,50 @@ planar_eigh(TensorCPtr tensor,
         throw std::runtime_error("planar_eigh expected DiagonalTensor eigenvalues");
     }
     return { std::move(W), std::move(r.A) };
+}
+
+std::tuple<DiagonalTensorPtr, TensorPtr>
+planar_eig(TensorCPtr tensor,
+           int64 codomain_cut,
+           int64 domain_cut,
+           std::optional<LegLabels> new_labels,
+           bool new_leg_dual,
+           std::optional<std::string> sort)
+{
+    auto r = planar_decomposition(tensor,
+                                  codomain_cut,
+                                  domain_cut,
+                                  PlanarDecompWhich::eig,
+                                  std::move(new_labels),
+                                  new_leg_dual,
+                                  sort);
+    auto W = std::dynamic_pointer_cast<DiagonalTensor>(r.B);
+    if (!W) {
+        throw std::runtime_error("planar_eig expected DiagonalTensor eigenvalues");
+    }
+    return { std::move(W), std::move(r.A) };
+}
+
+DiagonalTensorPtr
+planar_eigvals(TensorCPtr tensor,
+               int64 codomain_cut,
+               int64 domain_cut,
+               std::optional<LegLabels> new_labels,
+               bool new_leg_dual,
+               std::optional<std::string> sort)
+{
+    auto r = planar_decomposition(tensor,
+                                  codomain_cut,
+                                  domain_cut,
+                                  PlanarDecompWhich::eigvals,
+                                  std::move(new_labels),
+                                  new_leg_dual,
+                                  sort);
+    auto W = std::dynamic_pointer_cast<DiagonalTensor>(r.B);
+    if (!W) {
+        throw std::runtime_error("planar_eigvals expected DiagonalTensor eigenvalues");
+    }
+    return W;
 }
 
 std::tuple<TensorPtr, TensorPtr>

@@ -1787,6 +1787,65 @@ AbelianBackend::eigh(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std
     return { wrap(w_data), wrap(v_data), new_leg };
 }
 
+std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>
+AbelianBackend::eig(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort)
+{
+    assert(a->num_codomain_legs() == 1);
+    assert(a->num_domain_legs() == 1);
+    auto a_data = data_from_tensor(a);
+    auto domain = py::cast(a->domain).cast<TensorProduct::Ptr>();
+    auto new_leg = domain->as_ElementarySpace(new_leg_dual).cast<ElementarySpace::Ptr>();
+    Dtype cdtype = dtype::to_complex(a->dtype);
+    auto v_wrapped = eye_data(domain, cdtype, a_data->device);
+    auto v_data = unwrap(v_wrapped);
+    std::vector<BlockBackend::BlockPtr> w_blocks;
+    auto const& bi = a_data->block_inds;
+    std::optional<std::string> sort_opt = sort;
+    for (std::size_t n = 0; n < a_data->blocks.size(); ++n) {
+        auto [vals, vects] = block_backend->eig(a_data->blocks[n], sort_opt);
+        w_blocks.push_back(vals);
+        v_data->blocks[static_cast<std::size_t>(bi(static_cast<py::ssize_t>(n), 0))] = vects;
+    }
+    auto w_data = make_data(cdtype, a_data->device, std::move(w_blocks), a_data->block_inds, true);
+    return { wrap(w_data), wrap(v_data), new_leg };
+}
+
+std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
+AbelianBackend::eigvalsh(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort)
+{
+    assert(a->num_codomain_legs() == 1);
+    assert(a->num_domain_legs() == 1);
+    auto a_data = data_from_tensor(a);
+    auto domain = py::cast(a->domain).cast<TensorProduct::Ptr>();
+    auto new_leg = domain->as_ElementarySpace(new_leg_dual).cast<ElementarySpace::Ptr>();
+    std::vector<BlockBackend::BlockPtr> w_blocks;
+    std::optional<std::string> sort_opt = sort;
+    for (std::size_t n = 0; n < a_data->blocks.size(); ++n) {
+        w_blocks.push_back(block_backend->eigvalsh(a_data->blocks[n], sort_opt));
+    }
+    auto w_data = make_data(
+      dtype::to_real(a->dtype), a_data->device, std::move(w_blocks), a_data->block_inds, true);
+    return { wrap(w_data), new_leg };
+}
+
+std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
+AbelianBackend::eigvals(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort)
+{
+    assert(a->num_codomain_legs() == 1);
+    assert(a->num_domain_legs() == 1);
+    auto a_data = data_from_tensor(a);
+    auto domain = py::cast(a->domain).cast<TensorProduct::Ptr>();
+    auto new_leg = domain->as_ElementarySpace(new_leg_dual).cast<ElementarySpace::Ptr>();
+    Dtype cdtype = dtype::to_complex(a->dtype);
+    std::vector<BlockBackend::BlockPtr> w_blocks;
+    std::optional<std::string> sort_opt = sort;
+    for (std::size_t n = 0; n < a_data->blocks.size(); ++n) {
+        w_blocks.push_back(block_backend->eigvals(a_data->blocks[n], sort_opt));
+    }
+    auto w_data = make_data(cdtype, a_data->device, std::move(w_blocks), a_data->block_inds, true);
+    return { wrap(w_data), new_leg };
+}
+
 TensorBackend::DataPtr
 AbelianBackend::eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::string device)
 {

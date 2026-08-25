@@ -13,7 +13,8 @@ operator itself as well as its action on a vector in terms planar diagrams, whic
 implementation of planar algorithms such as TEBD or DMRG.
 
 There are additional useful planar functions provided ranging from planar decompositions
-(:func:`planar_eigh`, :func:`planar_lq`, :func:`planar_qr`, :func:`planar_svd`,
+(:func:`planar_eigh`, :func:`planar_eig`, :func:`planar_eigvals`, :func:`planar_lq`,
+:func:`planar_qr`, :func:`planar_svd`,
 :func:`planar_truncated_svd`) and planar leg permutations (:func:`planar_permute_legs`),
 to planar leg combinations (:func:`planar_combine_legs`), planar partial traces
 (:func:`planar_partial_trace`), and planar tensor contractions (:func:`planar_contraction`).
@@ -34,7 +35,9 @@ from .._core import (  # noqa: F401
     planar_combine_legs,
     planar_contraction,
     planar_decomposition,
+    planar_eig,
     planar_eigh,
+    planar_eigvals,
     planar_lq,
     planar_partial_trace,
     planar_permute_legs,

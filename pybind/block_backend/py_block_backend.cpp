@@ -750,11 +750,21 @@ bind_block_backend(py::module_& m)
            py::arg("block"),
            py::arg("sort") = py::none(),
            DOC(cyten, BlockBackend, eigh))
+      .def("eig",
+           &BlockBackend::eig,
+           py::arg("block"),
+           py::arg("sort") = py::none(),
+           DOC(cyten, BlockBackend, eig))
       .def("eigvalsh",
            &BlockBackend::eigvalsh,
            py::arg("block"),
            py::arg("sort") = py::none(),
            DOC(cyten, BlockBackend, eigvalsh))
+      .def("eigvals",
+           &BlockBackend::eigvals,
+           py::arg("block"),
+           py::arg("sort") = py::none(),
+           DOC(cyten, BlockBackend, eigvals))
       .def("enlarge_leg",
            &BlockBackend::enlarge_leg,
            py::arg("block"),
