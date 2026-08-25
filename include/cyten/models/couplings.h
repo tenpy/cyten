@@ -71,7 +71,8 @@ class Coupling
     /// @param understood_braiding Set if the caller has accounted for non-trivial braiding of the
     /// dense block.
     /// @param cutoff_singular_values If given, truncate singular values (see
-    /// `horizontal_factorization`) below this threshold.
+    /// `horizontal_factorization`) below this threshold. If omitted, the `coupling_cutoff` config
+    /// option is used.
     [[nodiscard]] static Coupling from_dense_block(
       py::object operator_,
       std::vector<Site::Ptr> sites,
@@ -91,8 +92,8 @@ class Coupling
     /// @param sites The sites that the operator acts on.
     /// @param name A descriptive name that can be used when pretty-printing, to identify the
     /// coupling. For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
-    /// @param cutoff If given, truncate singular values (see
-    /// `horizontal_factorization`) below this threshold.
+    /// @param cutoff If given, truncate singular values (see `horizontal_factorization`) below
+    /// this threshold. If omitted, the `coupling_cutoff` config option is used.
     [[nodiscard]] static Coupling from_tensor(SymmetricTensorPtr operator_,
                                               std::vector<Site::Ptr> sites,
                                               std::optional<std::string> name = std::nullopt,

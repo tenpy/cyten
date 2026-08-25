@@ -1,5 +1,6 @@
 #include <cyten/models/couplings.h>
 
+#include <cyten/config.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/factors/fibonacci_anyon_category.h>
 #include <cyten/symmetries/symmetry.h>
@@ -532,6 +533,15 @@ Coupling::from_tensor(SymmetricTensorPtr operator_,
     }
     if (operator_->labels() != expected_labels) {
         throw std::invalid_argument("operator labels do not match expected p-label order");
+    }
+
+    if (!cutoff) {
+        cutoff = get_config().coupling_cutoff;
+    }
+    // Truncated SVD divides by ||S|| and keeps at least one singular value. A (numerically) zero
+    // operator hits divide-by-zero and cannot satisfy svd_min vs chi_min, so fall back to QR.
+    if (norm(TensorCPtr{ operator_ }).as_float64() <= *cutoff) {
+        cutoff.reset();
     }
 
     std::vector<SymmetricTensorPtr> factorization;
