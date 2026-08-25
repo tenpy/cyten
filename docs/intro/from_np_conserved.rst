@@ -29,13 +29,23 @@ forces a few design changes:
   not a list of ``qmod`` integers.
 - A tensor is a **linear map** from a :attr:`~cyten.tensors.Tensor.domain` to a
   :attr:`~cyten.tensors.Tensor.codomain`, not a structureless multi-index array.
+- There are several tensor types (symmetric, diagonal, mask, identity, charged)
+  sharing the abstract :class:`~cyten.tensors.Tensor` base, instead of a single
+  :class:`tenpy_v1:`~tenpy.linalg.np_conserved.Array`.
 - Charge-non-conserving operators are a separate type
   (:class:`~cyten.tensors.ChargedTensor`) instead of a non-zero ``qtotal``.
-- There are several tensor types (symmetric, diagonal, mask, identity, charged)
-  instead of a single :class:`tenpy_v1:`~tenpy.linalg.np_conserved.Array`.
 - Operations that were :class:`tenpy_v1:`~tenpy.linalg.np_conserved.Array` methods
   (``combine_legs``, ``split_legs``, ``conj``, ``transpose``, …) are **functions**
   (``ct.combine_legs(A, ...)``). In-place ``i*`` methods are gone.
+
+.. warning ::
+
+    Symmetries can have a non-trivial braiding: legs that cross in a tensor-network
+    diagram then have non-trivial consequences. The simplest example is fermions,
+    where a crossing implies a sign change on the odd-parity sector.
+    Unlike anyon categories, this braiding does not distinguish over- and
+    under-braids (*symmetric* braiding); all group symmetries have that property
+    as well.
 
 The C++ API mirrors the Python one. The notes below are written for Python;
 the corresponding C++ names live in ``cyten::``.
@@ -110,6 +120,13 @@ Graphically, with ``codomain == [V, W, Z]`` and ``domain == [X, Y]``::
     |
     |     legs[0], legs[1], legs[2]  ==  V, W, Z          (codomain)
     |     legs[3], legs[4]           ==  Y.dual, X.dual   (domain, reversed)
+
+.. note ::
+
+    The tensor-diagram notation here is stricter than for generic tensor networks:
+    the top legs are always the domain and the bottom legs always the codomain.
+    Compositions such as :func:`~cyten.tensors.tdot` therefore stack tensors
+    vertically.
 
 Integer indices and string labels still refer to positions in ``legs``, so you
 can often ignore the (co)domain split. It becomes visible when you:
@@ -230,10 +247,12 @@ an empty domain::
 
     v = ct.tensor([3.0, 4.0 + 1.0j], codomain=[leg], labels=['i'])
 
-An operator on :math:`V` is a map :math:`V \to V`::
+A square operator on :math:`V` (an endomorphism :math:`V \to V`) has
+``codomain == domain == [V]``, so :attr:`~cyten.tensors.Tensor.legs` is
+``[V, V.dual]``::
 
-    M = ct.tensor([[0.0, 1.0], [1.0, 0.0]],
-                  codomain=[leg], domain=[leg], labels=['i', 'j'])
+    simgaX = ct.tensor([[0.0, 1.0], [1.0, 0.0]],
+                       codomain=[leg], domain=[leg], labels=['i', 'j'])
 
 Labels may be a flat list in ``legs`` order (``['i', 'j']``) or a pair
 ``[codomain_labels, domain_labels]``. For an endomorphism the domain labels
@@ -304,8 +323,9 @@ domain (reversed, as usual).
 
 :func:`~cyten.tensors.inner` no longer has ``axes='range'`` / ``axes='labels'``.
 The two tensors must have matching (co)domains; the product is
-:math:`\mathrm{Tr}[A^\dagger \circ B]`. The result is a backend
-``Scalar``; convert with ``.to_numpy()``.
+:math:`\mathrm{Tr}[A^\dagger \circ B]`. The result is a
+:class:`~cyten.block_backends.BlockBackend.Scalar` (see
+:ref:`scalars_from_norm_inner_trace`).
 
 ``A @ B`` is :func:`~cyten.tensors.compose`, **not** a numpy-style
 ``tensordot`` over the last / first axis. It is the right tool for applying
@@ -374,7 +394,20 @@ it is not invariant.
 A product of charged operators that *is* invariant (e.g. the two-site
 Heisenberg coupling) should be built as a :class:`~cyten.tensors.SymmetricTensor`
 directly. :func:`~cyten.tensors.outer` of two :class:`~cyten.tensors.ChargedTensor`\s
-is not the usual replacement for ``npc.outer(Sp, Sm)``.
+is not the usual replacement for ``npc.outer(Sp, Sm)``, because it is not
+clear how the two charged legs would have to be connected.
+
+.. note ::
+
+    Cyten introduces :class:`~cyten.models.Coupling` for this: a few-site operator
+    stored as one tensor per site, i.e. essentially a mini-MPO. Each factor has
+    physical legs ``p, p*`` and virtual legs ``wL, wR``; contracting the virtual
+    bonds (which carry the charge that used to live in ``qtotal``) recovers a
+    symmetric multi-site map. Factories such as
+    :func:`~cyten.models.heisenberg_coupling` build that factorization for you.
+    :meth:`~cyten.models.Coupling.to_tensor` contracts it to a
+    :class:`~cyten.tensors.SymmetricTensor` if you need the dense few-site
+    operator. See :doc:`first_steps` for a complete example.
 
 
 ``combine_legs`` / ``split_legs``
@@ -422,7 +455,7 @@ Decompositions
      - Cyten
    * - ``U, S, VH = npc.svd(A, inner_labels=['a', 'b'], inner_qconj=+1)``
      - ``U, S, VH = ct.svd(A, new_labels=['a', 'b'], new_leg_dual=False)``
-   * - ``W, V = npc.eigh(A)``  (``W`` a 1D numpy array)
+   * - ``E, V = npc.eigh(A)``  (``E`` a 1D numpy array)
      - ``W, V = ct.eigh(A, new_labels=['e'], new_leg_dual=False)``
        (``W`` a :class:`~cyten.tensors.DiagonalTensor`)
    * - ``npc.eig`` / ``eigvals`` / ``eigvalsh`` / ``speigs``
@@ -432,23 +465,47 @@ Decompositions
      - ``Q, R = ct.qr(A, new_labels=..., new_leg_dual=...)``
    * - ``npc.expm(A)``
      - :func:`~cyten.tensors.exp`
-   * - ``npc.pinv(A)`` / ``npc.norm(A)``
-     - :func:`~cyten.tensors.pinv` / :func:`~cyten.tensors.norm`
+   * - ``npc.pinv(A)``
+     - :func:`~cyten.tensors.pinv`
    * - (truncation in ``tenpy.linalg.truncation``)
      - :func:`~cyten.tensors.truncated_svd` /
        :func:`~cyten.tensors.truncate_singular_values`
 
 ``new_leg_dual`` replaces ``inner_qconj``: ``False`` is a ket space
 (``qconj=+1``), ``True`` a bra space.
-
 :func:`~cyten.tensors.eigh` requires ``tensor.domain == tensor.codomain``
-(the map is an endomorphism). Eigenvalues live on ``W``; get a numpy array
-with :meth:`~cyten.tensors.DiagonalTensor.diagonal_as_numpy`. They are sorted
-*within each charge block* (same ``sort=`` codes as TeNPy).
+(the map is an endomorphism). :func:`~cyten.tensors.svd` always returns the
+reduced ("economic") factorization.
 
-:func:`~cyten.tensors.svd` always returns the reduced ("economic")
-factorization. ``S`` is a :class:`~cyten.tensors.DiagonalTensor`, not a 1D
-numpy array, and is **not** globally sorted.
+.. note ::
+
+    Eigenvalues ``W`` from :func:`~cyten.tensors.eigh` and singular values
+    ``S`` from :func:`~cyten.tensors.svd` are :class:`~cyten.tensors.DiagonalTensor`\s,
+    not 1D numpy arrays. They are sorted only *within each charge block*
+    (same ``sort=`` codes as TeNPy for ``eigh``), not globally.
+    :meth:`~cyten.tensors.DiagonalTensor.diagonal_as_numpy` recovers a flat
+    numpy array if needed, but :class:`~cyten.tensors.DiagonalTensor` also
+    supports many element-wise operations natively — for example a comparison
+    yields a boolean :class:`~cyten.tensors.DiagonalTensor`, which
+    :meth:`~cyten.tensors.Mask.from_DiagonalTensor` turns into a projection
+    :class:`~cyten.tensors.Mask` for truncating a leg.
+
+
+.. _scalars_from_norm_inner_trace:
+
+Scalars from ``norm``, ``inner``, and ``trace``
+-----------------------------------------------
+
+:func:`~cyten.tensors.norm`, :func:`~cyten.tensors.inner`, and
+:func:`~cyten.tensors.trace` (and a full :func:`~cyten.tensors.partial_trace`)
+do not return a Python ``float`` / ``complex``. They return a
+:class:`~cyten.block_backends.BlockBackend.Scalar`, which can keep the value
+on the same device as the tensors (e.g. a GPU). That design will also be
+needed for automatic differentiation in a future version.
+Convert to a host number with ``.to_numpy()`` when you need a plain Python or
+numpy scalar.
+
+TeNPy's ``npc.norm(A)`` maps to :func:`~cyten.tensors.norm`.
 
 
 Indexing, scaling, and slicing
@@ -489,8 +546,12 @@ Backends
 --------
 
 TeNPy has a compiled Cython helper for the abelian block sparse format.
-Cyten chooses a **tensor backend** from the symmetry (no-symmetry, abelian,
-fusion-tree) and a **block backend** for the dense blocks (numpy or torch).
+Cyten chooses a **tensor backend**
+(:class:`~cyten.backends.TensorBackend`; no-symmetry, abelian, or fusion-tree)
+from the symmetry and a **block backend**
+(:class:`~cyten.block_backends.BlockBackend`; e.g.
+:class:`~cyten.block_backends.NumpyBlockBackend` or
+:class:`~cyten.block_backends.TorchBlockBackend`) for the dense blocks.
 You usually do not pass a backend; :func:`~cyten.backends.get_backend` picks
 one. To run on a GPU, use a torch block backend and
 :func:`~cyten.tensors.on_device`.
@@ -579,5 +640,4 @@ Porting checklist
    ``new_labels`` and ``new_leg_dual``. Treat singular values / eigenvalues as
    :class:`~cyten.tensors.DiagonalTensor`.
 9. Drop in-place methods, ``qtotal``, and numpy-style item assignment.
-10. Run the two examples in ``docs/intro/examples/from_npc_*.py`` as a smoke
-    test of the new constructors.
+10. Reactivate tests for what has been ported.
