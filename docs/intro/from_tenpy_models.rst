@@ -3,17 +3,15 @@ From TeNPy models to Cyten
 
 :doc:`from_np_conserved` covers the linear algebra: how to replace
 :mod:`tenpy_v1:tenpy.linalg.np_conserved` with Cyten tensors. This page is
-the **high-level** counterpart — sites, few-site operators, and fermions —
-for code that used TeNPy's :class:`tenpy_v1:`~tenpy.networks.site.Site`,
-:meth:`tenpy_v1:`~tenpy.models.model.CouplingModel.add_coupling`, and
-explicit Jordan-Wigner (JW) strings on the MPS.
+the **high-level** counterpart — sites, few-site operators, fermions, and
+the planar diagrams that replace hand-written ``tensordot`` chains in
+algorithms such as DMRG's effective Hamiltonian.
 
 TeNPy v2 is being rewritten against these Cyten objects. The notes below are
 the Cyten side of that conversion.
 
-If you are new to Cyten, start with :doc:`first_steps`. The script
-``docs/intro/examples/from_tenpy_couplings.py`` is a compact version of every
-example on this page.
+If you are new to Cyten, start with :doc:`first_steps`. The scripts under
+``docs/intro/examples/`` are compact versions of the examples on this page.
 
 
 Sites still exist, operators do not all survive
@@ -322,6 +320,166 @@ fermionic coupling picks up a minus sign when two odd factors are swapped,
 without anyone multiplying by ``JW``.
 
 
+Planar diagrams
+---------------
+
+TeNPy v1 algorithms are written as a sequence of ``npc.tensordot`` and
+``itranspose``. That is fine when legs commute. In Cyten a
+:func:`~cyten.tensors.permute_legs` that makes two fermion (or anyon) lines
+cross is a *braid*, and you must specify its chirality. The networks that
+show up in MPS algorithms — applying a two-site gate, contracting an MPO
+environment, the DMRG effective Hamiltonian — are drawn **without**
+crossings. Those contractions should be written as a
+:class:`~cyten.tensors.PlanarDiagram`, not as a chain of
+:func:`~cyten.tensors.tdot` / :func:`~cyten.tensors.compose` plus
+``bend_right``.
+
+A planar diagram names every tensor, lists every contraction and every open
+leg by **label**, and forgets the (co)domain split. Cyclic permutations of
+a tensor's labels are allowed (they are planar). The contraction is
+connected and braid-free; Cyten checks that at construction. Evaluating
+the diagram on concrete tensors never introduces a swap gate.
+
+Syntax
+~~~~~~
+
+.. code-block:: python
+
+    diagram = ct.PlanarDiagram(
+        tensors='theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]',
+        definition=(
+            'theta:p0 @ U:p0*, theta:p1 @ U:p1*, '
+            'theta:vL -> vL, theta:vR -> vR, U:p0 -> p0, U:p1 -> p1'
+        ),
+        dims=dict(chi=['vL', 'vR'], d=['p0', 'p0*', 'p1', 'p1*']),
+    )
+    theta_new = diagram.evaluate(dict(theta=theta, U=U))
+    # equivalent: diagram(theta=theta, U=U)
+
+- ``tensors``: ``name[leg, leg, ...]`` entries, comma-separated. Leg order
+  is the conventional counter-clockwise order around the tensor, not
+  ``Tensor.legs``.
+- ``definition``: ``A:leg @ B:leg`` contracts two legs; ``A:leg -> new``
+  leaves an open leg of the result.
+- ``dims``: optional symbols for a cost polynomial (used when optimizing
+  the contraction order).
+- ``order``: ``'greedy'`` (default), ``'optimal'``, ``'definition'``, or a
+  hard-coded tree. Instantiating a diagram with an optimized order can be
+  expensive: build it **once**, as a class or module attribute, and hard-code
+  ``order`` once you know it.
+
+The result of :meth:`~cyten.tensors.PlanarDiagram.evaluate` is determined
+only up to a cyclic permutation of the open legs. Bring it to a definite
+(co)domain with :func:`~cyten.tensors.planar_permute_legs` (the planar
+analogue of :func:`~cyten.tensors.permute_legs`; it refuses non-planar
+moves instead of asking for ``bend_right``).
+
+:meth:`~cyten.tensors.PlanarDiagram.add_tensor` /
+:meth:`~cyten.tensors.PlanarDiagram.remove_tensor` build a related diagram
+without repeating the contractions you already have. That is the intended
+way to go from "the operator" to "the operator acting on a vector".
+
+EffectiveH as a planar linear operator
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+TeNPy's :class:`tenpy_v1:`~tenpy.algorithms.mps_common.TwoSiteH` is the
+two-site DMRG effective Hamiltonian
+
+::
+
+    |        .---       ---.
+    |        |    |   |    |
+    |       LP----W0--W1---RP
+    |        |    |   |    |
+    |        .---       ---.
+
+and :meth:`~tenpy_v1:tenpy.algorithms.mps_common.TwoSiteH.matvec` is four
+``tensordot``\ s plus an ``itranspose``. The Cyten toycode
+``toycodes/tenpy_toycodes/d_dmrg.py`` still has a ``HEffective.matvec``
+written that way, with an explicit ``bend_right`` on every
+:func:`~cyten.tensors.permute_legs`. That style does not scale to fermions:
+one missed braid is a wrong sign.
+
+The replacement is :class:`~cyten.tensors.PlanarLinearOperator`, a
+:class:`~cyten.tensors.sparse.LinearOperator` whose
+:meth:`~cyten.tensors.sparse.LinearOperator.matvec` and
+:meth:`~cyten.tensors.sparse.LinearOperator.to_tensor` are two planar
+diagrams:
+
+- ``op_diagram`` — the network above (open legs ``vL, p0, p1, vR`` and
+  their duals): the operator as a tensor.
+- ``matvec_diagram`` — the same network with a ``theta`` plugged into the
+  open ket legs: :math:`H_{\mathrm{eff}} |\theta\rangle`.
+
+Define both diagrams as **class attributes**. Obtain the matvec diagram by
+adding ``theta`` to the operator diagram (or, equivalently, define the
+matvec diagram first and :meth:`~cyten.tensors.PlanarDiagram.remove_tensor`
+``theta`` to get the operator):
+
+.. code-block:: python
+
+    class TwoSiteEffectiveH(ct.PlanarLinearOperator):
+        op_diagram = ct.PlanarDiagram(
+            tensors='Lp[vR*, wR, vR], W0[wL, p, wR, p*], W1[wL, p, wR, p*], Rp[vL*, vL, wL]',
+            definition=(
+                'Lp:vR* -> vL, Lp:wR @ W0:wL, Lp:vR -> vL*, '
+                'W0:p -> p0, W0:wR @ W1:wL, W0:p* -> p0*, '
+                'W1:p -> p1, W1:wR @ Rp:wL, W1:p* -> p1*, '
+                'Rp:vL* -> vR, Rp:vL -> vR*'
+            ),
+            dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], w=['wL', 'wR'], d=['p', 'p*']),
+        )
+        matvec_diagram = op_diagram.add_tensor(
+            tensor='theta[vL, p0, p1, vR]',
+            extra_definition=(
+                'theta:vL @ Lp:vR, theta:p0 @ W0:p*, '
+                'theta:p1 @ W1:p*, theta:vR @ Rp:vL'
+            ),
+            extra_dims=dict(chi=['vL', 'vR'], d=['p0', 'p1']),
+        )
+
+        def __init__(self, Lp, W0, W1, Rp):
+            super().__init__(
+                op_diagram=self.op_diagram,
+                matvec_diagram=self.matvec_diagram,
+                op_tensors=dict(Lp=Lp, W0=W0, W1=W1, Rp=Rp),
+                vec_name='theta',
+            )
+
+``W0`` / ``W1`` are MPO tensors, i.e. the factors of a
+:class:`~cyten.models.Coupling` (or a full MPO built from them), with the
+usual ``wL, p, wR, p*`` labels. ``Lp`` / ``Rp`` are the left and right
+environments. :meth:`~cyten.tensors.sparse.LinearOperator.matvec` is then
+just ``Heff.matvec(theta)``, suitable for
+:mod:`~cyten.tensors.krylov_based` Lanczos. After ``Heff.to_tensor()``,
+fix the cyclic permutation::
+
+    H = ct.planar_permute_legs(Heff.to_tensor(), codomain=['vL', 'p0', 'p1', 'vR'])
+
+The same pattern applies to one-site and zero-site effective Hamiltonians
+(fewer ``W`` tensors) and to the environment updates themselves. The
+planar DMRG toycode stores ``update_LP_diagram`` / ``update_RP_diagram`` as
+class attributes and evaluates them as ``self.update_RP_diagram(Rp=...,
+W=..., B=..., B_hc=...)``.
+
+What not to do
+~~~~~~~~~~~~~~
+
+- Do not port ``TwoSiteH.matvec`` as a sequence of
+  :func:`~cyten.tensors.tdot` and :func:`~cyten.tensors.permute_legs` with
+  guessed ``bend_right``. If the network is planar, write a
+  :class:`~cyten.tensors.PlanarDiagram`.
+- Do not construct the diagram inside ``__init__`` or inside ``matvec``
+  (re-optimizing the order on every Lanczos step).
+- Do not use :func:`~cyten.tensors.combine_legs` to "make a matrix" before
+  Lanczos. :class:`~cyten.tensors.PlanarLinearOperator` already acts on the
+  uncombined ``theta``.
+- For the rare network that *does* braid (a JW line crossing a physical
+  leg, as in the previous section), a planar diagram will refuse it. That
+  crossing belongs in :meth:`~cyten.models.Site.identity_tensor` /
+  :func:`~cyten.tensors.permute_legs`, not in the DMRG contraction.
+
+
 Porting checklist
 -----------------
 
@@ -343,10 +501,22 @@ Porting checklist
    :class:`~cyten.symmetries.FermionParity` replaces them.
 6. Use the fusion-tree backend for fermions. Keep the abelian backend for
    spin / boson models that never braid.
-7. Reactivate tests for what has been ported.
+7. Replace :class:`tenpy_v1:`~tenpy.algorithms.mps_common.TwoSiteH` /
+   ``OneSiteH`` ``matvec`` chains with a
+   :class:`~cyten.tensors.PlanarLinearOperator`. Store the
+   :class:`~cyten.tensors.PlanarDiagram`\ s as class attributes. Use
+   :func:`~cyten.tensors.planar_permute_legs` after ``evaluate`` /
+   ``to_tensor``.
+8. Reactivate tests for what has been ported.
 
-Worked example
---------------
+Worked example: couplings
+-------------------------
 
 .. literalinclude:: examples/from_tenpy_couplings.py
+   :language: python
+
+Worked example: two-site EffectiveH
+-----------------------------------
+
+.. literalinclude:: examples/from_tenpy_planar.py
    :language: python
