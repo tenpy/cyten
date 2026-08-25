@@ -208,6 +208,7 @@ intersphinx_mapping = {
     'numpy': ('https://numpy.org/doc/stable', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'tenpy': ('https://tenpy.readthedocs.org/en/stable', None),
+    'tenpy_v1': ('https://tenpy.readthedocs.org/en/v1.1.1', None),
     'matplotlib': ('https://matplotlib.org', None),
     'h5py': ('https://docs.h5py.org/en/stable/', None),
 }
