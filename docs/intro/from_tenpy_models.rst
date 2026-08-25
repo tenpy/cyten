@@ -64,25 +64,25 @@ multi-site map
 
 ::
 
-    |        p0   p1   ..   pN
+    |        p0*  p1*  ..  pN*
     |        │    │    │    │
     |       ┏┷━━━━┷━━━━┷━━━━┷┓
     |       ┃       h        ┃
     |       ┗┯━━━━┯━━━━┯━━━━┯┛
     |        │    │    │    │
-    |        p0*  p1*  ..  pN*
+    |        p0   p1   ..   pN
 
 and the factorization that Cyten actually stores is
 
 ::
 
-    |      p0         p1               pN
-    |      │          │                │
-    |  wL ┏┷┓ wR  wL ┏┷┓ wR        wL ┏┷┓ wR
-    |  ───┃0┃────────┃1┃──── ···  ────┃N┃───
-    |     ┗┯┛        ┗┯┛              ┗┯┛
-    |      │          │                │
-    |     p0*        p1*              pN*
+    |        p0*         p1*               pN*
+    |         │           │                 │
+    |     wL ┏┷━┓ wR  wL ┏┷━┓ wR        wL ┏┷━┓ wR
+    |     ───┃0 ┃────────┃1 ┃──── ···  ────┃N ┃───
+    |        ┗┯━┛        ┗┯━┛              ┗┯━┛
+    |         │           │                 │
+    |         p0          p1                pN
 
 Each ``factorization[i]`` is a :class:`~cyten.tensors.SymmetricTensor` with
 labels ``['wL', 'p', 'wR', 'p*']``. The physical pair ``p, p*`` is the
@@ -142,8 +142,8 @@ plus a separate ``Sz Sz`` term; here it is one coupling.
 
 :doc:`first_steps` diagonalizes this Hamiltonian.
 
-:math:`c^\dagger c`
-~~~~~~~~~~~~~~~~~~~
+Hopping :math:`c^\dagger c`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Fermion hopping in a Hamiltonian is the Hermitian combination
 :math:`-t\,(c^\dagger_i c_j + \mathrm{h.c.})`:
@@ -173,6 +173,10 @@ built from the dense two-site block (axes ``p0, p1, p1*, p0*``):
 **on-site** JW dressing (TeNPy's ``"Cd JW"`` on site :math:`i`). They are
 *not* the string on the sites between :math:`i` and :math:`j` — that string
 is the next section.
+
+.. todo ::
+  revisit this.
+
 
 Chiral three-spin
 ~~~~~~~~~~~~~~~~~
@@ -245,13 +249,13 @@ The identity that fills a gap
 
 ::
 
-    |        p0          p1          p2
-    |        │           │           │
-    |    wL ┏┷┓ wR   wL ┏┷┓ wR   wL ┏┷┓ wR
+    |       p0*          p1*          p2*
+    |        │            │            │
+    |    wL ┏┷━┓ wR   wL ┏┷━┓ wR   wL ┏┷━┓ wR
     |    ───┃Cd┃─────────┃Id┃─────────┃C ┃───
-    |       ┗┯┛         ┗┯┛         ┗┯┛
-    |        │           │           │
-    |       p0*         p1*         p2*
+    |       ┗┯━┛         ┗┯━┛         ┗┯━┛
+    |        │            │            │
+    |        p0           p1           p2
 
 The middle tensor is *not* a Kronecker product of ``Id`` on the physical
 space with ``Id`` on the virtual space. It is built as the identity on
@@ -261,16 +265,13 @@ physical one:
 
 ::
 
-    |     p     w                 wL          p
-    |     │     │                  ╲          │
-    |    ┏┷━━━━━┷┓                  ╲         │
-    |    ┃  Id   ┃     permute       ╲        │
-    |    ┗┯━━━━━┯┛     w past p       ╲       │
-    |     │     │                      ╲      │
-    |     p*    w*                      X
-    |                                  ╱      │
-    |                                 ╱       │
-    |                                p*       wR
+    |     p*    w*                   wL      p*
+    |     │     │                      ╲    ╱
+    |    ┏┷━━━━━┷┓                      ╲  ╱
+    |    ┃  Id   ┃     permute           X
+    |    ┗┯━━━━━┯┛     w past p         ╱ ╲
+    |     │     │                      ╱   ╲
+    |     p     w                     p       wR
 
 For an even virtual sector the crossing is trivial. For an **odd** virtual
 sector — exactly the bond of :math:`c^\dagger_i c_j` — the swap gate is
@@ -314,6 +315,9 @@ What this means for measurements
   enough, which is why
   :class:`~cyten.models.SpinlessFermionSite` refuses
   ``NoSymmetryBackend`` / ``AbelianBackend``.
+
+.. todo ::
+  :pull:`225` is about adressing this for the AbelianBackend.
 
 The same crossing rule is why :meth:`~cyten.models.Coupling.permute` of a
 fermionic coupling picks up a minus sign when two odd factors are swapped,

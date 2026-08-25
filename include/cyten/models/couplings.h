@@ -23,13 +23,13 @@ namespace cyten {
 ///
 /// A coupling represents an operator of the following form::
 ///
-///     |        p0   p1   ..   pN
+///     |        p0*  p1*  ..  pN*
 ///     |        │    │    │    │
 ///     |       ┏┷━━━━┷━━━━┷━━━━┷┓
 ///     |       ┃       h        ┃
 ///     |       ┗┯━━━━┯━━━━┯━━━━┯┛
 ///     |        │    │    │    │
-///     |        p0*  p1*  ..  pN*
+///     |        p0   p1   ..   pN
 ///
 /// The intended use case is to build tensor network representations (e.g. MPOs) of Hamiltonians.
 ///
