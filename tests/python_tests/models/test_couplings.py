@@ -1083,12 +1083,11 @@ def test_coupling_permute_matches_direct_permute_legs(site_factory, label):
     """Verify that `Coupling.permute` produces the exact same results as permuting the
     fully-contracted tensor directly.
 
-    Internally, `Coupling.permute` follows this exact chain:
-    contract -> permute_legs -> relabel -> re-factorize.
-
-    This test ensures that this entire re-factorization round-trip works perfectly
-    without losing or duplicating any data. It checks this behavior for both
-    fermionic and bosonic sites.
+    Internally, `Coupling.permute` applies each elementary transposition as a local swap gate
+    to only the two `factorization` tensors it touches, rather than permuting the fully
+    contracted tensor. This test ensures that this local-swap / re-factorization round-trip
+    reproduces the same result as the direct, whole-tensor `permute_legs`, without losing or
+    duplicating any data. It checks this behavior for both fermionic and bosonic sites.
     """
     site = site_factory()
     coupling = couplings.Coupling.from_dense_block(
