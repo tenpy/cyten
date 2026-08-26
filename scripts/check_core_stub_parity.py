@@ -3,6 +3,11 @@
 
 Run after a normal C++ build / ``pip install -e .``::
 
+    python scripts/check_core_stub_parity.py --generate
+
+Also invoked as a local pre-commit hook (skips if the compiled extension is
+not importable). To compare against an already-generated stub::
+
     python scripts/generate_core_stubs.py -o /tmp/_core_stub.py
     python scripts/check_core_stub_parity.py /tmp/_core_stub.py
 

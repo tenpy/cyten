@@ -79,3 +79,10 @@ repos:
         entry: tests/linting/run_local_cmake_build.py
         pass_filenames: false
         always_run: true
+      - id: core-stub-parity
+        name: check cyten._core stub parity
+        language: unsupported_script
+        entry: scripts/check_core_stub_parity.py
+        args: [--generate]
+        pass_filenames: false
+        always_run: true

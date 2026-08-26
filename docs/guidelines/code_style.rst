@@ -79,6 +79,9 @@ configuration
 
 - C++ linter rules are defined in `.clang-tidy`, but are currently not enforced as errors in the pre-commit action.
 
+- Parity of the generated ``cyten._core`` autodoc stub against the compiled extension
+  (``scripts/check_core_stub_parity.py --generate``). Skips if ``cyten._core`` is not importable.
+
 - Check that text files do not contain the specific strings ``FIXME`` and ``DONTSHIP``.
   You may use them in your workflow as reminders to do something before committing/pushing.
 
