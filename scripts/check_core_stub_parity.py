@@ -76,10 +76,14 @@ def compare(live: ModuleType, stub: ModuleType) -> list[str]:
         if _has_cpp_ref(getattr(live_obj, '__doc__', None)):
             if not _has_cpp_ref(getattr(stub_obj, '__doc__', None)):
                 errors.append(f'{name}: missing cyten-cpp-ref on class docstring')
-        # Sample a few members that have markers on the live object
+        # Sample members that have markers on the live object. Skip data
+        # attributes (e.g. ``FermionParity.even``) whose ``__doc__`` is the
+        # instance type's class docstring rather than a binding-level doc.
         for mem in sorted(live_m & stub_m):
             live_mem = getattr(live_obj, mem, None)
             stub_mem = getattr(stub_obj, mem, None)
+            if not callable(live_mem) and not isinstance(live_mem, property):
+                continue
             live_doc = getattr(live_mem, '__doc__', None)
             if isinstance(live_mem, property):
                 live_doc = live_mem.fget.__doc__ if live_mem.fget else live_doc

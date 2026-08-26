@@ -20,7 +20,10 @@ def _is_compiled_core() -> bool:
         return False
     if spec is None or spec.loader is None:
         return False
-    return isinstance(spec.loader, importlib.machinery.ExtensionFileLoader)
+    if isinstance(spec.loader, importlib.machinery.ExtensionFileLoader):
+        return True
+    origin = spec.origin or ''
+    return origin.endswith('.so') or origin.endswith('.pyd')
 
 
 @pytest.mark.skipif(not _is_compiled_core(), reason='compiled cyten._core not available')

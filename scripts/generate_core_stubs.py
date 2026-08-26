@@ -196,11 +196,17 @@ def _matching_paren(text: str, open_idx: int) -> int:
 
 
 def _split_args(arglist: str) -> list[str]:
-    """Split a top-level comma-separated C++ argument list."""
+    """Split a top-level comma-separated C++ argument list.
+
+    Tracks ``()``, ``{}``, and template ``<>``. Angle brackets inside ``{}``
+    are ignored so comparison operators in lambda bodies (``x < cutoff``) do
+    not swallow the remaining ``m.def`` arguments.
+    """
     args: list[str] = []
     buf: list[str] = []
     depth = 0
     angle = 0
+    brace = 0
     i = 0
     n = len(arglist)
     while i < n:
@@ -210,15 +216,19 @@ def _split_args(arglist: str) -> list[str]:
             i = nxt
             continue
         ch = arglist[i]
-        if ch == '<':
+        if ch == '{':
+            brace += 1
+        elif ch == '}' and brace:
+            brace -= 1
+        elif ch == '<' and brace == 0:
             angle += 1
-        elif ch == '>' and angle:
+        elif ch == '>' and angle and brace == 0:
             angle -= 1
         elif ch == '(':
             depth += 1
         elif ch == ')':
             depth -= 1
-        elif ch == ',' and depth == 0 and angle == 0:
+        elif ch == ',' and depth == 0 and angle == 0 and brace == 0:
             args.append(''.join(buf).strip())
             buf = []
             i += 1
@@ -386,10 +396,40 @@ class BindingParser:
     def __init__(self, resolver: DocResolver):
         self.resolver = resolver
         self.mod = ModuleStub()
+        self._doc_vars: dict[str, str] = {}
 
     def _bind_handle(self, name: str, py_name: str, pos: int) -> None:
         self.mod.handles[name] = py_name
         self.mod.handle_history.append((pos, name, py_name))
+
+    def _set_member(self, cls: ClassStub, name: str, kind: str, doc: str) -> None:
+        """Record a member; keep an existing docstring when a later overload has none."""
+        existing = cls.members.get(name)
+        if existing is not None and existing.doc and not doc:
+            return
+        cls.members[name] = Member(
+            name=name,
+            kind=kind,
+            doc=doc or (existing.doc if existing else ''),
+        )
+
+    def _doc_from_def_args(self, args: list[str]) -> str:
+        """Last pybind argument that looks like a docstring expression."""
+        for a in reversed(args[1:]):
+            a = a.strip()
+            if a.startswith('py::'):
+                continue
+            if a in self._doc_vars:
+                return self._doc_vars[a]
+            if (
+                a.startswith('DOC(')
+                or a.startswith('doc_plus(')
+                or a.startswith('doc_cpp_ref(')
+                or a.startswith('R"')
+                or (len(a) >= 2 and a[0] == '"' and a[-1] == '"')
+            ):
+                return self.resolver.resolve(a)
+        return ''
 
     def _handle_at(self, name: str, pos: int) -> str | None:
         """Python class name bound to C++ ``name`` just before ``pos``."""
@@ -609,21 +649,7 @@ class BindingParser:
                 if 'py::init' in args[0]:
                     cls.members.setdefault('__init__', Member('__init__', 'method', ''))
                 continue
-            doc = ''
-            for a in reversed(args[1:]):
-                a = a.strip()
-                if a.startswith('py::'):
-                    continue
-                if (
-                    a.startswith('DOC(')
-                    or a.startswith('doc_plus(')
-                    or a.startswith('doc_cpp_ref(')
-                    or a.startswith('R"')
-                    or (len(a) >= 2 and a[0] == '"' and a[-1] == '"')
-                ):
-                    doc = self.resolver.resolve(a)
-                    break
-            cls.members[name] = Member(name=name, kind=kind, doc=doc)
+            self._set_member(cls, name, kind, self._doc_from_def_args(args))
 
     def _parse_native_enums(self, text: str) -> None:
         for m in re.finditer(r'py::native_enum\s*<[^>]+>\s*', text):
@@ -748,20 +774,13 @@ class BindingParser:
             name = _python_name_from_string_arg(args[0])
             if not name:
                 continue
-            doc = ''
-            # last arg that looks like a doc expression
-            for a in reversed(args[1:]):
-                a = a.strip()
-                if (
-                    a.startswith('DOC(')
-                    or a.startswith('doc_plus(')
-                    or a.startswith('doc_cpp_ref(')
-                    or a.startswith('R"')
-                    or (a.startswith('"') and len(a) > 2)
-                ):
-                    doc = self.resolver.resolve(a)
-                    break
-            self.mod.functions[name] = Member(name=name, kind='method', doc=doc)
+            doc = self._doc_from_def_args(args)
+            existing = self.mod.functions.get(name)
+            if existing is not None and existing.doc and not doc:
+                continue
+            self.mod.functions[name] = Member(
+                name=name, kind='method', doc=doc or (existing.doc if existing else '')
+            )
 
     def _parse_module_attrs(self, text: str) -> None:
         for m in re.finditer(r'\bm\.attr\s*\(\s*"([^"]+)"\s*\)\s*=', text):
@@ -862,21 +881,6 @@ class BindingParser:
                         if cls and '__init__' not in cls.members:
                             cls.members['__init__'] = Member('__init__', 'method', '')
                     continue
-            doc = ''
-            for a in reversed(args[1:]):
-                a = a.strip()
-                if (
-                    a.startswith('DOC(')
-                    or a.startswith('doc_plus(')
-                    or a.startswith('doc_cpp_ref(')
-                    or a.startswith('R"')
-                    or (len(a) >= 2 and a[0] == '"' and a[-1] == '"')
-                ):
-                    # skip py::arg(...)
-                    if a.startswith('py::'):
-                        continue
-                    doc = self.resolver.resolve(a)
-                    break
             cls = self._resolve_cls(handle, m.start())
             if cls is None:
                 continue
@@ -901,7 +905,7 @@ class BindingParser:
                 '__neg__',
             ):
                 pass
-            cls.members[name] = Member(name=name, kind=kind, doc=doc)
+            self._set_member(cls, name, kind, self._doc_from_def_args(args))
 
         # Chained .def( without handle — walk from known handle starts
         for m in re.finditer(
@@ -939,21 +943,7 @@ class BindingParser:
                     if 'py::init' in args[0]:
                         cls.members.setdefault('__init__', Member('__init__', 'method', ''))
                     continue
-                doc = ''
-                for a in reversed(args[1:]):
-                    a = a.strip()
-                    if a.startswith('py::'):
-                        continue
-                    if (
-                        a.startswith('DOC(')
-                        or a.startswith('doc_plus(')
-                        or a.startswith('doc_cpp_ref(')
-                        or a.startswith('R"')
-                        or (len(a) >= 2 and a[0] == '"' and a[-1] == '"')
-                    ):
-                        doc = self.resolver.resolve(a)
-                        break
-                cls.members[name] = Member(name=name, kind=kind, doc=doc)
+                self._set_member(cls, name, kind, self._doc_from_def_args(args))
 
     def _parse_enum_post_attrs(self, text: str) -> None:
         # Handles like: py::object tensor_cls = m.attr("Tensor");
@@ -1042,6 +1032,19 @@ class BindingParser:
                 continue
             doc = self.resolver.resolve(args[2]) if len(args) > 2 else ''
             cls = self._ensure_class(py_name, doc=doc)
+            sparse_docs = {
+                'from_identity': doc_cpp_ref(
+                    'from_identity', 'cyten::Mapping::from_identity()'
+                ),
+                'pre_compose': doc_cpp_ref('pre_compose', 'cyten::Mapping::pre_compose()'),
+                'nonzero_rows': doc_cpp_ref(
+                    'nonzero_rows', 'cyten::Mapping::nonzero_rows()'
+                ),
+                'nonzero_cols': doc_cpp_ref(
+                    'nonzero_cols', 'cyten::Mapping::nonzero_cols()'
+                ),
+                'prune': doc_cpp_ref('prune', 'cyten::Mapping::prune()'),
+            }
             for meth, kind in (
                 ('from_identity', 'staticmethod'),
                 ('pre_compose', 'method'),
@@ -1058,7 +1061,9 @@ class BindingParser:
                 ('__getitem__', 'method'),
                 ('__setitem__', 'method'),
             ):
-                cls.members.setdefault(meth, Member(meth, kind, ''))
+                cls.members.setdefault(
+                    meth, Member(meth, kind, sparse_docs.get(meth, ''))
+                )
         for m in re.finditer(r'bind_identity_mapping\s*(?:<[^;]*?>)?\s*\(', text):
             open_idx = text.index('(', m.start())
             try:
@@ -1074,6 +1079,12 @@ class BindingParser:
             cls = self._ensure_class(
                 py_name, doc=doc_cpp_ref('IdMapping', 'cyten::IdMapping')
             )
+            id_docs = {
+                'pre_compose': doc_cpp_ref(
+                    'pre_compose', 'cyten::IdMapping::pre_compose()'
+                ),
+                'prune': doc_cpp_ref('prune', 'cyten::IdMapping::prune()'),
+            }
             for meth, kind in (
                 ('__init__', 'method'),
                 ('keys', 'readwrite'),
@@ -1082,7 +1093,7 @@ class BindingParser:
                 ('nonzero_cols', 'method'),
                 ('prune', 'method'),
             ):
-                cls.members.setdefault(meth, Member(meth, kind, ''))
+                cls.members.setdefault(meth, Member(meth, kind, id_docs.get(meth, '')))
 
 
 # ---------------------------------------------------------------------------
