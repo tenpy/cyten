@@ -45,6 +45,9 @@ The following options are available::
     ------------------------  -----------  ----------------------------------------------------------------------
     fusion_tree_eps           5e-14        Threshold for discarding near-zero fusion-tree blocks after
                                            topological moves (braids, bends, twists).
+    ------------------------  -----------  ----------------------------------------------------------------------
+    coupling_cutoff           1e-13        Default singular-value cutoff when factorizing a Coupling
+                                           (``from_dense_block`` / ``from_tensor``).
     ========================  ===========  ======================================================================
 
 

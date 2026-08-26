@@ -87,7 +87,7 @@ def _identifier_names(chunk: str) -> list[str]:
 def _names_imported_from_core(mod: Any) -> set[str]:
     try:
         src = inspect.getsource(mod)
-    except (OSError, TypeError):
+    except OSError, TypeError:
         return set()
     names: set[str] = set()
     for match in _CORE_IMPORT_RE.finditer(src):

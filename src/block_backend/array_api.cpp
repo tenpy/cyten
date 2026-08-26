@@ -742,10 +742,39 @@ ArrayApiBlockBackend::eigh(const BlockCPtr& block, std::optional<std::string> so
     return { std::move(w), std::move(v) };
 }
 
+std::tuple<BlockPtr, BlockPtr>
+ArrayApiBlockBackend::eig(const BlockCPtr& block, std::optional<std::string> sort)
+{
+    py::tuple pair = api_.attr("linalg").attr("eig")(obj(block));
+    Dtype cdtype = dtype::to_complex(get_dtype(block));
+    BlockPtr w = to_dtype(wrap(pair[0]), cdtype);
+    BlockPtr v = to_dtype(wrap(pair[1]), cdtype);
+    if (sort) {
+        BlockPtr perm = argsort(w, sort, /*axis=*/0);
+        w = wrap(obj(w).attr("__getitem__")(obj(perm)));
+        py::tuple col_idx =
+          py::make_tuple(py::slice(py::none(), py::none(), py::none()), obj(perm));
+        v = wrap(obj(v).attr("__getitem__")(col_idx));
+    }
+    return { std::move(w), std::move(v) };
+}
+
 BlockPtr
 ArrayApiBlockBackend::eigvalsh(const BlockCPtr& block, std::optional<std::string> sort)
 {
     BlockPtr w = wrap(api_.attr("linalg").attr("eigvalsh")(obj(block)));
+    if (sort) {
+        BlockPtr perm = argsort(w, sort, /*axis=*/0);
+        w = wrap(obj(w).attr("__getitem__")(obj(perm)));
+    }
+    return w;
+}
+
+BlockPtr
+ArrayApiBlockBackend::eigvals(const BlockCPtr& block, std::optional<std::string> sort)
+{
+    Dtype cdtype = dtype::to_complex(get_dtype(block));
+    BlockPtr w = to_dtype(wrap(api_.attr("linalg").attr("eigvals")(obj(block))), cdtype);
     if (sort) {
         BlockPtr perm = argsort(w, sort, /*axis=*/0);
         w = wrap(obj(w).attr("__getitem__")(obj(perm)));

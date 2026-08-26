@@ -66,6 +66,10 @@ Functions
 
 .. autofunction:: cyten.tensors.planar.planar_eigh
 
+.. autofunction:: cyten.tensors.planar.planar_eig
+
+.. autofunction:: cyten.tensors.planar.planar_eigvals
+
 .. autofunction:: cyten.tensors.planar.planar_lq
 
 .. autofunction:: cyten.tensors.planar.planar_partial_trace

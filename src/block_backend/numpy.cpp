@@ -679,6 +679,23 @@ NumpyBlockBackend::eigh(const BlockCPtr& block, std::optional<std::string> sort)
     return { wrap(w), wrap(v) };
 }
 
+std::tuple<BlockPtr, BlockPtr>
+NumpyBlockBackend::eig(const BlockCPtr& block, std::optional<std::string> sort)
+{
+    py::object a = obj(block);
+    py::tuple res = py::cast<py::tuple>(np_attr("linalg").attr("eig")(a));
+    Dtype cdtype = dtype::to_complex(get_dtype(block));
+    BlockPtr w = to_dtype(wrap(res[0]), cdtype);
+    BlockPtr v = to_dtype(wrap(res[1]), cdtype);
+    if (sort) {
+        BlockPtr perm = argsort(w, sort, 0);
+        py::object perm_arr = obj(perm);
+        w = wrap(np_attr("take")(obj(w), perm_arr));
+        v = wrap(np_attr("take")(obj(v), perm_arr, py::arg("axis") = 1));
+    }
+    return { std::move(w), std::move(v) };
+}
+
 BlockPtr
 NumpyBlockBackend::eigvalsh(const BlockCPtr& block, std::optional<std::string> sort)
 {
@@ -695,6 +712,18 @@ NumpyBlockBackend::eigvalsh(const BlockCPtr& block, std::optional<std::string> s
         w = np_attr("take")(w, obj(perm));
     }
     return wrap(w);
+}
+
+BlockPtr
+NumpyBlockBackend::eigvals(const BlockCPtr& block, std::optional<std::string> sort)
+{
+    Dtype cdtype = dtype::to_complex(get_dtype(block));
+    BlockPtr w = to_dtype(wrap(np_attr("linalg").attr("eigvals")(obj(block))), cdtype);
+    if (sort) {
+        BlockPtr perm = argsort(w, sort, 0);
+        w = wrap(np_attr("take")(obj(w), obj(perm)));
+    }
+    return w;
 }
 
 BlockPtr

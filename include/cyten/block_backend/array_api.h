@@ -126,7 +126,10 @@ class ArrayApiBlockBackend : public BlockBackend
     BlockPtr cutoff_inverse(const BlockCPtr& a, float64 cutoff) override;
     std::tuple<BlockPtr, BlockPtr> eigh(const BlockCPtr& block,
                                         std::optional<std::string> sort) override;
+    std::tuple<BlockPtr, BlockPtr> eig(const BlockCPtr& block,
+                                       std::optional<std::string> sort) override;
     BlockPtr eigvalsh(const BlockCPtr& block, std::optional<std::string> sort) override;
+    BlockPtr eigvals(const BlockCPtr& block, std::optional<std::string> sort) override;
     BlockPtr enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis) override;
     BlockPtr exp(const BlockCPtr& a) override;
     BlockPtr block_from_diagonal(const BlockCPtr& diag) override;

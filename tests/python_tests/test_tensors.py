@@ -2094,6 +2094,79 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
         pytest.param(SymmetricTensor, 1, True, id='Sym-1-True'),
         pytest.param(SymmetricTensor, 2, False, id='Sym-2-False'),
         pytest.param(DiagonalTensor, 1, False, id='Diag-False'),
+        pytest.param(DiagonalTensor, 1, True, id='Diag-True'),
+    ],
+)
+def test_eig(cls, dom, new_leg_dual, make_compatible_tensor):
+    T: Tensor = make_compatible_tensor(dom, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(T.domain, T.domain, cls=cls)
+    T.set_labels(list('efghijk')[: 2 * dom])
+    T.test_sanity()
+
+    W, V = tensors.eig(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
+    W.test_sanity()
+    V.test_sanity()
+    assert W.labels == ['b', 'c']
+    assert V.codomain_labels == T.codomain_labels
+    assert V.domain_labels == ['a']
+
+    assert tensors.almost_equal(T @ V, V @ W, allow_different_types=True)
+
+
+@pytest.mark.parametrize(
+    'cls, dom, new_leg_dual',
+    [
+        pytest.param(SymmetricTensor, 1, False, id='Sym-1-False'),
+        pytest.param(SymmetricTensor, 1, True, id='Sym-1-True'),
+        pytest.param(SymmetricTensor, 2, False, id='Sym-2-False'),
+        pytest.param(DiagonalTensor, 1, False, id='Diag-False'),
+        pytest.param(DiagonalTensor, 1, True, id='Diag-True'),
+    ],
+)
+def test_eigvalsh(cls, dom, new_leg_dual, make_compatible_tensor):
+    T: Tensor = make_compatible_tensor(dom, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(T.domain, T.domain, cls=cls)
+    T = T + T.hc
+    T.set_labels(list('efghijk')[: 2 * dom])
+    T.test_sanity()
+
+    W = tensors.eigvalsh(T, new_labels=['b', 'c'], new_leg_dual=new_leg_dual)
+    W.test_sanity()
+    assert W.labels == ['b', 'c']
+    W2, _V = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
+    assert tensors.almost_equal(W, W2, allow_different_types=True)
+
+
+@pytest.mark.parametrize(
+    'cls, dom, new_leg_dual',
+    [
+        pytest.param(SymmetricTensor, 1, False, id='Sym-1-False'),
+        pytest.param(SymmetricTensor, 1, True, id='Sym-1-True'),
+        pytest.param(SymmetricTensor, 2, False, id='Sym-2-False'),
+        pytest.param(DiagonalTensor, 1, False, id='Diag-False'),
+        pytest.param(DiagonalTensor, 1, True, id='Diag-True'),
+    ],
+)
+def test_eigvals(cls, dom, new_leg_dual, make_compatible_tensor):
+    T: Tensor = make_compatible_tensor(dom, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(T.domain, T.domain, cls=cls)
+    T.set_labels(list('efghijk')[: 2 * dom])
+    T.test_sanity()
+
+    W = tensors.eigvals(T, new_labels=['b', 'c'], new_leg_dual=new_leg_dual)
+    W.test_sanity()
+    assert W.labels == ['b', 'c']
+    W2, _V = tensors.eig(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
+    assert tensors.almost_equal(W, W2, allow_different_types=True)
+
+
+@pytest.mark.parametrize(
+    'cls, dom, new_leg_dual',
+    [
+        pytest.param(SymmetricTensor, 1, False, id='Sym-1-False'),
+        pytest.param(SymmetricTensor, 1, True, id='Sym-1-True'),
+        pytest.param(SymmetricTensor, 2, False, id='Sym-2-False'),
+        pytest.param(DiagonalTensor, 1, False, id='Diag-False'),
     ],
 )
 def test_slice_leg(cls, dom, new_leg_dual, make_compatible_tensor, compatible_backend):

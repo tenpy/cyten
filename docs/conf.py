@@ -31,7 +31,7 @@ def _extension_module_available(name: str = 'cyten._core') -> bool:
     """True if a compiled extension (not a pure-Python stub) can be loaded."""
     try:
         spec = importlib.util.find_spec(name)
-    except (ImportError, ModuleNotFoundError, ValueError):
+    except ImportError, ModuleNotFoundError, ValueError:
         return False
     if spec is None or spec.origin is None:
         return False

@@ -1,5 +1,6 @@
 #include <cyten/models/couplings.h>
 
+#include <cyten/config.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/factors/fibonacci_anyon_category.h>
 #include <cyten/symmetries/symmetry.h>
@@ -534,6 +535,15 @@ Coupling::from_tensor(SymmetricTensorPtr operator_,
         throw std::invalid_argument("operator labels do not match expected p-label order");
     }
 
+    if (!cutoff) {
+        cutoff = get_config().coupling_cutoff;
+    }
+    // Truncated SVD divides by ||S|| and keeps at least one singular value. A (numerically) zero
+    // operator hits divide-by-zero and cannot satisfy svd_min vs chi_min, so fall back to QR.
+    if (norm(TensorCPtr{ operator_ }).as_float64() <= *cutoff) {
+        cutoff.reset();
+    }
+
     std::vector<SymmetricTensorPtr> factorization;
     if (sites.size() == 1) {
         SymmetricTensorPtr W =
@@ -677,9 +687,7 @@ Coupling::stretch_with_identities(std::vector<Site::Ptr> const& all_sites,
 }
 
 Coupling
-Coupling::permute(std::vector<int64> const& permutation,
-                  std::optional<LevelsSpec> levels,
-                  std::optional<std::vector<std::optional<bool>>> over_braid) const
+Coupling::permute(std::vector<int64> const& permutation, std::optional<LevelsSpec> levels) const
 {
     int64 const n = static_cast<int64>(sites.size());
     if (!is_permutation(permutation)) {
@@ -710,13 +718,6 @@ Coupling::permute(std::vector<int64> const& permutation,
     }
 
     std::vector<int64> swap_positions = adjacent_transpositions(permutation);
-    if (over_braid.has_value()) {
-        if (static_cast<int64>(over_braid->size()) != static_cast<int64>(swap_positions.size())) {
-            throw std::invalid_argument(std::format("need {} entries in `over_braid`, got {}",
-                                                    swap_positions.size(),
-                                                    over_braid->size()));
-        }
-    }
 
     SymmetricTensorPtr tensor = to_tensor();
     std::vector<Site::Ptr> permuted_sites = sites;
@@ -731,23 +732,16 @@ Coupling::permute(std::vector<int64> const& permutation,
 
     for (std::size_t step = 0; step < swap_positions.size(); ++step) {
         int64 const pos = swap_positions[step];
-        bool over = false;
-        if (over_braid.has_value() && (*over_braid)[step].has_value()) {
-            over = *(*over_braid)[step];
-        } else {
-            if (!levels_state[static_cast<std::size_t>(pos)].has_value() ||
-                !levels_state[static_cast<std::size_t>(pos + 1)].has_value()) {
-                throw BraidChiralityUnspecifiedError(
-                  "Sites that braid must have specified levels.");
-            }
-            int64 const level_1 = *levels_state[static_cast<std::size_t>(pos)];
-            int64 const level_2 = *levels_state[static_cast<std::size_t>(pos + 1)];
-            if (level_1 == level_2) {
-                throw BraidChiralityUnspecifiedError(
-                  "Sites that braid can not have the same level.");
-            }
-            over = level_1 > level_2;
+        if (!levels_state[static_cast<std::size_t>(pos)].has_value() ||
+            !levels_state[static_cast<std::size_t>(pos + 1)].has_value()) {
+            throw BraidChiralityUnspecifiedError("Sites that braid must have specified levels.");
         }
+        int64 const level_1 = *levels_state[static_cast<std::size_t>(pos)];
+        int64 const level_2 = *levels_state[static_cast<std::size_t>(pos + 1)];
+        if (level_1 == level_2) {
+            throw BraidChiralityUnspecifiedError("Sites that braid can not have the same level.");
+        }
+        bool const over = level_1 > level_2;
 
         std::vector<std::string> new_codomain = codomain_labels;
         std::swap(new_codomain[static_cast<std::size_t>(pos)],

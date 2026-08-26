@@ -64,6 +64,8 @@ def test_config_precedence(setup_fake_config):
     default_tensor_backend                                            abel
     ------------------------  ------  ------  ------  ------  ------  ------
     default_block_backend                                     gpu     numpy
+    ------------------------  ------  ------  ------  ------  ------  ------
+    coupling_cutoff                                                           1e-13
     ========================  ======  ======  ======  ======  ======  ======
 
     """
@@ -75,6 +77,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('check_fusion') is False
     assert get_option('default_tensor_backend') == 'abelian'
     assert get_option('default_block_backend') == 'gpu'
+    assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
     invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
@@ -87,6 +90,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('check_fusion') is False
     assert get_option('default_tensor_backend') == 'abelian'
     assert get_option('default_block_backend') == 'gpu'
+    assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
     invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
@@ -98,6 +102,7 @@ def test_config_precedence(setup_fake_config):
         assert get_option('check_fusion') is True
         assert get_option('default_tensor_backend') == 'abelian'
         assert get_option('default_block_backend') == 'gpu'
+        assert get_option('coupling_cutoff') == 1e-13
         # now, doing an invalid fusion should raise
         with pytest.raises(ct.SymmetryError, match='not consistent with fusion rules'):
             invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
@@ -109,6 +114,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('check_fusion') is False
     assert get_option('default_tensor_backend') == 'abelian'
     assert get_option('default_block_backend') == 'gpu'
+    assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
     invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 

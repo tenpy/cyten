@@ -186,6 +186,24 @@ bind_tensor_backend(py::module_& m)
            py::arg("new_leg_dual"),
            py::arg("sort") = py::none(),
            DOC(cyten, TensorBackend, eigh))
+      .def("eig",
+           &TensorBackend::eig,
+           py::arg("a"),
+           py::arg("new_leg_dual"),
+           py::arg("sort") = py::none(),
+           DOC(cyten, TensorBackend, eig))
+      .def("eigvalsh",
+           &TensorBackend::eigvalsh,
+           py::arg("a"),
+           py::arg("new_leg_dual"),
+           py::arg("sort") = py::none(),
+           DOC(cyten, TensorBackend, eigvalsh))
+      .def("eigvals",
+           &TensorBackend::eigvals,
+           py::arg("a"),
+           py::arg("new_leg_dual"),
+           py::arg("sort") = py::none(),
+           DOC(cyten, TensorBackend, eigvals))
       .def("eye_data",
            &TensorBackend::eye_data,
            py::arg("co_domain"),

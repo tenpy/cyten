@@ -329,6 +329,45 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
       bool new_leg_dual,
       std::optional<std::string> sort = std::nullopt) = 0;
 
+    /// Eigenvalue decomposition of a general (not necessarily hermitian) tensor.
+    ///
+    /// Same as `eigh`, but uses a general eigensolver. Eigenvalues and eigenvectors are complex.
+    ///
+    /// @param a The input tensor. Must have matching domain and codomain.
+    /// @param new_leg_dual If the new leg should be dual or not.
+    /// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort` for
+    /// details.
+    /// @returns Data for the `DiagonalTensor` of eigenvalues, data for the `Tensor` of
+    /// eigenvectors, and the new leg.
+    virtual std::tuple<DataPtr, DataPtr, ElementarySpace::Ptr> eig(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) = 0;
+
+    /// Eigenvalues of a hermitian tensor, without eigenvectors.
+    ///
+    /// @param a The input tensor. Assumed to be hermitian without checking!
+    /// @param new_leg_dual If the new leg should be dual or not.
+    /// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort` for
+    /// details.
+    /// @returns Data for the `DiagonalTensor` of eigenvalues and the new leg.
+    virtual std::tuple<DataPtr, ElementarySpace::Ptr> eigvalsh(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) = 0;
+
+    /// Eigenvalues of a general tensor, without eigenvectors.
+    ///
+    /// @param a The input tensor. Must have matching domain and codomain.
+    /// @param new_leg_dual If the new leg should be dual or not.
+    /// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort` for
+    /// details.
+    /// @returns Data for the `DiagonalTensor` of (generally complex) eigenvalues and the new leg.
+    virtual std::tuple<DataPtr, ElementarySpace::Ptr> eigvals(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) = 0;
+
     /// Data for `eye`.
     ///
     /// Data for :meth:``SymmetricTensor.eye``.

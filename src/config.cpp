@@ -174,8 +174,9 @@ const std::vector<std::string>&
 CytenConfig::all_option_keys()
 {
     static const std::vector<std::string> keys = {
-        "print_linewidth", "print_indent",           "maxlines_spaces",       "maxlines_tensors",
-        "check_fusion",    "default_tensor_backend", "default_block_backend", "fusion_tree_eps",
+        "print_linewidth",       "print_indent",    "maxlines_spaces",
+        "maxlines_tensors",      "check_fusion",    "default_tensor_backend",
+        "default_block_backend", "fusion_tree_eps", "coupling_cutoff",
     };
     return keys;
 }
@@ -201,7 +202,7 @@ CytenConfig::set_option(const std::string& key, int64 value)
     } else if (key == "maxlines_tensors") {
         check_min(value, 0, key);
         maxlines_tensors = value;
-    } else if (key == "fusion_tree_eps") {
+    } else if (key == "fusion_tree_eps" || key == "coupling_cutoff") {
         set_option(key, static_cast<float64>(value));
     } else if (std::ranges::contains(all_option_keys(), key)) {
         throw py::type_error("Config option '" + key + "' is not an int");
@@ -216,6 +217,9 @@ CytenConfig::set_option(const std::string& key, float64 value)
     if (key == "fusion_tree_eps") {
         check_min(value, 0.0, key);
         fusion_tree_eps = value;
+    } else if (key == "coupling_cutoff") {
+        check_min(value, 0.0, key);
+        coupling_cutoff = value;
     } else if (std::ranges::contains(all_option_keys(), key)) {
         throw py::type_error("Config option '" + key + "' is not a float");
     } else {
@@ -243,7 +247,7 @@ CytenConfig::set_option(const std::string& key, const std::string& value)
         set_option(key, parse_int64(value));
     } else if (key == "check_fusion") {
         set_option(key, coerce_bool(value));
-    } else if (key == "fusion_tree_eps") {
+    } else if (key == "fusion_tree_eps" || key == "coupling_cutoff") {
         set_option(key, parse_float64(value));
     } else if (key == "default_tensor_backend") {
         static const std::vector<std::string> allowed = { "no_symmetry",
@@ -358,6 +362,8 @@ CytenConfig::get_option(const std::string& key) const
         return py::cast(default_block_backend);
     if (key == "fusion_tree_eps")
         return py::cast(fusion_tree_eps);
+    if (key == "coupling_cutoff")
+        return py::cast(coupling_cutoff);
     throw py::key_error("Invalid option name: " + key);
 }
 

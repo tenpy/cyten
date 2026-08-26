@@ -268,6 +268,24 @@ class NoSymmetryBackend : public TensorBackend
       bool new_leg_dual,
       std::optional<std::string> sort = std::nullopt) override;
 
+    /// Eigenvalue decomposition of a general (not necessarily hermitian) tensor.
+    std::tuple<DataPtr, DataPtr, ElementarySpace::Ptr> eig(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) override;
+
+    /// Eigenvalues of a hermitian tensor, without eigenvectors.
+    std::tuple<DataPtr, ElementarySpace::Ptr> eigvalsh(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) override;
+
+    /// Eigenvalues of a general tensor, without eigenvectors.
+    std::tuple<DataPtr, ElementarySpace::Ptr> eigvals(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) override;
+
     /// Data for :meth:``SymmetricTensor.eye``.
     ///
     /// The result has legs ``first_legs + [l.dual for l in reversed(firs_legs)]``.

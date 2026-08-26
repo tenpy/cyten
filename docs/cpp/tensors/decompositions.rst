@@ -10,7 +10,16 @@ Free functions
    :project: cyten
 
 .. doxygenfunction:: cyten::eigh
-   :project: cyten
+    :project: cyten
+
+.. doxygenfunction:: cyten::eig
+    :project: cyten
+
+.. doxygenfunction:: cyten::eigvalsh
+    :project: cyten
+
+.. doxygenfunction:: cyten::eigvals
+    :project: cyten
 
 .. doxygenfunction:: cyten::entropy
    :project: cyten

@@ -230,6 +230,40 @@ class PyTensorBackend
           new_leg_dual,
           sort);
     }
+    std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>
+    eig(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE_PURE(
+          PYBIND11_TYPE(
+            std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>),
+          TensorBackend,
+          eig,
+          a,
+          new_leg_dual,
+          sort);
+    }
+    std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
+    eigvalsh(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE_PURE(
+          PYBIND11_TYPE(std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>),
+          TensorBackend,
+          eigvalsh,
+          a,
+          new_leg_dual,
+          sort);
+    }
+    std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
+    eigvals(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE_PURE(
+          PYBIND11_TYPE(std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>),
+          TensorBackend,
+          eigvals,
+          a,
+          new_leg_dual,
+          sort);
+    }
     TensorBackend::DataPtr eye_data(TensorProduct::Ptr co_domain,
                                     Dtype dtype,
                                     std::string device) override

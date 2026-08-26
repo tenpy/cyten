@@ -95,6 +95,48 @@ bind_tensors_decompositions(py::module_& m)
       DOC(cyten, eigh));
 
     m.def(
+      "eig",
+      [](TensorCPtr tensor, py::object new_labels, bool new_leg_dual, py::object sort) {
+          return eig(std::move(tensor),
+                     py_leg_labels(to_iterable(new_labels)),
+                     new_leg_dual,
+                     py_opt_string(sort));
+      },
+      py::arg("tensor"),
+      py::arg("new_labels"),
+      py::arg("new_leg_dual"),
+      py::arg("sort") = py::none(),
+      DOC(cyten, eig));
+
+    m.def(
+      "eigvalsh",
+      [](TensorCPtr tensor, py::object new_labels, bool new_leg_dual, py::object sort) {
+          return eigvalsh(std::move(tensor),
+                          py_leg_labels(to_iterable(new_labels)),
+                          new_leg_dual,
+                          py_opt_string(sort));
+      },
+      py::arg("tensor"),
+      py::arg("new_labels"),
+      py::arg("new_leg_dual"),
+      py::arg("sort") = py::none(),
+      DOC(cyten, eigvalsh));
+
+    m.def(
+      "eigvals",
+      [](TensorCPtr tensor, py::object new_labels, bool new_leg_dual, py::object sort) {
+          return eigvals(std::move(tensor),
+                         py_leg_labels(to_iterable(new_labels)),
+                         new_leg_dual,
+                         py_opt_string(sort));
+      },
+      py::arg("tensor"),
+      py::arg("new_labels"),
+      py::arg("new_leg_dual"),
+      py::arg("sort") = py::none(),
+      DOC(cyten, eigvals));
+
+    m.def(
       "entropy",
       [](py::object p, py::object n) {
           if (py::isinstance<DiagonalTensor>(p)) {

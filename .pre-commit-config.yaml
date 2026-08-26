@@ -17,7 +17,7 @@ repos:
       - id: end-of-file-fixer
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.4
+    rev: v0.16.4
     hooks:
       # Run the linter.
       - id: ruff-check
@@ -77,5 +77,12 @@ repos:
         name: cmake --build build
         language: unsupported_script
         entry: tests/linting/run_local_cmake_build.py
+        pass_filenames: false
+        always_run: true
+      - id: core-stub-parity
+        name: check cyten._core stub parity
+        language: unsupported_script
+        entry: scripts/check_core_stub_parity.py
+        args: [--generate]
         pass_filenames: false
         always_run: true

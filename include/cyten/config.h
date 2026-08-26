@@ -24,6 +24,9 @@ class CytenConfig
     /// Default is based on tests for 4-leg tensors: smaller values produced extra blocks from
     /// numerical noise when bending legs and restoring the original configuration.
     float64 fusion_tree_eps = 5.0e-14;
+    /// Default singular-value cutoff when factorizing a `Coupling` (`from_dense_block` /
+    /// `from_tensor`). Singular values below this threshold are discarded.
+    float64 coupling_cutoff = 1.0e-13;
 
     CytenConfig() = default;
 
