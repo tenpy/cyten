@@ -1064,13 +1064,18 @@ norm_py(py::object tensor)
         return scalar_to_py(backend->norm(tensor.cast<TensorCPtr>()));
     }
     if (is_ChargedTensor(tensor)) {
-        if (tensor.attr("charged_state").is_none()) {
-            throw std::invalid_argument(
-              "norm of a ChargedTensor with unspecified charged_state is ambiguous. "
-              "Use e.g. norm_py(tensor.invariant_part).");
-        }
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-        if (tensor.attr("charge_leg").attr("dim").cast<int64>() == 1) {
+        bool const one_dim_charge = tensor.attr("charge_leg").attr("dim").cast<int64>() == 1;
+        if (tensor.attr("charged_state").is_none()) {
+            if (one_dim_charge) {
+                return scalar_to_py(
+                  backend->norm(tensor.attr("invariant_part").cast<TensorCPtr>()));
+            }
+            throw std::invalid_argument(
+              "norm of a ChargedTensor with unspecified charged_state is ambiguous "
+              "when charge_leg.dim > 1. Use e.g. norm_py(tensor.invariant_part).");
+        }
+        if (one_dim_charge) {
             auto factor = backend->block_backend
                             ->item(tensor.attr("charged_state").cast<BlockBackend::BlockPtr>())
                             .abs();

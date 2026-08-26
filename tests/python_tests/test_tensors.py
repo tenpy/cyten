@@ -2780,14 +2780,14 @@ def test_left_bends_fermions(block_backend, np_random):
 def test_norm(cls, cod, dom, make_compatible_tensor):
     T: Tensor = make_compatible_tensor(cod, dom, cls=cls)
 
-    if not T.symmetry.can_be_dropped and cls is ChargedTensor:
-        assert T.charged_state is None  # can not have a charged state for anyons -> can not compute norm
-        return
-
     if cls is ChargedTensor and T.charged_state is None:
+        if T.charge_leg.dim == 1:
+            res = tensors.norm(T)
+            assert isinstance(res, Scalar)
+            npt.assert_almost_equal(res.to_numpy(), tensors.norm(T.invariant_part).to_numpy())
+            return
         with pytest.raises(ValueError, match='norm of a ChargedTensor with unspecified charged_state is ambiguous'):
             _ = tensors.norm(T)
-        # error is expected behavior
         return
 
     res = tensors.norm(T)
@@ -3499,8 +3499,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
 
     assert isinstance(S, DiagonalTensor)
     assert (S >= 0).all()
-    if isinstance(T, ChargedTensor) and T.charged_state is None:
-        # norm of ChargedTensor needs charged_state
+    if isinstance(T, ChargedTensor) and T.charged_state is None and T.charge_leg.dim != 1:
         npt.assert_almost_equal(tensors.norm(S), tensors.norm(T.invariant_part))
     else:
         npt.assert_almost_equal(tensors.norm(S), tensors.norm(T))
@@ -3529,7 +3528,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
 
         assert isinstance(S, DiagonalTensor)
         assert (S >= 0).all()
-        if T.charged_state is None:
+        if T.charged_state is None and T.charge_leg.dim != 1:
             npt.assert_almost_equal(tensors.norm(S), tensors.norm(T.invariant_part))
         else:
             npt.assert_almost_equal(tensors.norm(S), tensors.norm(T))
