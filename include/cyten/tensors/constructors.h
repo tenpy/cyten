@@ -158,8 +158,9 @@ namespace cyten {
 /// Unit vector selecting summand ``i`` of a `DirectSumSpace`.
 ///
 /// Requires ``space.spaces[i]`` to be the one-dimensional trivial sector.
-/// Returns a `SymmetricTensor` equal to the inclusion Mask converted to a
-/// SymmetricTensor (codomain = ``space``, domain = trivial 1-dim space).
+/// Returns a rank-1 `SymmetricTensor` (codomain = ``space``, empty domain),
+/// obtained by converting the inclusion Mask and squeezing the trivial domain
+/// leg. Optional `labels` must have length 1 (the remaining leg).
 [[nodiscard]] SymmetricTensorPtr unit_vector_of_summand(
   DirectSumSpace::CPtr space,
   int64 i,

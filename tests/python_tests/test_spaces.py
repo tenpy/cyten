@@ -607,12 +607,14 @@ def test_DirectSumSpace_inclusion_unit_vector(compatible_symmetry, compatible_ba
 
     mps = spaces.ElementarySpace.from_trivial_sector(2, symmetry=sym)
     eye = SymmetricTensor.from_eye([mps], backend=backend, labels=['vL', 'vL*'])
-    unit = d.unit_vector(0, backend=backend, labels=['wL', '!'], dtype=eye.dtype)
-    lp = tensors.squeeze_legs(tensors.outer(eye, tensors.dagger(unit)), '!*')
+    unit = d.unit_vector(0, backend=backend, labels=['wL'], dtype=eye.dtype)
+    assert unit.num_legs == 1
+    lp = tensors.outer(eye, tensors.dagger(unit))
     lp.test_sanity()
     assert lp.labels == ['vL', 'wL*', 'vL*']
-    rp_unit = d.unit_vector(-1, backend=backend, labels=['wR', '!'], dtype=eye.dtype)
-    rp = tensors.squeeze_legs(tensors.outer(tensors.dagger(rp_unit), eye), '!*')
+    rp_unit = d.unit_vector(-1, backend=backend, labels=['wR'], dtype=eye.dtype)
+    assert rp_unit.num_legs == 1
+    rp = tensors.outer(tensors.dagger(rp_unit), eye)
     rp.test_sanity()
     assert 'vL' in rp.labels and 'wR*' in rp.labels
 

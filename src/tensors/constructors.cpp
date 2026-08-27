@@ -5,6 +5,7 @@
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/mask.h>
+#include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
@@ -613,10 +614,20 @@ unit_vector_of_summand(DirectSumSpace::CPtr space,
     auto incl = inclusion_of_summand(space, i, std::move(backend), std::nullopt, device);
     Dtype out_dtype = dtype.value_or(Dtype::Complex128);
     auto tens = incl->as_SymmetricTensor(/*guarantee_copy=*/false, std::nullopt, out_dtype);
-    if (labels.has_value()) {
-        tens->set_labels(*labels);
+    // Inclusion is trivial → fused; squeeze the trivial domain to get a pure vector on `space`.
+    auto squeezed = squeeze_legs(tens, std::vector<LegRef>{ LegRef{ int64{ -1 } } });
+    auto out = std::dynamic_pointer_cast<SymmetricTensor>(squeezed);
+    if (!out) {
+        throw std::runtime_error("unit_vector_of_summand: squeeze_legs did not return SymmetricTensor");
     }
-    return tens;
+    if (labels.has_value()) {
+        if (labels->size() != 1) {
+            throw std::invalid_argument(
+              "unit_vector_of_summand labels must have length 1 (the fused DirectSumSpace leg)");
+        }
+        out->set_labels(*labels);
+    }
+    return out;
 }
 
 } // namespace cyten
