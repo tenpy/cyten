@@ -11,6 +11,7 @@ Headers in ``include/cyten/tensors/``.
    tensors/diagonal_tensor
    tensors/mask
    tensors/charged_tensor
+   tensors/hidden_leg_tensor
    tensors/constructors
    tensors/ops_algebra
    tensors/ops_elementwise
