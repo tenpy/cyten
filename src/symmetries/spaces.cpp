@@ -1571,6 +1571,14 @@ ElementarySpace::operator==(Space const& other) const
 bool
 ElementarySpace::equals_es(ElementarySpace const& other) const
 {
+    // DirectSumSpace equality is structural (summands), not fused sector content.
+    if (is_direct_sum_space() || other.is_direct_sum_space()) {
+        if (!(is_direct_sum_space() && other.is_direct_sum_space())) {
+            return false;
+        }
+        return dynamic_cast<DirectSumSpace const&>(*this).equals_dss(
+          dynamic_cast<DirectSumSpace const&>(other));
+    }
     if (is_dual != other.is_dual) {
         return false;
     }
@@ -1640,33 +1648,11 @@ ElementarySpace::direct_sum(std::vector<Ptr> const& others) const
     if (others.empty()) {
         return shared_es();
     }
-    if (!std::ranges::all_of(
-          others, [this](Ptr const& o) { return o->Space::symmetry->equals(*Space::symmetry); })) {
-        throw std::invalid_argument("direct_sum requires matching symmetries");
-    }
-    if (!std::ranges::all_of(others, [this](Ptr const& o) { return o->is_dual == is_dual; })) {
-        throw std::invalid_argument("direct_sum requires matching duality");
-    }
-    std::optional<std::vector<int64>> basis_perm_;
-    if (Space::symmetry->can_be_dropped()) {
-        auto perm = basis_perm();
-        auto offset = static_cast<int64>(Space::dim);
-        for (auto const& other : others) {
-            for (auto const idx : other->basis_perm()) {
-                perm.push_back(idx + offset);
-            }
-            offset += static_cast<int64>(other->Space::dim);
-        }
-        basis_perm_ = std::move(perm);
-    }
-    auto sectors = defining_sectors;
-    auto mults = multiplicities;
-    for (auto const& other : others) {
-        sectors = sectors.concat(other->defining_sectors);
-        mults.insert(mults.end(), other->multiplicities.begin(), other->multiplicities.end());
-    }
-    return from_defining_sectors(
-      Space::symmetry, std::move(sectors), std::move(mults), is_dual, std::move(basis_perm_));
+    std::vector<Ptr> all;
+    all.reserve(1 + others.size());
+    all.push_back(shared_es());
+    all.insert(all.end(), others.begin(), others.end());
+    return DirectSumSpace::from_spaces(std::move(all), is_dual);
 }
 
 py::object
@@ -1927,6 +1913,393 @@ ElementarySpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
                                                  std::move(multiplicities),
                                                  is_dual,
                                                  std::move(basis_perm));
+    py::object py_obj = py::cast(obj);
+    hdf5_loader.attr("memorize_load")(h5gr, py_obj);
+    return obj;
+}
+
+namespace {
+
+[[nodiscard]] std::vector<int64>
+dss_cumsum_with_leading_zero(std::vector<int64> const& mults)
+{
+    std::vector<int64> out;
+    out.reserve(mults.size() + 1);
+    out.push_back(0);
+    int64 running = 0;
+    for (auto m : mults) {
+        running += m;
+        out.push_back(running);
+    }
+    return out;
+}
+
+[[nodiscard]] std::vector<ElementarySpace::Ptr>
+flatten_direct_sum_spaces(std::vector<ElementarySpace::Ptr> const& spaces)
+{
+    std::vector<ElementarySpace::Ptr> flat;
+    flat.reserve(spaces.size());
+    for (auto const& s : spaces) {
+        if (!s) {
+            throw std::invalid_argument("DirectSumSpace summands must be non-null");
+        }
+        if (std::dynamic_pointer_cast<LegPipe>(s)) {
+            throw std::invalid_argument(
+              "DirectSumSpace summands must be plain ElementarySpaces (not pipes)");
+        }
+        if (auto dss = std::dynamic_pointer_cast<DirectSumSpace>(s)) {
+            auto nested = flatten_direct_sum_spaces(dss->spaces);
+            flat.insert(flat.end(), nested.begin(), nested.end());
+        } else {
+            flat.push_back(s);
+        }
+    }
+    return flat;
+}
+
+} // namespace
+
+DirectSumSpace::Prepared
+DirectSumSpace::prepare(std::vector<ElementarySpace::Ptr> spaces_in, bool is_dual_)
+{
+    auto flat = flatten_direct_sum_spaces(spaces_in);
+    if (flat.empty()) {
+        throw std::invalid_argument("DirectSumSpace requires at least one summand");
+    }
+    auto const& sym = flat[0]->Space::symmetry;
+    if (!std::ranges::all_of(
+          flat, [&](ElementarySpace::Ptr const& o) { return o->Space::symmetry->equals(*sym); })) {
+        throw std::invalid_argument("DirectSumSpace requires matching symmetries");
+    }
+    if (!std::ranges::all_of(flat,
+                             [is_dual_](ElementarySpace::Ptr const& o) {
+                                 return o->is_dual == is_dual_;
+                             })) {
+        throw std::invalid_argument("DirectSumSpace requires matching duality");
+    }
+
+    std::optional<std::vector<int64>> basis_perm_;
+    if (sym->can_be_dropped()) {
+        std::vector<int64> perm;
+        auto offset = int64{ 0 };
+        for (auto const& s : flat) {
+            for (auto const idx : s->basis_perm()) {
+                perm.push_back(idx + offset);
+            }
+            offset += static_cast<int64>(s->Space::dim);
+        }
+        basis_perm_ = std::move(perm);
+    }
+
+    auto sectors = flat[0]->defining_sectors;
+    auto mults = flat[0]->multiplicities;
+    for (std::size_t i = 1; i < flat.size(); ++i) {
+        sectors = sectors.concat(flat[i]->defining_sectors);
+        mults.insert(mults.end(), flat[i]->multiplicities.begin(), flat[i]->multiplicities.end());
+    }
+
+    // Build the fused ElementarySpace view to obtain sorted/merged defining data, then
+    // copy those into Prepared. We do not keep the temporary plain ES.
+    auto fused = ElementarySpace::from_defining_sectors(
+      sym, std::move(sectors), std::move(mults), is_dual_, std::move(basis_perm_));
+
+    Prepared prepared;
+    prepared.spaces = std::move(flat);
+    prepared.symmetry = fused->Space::symmetry;
+    prepared.defining_sectors = fused->defining_sectors;
+    prepared.multiplicities = fused->multiplicities;
+    if (sym->can_be_dropped()) {
+        prepared.basis_perm = fused->basis_perm();
+    }
+    return prepared;
+}
+
+DirectSumSpace::DirectSumSpace(Prepared prepared, bool is_dual_)
+  : ElementarySpace(prepared.symmetry,
+                    prepared.defining_sectors,
+                    prepared.multiplicities,
+                    is_dual_,
+                    prepared.basis_perm)
+  , spaces(std::move(prepared.spaces))
+{
+}
+
+DirectSumSpace::DirectSumSpace(std::vector<ElementarySpace::Ptr> spaces_, bool is_dual_)
+  : DirectSumSpace(prepare(std::move(spaces_), is_dual_), is_dual_)
+{
+}
+
+DirectSumSpace::Ptr
+DirectSumSpace::from_spaces(std::vector<ElementarySpace::Ptr> spaces_, bool is_dual_)
+{
+    return std::make_shared<DirectSumSpace>(std::move(spaces_), is_dual_);
+}
+
+DirectSumSpace::Ptr
+DirectSumSpace::shared_dss() const
+{
+    return std::dynamic_pointer_cast<DirectSumSpace>(shared_es());
+}
+
+void
+DirectSumSpace::test_sanity() const
+{
+    if (spaces.empty()) {
+        throw std::logic_error("DirectSumSpace::test_sanity: empty spaces");
+    }
+    for (auto const& s : spaces) {
+        if (!s) {
+            throw std::logic_error("DirectSumSpace::test_sanity: null summand");
+        }
+        if (s->is_direct_sum_space()) {
+            throw std::logic_error("DirectSumSpace::test_sanity: nested DirectSumSpace");
+        }
+        if (std::dynamic_pointer_cast<LegPipe>(s)) {
+            throw std::logic_error("DirectSumSpace::test_sanity: pipe summand");
+        }
+        if (s->is_dual != is_dual) {
+            throw std::logic_error("DirectSumSpace::test_sanity: duality mismatch");
+        }
+        if (!s->Space::symmetry->equals(*Space::symmetry)) {
+            throw std::logic_error("DirectSumSpace::test_sanity: symmetry mismatch");
+        }
+        s->test_sanity();
+    }
+    // Fused view must match collapsing direct_sum of the plain summands.
+    auto plain = as_plain_ElementarySpace();
+    if (plain->num_sectors != num_sectors || plain->multiplicities != multiplicities ||
+        !(plain->defining_sectors == defining_sectors)) {
+        throw std::logic_error("DirectSumSpace::test_sanity: fused view mismatch");
+    }
+    if (Space::symmetry->can_be_dropped() && plain->basis_perm() != basis_perm()) {
+        throw std::logic_error("DirectSumSpace::test_sanity: basis_perm mismatch");
+    }
+    ElementarySpace::test_sanity();
+}
+
+std::vector<std::vector<int64>>
+DirectSumSpace::mult_slices() const
+{
+    std::vector<std::vector<int64>> out;
+    out.reserve(static_cast<std::size_t>(num_sectors));
+    for (auto const& sector : sector_decomposition) {
+        std::vector<int64> mults;
+        mults.reserve(spaces.size());
+        for (auto const& space : spaces) {
+            auto idx = space->sector_decomposition_where(sector);
+            mults.push_back(idx.has_value() ? space->multiplicities[static_cast<std::size_t>(*idx)]
+                                            : int64{ 0 });
+        }
+        out.push_back(dss_cumsum_with_leading_zero(mults));
+    }
+    return out;
+}
+
+ElementarySpace::Ptr
+DirectSumSpace::as_plain_ElementarySpace() const
+{
+    std::optional<std::vector<int64>> perm;
+    if (Space::symmetry->can_be_dropped()) {
+        perm = basis_perm();
+    }
+    return ElementarySpace::from_defining_sectors(
+      Space::symmetry, defining_sectors, multiplicities, is_dual, std::move(perm),
+      /*unique_sectors=*/true);
+}
+
+py::object
+DirectSumSpace::as_Space()
+{
+    return py::cast(shared_dss());
+}
+
+py::object
+DirectSumSpace::as_ElementarySpace(bool is_dual_)
+{
+    return py::cast(with_is_dual(is_dual_));
+}
+
+Space::Ptr
+DirectSumSpace::dual_space() const
+{
+    return dual_dss();
+}
+
+Leg::Ptr
+DirectSumSpace::dual_leg() const
+{
+    return dual_dss();
+}
+
+DirectSumSpace::Ptr
+DirectSumSpace::dual_dss() const
+{
+    return std::dynamic_pointer_cast<DirectSumSpace>(with_opposite_duality());
+}
+
+py::object
+DirectSumSpace::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
+{
+    std::vector<ElementarySpace::Ptr> new_spaces;
+    new_spaces.reserve(spaces.size());
+    for (auto const& s : spaces) {
+        new_spaces.push_back(
+          s->change_symmetry(symmetry_, sector_map, injective).cast<ElementarySpace::Ptr>());
+    }
+    return py::cast(from_spaces(std::move(new_spaces), is_dual));
+}
+
+py::object
+DirectSumSpace::drop_symmetry(std::optional<std::vector<int64>> which)
+{
+    std::vector<ElementarySpace::Ptr> new_spaces;
+    new_spaces.reserve(spaces.size());
+    for (auto const& s : spaces) {
+        new_spaces.push_back(s->drop_symmetry(which).cast<ElementarySpace::Ptr>());
+    }
+    return py::cast(from_spaces(std::move(new_spaces), is_dual));
+}
+
+ElementarySpace::Ptr
+DirectSumSpace::take_slice(py::array blockmask) const
+{
+    warn("Using `DirectSumSpace.take_slice` loses the direct-sum structure and results in "
+         "a plain ElementarySpace. Explicitly convert using `as_plain_ElementarySpace` to "
+         "suppress this warning.");
+    return as_plain_ElementarySpace()->take_slice(std::move(blockmask));
+}
+
+ElementarySpace::Ptr
+DirectSumSpace::with_opposite_duality() const
+{
+    std::vector<ElementarySpace::Ptr> new_spaces;
+    new_spaces.reserve(spaces.size());
+    for (auto const& s : spaces) {
+        new_spaces.push_back(s->with_opposite_duality());
+    }
+    return from_spaces(std::move(new_spaces), !is_dual);
+}
+
+bool
+DirectSumSpace::operator==(Leg const& other) const
+{
+    auto const* o = dynamic_cast<DirectSumSpace const*>(&other);
+    if (o == nullptr) {
+        return false;
+    }
+    return equals_dss(*o);
+}
+
+bool
+DirectSumSpace::operator==(Space const& other) const
+{
+    auto const* o = dynamic_cast<DirectSumSpace const*>(&other);
+    if (o == nullptr) {
+        return false;
+    }
+    return equals_dss(*o);
+}
+
+bool
+DirectSumSpace::equals_dss(DirectSumSpace const& other) const
+{
+    if (is_dual != other.is_dual) {
+        return false;
+    }
+    if (spaces.size() != other.spaces.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < spaces.size(); ++i) {
+        if (!spaces[i]->equals_es(*other.spaces[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::string
+DirectSumSpace::repr(bool show_symmetry, bool one_line) const
+{
+    std::ostringstream oss;
+    oss << "DirectSumSpace(";
+    if (!one_line) {
+        oss << '\n';
+    }
+    for (std::size_t i = 0; i < spaces.size(); ++i) {
+        if (!one_line) {
+            oss << "  ";
+        }
+        if (i > 0) {
+            oss << (one_line ? ", " : ",\n  ");
+        }
+        oss << spaces[i]->repr(show_symmetry, /*one_line=*/true);
+    }
+    if (!one_line) {
+        oss << '\n';
+    }
+    oss << ')';
+    return oss.str();
+}
+
+DirectSumSpace::Ptr
+DirectSumSpace::from_basis(Symmetry::Ptr /*symmetry*/, SectorArray /*sectors_of_basis*/)
+{
+    throw py::type_error("from_basis is not supported for DirectSumSpace");
+}
+
+DirectSumSpace::Ptr
+DirectSumSpace::from_null_space(Symmetry::Ptr /*symmetry*/, bool /*is_dual*/)
+{
+    throw py::type_error("from_null_space is not supported for DirectSumSpace");
+}
+
+DirectSumSpace::Ptr
+DirectSumSpace::from_defining_sectors(Symmetry::Ptr /*symmetry*/,
+                                      SectorArray /*defining_sectors*/,
+                                      std::optional<std::vector<int64>> /*multiplicities*/,
+                                      bool /*is_dual*/,
+                                      std::optional<std::vector<int64>> /*basis_perm*/,
+                                      bool /*unique_sectors*/,
+                                      std::vector<std::size_t>* /*return_sorting_perm*/)
+{
+    throw py::type_error("from_defining_sectors is not supported for DirectSumSpace");
+}
+
+DirectSumSpace::Ptr
+DirectSumSpace::from_trivial_sector(int64 /*dim*/,
+                                    Symmetry::Ptr /*symmetry*/,
+                                    bool /*is_dual*/,
+                                    std::optional<std::vector<int64>> /*basis_perm*/)
+{
+    throw py::type_error("from_trivial_sector is not supported for DirectSumSpace");
+}
+
+void
+DirectSumSpace::save_hdf5(py::object hdf5_saver,
+                          py::object h5gr,
+                          std::string const& subpath) const
+{
+    ElementarySpace::save_hdf5(hdf5_saver, h5gr, subpath);
+    auto save = hdf5_saver.attr("save");
+    py::list spaces_list;
+    for (auto const& s : spaces) {
+        spaces_list.append(py::cast(s));
+    }
+    save(spaces_list, subpath + "spaces");
+    h5gr.attr("attrs")["is_direct_sum_space"] = true;
+}
+
+DirectSumSpace::Ptr
+DirectSumSpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    auto load = hdf5_loader.attr("load");
+    auto spaces_obj = load(subpath + "spaces");
+    std::vector<ElementarySpace::Ptr> spaces_;
+    for (py::handle item : spaces_obj) {
+        spaces_.push_back(item.cast<ElementarySpace::Ptr>());
+    }
+    auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
+    auto obj = from_spaces(std::move(spaces_), is_dual);
     py::object py_obj = py::cast(obj);
     hdf5_loader.attr("memorize_load")(h5gr, py_obj);
     return obj;

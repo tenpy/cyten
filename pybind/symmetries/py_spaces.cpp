@@ -1,5 +1,6 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/spaces.h"
+#include "docstrings/tensors/constructors.h"
 #include "py_cyten_pybind11.h"
 
 #include "backends/casters.hpp"
@@ -8,6 +9,9 @@
 #include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/spaces.h>
 #include <cyten/symmetries/symmetry.h>
+#include <cyten/tensors/constructors.h>
+#include <cyten/tensors/mask.h>
+#include <cyten/tensors/symmetric_tensor.h>
 
 #include <pybind11/functional.h>
 #include <pybind11/numpy.h>
@@ -221,6 +225,8 @@ objects_to_python(std::vector<py::object> const& objects)
 }
 
 void bind_elementary_space(py::module_& m);
+
+void bind_direct_sum_space(py::module_& m);
 
 void bind_tensor_product(py::module_& m);
 
@@ -454,6 +460,7 @@ bind_spaces(py::module_& m)
       .def("repr", &LegPipe::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false);
 
     bind_elementary_space(m);
+    bind_direct_sum_space(m);
     bind_tensor_product(m);
     bind_abelian_leg_pipe(m);
 }
@@ -715,6 +722,205 @@ bind_elementary_space(py::module_& m)
            py::arg("subpath"))
       .def_static("from_hdf5",
                   &ElementarySpace::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"))
+      .def_property_readonly("is_direct_sum_space",
+                             &ElementarySpace::is_direct_sum_space,
+                             DOC(cyten, ElementarySpace, is_direct_sum_space));
+}
+
+void
+bind_direct_sum_space(py::module_& m)
+{
+    py::class_<DirectSumSpace, ElementarySpace, PyDirectSumSpace, py::smart_holder> cls(
+      m, "DirectSumSpace", DOC(cyten, DirectSumSpace));
+
+    cls.def(py::init([](py::sequence spaces_obj, bool is_dual) {
+                std::vector<ElementarySpace::Ptr> spaces;
+                spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
+                for (py::handle item : spaces_obj) {
+                    spaces.push_back(item.cast<ElementarySpace::Ptr>());
+                }
+                return std::make_shared<PyDirectSumSpace>(std::move(spaces), is_dual);
+            }),
+            py::arg("spaces"),
+            py::arg("is_dual") = false);
+
+    cls.def_property_readonly(
+      "spaces",
+      [](DirectSumSpace const& self) { return self.spaces; });
+
+    cls.def_static(
+         "from_spaces",
+         [](py::sequence spaces_obj, bool is_dual) {
+             std::vector<ElementarySpace::Ptr> spaces;
+             spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
+             for (py::handle item : spaces_obj) {
+                 spaces.push_back(item.cast<ElementarySpace::Ptr>());
+             }
+             return DirectSumSpace::from_spaces(std::move(spaces), is_dual);
+         },
+         py::arg("spaces"),
+         py::arg("is_dual") = false,
+         DOC(cyten, DirectSumSpace, from_spaces))
+      .def("mult_slices",
+           &DirectSumSpace::mult_slices,
+           DOC(cyten, DirectSumSpace, mult_slices))
+      .def("as_plain_ElementarySpace",
+           &DirectSumSpace::as_plain_ElementarySpace,
+           DOC(cyten, DirectSumSpace, as_plain_ElementarySpace))
+      .def("test_sanity", &DirectSumSpace::test_sanity)
+      .def("as_Space", &DirectSumSpace::as_Space, DOC(cyten, DirectSumSpace, as_Space))
+      .def("as_ElementarySpace",
+           &DirectSumSpace::as_ElementarySpace,
+           py::arg("is_dual") = false,
+           DOC(cyten, Leg, as_ElementarySpace))
+      .def_property_readonly("dual", &DirectSumSpace::dual_dss, DOC(cyten, Leg, dual))
+      .def(
+        "change_symmetry",
+        [](
+          DirectSumSpace& self, py::object symmetry_obj, py::function sector_map, bool injective) {
+            return self.change_symmetry(
+              symmetry_from_python(symmetry_obj), sector_map_from_python(sector_map), injective);
+        },
+        py::arg("symmetry"),
+        py::arg("sector_map"),
+        py::arg("injective") = false,
+        DOC(cyten, ElementarySpace, change_symmetry))
+      .def(
+        "drop_symmetry",
+        [](DirectSumSpace& self, py::object which) {
+            return self.drop_symmetry(drop_which_from_python(which));
+        },
+        py::arg("which") = "all",
+        DOC(cyten, Space, drop_symmetry))
+      .def(
+        "take_slice",
+        [](DirectSumSpace& self, py::object blockmask) {
+            return self.take_slice(py::array::ensure(blockmask));
+        },
+        py::arg("blockmask"),
+        DOC(cyten, ElementarySpace, take_slice))
+      .def("with_opposite_duality",
+           &DirectSumSpace::with_opposite_duality,
+           DOC(cyten, ElementarySpace, with_opposite_duality))
+      .def(
+        "projection",
+        [](DirectSumSpace const& self,
+           int64 i,
+           TensorBackend::Ptr backend,
+           py::object labels,
+           py::object device) {
+            std::optional<LegLabels> labels_opt;
+            if (!labels.is_none()) {
+                labels_opt = labels.cast<LegLabels>();
+            }
+            std::optional<std::string> device_opt;
+            if (!device.is_none()) {
+                device_opt = device.cast<std::string>();
+            }
+            return projection_onto_summand(
+              self.shared_dss(), i, std::move(backend), std::move(labels_opt), std::move(device_opt));
+        },
+        py::arg("i"),
+        py::arg("backend") = py::none(),
+        py::arg("labels") = py::none(),
+        py::arg("device") = py::none(),
+        DOC(cyten, projection_onto_summand))
+      .def(
+        "inclusion",
+        [](DirectSumSpace const& self,
+           int64 i,
+           TensorBackend::Ptr backend,
+           py::object labels,
+           py::object device) {
+            std::optional<LegLabels> labels_opt;
+            if (!labels.is_none()) {
+                labels_opt = labels.cast<LegLabels>();
+            }
+            std::optional<std::string> device_opt;
+            if (!device.is_none()) {
+                device_opt = device.cast<std::string>();
+            }
+            return inclusion_of_summand(
+              self.shared_dss(), i, std::move(backend), std::move(labels_opt), std::move(device_opt));
+        },
+        py::arg("i"),
+        py::arg("backend") = py::none(),
+        py::arg("labels") = py::none(),
+        py::arg("device") = py::none(),
+        DOC(cyten, inclusion_of_summand))
+      .def(
+        "unit_vector",
+        [](DirectSumSpace const& self,
+           int64 i,
+           TensorBackend::Ptr backend,
+           py::object labels,
+           py::object dtype,
+           py::object device) {
+            std::optional<LegLabels> labels_opt;
+            if (!labels.is_none()) {
+                labels_opt = labels.cast<LegLabels>();
+            }
+            std::optional<Dtype> dtype_opt;
+            if (!dtype.is_none()) {
+                dtype_opt = dtype.cast<Dtype>();
+            }
+            std::optional<std::string> device_opt;
+            if (!device.is_none()) {
+                device_opt = device.cast<std::string>();
+            }
+            return unit_vector_of_summand(self.shared_dss(),
+                                          i,
+                                          std::move(backend),
+                                          std::move(labels_opt),
+                                          std::move(dtype_opt),
+                                          std::move(device_opt));
+        },
+        py::arg("i"),
+        py::arg("backend") = py::none(),
+        py::arg("labels") = py::none(),
+        py::arg("dtype") = py::none(),
+        py::arg("device") = py::none(),
+        DOC(cyten, unit_vector_of_summand))
+      .def("__repr__", [](DirectSumSpace const& self) { return self.repr(); })
+      .def("repr", &DirectSumSpace::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
+      .def("__eq__",
+           [](DirectSumSpace const& self, py::object other) -> py::object {
+               if (!py::isinstance<DirectSumSpace>(other)) {
+                   return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
+               }
+               return py::cast(self.equals_dss(other.cast<DirectSumSpace const&>()));
+           })
+      // Shadow unsupported ElementarySpace factories
+      .def_static(
+        "from_basis",
+        [](py::args, py::kwargs) -> py::object {
+            throw py::type_error("from_basis is not supported for DirectSumSpace");
+        })
+      .def_static(
+        "from_null_space",
+        [](py::args, py::kwargs) -> py::object {
+            throw py::type_error("from_null_space is not supported for DirectSumSpace");
+        })
+      .def_static(
+        "from_defining_sectors",
+        [](py::args, py::kwargs) -> py::object {
+            throw py::type_error("from_defining_sectors is not supported for DirectSumSpace");
+        })
+      .def_static(
+        "from_trivial_sector",
+        [](py::args, py::kwargs) -> py::object {
+            throw py::type_error("from_trivial_sector is not supported for DirectSumSpace");
+        })
+      .def("save_hdf5",
+           &DirectSumSpace::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"))
+      .def_static("from_hdf5",
+                  &DirectSumSpace::from_hdf5,
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

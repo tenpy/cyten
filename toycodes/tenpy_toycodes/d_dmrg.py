@@ -168,42 +168,28 @@ class DMRGEngine:
     def init_LP(self):
         mps_left_leg = self.psi.Bs[0].codomain[0]
         mpo_left_leg = self.H_mpo[0].codomain[0]
-        sym = mps_left_leg.symmetry
-        left_codom = ct.TensorProduct([mps_left_leg], sym)
-        left_dom = ct.TensorProduct([mps_left_leg, mpo_left_leg], sym)
-        tree_pairs = {}
-        for tree, _, mults, _ in left_dom.iter_tree_blocks(mps_left_leg.sector_decomposition):
-            if tree.uncoupled[1] != sym.trivial_sector:
-                continue
-            # add the second MPS leg
-            shape = np.append(mults[:1], mults[::-1])
-            block = np.zeros(shape)
-            block[:, 0, :] += np.eye(shape[0], shape[2])
-            codom_tree = ct.FusionTree.from_sector(sym, tree.uncoupled[0], tree.are_dual[0])
-            tree_pairs[(codom_tree, tree)] = block
-        return ct.SymmetricTensor.from_tree_pairs(
-            tree_pairs, left_codom, left_dom, self.psi.backend, labels=['vL', 'wL*', 'vL*']
+        backend = self.psi.backend
+        dtype = self.psi.Bs[0].dtype
+        eye = ct.SymmetricTensor.from_eye(
+            [mps_left_leg], backend=backend, labels=['vL', 'vL*'], dtype=dtype
         )
+        # IdL is summand 0 of the finite MPO virtual leg
+        unit = mpo_left_leg.unit_vector(0, backend=backend, labels=['wL', '!'], dtype=dtype)
+        # Only squeeze the auxiliary trivial leg from the unit vector; the MPS bond may
+        # also be trivial (dim 1) at the boundary and must be kept.
+        return ct.squeeze_legs(ct.outer(eye, ct.dagger(unit)), '!*')
 
     def init_RP(self):
         mps_right_leg = self.psi.Bs[-1].domain[0].dual
         mpo_right_leg = self.H_mpo[-1].domain[1].dual
-        sym = mps_right_leg.symmetry
-        right_codom = ct.TensorProduct([mps_right_leg], sym)
-        right_dom = ct.TensorProduct([mpo_right_leg, mps_right_leg], sym)
-        tree_pairs = {}
-        for tree, _, mults, _ in right_dom.iter_tree_blocks(mps_right_leg.sector_decomposition):
-            if tree.uncoupled[0] != sym.trivial_sector:
-                continue
-            # add the second MPS leg
-            shape = np.append(mults[1:], mults[::-1])
-            block = np.zeros(shape)
-            block[:, :, -1] += np.eye(*shape[:-1])
-            codom_tree = ct.FusionTree.from_sector(sym, tree.uncoupled[1], tree.are_dual[1])
-            tree_pairs[(codom_tree, tree)] = block
-        return ct.SymmetricTensor.from_tree_pairs(
-            tree_pairs, right_codom, right_dom, self.psi.backend, labels=['vR', 'vR*', 'wR*']
+        backend = self.psi.backend
+        dtype = self.psi.Bs[-1].dtype
+        eye = ct.SymmetricTensor.from_eye(
+            [mps_right_leg], backend=backend, labels=['vR', 'vR*'], dtype=dtype
         )
+        # IdR is the last summand of the finite MPO virtual leg
+        unit = mpo_right_leg.unit_vector(-1, backend=backend, labels=['wR', '!'], dtype=dtype)
+        return ct.squeeze_legs(ct.outer(ct.dagger(unit), eye), '!*')
 
     def sweep(self):
         # sweep from left to right

@@ -138,4 +138,34 @@ namespace cyten {
                                          std::optional<LegLabels> labels = std::nullopt,
                                          std::optional<Dtype> dtype = std::nullopt);
 
+/// Projection Mask onto summand ``i`` of a `DirectSumSpace`.
+///
+/// The large leg is `space`; the small leg is isomorphic to ``space.spaces[i]``
+/// (built from the kept multiplicities). Negative ``i`` indexes from the end.
+[[nodiscard]] MaskPtr projection_onto_summand(DirectSumSpace::CPtr space,
+                                              int64 i,
+                                              TensorBackend::Ptr backend = nullptr,
+                                              std::optional<LegLabels> labels = std::nullopt,
+                                              std::optional<std::string> device = std::nullopt);
+
+/// Inclusion Mask of summand ``i`` into a `DirectSumSpace` (dagger of the projection).
+[[nodiscard]] MaskPtr inclusion_of_summand(DirectSumSpace::CPtr space,
+                                           int64 i,
+                                           TensorBackend::Ptr backend = nullptr,
+                                           std::optional<LegLabels> labels = std::nullopt,
+                                           std::optional<std::string> device = std::nullopt);
+
+/// Unit vector selecting summand ``i`` of a `DirectSumSpace`.
+///
+/// Requires ``space.spaces[i]`` to be the one-dimensional trivial sector.
+/// Returns a `SymmetricTensor` equal to the inclusion Mask converted to a
+/// SymmetricTensor (codomain = ``space``, domain = trivial 1-dim space).
+[[nodiscard]] SymmetricTensorPtr unit_vector_of_summand(
+  DirectSumSpace::CPtr space,
+  int64 i,
+  TensorBackend::Ptr backend = nullptr,
+  std::optional<LegLabels> labels = std::nullopt,
+  std::optional<Dtype> dtype = std::nullopt,
+  std::optional<std::string> device = std::nullopt);
+
 } // namespace cyten

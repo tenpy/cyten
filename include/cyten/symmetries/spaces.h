@@ -414,6 +414,116 @@ class ElementarySpace
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+
+    /// If this is a `DirectSumSpace` (default: false).
+    [[nodiscard]] virtual bool is_direct_sum_space() const { return false; }
+};
+
+/// An `ElementarySpace` that remembers an ordered direct-sum decomposition.
+///
+/// As an `ElementarySpace`, this is isomorphic to
+/// ``⊕_i spaces[i]`` (sectors / multiplicities / optional ``basis_perm`` match
+/// today's collapsing `ElementarySpace::direct_sum`). Unlike a plain
+/// `ElementarySpace`, the ordered summands are retained so inclusions,
+/// projections and unit vectors for individual summands can be built without
+/// a dense computational basis.
+///
+/// Nested `DirectSumSpace` summands are flattened on construction (associativity
+/// of ⊕). Operations that destroy the summand layout (e.g. `take_slice`) collapse
+/// to a plain `ElementarySpace`, analogous to `AbelianLegPipe`.
+class DirectSumSpace : public ElementarySpace
+{
+  public:
+    using Ptr = std::shared_ptr<DirectSumSpace>;
+    using CPtr = std::shared_ptr<const DirectSumSpace>;
+
+    /// Ordered summands. Never contains nested `DirectSumSpace` instances.
+    std::vector<ElementarySpace::Ptr> spaces;
+
+    explicit DirectSumSpace(std::vector<ElementarySpace::Ptr> spaces, bool is_dual = false);
+    ~DirectSumSpace() override = default;
+
+    void test_sanity() const override;
+
+    /// Build from an ordered list of summands (nested DSS flattened).
+    [[nodiscard]] static Ptr from_spaces(std::vector<ElementarySpace::Ptr> spaces,
+                                         bool is_dual = false);
+
+    [[nodiscard]] bool is_direct_sum_space() const override { return true; }
+
+    /// ``shared_from_this()`` downcast to `DirectSumSpace`.
+    [[nodiscard]] Ptr shared_dss() const;
+
+    /// Per-sector multiplicity cumsums of the summands into this fused space.
+    ///
+    /// ``result[sector_idx]`` has length ``spaces.size() + 1`` and is the cumsum
+    /// (with leading zero) of each summand's multiplicity for
+    /// ``sector_decomposition[sector_idx]``. Matches the slice tables used by
+    /// `tensor_from_grid`.
+    [[nodiscard]] std::vector<std::vector<int64>> mult_slices() const;
+
+    /// Forget the summand structure; return a plain `ElementarySpace` with the
+    /// same fused sectors / multiplicities / ``basis_perm``.
+    [[nodiscard]] ElementarySpace::Ptr as_plain_ElementarySpace() const;
+
+    py::object as_Space() override;
+    py::object as_ElementarySpace(bool is_dual = false) override;
+
+    Space::Ptr dual_space() const override;
+    Leg::Ptr dual_leg() const override;
+    [[nodiscard]] Ptr dual_dss() const;
+
+    py::object change_symmetry(Symmetry::Ptr symmetry,
+                               SectorMapFn sector_map,
+                               bool injective = false) override;
+
+    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+
+    ElementarySpace::Ptr take_slice(py::array blockmask) const override;
+
+    ElementarySpace::Ptr with_opposite_duality() const override;
+
+    bool operator==(Leg const& other) const override;
+    bool operator==(Space const& other) const override;
+
+    /// Structural equality: matching duality and elementwise equal summands.
+    [[nodiscard]] bool equals_dss(DirectSumSpace const& other) const;
+
+    [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
+
+    // Unsupported ElementarySpace factories (raise TypeError).
+    static Ptr from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis);
+    static Ptr from_null_space(Symmetry::Ptr symmetry, bool is_dual = false);
+    static Ptr from_defining_sectors(
+      Symmetry::Ptr symmetry,
+      SectorArray defining_sectors,
+      std::optional<std::vector<int64>> multiplicities = std::nullopt,
+      bool is_dual = false,
+      std::optional<std::vector<int64>> basis_perm = std::nullopt,
+      bool unique_sectors = false,
+      std::vector<std::size_t>* return_sorting_perm = nullptr);
+    static Ptr from_trivial_sector(int64 dim = 1,
+                                   Symmetry::Ptr symmetry = nullptr,
+                                   bool is_dual = false,
+                                   std::optional<std::vector<int64>> basis_perm = std::nullopt);
+
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+
+  private:
+    struct Prepared
+    {
+        std::vector<ElementarySpace::Ptr> spaces;
+        Symmetry::Ptr symmetry;
+        SectorArray defining_sectors;
+        std::vector<int64> multiplicities;
+        std::optional<std::vector<int64>> basis_perm;
+    };
+
+    static Prepared prepare(std::vector<ElementarySpace::Ptr> spaces, bool is_dual);
+
+    DirectSumSpace(Prepared prepared, bool is_dual);
 };
 
 /// Half-open index range ``[start, stop)``, corresponding to a Python ``slice(start, stop)``.

@@ -1,5 +1,6 @@
 #include <cyten/tensors/constructors.h>
 
+#include <cyten/backends/backend_factory.h>
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
@@ -7,6 +8,7 @@
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
+#include <format>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -437,26 +439,27 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
     auto right_space = right_spaces[0]->direct_sum(right_rest);
 
     std::vector<std::vector<int64>> left_mult_slices;
-    for (auto const& sector : left_space->sector_decomposition) {
-        std::vector<int64> mults;
-        mults.reserve(left_spaces.size());
-        for (auto const& space : left_spaces) {
-            auto idx = space->sector_decomposition_where(sector);
-            mults.push_back(idx.has_value() ? space->multiplicities[static_cast<std::size_t>(*idx)]
-                                            : int64{ 0 });
-        }
-        left_mult_slices.push_back(cumsum_with_leading_zero(mults));
-    }
     std::vector<std::vector<int64>> right_mult_slices;
-    for (auto const& sector : right_space->sector_decomposition) {
-        std::vector<int64> mults;
-        mults.reserve(right_spaces.size());
-        for (auto const& space : right_spaces) {
-            auto idx = space->sector_decomposition_where(sector);
-            mults.push_back(idx.has_value() ? space->multiplicities[static_cast<std::size_t>(*idx)]
-                                            : int64{ 0 });
+    if (auto dss = std::dynamic_pointer_cast<DirectSumSpace>(left_space)) {
+        left_mult_slices = dss->mult_slices();
+    } else {
+        // Single summand (n_rows == 1): one slice covering the full multiplicity.
+        for (auto const& sector : left_space->sector_decomposition) {
+            auto idx = left_space->sector_decomposition_where(sector);
+            int64 m = idx.has_value() ? left_space->multiplicities[static_cast<std::size_t>(*idx)]
+                                      : int64{ 0 };
+            left_mult_slices.push_back(cumsum_with_leading_zero(std::vector<int64>{ m }));
         }
-        right_mult_slices.push_back(cumsum_with_leading_zero(mults));
+    }
+    if (auto dss = std::dynamic_pointer_cast<DirectSumSpace>(right_space)) {
+        right_mult_slices = dss->mult_slices();
+    } else {
+        for (auto const& sector : right_space->sector_decomposition) {
+            auto idx = right_space->sector_decomposition_where(sector);
+            int64 m = idx.has_value() ? right_space->multiplicities[static_cast<std::size_t>(*idx)]
+                                      : int64{ 0 };
+            right_mult_slices.push_back(cumsum_with_leading_zero(std::vector<int64>{ m }));
+        }
     }
 
     std::vector<Leg::Ptr> cod_legs;
@@ -497,6 +500,123 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
                                              backend,
                                              ref->symmetry,
                                              std::move(labs));
+}
+
+namespace {
+
+[[nodiscard]] int64
+normalize_summand_index(DirectSumSpace const& space, int64 i)
+{
+    auto const n = static_cast<int64>(space.spaces.size());
+    if (i < 0) {
+        i += n;
+    }
+    if (i < 0 || i >= n) {
+        throw std::invalid_argument(
+          std::format("summand index {} out of range for DirectSumSpace with {} summands",
+                      i,
+                      n));
+    }
+    return i;
+}
+
+[[nodiscard]] TensorBackend::Ptr
+resolve_backend_for_space(TensorBackend::Ptr backend, Space::Ptr const& space)
+{
+    if (!backend) {
+        return get_backend(space->symmetry);
+    }
+    return backend;
+}
+
+} // namespace
+
+MaskPtr
+projection_onto_summand(DirectSumSpace::CPtr space,
+                        int64 i,
+                        TensorBackend::Ptr backend,
+                        std::optional<LegLabels> labels,
+                        std::optional<std::string> device)
+{
+    if (!space) {
+        throw std::invalid_argument("projection_onto_summand requires a non-null DirectSumSpace");
+    }
+    i = normalize_summand_index(*space, i);
+    backend = resolve_backend_for_space(std::move(backend), space->shared_es());
+
+    auto const slices = space->mult_slices();
+    auto space_cap = space;
+    auto i_cap = i;
+    auto np = py::module_::import("numpy");
+    auto bb = backend->block_backend;
+
+    SectorBlockFactoryFn func = [space_cap, slices, i_cap, np, bb, device](
+                                  std::vector<int64> const& shape, Sector const& coupled) {
+        auto sector_idx = space_cap->sector_decomposition_where(coupled);
+        if (!sector_idx.has_value()) {
+            throw std::runtime_error("projection_onto_summand: sector missing from DirectSumSpace");
+        }
+        auto const& slc = slices[static_cast<std::size_t>(*sector_idx)];
+        int64 const start = slc[static_cast<std::size_t>(i_cap)];
+        int64 const stop = slc[static_cast<std::size_t>(i_cap) + 1];
+        if (shape.empty() || shape[0] != slc.back()) {
+            throw std::runtime_error("projection_onto_summand: unexpected diagonal block shape");
+        }
+        py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
+        if (stop > start) {
+            block.attr("__setitem__")(py::slice(start, stop, 1), true);
+        }
+        return bb->as_block(block, Dtype::Bool, device);
+    };
+
+    auto diag = DiagonalTensor::from_sector_block_func(
+      std::move(func), space->shared_es(), backend, labels, Dtype::Bool, device);
+    return Mask::from_DiagonalTensor(diag);
+}
+
+MaskPtr
+inclusion_of_summand(DirectSumSpace::CPtr space,
+                     int64 i,
+                     TensorBackend::Ptr backend,
+                     std::optional<LegLabels> labels,
+                     std::optional<std::string> device)
+{
+    auto proj = projection_onto_summand(
+      std::move(space), i, std::move(backend), std::move(labels), std::move(device));
+    auto incl = std::dynamic_pointer_cast<Mask>(proj->dagger());
+    if (!incl) {
+        throw std::runtime_error("Mask::dagger did not return a Mask");
+    }
+    return incl;
+}
+
+SymmetricTensorPtr
+unit_vector_of_summand(DirectSumSpace::CPtr space,
+                       int64 i,
+                       TensorBackend::Ptr backend,
+                       std::optional<LegLabels> labels,
+                       std::optional<Dtype> dtype,
+                       std::optional<std::string> device)
+{
+    if (!space) {
+        throw std::invalid_argument("unit_vector_of_summand requires a non-null DirectSumSpace");
+    }
+    i = normalize_summand_index(*space, i);
+    auto const& summand = space->spaces[static_cast<std::size_t>(i)];
+    // Must be the one-dimensional trivial sector.
+    if (summand->num_sectors != 1 || summand->multiplicities[0] != 1 ||
+        !(summand->defining_sectors[0] == space->Space::symmetry->trivial_sector)) {
+        throw std::invalid_argument(
+          "unit_vector_of_summand requires the summand to be the 1-dimensional trivial sector");
+    }
+
+    auto incl = inclusion_of_summand(space, i, std::move(backend), std::nullopt, device);
+    Dtype out_dtype = dtype.value_or(Dtype::Complex128);
+    auto tens = incl->as_SymmetricTensor(/*guarantee_copy=*/false, std::nullopt, out_dtype);
+    if (labels.has_value()) {
+        tens->set_labels(*labels);
+    }
+    return tens;
 }
 
 } // namespace cyten
