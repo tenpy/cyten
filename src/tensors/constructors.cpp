@@ -533,20 +533,16 @@ resolve_backend_for_space(TensorBackend::Ptr backend, Space::Ptr const& space)
 } // namespace
 
 MaskPtr
-projection_onto_summand(DirectSumSpace::CPtr space,
-                        int64 i,
-                        TensorBackend::Ptr backend,
-                        std::optional<LegLabels> labels,
-                        std::optional<std::string> device)
+DirectSumSpace::projection_onto_summand(int64 i,
+                                        std::shared_ptr<TensorBackend> backend,
+                                        std::optional<LegLabels> labels,
+                                        std::optional<std::string> device) const
 {
-    if (!space) {
-        throw std::invalid_argument("projection_onto_summand requires a non-null DirectSumSpace");
-    }
-    i = normalize_summand_index(*space, i);
-    backend = resolve_backend_for_space(std::move(backend), space->shared_es());
+    i = normalize_summand_index(*this, i);
+    backend = resolve_backend_for_space(std::move(backend), shared_es());
 
-    auto const slices = space->mult_slices();
-    auto space_cap = space;
+    auto const slices = mult_slices();
+    auto space_cap = shared_dss();
     auto i_cap = i;
     auto np = py::module_::import("numpy");
     auto bb = backend->block_backend;
@@ -555,13 +551,15 @@ projection_onto_summand(DirectSumSpace::CPtr space,
                                   std::vector<int64> const& shape, Sector const& coupled) {
         auto sector_idx = space_cap->sector_decomposition_where(coupled);
         if (!sector_idx.has_value()) {
-            throw std::runtime_error("projection_onto_summand: sector missing from DirectSumSpace");
+            throw std::runtime_error(
+              "DirectSumSpace::projection_onto_summand: sector missing from DirectSumSpace");
         }
         auto const& slc = slices[static_cast<std::size_t>(*sector_idx)];
         int64 const start = slc[static_cast<std::size_t>(i_cap)];
         int64 const stop = slc[static_cast<std::size_t>(i_cap) + 1];
         if (shape.empty() || shape[0] != slc.back()) {
-            throw std::runtime_error("projection_onto_summand: unexpected diagonal block shape");
+            throw std::runtime_error(
+              "DirectSumSpace::projection_onto_summand: unexpected diagonal block shape");
         }
         py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
         if (stop > start) {
@@ -571,19 +569,17 @@ projection_onto_summand(DirectSumSpace::CPtr space,
     };
 
     auto diag = DiagonalTensor::from_sector_block_func(
-      std::move(func), space->shared_es(), backend, labels, Dtype::Bool, device);
+      std::move(func), shared_es(), backend, labels, Dtype::Bool, device);
     return Mask::from_DiagonalTensor(diag);
 }
 
 MaskPtr
-inclusion_of_summand(DirectSumSpace::CPtr space,
-                     int64 i,
-                     TensorBackend::Ptr backend,
-                     std::optional<LegLabels> labels,
-                     std::optional<std::string> device)
+DirectSumSpace::inclusion_of_summand(int64 i,
+                                     std::shared_ptr<TensorBackend> backend,
+                                     std::optional<LegLabels> labels,
+                                     std::optional<std::string> device) const
 {
-    auto proj = projection_onto_summand(
-      std::move(space), i, std::move(backend), std::move(labels), std::move(device));
+    auto proj = projection_onto_summand(i, std::move(backend), std::move(labels), std::move(device));
     auto incl = std::dynamic_pointer_cast<Mask>(proj->dagger());
     if (!incl) {
         throw std::runtime_error("Mask::dagger did not return a Mask");
@@ -592,38 +588,37 @@ inclusion_of_summand(DirectSumSpace::CPtr space,
 }
 
 SymmetricTensorPtr
-unit_vector_of_summand(DirectSumSpace::CPtr space,
-                       int64 i,
-                       TensorBackend::Ptr backend,
-                       std::optional<LegLabels> labels,
-                       std::optional<Dtype> dtype,
-                       std::optional<std::string> device)
+DirectSumSpace::unit_vector_of_summand(int64 i,
+                                       std::shared_ptr<TensorBackend> backend,
+                                       std::optional<LegLabels> labels,
+                                       std::optional<Dtype> dtype,
+                                       std::optional<std::string> device) const
 {
-    if (!space) {
-        throw std::invalid_argument("unit_vector_of_summand requires a non-null DirectSumSpace");
-    }
-    i = normalize_summand_index(*space, i);
-    auto const& summand = space->spaces[static_cast<std::size_t>(i)];
+    i = normalize_summand_index(*this, i);
+    auto const& summand = spaces[static_cast<std::size_t>(i)];
     // Must be the one-dimensional trivial sector.
     if (summand->num_sectors != 1 || summand->multiplicities[0] != 1 ||
-        !(summand->defining_sectors[0] == space->Space::symmetry->trivial_sector)) {
+        !(summand->defining_sectors[0] == Space::symmetry->trivial_sector)) {
         throw std::invalid_argument(
-          "unit_vector_of_summand requires the summand to be the 1-dimensional trivial sector");
+          "DirectSumSpace::unit_vector_of_summand requires the summand to be the "
+          "1-dimensional trivial sector");
     }
 
-    auto incl = inclusion_of_summand(space, i, std::move(backend), std::nullopt, device);
+    auto incl = inclusion_of_summand(i, std::move(backend), std::nullopt, device);
     Dtype out_dtype = dtype.value_or(Dtype::Complex128);
     auto tens = incl->as_SymmetricTensor(/*guarantee_copy=*/false, std::nullopt, out_dtype);
-    // Inclusion is trivial → fused; squeeze the trivial domain to get a pure vector on `space`.
+    // Inclusion is trivial → fused; squeeze the trivial domain to get a pure vector on `this`.
     auto squeezed = squeeze_legs(tens, std::vector<LegRef>{ LegRef{ int64{ -1 } } });
     auto out = std::dynamic_pointer_cast<SymmetricTensor>(squeezed);
     if (!out) {
-        throw std::runtime_error("unit_vector_of_summand: squeeze_legs did not return SymmetricTensor");
+        throw std::runtime_error(
+          "DirectSumSpace::unit_vector_of_summand: squeeze_legs did not return SymmetricTensor");
     }
     if (labels.has_value()) {
         if (labels->size() != 1) {
             throw std::invalid_argument(
-              "unit_vector_of_summand labels must have length 1 (the fused DirectSumSpace leg)");
+              "DirectSumSpace::unit_vector_of_summand labels must have length 1 "
+              "(the fused DirectSumSpace leg)");
         }
         out->set_labels(*labels);
     }

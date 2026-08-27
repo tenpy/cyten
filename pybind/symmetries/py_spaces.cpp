@@ -1,15 +1,14 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/spaces.h"
-#include "docstrings/tensors/constructors.h"
 #include "py_cyten_pybind11.h"
 
 #include "backends/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
 
+#include <cyten/backends/tensor_backend.h>
 #include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/spaces.h>
 #include <cyten/symmetries/symmetry.h>
-#include <cyten/tensors/constructors.h>
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
@@ -806,84 +805,30 @@ bind_direct_sum_space(py::module_& m)
            &DirectSumSpace::with_opposite_duality,
            DOC(cyten, ElementarySpace, with_opposite_duality))
       .def(
-        "projection",
-        [](DirectSumSpace const& self,
-           int64 i,
-           TensorBackend::Ptr backend,
-           py::object labels,
-           py::object device) {
-            std::optional<LegLabels> labels_opt;
-            if (!labels.is_none()) {
-                labels_opt = labels.cast<LegLabels>();
-            }
-            std::optional<std::string> device_opt;
-            if (!device.is_none()) {
-                device_opt = device.cast<std::string>();
-            }
-            return projection_onto_summand(
-              self.shared_dss(), i, std::move(backend), std::move(labels_opt), std::move(device_opt));
-        },
+        "projection_onto_summand",
+        &DirectSumSpace::projection_onto_summand,
         py::arg("i"),
-        py::arg("backend") = py::none(),
+        py::arg("backend") = nullptr,
         py::arg("labels") = py::none(),
         py::arg("device") = py::none(),
-        DOC(cyten, projection_onto_summand))
+        DOC(cyten, DirectSumSpace, projection_onto_summand))
       .def(
-        "inclusion",
-        [](DirectSumSpace const& self,
-           int64 i,
-           TensorBackend::Ptr backend,
-           py::object labels,
-           py::object device) {
-            std::optional<LegLabels> labels_opt;
-            if (!labels.is_none()) {
-                labels_opt = labels.cast<LegLabels>();
-            }
-            std::optional<std::string> device_opt;
-            if (!device.is_none()) {
-                device_opt = device.cast<std::string>();
-            }
-            return inclusion_of_summand(
-              self.shared_dss(), i, std::move(backend), std::move(labels_opt), std::move(device_opt));
-        },
+        "inclusion_of_summand",
+        &DirectSumSpace::inclusion_of_summand,
         py::arg("i"),
-        py::arg("backend") = py::none(),
+        py::arg("backend") = nullptr,
         py::arg("labels") = py::none(),
         py::arg("device") = py::none(),
-        DOC(cyten, inclusion_of_summand))
+        DOC(cyten, DirectSumSpace, inclusion_of_summand))
       .def(
-        "unit_vector",
-        [](DirectSumSpace const& self,
-           int64 i,
-           TensorBackend::Ptr backend,
-           py::object labels,
-           py::object dtype,
-           py::object device) {
-            std::optional<LegLabels> labels_opt;
-            if (!labels.is_none()) {
-                labels_opt = labels.cast<LegLabels>();
-            }
-            std::optional<Dtype> dtype_opt;
-            if (!dtype.is_none()) {
-                dtype_opt = dtype.cast<Dtype>();
-            }
-            std::optional<std::string> device_opt;
-            if (!device.is_none()) {
-                device_opt = device.cast<std::string>();
-            }
-            return unit_vector_of_summand(self.shared_dss(),
-                                          i,
-                                          std::move(backend),
-                                          std::move(labels_opt),
-                                          std::move(dtype_opt),
-                                          std::move(device_opt));
-        },
+        "unit_vector_of_summand",
+        &DirectSumSpace::unit_vector_of_summand,
         py::arg("i"),
-        py::arg("backend") = py::none(),
+        py::arg("backend") = nullptr,
         py::arg("labels") = py::none(),
         py::arg("dtype") = py::none(),
         py::arg("device") = py::none(),
-        DOC(cyten, unit_vector_of_summand))
+        DOC(cyten, DirectSumSpace, unit_vector_of_summand))
       .def("__repr__", [](DirectSumSpace const& self) { return self.repr(); })
       .def("repr", &DirectSumSpace::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
       .def("__eq__",

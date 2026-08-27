@@ -7,6 +7,9 @@
 #include "trees.h"
 
 #include <cyten/backends/block_inds.h>
+#include <cyten/block_backend/dtypes.h>
+#include <cyten/tensors/forward_declare.h>
+#include <cyten/tensors/labels.h>
 
 #include <array>
 #include <cstdint>
@@ -20,6 +23,8 @@
 #include <vector>
 
 namespace cyten {
+
+class TensorBackend;
 
 /// Common base of `Leg` and `Space`, providing ``shared_from_this``.
 ///
@@ -490,6 +495,36 @@ class DirectSumSpace : public ElementarySpace
     [[nodiscard]] bool equals_dss(DirectSumSpace const& other) const;
 
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
+
+    /// Projection Mask onto summand ``i``.
+    ///
+    /// The large leg is this space; the small leg is isomorphic to ``spaces[i]``
+    /// (built from the kept multiplicities). Negative ``i`` indexes from the end.
+    [[nodiscard]] MaskPtr projection_onto_summand(
+      int64 i,
+      std::shared_ptr<TensorBackend> backend = nullptr,
+      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<std::string> device = std::nullopt) const;
+
+    /// Inclusion Mask of summand ``i`` (dagger of the projection).
+    [[nodiscard]] MaskPtr inclusion_of_summand(
+      int64 i,
+      std::shared_ptr<TensorBackend> backend = nullptr,
+      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<std::string> device = std::nullopt) const;
+
+    /// Unit vector selecting summand ``i``.
+    ///
+    /// Requires ``spaces[i]`` to be the one-dimensional trivial sector.
+    /// Returns a rank-1 `SymmetricTensor` (codomain = this space, empty domain),
+    /// obtained by converting the inclusion Mask and squeezing the trivial domain
+    /// leg. Optional `labels` must have length 1 (the remaining leg).
+    [[nodiscard]] SymmetricTensorPtr unit_vector_of_summand(
+      int64 i,
+      std::shared_ptr<TensorBackend> backend = nullptr,
+      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<Dtype> dtype = std::nullopt,
+      std::optional<std::string> device = std::nullopt) const;
 
     // Unsupported ElementarySpace factories (raise TypeError).
     static Ptr from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis);

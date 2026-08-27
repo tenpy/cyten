@@ -171,7 +171,7 @@ class DMRGEngine:
         dtype = self.psi.Bs[0].dtype
         eye = ct.SymmetricTensor.from_eye([mps_left_leg], backend=backend, labels=['vL', 'vL*'], dtype=dtype)
         # IdL is summand 0 of the finite MPO virtual leg
-        unit = mpo_left_leg.unit_vector(0, backend=backend, labels=['wL'], dtype=dtype)
+        unit = mpo_left_leg.unit_vector_of_summand(0, backend=backend, labels=['wL'], dtype=dtype)
         return ct.outer(eye, ct.dagger(unit))
 
     def init_RP(self):
@@ -181,7 +181,7 @@ class DMRGEngine:
         dtype = self.psi.Bs[-1].dtype
         eye = ct.SymmetricTensor.from_eye([mps_right_leg], backend=backend, labels=['vR', 'vR*'], dtype=dtype)
         # IdR is the last summand of the finite MPO virtual leg
-        unit = mpo_right_leg.unit_vector(-1, backend=backend, labels=['wR'], dtype=dtype)
+        unit = mpo_right_leg.unit_vector_of_summand(-1, backend=backend, labels=['wR'], dtype=dtype)
         return ct.outer(ct.dagger(unit), eye)
 
     def sweep(self):

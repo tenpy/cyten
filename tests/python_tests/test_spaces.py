@@ -597,8 +597,8 @@ def test_DirectSumSpace_inclusion_unit_vector(compatible_symmetry, compatible_ba
     d.test_sanity()
 
     for i in (0, 1, -1):
-        proj = d.projection(i, backend=backend)
-        incl = d.inclusion(i, backend=backend)
+        proj = d.projection_onto_summand(i, backend=backend)
+        incl = d.inclusion_of_summand(i, backend=backend)
         proj.test_sanity()
         incl.test_sanity()
         assert proj.is_projection
@@ -607,12 +607,12 @@ def test_DirectSumSpace_inclusion_unit_vector(compatible_symmetry, compatible_ba
 
     mps = spaces.ElementarySpace.from_trivial_sector(2, symmetry=sym)
     eye = SymmetricTensor.from_eye([mps], backend=backend, labels=['vL', 'vL*'])
-    unit = d.unit_vector(0, backend=backend, labels=['wL'], dtype=eye.dtype)
+    unit = d.unit_vector_of_summand(0, backend=backend, labels=['wL'], dtype=eye.dtype)
     assert unit.num_legs == 1
     lp = tensors.outer(eye, tensors.dagger(unit))
     lp.test_sanity()
     assert lp.labels == ['vL', 'wL*', 'vL*']
-    rp_unit = d.unit_vector(-1, backend=backend, labels=['wR'], dtype=eye.dtype)
+    rp_unit = d.unit_vector_of_summand(-1, backend=backend, labels=['wR'], dtype=eye.dtype)
     assert rp_unit.num_legs == 1
     rp = tensors.outer(tensors.dagger(rp_unit), eye)
     rp.test_sanity()
