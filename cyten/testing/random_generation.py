@@ -326,6 +326,14 @@ def random_tensor(
         if isinstance(like, tensors.ChargedTensor):
             inv_part = random_tensor(symmetry=symmetry, backend=backend, like=like.invariant_part)
             return tensors.ChargedTensor(inv_part, like.charged_state)
+        elif isinstance(like, tensors.HiddenLegTensor):
+            sym_part = random_tensor(
+                symmetry=symmetry,
+                backend=backend,
+                like=like.as_SymmetricTensor(guarantee_copy=False),
+            )
+            which_legs = [like.labels[i] for i in like.hidden_leg_idcs()]
+            return tensors.HiddenLegTensor(sym_part, which_legs)
         elif isinstance(like, tensors.Tensor):
             return random_tensor(
                 symmetry=symmetry,
@@ -351,7 +359,7 @@ def random_tensor(
     # 0) default for codomain
     # ======================================================================================
     if codomain is None:
-        if cls in [tensors.SymmetricTensor, tensors.ChargedTensor]:
+        if cls in [tensors.SymmetricTensor, tensors.ChargedTensor, tensors.HiddenLegTensor]:
             codomain = 2
             if domain is None:
                 domain = 2
@@ -379,7 +387,7 @@ def random_tensor(
         codomain_complete = None not in codomain
     #
     if domain is None:
-        if cls in [tensors.SymmetricTensor, tensors.ChargedTensor]:
+        if cls in [tensors.SymmetricTensor, tensors.ChargedTensor, tensors.HiddenLegTensor]:
             domain = []
         if cls in [tensors.DiagonalTensor, tensors.Mask]:
             domain = [None]
@@ -416,24 +424,26 @@ def random_tensor(
     # 2) Deal with other tensor types
     # ======================================================================================
     if cls is tensors.ChargedTensor:
-        charge_leg = random_ElementarySpace(
-            symmetry=symmetry,
-            max_sectors=1,
-            max_multiplicity=1,
-            is_dual=False,
-            allow_basis_perm=allow_basis_perm,
-            np_random=np_random,
-        )
-        if isinstance(domain, spaces.TensorProduct):
-            inv_domain = domain.left_multiply(charge_leg)
-        else:
-            inv_domain = [charge_leg, *domain]
-        inv_labels = [*labels, tensors.ChargedTensor._CHARGE_LEG_LABEL]
-        inv_part = random_tensor(
+        if not symmetry.can_be_dropped:
+            raise ValueError(
+                'ChargedTensor requires a droppable symmetry with symmetric braiding '
+                '(ChargedTensor.supports_symmetry). Use HiddenLegTensor to hide legs '
+                'without specifying charged_state.'
+            )
+        # Defer construction until legs are resolved (section 3).
+    elif cls is tensors.HiddenLegTensor:
+        if num_legs == 0:
+            raise ValueError('HiddenLegTensor requires at least one leg to hide')
+        # Ensure every leg has a label so we can hide by prefixing '!'.
+        labels = list(labels)
+        for i, lab in enumerate(labels):
+            if lab is None:
+                labels[i] = f'l{i}'
+        sym_part = random_tensor(
             symmetry=symmetry,
             codomain=codomain,
-            domain=inv_domain,
-            labels=inv_labels,
+            domain=domain,
+            labels=labels,
             dtype=dtype,
             backend=backend,
             device=device,
@@ -446,11 +456,9 @@ def random_tensor(
             use_pipes=use_pipes,
             np_random=np_random,
         )
-        if inv_part.symmetry.can_be_dropped and charge_leg.dim == 1:
-            charged_state = [1]
-        else:
-            charged_state = None
-        res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
+        num_hide = int(np_random.integers(1, min(num_legs, 3) + 1))
+        which_legs = np_random.choice(num_legs, size=num_hide, replace=False).tolist()
+        res = tensors.HiddenLegTensor(sym_part, which_legs)
         res.test_sanity()
         return res
     #
@@ -654,6 +662,46 @@ def random_tensor(
     #
     # 3) Finish up
     # ======================================================================================
+    if cls is tensors.ChargedTensor:
+        charge_leg = random_ElementarySpace(
+            symmetry=symmetry,
+            max_sectors=1,
+            max_multiplicity=1,
+            is_dual=False,
+            allow_basis_perm=allow_basis_perm,
+            np_random=np_random,
+        )
+        if charge_leg.dim == 1:
+            charged_state = [1]
+        else:
+            charged_state = random_block(
+                block_backend=backend.block_backend,
+                size=(charge_leg.dim,),
+                real=False,
+                np_random=np_random,
+            )
+        real = False if dtype is None else dtype.is_real
+        check_tensor_memory_usage(
+            codomain=codomain, domain=domain.left_multiply(charge_leg), real=real
+        )
+        res = tensors.ChargedTensor.from_block_func(
+            lambda size: random_block(block_backend=backend.block_backend, size=size, real=real, np_random=np_random),
+            charge=charge_leg,
+            codomain=codomain,
+            domain=domain,
+            charged_state=charged_state,
+            backend=backend,
+            labels=labels,
+            dtype=dtype,
+            device=device,
+        )
+        if not all_blocks:
+            inv_part = res.invariant_part
+            inv_part = randomly_drop_blocks(inv_part, max_blocks=max_blocks, empty_ok=empty_ok, np_random=np_random)
+            res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
+        res.test_sanity()
+        return res
+
     if cls is not tensors.SymmetricTensor:
         raise ValueError(f'Unknown tensor cls: {cls}')
 

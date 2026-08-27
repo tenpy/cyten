@@ -48,9 +48,15 @@ def gen_example_data(version=cyten.__version__):
     # Two-leg identity map stored as a generic SymmetricTensor (not DiagonalTensor).
     symmetric = cyten.tensors.SymmetricTensor.from_eye([leg], labels=['p'])
     mask = cyten.tensors.Mask.from_block_mask(np.array([True, False]), large_leg=leg, labels=['p'])
-    # ChargedTensor: hide a trivial charge leg on a non-zero operator.
-    inv = cyten.add_trivial_leg(n_op.as_SymmetricTensor(), domain_pos=0, label='!')
-    charged = cyten.tensors.ChargedTensor(inv, charged_state=[1.0])
+    # ChargedTensor with a specified charge state on a non-zero operator.
+    charge_plus = cyten.ElementarySpace.from_defining_sectors(FermionSite.symmetry, [[1]])
+    charged = cyten.tensors.ChargedTensor.from_dense_block(
+        n_op.diagonal_as_numpy(),
+        codomain=[leg],
+        domain=[leg],
+        charge=charge_plus,
+        labels=['p', 'p*'],
+    )
 
     data = {
         'version': version,
