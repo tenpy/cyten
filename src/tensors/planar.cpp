@@ -2,7 +2,7 @@
 
 #include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/symmetries/spaces.h>
-#include <cyten/tensors/charged_tensor.h>
+#include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
@@ -18,7 +18,76 @@ namespace cyten {
 
 namespace {
 
-constexpr char const* kChargeLeg = ChargedTensor::_CHARGE_LEG_LABEL;
+[[nodiscard]] bool
+_is_invalid_planar_placeholder_label(std::string const& label)
+{
+    return HiddenLegTensor::is_hidden_leg_label(LegLabel{ label });
+}
+
+void
+_assert_valid_planar_placeholder_labels(std::vector<std::string> const& labels,
+                                        std::string const& context)
+{
+    for (auto const& label : labels) {
+        if (_is_invalid_planar_placeholder_label(label)) {
+            throw std::invalid_argument(
+              std::format("{}: placeholder labels must not be '{}' or start with '{}', got '{}'",
+                          context,
+                          HiddenLegTensor::HIDDEN_PREFIX,
+                          HiddenLegTensor::HIDDEN_PREFIX,
+                          label));
+        }
+    }
+}
+
+[[nodiscard]] bool
+_is_hidden_planar_label(LegLabel const& label)
+{
+    if (!label) {
+        return false;
+    }
+    if (HiddenLegTensor::is_hidden_leg_label(label)) {
+        return true;
+    }
+    auto const& s = *label;
+    auto pos = s.rfind(':');
+    if (pos == std::string::npos) {
+        return false;
+    }
+    return HiddenLegTensor::is_hidden_leg_label(LegLabel{ s.substr(pos + 1) });
+}
+
+[[nodiscard]] bool
+_is_hidden_planar_label(std::string const& label)
+{
+    return _is_hidden_planar_label(LegLabel{ label });
+}
+
+[[nodiscard]] std::vector<std::string>
+as_strings(LegLabels const& labels)
+{
+    std::vector<std::string> out;
+    out.reserve(labels.size());
+    for (auto const& l : labels) {
+        out.push_back(l.value_or("None"));
+    }
+    return out;
+}
+
+[[nodiscard]] std::vector<std::string>
+_public_string_labels(TensorCPtr tensor)
+{
+    if (auto hidden = std::dynamic_pointer_cast<HiddenLegTensor const>(tensor)) {
+        std::vector<std::string> out;
+        for (auto const& l : hidden->labels()) {
+            if (!HiddenLegTensor::is_hidden_leg_label(l)) {
+                out.push_back(l.value_or("None"));
+            }
+        }
+        return out;
+    }
+    return as_strings(tensor->labels());
+}
 
 [[nodiscard]] std::vector<LegRef>
 as_leg_refs(std::vector<int64> const& idcs)
@@ -67,17 +136,6 @@ require_tensor(PlanarResult const& res)
         throw std::runtime_error("Expected a tensor result, got a scalar");
     }
     return std::get<TensorPtr>(res);
-}
-
-[[nodiscard]] std::vector<std::string>
-as_strings(LegLabels const& labels)
-{
-    std::vector<std::string> out;
-    out.reserve(labels.size());
-    for (auto const& l : labels) {
-        out.push_back(l.value_or("None"));
-    }
-    return out;
 }
 
 [[nodiscard]] int64
@@ -383,17 +441,6 @@ _as_valid_name(std::string name)
     return name;
 }
 
-bool
-_is_charge_leg_label(LegLabel const& label)
-{
-    if (!label) {
-        return false;
-    }
-    auto const& s = *label;
-    return s == kChargeLeg || s.ends_with(std::string(":") + kChargeLeg) ||
-           s.starts_with(kChargeLeg);
-}
-
 void
 _assert_cyclic_labels(std::string const& name,
                       std::vector<std::string> const& expected,
@@ -514,167 +561,15 @@ TensorPlaceholder::__repr__() const
 }
 
 std::vector<std::string>
-_expected_labels(std::vector<std::string> const& ph_labels, TensorCPtr tensor)
+_expected_labels(std::vector<std::string> const& ph_labels, TensorCPtr /*tensor*/)
 {
-    if (std::dynamic_pointer_cast<ChargedTensor const>(tensor)) {
-        return ph_labels;
-    }
-    std::vector<std::string> out;
-    for (auto const& l : ph_labels) {
-        if (l != kChargeLeg) {
-            out.push_back(l);
-        }
-    }
-    return out;
+    return ph_labels;
 }
 
 std::vector<std::string>
 _expected_labels(std::vector<std::string> const& ph_labels, TensorPlaceholder const&)
 {
     return ph_labels;
-}
-
-TensorPlaceholder
-_combine_placeholder_charge_legs(TensorPlaceholder const& ph)
-{
-    auto labs = ph.string_labels();
-    std::vector<int64> charge_idcs;
-    for (int64 i = 0; i < static_cast<int64>(labs.size()); ++i) {
-        if (_is_charge_leg_label(LegLabel{ labs[static_cast<std::size_t>(i)] })) {
-            charge_idcs.push_back(i);
-        }
-    }
-    if (charge_idcs.empty()) {
-        return ph;
-    }
-    if (charge_idcs.size() == 1) {
-        labs[static_cast<std::size_t>(charge_idcs[0])] = kChargeLeg;
-        return TensorPlaceholder(labs, ph.dims, ph.cost_to_make);
-    }
-    std::vector<int64> other;
-    try {
-        std::tie(std::ignore, other) = parse_leg_bipartition(charge_idcs, ph.num_legs);
-    } catch (std::invalid_argument const&) {
-        throw std::invalid_argument("Open charge legs are not contiguous");
-    }
-    std::vector<std::string> labels;
-    std::vector<BigOPolynomial> charge_dims;
-    std::vector<BigOPolynomial> dims;
-    for (auto i : other) {
-        labels.push_back(labs[static_cast<std::size_t>(i)]);
-        dims.push_back(ph.dims[static_cast<std::size_t>(i)]);
-    }
-    labels.emplace_back(kChargeLeg);
-    for (auto i : charge_idcs) {
-        charge_dims.push_back(ph.dims[static_cast<std::size_t>(i)]);
-    }
-    auto combined_dim = product_of(charge_dims);
-    dims.push_back(std::move(combined_dim));
-    return TensorPlaceholder(std::move(labels), std::move(dims), ph.cost_to_make);
-}
-
-PlanarResult
-_wrap_open_charge_legs(TensorPtr tens,
-                       std::map<std::string, BlockBackend::BlockPtr> const& charged_states)
-{
-    std::vector<int64> charge_idcs;
-    auto labs = tens->labels();
-    for (int64 i = 0; i < tens->num_legs; ++i) {
-        if (_is_charge_leg_label(labs[static_cast<std::size_t>(i)])) {
-            charge_idcs.push_back(i);
-        }
-    }
-    if (charge_idcs.empty()) {
-        return tens;
-    }
-    std::vector<int64> sorted_charge;
-    std::vector<int64> other;
-    try {
-        std::tie(sorted_charge, other) = parse_leg_bipartition(charge_idcs, tens->num_legs);
-    } catch (std::invalid_argument const&) {
-        throw std::invalid_argument("Open charge legs are not contiguous");
-    }
-
-    auto domain_idcs = reversed_copy(sorted_charge);
-    if (!other.empty()) {
-        tens = planar_permute_legs(tens, as_leg_refs(other), as_leg_refs(domain_idcs));
-    } else {
-        tens = planar_permute_legs(tens, std::nullopt, as_leg_refs(domain_idcs));
-    }
-
-    auto n_charge = static_cast<int64>(sorted_charge.size());
-    labs = tens->labels();
-    std::vector<BlockBackend::BlockPtr> states;
-    for (int64 i = tens->num_legs - n_charge; i < tens->num_legs; ++i) {
-        auto const& lab = labs[static_cast<std::size_t>(i)];
-        if (lab) {
-            auto it = charged_states.find(*lab);
-            states.push_back(it == charged_states.end() ? nullptr : it->second);
-        } else {
-            states.push_back(nullptr);
-        }
-    }
-    while (n_charge >= 2) {
-        tens = combine_legs(tens, { { LegRef{ int64(-2) }, LegRef{ int64(-1) } } });
-        auto s1 = states[states.size() - 2];
-        auto s2 = states[states.size() - 1];
-        BlockBackend::BlockPtr combined;
-        if (!s1 && !s2) {
-            combined = nullptr;
-        } else if (!s1 || !s2) {
-            throw std::invalid_argument("Must specify either both or none of the states");
-        } else {
-            auto pipe = std::dynamic_pointer_cast<LegPipe>((*tens->domain)[0]);
-            if (!pipe) {
-                throw std::runtime_error(
-                  "Expected a LegPipe on the domain after combining charge legs");
-            }
-            auto obj = tens->backend->state_tensor_product(s1, s2, pipe);
-            if (obj.is_none()) {
-                combined = nullptr;
-            } else {
-                combined = obj.cast<BlockBackend::BlockPtr>();
-            }
-        }
-        states.pop_back();
-        states.back() = std::move(combined);
-        n_charge -= 1;
-    }
-    tens->set_label(-1, LegLabel{ std::string(kChargeLeg) });
-    auto sym = std::dynamic_pointer_cast<SymmetricTensor>(tens);
-    if (!sym) {
-        throw std::runtime_error(
-          "Expected SymmetricTensor invariant part when wrapping charge legs");
-    }
-    auto wrapped = ChargedTensor::from_invariant_part(std::move(sym), states[0]);
-    if (std::holds_alternative<BlockBackend::Scalar>(wrapped)) {
-        return std::get<BlockBackend::Scalar>(std::move(wrapped));
-    }
-    return std::static_pointer_cast<Tensor>(std::get<ChargedTensor::Ptr>(std::move(wrapped)));
-}
-
-TensorPlaceholder
-_finalize_charge_legs(TensorPlaceholder const& tens,
-                      std::map<std::string, BlockBackend::BlockPtr> const&)
-{
-    return _combine_placeholder_charge_legs(tens);
-}
-
-PlanarResult
-_finalize_charge_legs(TensorPtr tens,
-                      std::map<std::string, BlockBackend::BlockPtr> const& charged_states)
-{
-    return _wrap_open_charge_legs(std::move(tens), charged_states);
-}
-
-PlanarResult
-_finalize_charge_legs(PlanarResult tens,
-                      std::map<std::string, BlockBackend::BlockPtr> const& charged_states)
-{
-    if (std::holds_alternative<BlockBackend::Scalar>(tens)) {
-        return tens;
-    }
-    return _finalize_charge_legs(std::get<TensorPtr>(std::move(tens)), charged_states);
 }
 
 ContractionTreeNode::ContractionTreeNode(Ptr parent,
@@ -1080,27 +975,13 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPtr> tensors) const
     if (!map_keys_equal(tensors, this->tensors)) {
         throw std::invalid_argument("Invalid tensor names (keys)");
     }
-    std::string charge = kChargeLeg;
-    std::map<std::string, BlockBackend::BlockPtr> charged_states;
     std::map<std::string, TensorPtr> prepared;
     for (auto const& [name, t] : tensors) {
         auto const& ph = this->tensors.at(name);
-        auto charged = std::dynamic_pointer_cast<ChargedTensor>(t);
-        std::vector<std::string> actual;
-        if (charged) {
-            actual = as_strings(charged->invariant_part->labels());
-        } else {
-            actual = as_strings(t->labels());
-        }
+        auto actual = _public_string_labels(t);
         auto expected = _expected_labels(ph.string_labels(), t);
         _assert_cyclic_labels(name, expected, actual);
-
-        if (charged) {
-            prepared[name] = charged->invariant_part->copy();
-            charged_states[std::format("{}:{}", name, charge)] = charged->charged_state;
-        } else {
-            prepared[name] = t->copy();
-        }
+        prepared[name] = t->copy();
     }
 
     // relabel such that labels are globally unique
@@ -1125,9 +1006,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPtr> tensors) const
         bool t1_has = t1_tens->has_label(rel_l1);
         if (!t2) {
             if (!t1_has) {
-                if (l1 == charge) {
-                    continue;
-                }
                 throw std::invalid_argument(std::format("Missing open leg {}:{}", t1, l1));
             }
             open_legs.emplace_back(rel_l1, l2);
@@ -1135,9 +1013,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPtr> tensors) const
             auto rel_l2 = std::format("{}:{}", t1, l2);
             bool t2_has = t1_tens->has_label(rel_l2);
             if (!t1_has || !t2_has) {
-                if (l1 == charge || l2 == charge) {
-                    continue;
-                }
                 throw std::invalid_argument(
                   std::format("Missing trace legs {}:{}, {}:{}", t1, l1, t1, l2));
             }
@@ -1147,9 +1022,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPtr> tensors) const
             auto t2_tens = require_tensor(working.at(*t2));
             bool t2_has = t2_tens->has_label(rel_l2);
             if (!t1_has || !t2_has) {
-                if (l1 == charge || l2 == charge) {
-                    continue;
-                }
                 throw std::invalid_argument(
                   std::format("Missing contraction legs {}:{}, {}:{}", t1, l1, *t2, l2));
             }
@@ -1162,8 +1034,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPtr> tensors) const
     if (working.size() != 1) {
         throw std::invalid_argument("Expected a single contraction result");
     }
-    auto res_name = working.begin()->first;
-    working[res_name] = _finalize_charge_legs(working[res_name], charged_states);
     return _extract_result(working, open_legs);
 }
 
@@ -1173,8 +1043,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPlaceholder> tensors) const
     if (!map_keys_equal(tensors, this->tensors)) {
         throw std::invalid_argument("Invalid tensor names (keys)");
     }
-    std::string charge = kChargeLeg;
-    std::map<std::string, BlockBackend::BlockPtr> charged_states;
     std::map<std::string, TensorPlaceholder> prepared;
     for (auto const& [name, t] : tensors) {
         auto const& ph = this->tensors.at(name);
@@ -1201,9 +1069,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPlaceholder> tensors) const
         bool t1_has = prepared.at(t1).has_label(rel_l1);
         if (!t2) {
             if (!t1_has) {
-                if (l1 == charge) {
-                    continue;
-                }
                 throw std::invalid_argument(std::format("Missing open leg {}:{}", t1, l1));
             }
             open_legs.emplace_back(rel_l1, l2);
@@ -1211,9 +1076,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPlaceholder> tensors) const
             auto rel_l2 = std::format("{}:{}", t1, l2);
             bool t2_has = prepared.at(t1).has_label(rel_l2);
             if (!t1_has || !t2_has) {
-                if (l1 == charge || l2 == charge) {
-                    continue;
-                }
                 throw std::invalid_argument(
                   std::format("Missing trace legs {}:{}, {}:{}", t1, l1, t1, l2));
             }
@@ -1222,9 +1084,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPlaceholder> tensors) const
             auto rel_l2 = std::format("{}:{}", *t2, l2);
             bool t2_has = prepared.at(*t2).has_label(rel_l2);
             if (!t1_has || !t2_has) {
-                if (l1 == charge || l2 == charge) {
-                    continue;
-                }
                 throw std::invalid_argument(
                   std::format("Missing contraction legs {}:{}, {}:{}", t1, l1, *t2, l2));
             }
@@ -1237,8 +1096,6 @@ PlanarDiagram::evaluate(std::map<std::string, TensorPlaceholder> tensors) const
     if (prepared.size() != 1) {
         throw std::invalid_argument("Expected a single contraction result");
     }
-    auto res_name = prepared.begin()->first;
-    prepared.at(res_name) = _finalize_charge_legs(prepared.at(res_name), charged_states);
     return _extract_result(prepared, open_legs);
 }
 
@@ -1366,7 +1223,7 @@ PlanarDiagram::parse_tensors(
         }
         std::vector<std::string> undefined;
         for (auto const& l : all_leg_labels) {
-            if (!leg_label_to_dim.contains(l) && l != kChargeLeg) {
+            if (!leg_label_to_dim.contains(l)) {
                 undefined.push_back(l);
             }
         }
@@ -1389,7 +1246,7 @@ PlanarDiagram::parse_tensors(
         }
         bool any_missing = false;
         for (auto const& l : all_leg_labels) {
-            if (l != kChargeLeg && !leg_label_to_dim.contains(l)) {
+            if (!leg_label_to_dim.contains(l)) {
                 any_missing = true;
                 break;
             }
@@ -1410,6 +1267,7 @@ PlanarDiagram::parse_tensors(
 
     TensorPlaceholderMap res;
     for (auto const& [name, legs] : parsed) {
+        _assert_valid_planar_placeholder_labels(legs, std::format("Tensor '{}'", name));
         std::vector<BigOPolynomial> tdims;
         tdims.reserve(legs.size());
         for (auto const& l : legs) {
@@ -1418,7 +1276,7 @@ PlanarDiagram::parse_tensors(
             if (it != leg_label_to_dim.end()) {
                 dim_str = it->second;
             } else {
-                dim_str = (l == kChargeLeg) ? "1" : "?";
+                dim_str = "?";
             }
             tdims.push_back(BigOPolynomial::from_str(dim_str));
         }
@@ -1524,15 +1382,8 @@ PlanarDiagram::verify_diagram()
           "Number of contracted and open legs does not match the total number of legs");
     }
 
-    int64 n_charged = 0;
-    for (auto const& [_, ph] : tensors) {
-        if (ph.has_label(kChargeLeg)) {
-            ++n_charged;
-        }
-    }
-    if (n_charged > 1 && !allow_multiple_charged_tensors) {
-        throw std::invalid_argument(
-          "Multiple ChargedTensor placeholders require allow_multiple_charged_tensors=True");
+    for (auto const& [name, ph] : tensors) {
+        _assert_valid_planar_placeholder_labels(ph.string_labels(), std::format("Tensor '{}'", name));
     }
 
     // run the contraction with placeholders.
@@ -1542,7 +1393,7 @@ PlanarDiagram::verify_diagram()
     auto res = evaluate(tensors);
     std::vector<std::string> ol;
     for (auto const& l : res.labels()) {
-        if (!_is_charge_leg_label(l)) {
+        if (!_is_hidden_planar_label(l)) {
             ol.push_back(l.value_or("None"));
         }
     }
@@ -1689,7 +1540,7 @@ PlanarDiagram::_extract_result(std::map<std::string, PlanarResult> const& tensor
     auto tens = tensors.begin()->second;
     std::vector<std::pair<std::string, std::string>> visible_open_legs;
     for (auto const& [old, neu] : open_legs) {
-        if (!_is_charge_leg_label(LegLabel{ old })) {
+        if (!_is_hidden_planar_label(old)) {
             visible_open_legs.emplace_back(old, neu);
         }
     }
@@ -1704,13 +1555,11 @@ PlanarDiagram::_extract_result(std::map<std::string, PlanarResult> const& tensor
     auto t = std::get<TensorPtr>(tens);
     std::vector<std::string> visible_labels;
     for (auto const& l : t->labels()) {
-        if (!_is_charge_leg_label(l)) {
+        if (!_is_hidden_planar_label(l)) {
             visible_labels.push_back(l.value_or("None"));
         }
     }
     if (visible_open_legs.empty()) {
-        // result is a number, or a ChargedTensor / placeholder with only a charge leg
-        // TODO this may change, see Issue 13 on Github
         if (!visible_labels.empty()) {
             throw std::invalid_argument(
               "Number of expected open legs inconsistent with planar diagram");
@@ -1747,13 +1596,13 @@ PlanarDiagram::_extract_result(std::map<std::string, TensorPlaceholder> const& t
     auto tens = tensors.begin()->second;
     std::vector<std::pair<std::string, std::string>> visible_open_legs;
     for (auto const& [old, neu] : open_legs) {
-        if (!_is_charge_leg_label(LegLabel{ old })) {
+        if (!_is_hidden_planar_label(old)) {
             visible_open_legs.emplace_back(old, neu);
         }
     }
     std::vector<std::string> visible_labels;
     for (auto const& l : tens.labels()) {
-        if (!_is_charge_leg_label(l)) {
+        if (!_is_hidden_planar_label(l)) {
             visible_labels.push_back(l.value_or("None"));
         }
     }
