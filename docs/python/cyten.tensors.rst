@@ -78,6 +78,14 @@ cyten.tensors.ChargedTensor
    :undoc-members:
    :show-inheritance:
 
+cyten.tensors.HiddenLegTensor
+-----------------------------
+
+.. autoclass:: cyten.tensors.HiddenLegTensor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Functions
 ---------
 

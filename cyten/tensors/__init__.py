@@ -67,6 +67,7 @@ from ._tensors import (
     ChargedTensor,
     DiagonalTensor,
     DirectSum,
+    HiddenLegTensor,
     Identity,
     LabelledLegs,
     Mask,

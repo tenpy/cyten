@@ -52,6 +52,7 @@ target_sources(cyten
   tensors/diagonal_tensor.cpp
   tensors/mask.cpp
   tensors/charged_tensor.cpp
+  tensors/hidden_leg_tensor.cpp
   tensors/helpers.cpp
   tensors/constructors.cpp
   tensors/ops_elementwise.cpp

@@ -51,6 +51,7 @@ target_sources(_core
   tensors/py_diagonal_tensor.cpp
   tensors/py_mask.cpp
   tensors/py_charged_tensor.cpp
+  tensors/py_hidden_leg_tensor.cpp
   tensors/py_helpers.cpp
   tensors/py_constructors.cpp
   tensors/py_ops_elementwise.cpp

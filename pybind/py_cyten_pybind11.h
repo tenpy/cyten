@@ -38,6 +38,7 @@ void bind_tensors_symmetric_tensor(py::module_& m);
 void bind_tensors_diagonal_tensor(py::module_& m);
 void bind_tensors_mask(py::module_& m);
 void bind_tensors_charged_tensor(py::module_& m);
+void bind_tensors_hidden_leg_tensor(py::module_& m);
 void bind_tensors_helpers(py::module_& m);
 void bind_tensors_constructors(py::module_& m);
 void bind_tensors_ops_elementwise(py::module_& m);
