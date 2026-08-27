@@ -4,7 +4,6 @@ Note that this toy code uses the outdated convention of kets pointing upwards in
 """
 
 # Copyright (C) TeNPy Developers, Apache license
-import numpy as np
 
 import cyten as ct
 from toycodes.tenpy_toycodes.a_mps import SimpleMPS, split_truncate_theta
