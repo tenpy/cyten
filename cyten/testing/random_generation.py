@@ -728,14 +728,21 @@ def random_tensor(
     # 3) Finish up
     # ======================================================================================
     if cls is tensors.ChargedTensor:
-        charge_leg = random_ElementarySpace(
-            symmetry=symmetry,
-            max_sectors=1,
-            max_multiplicity=1,
-            is_dual=False,
-            allow_basis_perm=allow_basis_perm,
-            np_random=np_random,
-        )
+        # Prefer a one-dimensional charge leg so ops that only support dim==1
+        # (almost_equal / linear_combination) remain testable.
+        try:
+            charge_leg = spaces.ElementarySpace.from_trivial_sector(
+                1, symmetry=symmetry, is_dual=False
+            )
+        except Exception:
+            charge_leg = random_ElementarySpace(
+                symmetry=symmetry,
+                max_sectors=1,
+                max_multiplicity=1,
+                is_dual=False,
+                allow_basis_perm=allow_basis_perm,
+                np_random=np_random,
+            )
         if charge_leg.dim == 1:
             charged_state = [1]
         else:
