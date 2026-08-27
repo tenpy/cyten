@@ -4032,10 +4032,10 @@ def test_HiddenLegTensor_basic(make_compatible_tensor):
 
 def test_HiddenLegTensor_implicit_dual_contraction(make_compatible_tensor):
     A_sym: SymmetricTensor = make_compatible_tensor(codomain=2, domain=1, labels=['a', 'b', 'h'], use_pipes=False)
-    # Contract public 'b': put dual of A's b in B's domain so compose is natural.
+    # Contract public 'b' and implicitly '!h'↔'!h*': B's domain must carry duals of A's b and h.
     B_sym: SymmetricTensor = make_compatible_tensor(
         codomain=1,
-        domain=[A_sym.get_leg('b'), None],
+        domain=[A_sym.get_leg('b'), A_sym.get_leg('h')],
         labels=['c', 'h*', 'b'],
         use_pipes=False,
     )
