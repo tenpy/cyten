@@ -731,9 +731,7 @@ def random_tensor(
         # Prefer a one-dimensional charge leg so ops that only support dim==1
         # (almost_equal / linear_combination) remain testable.
         try:
-            charge_leg = spaces.ElementarySpace.from_trivial_sector(
-                1, symmetry=symmetry, is_dual=False
-            )
+            charge_leg = spaces.ElementarySpace.from_trivial_sector(1, symmetry=symmetry, is_dual=False)
         except Exception:
             charge_leg = random_ElementarySpace(
                 symmetry=symmetry,
@@ -753,9 +751,7 @@ def random_tensor(
                 np_random=np_random,
             )
         real = False if dtype is None else dtype.is_real
-        check_tensor_memory_usage(
-            codomain=codomain, domain=domain.left_multiply(charge_leg), real=real
-        )
+        check_tensor_memory_usage(codomain=codomain, domain=domain.left_multiply(charge_leg), real=real)
         res = tensors.ChargedTensor.from_block_func(
             lambda size: random_block(block_backend=backend.block_backend, size=size, real=real, np_random=np_random),
             charge=charge_leg,

@@ -4031,9 +4031,7 @@ def test_HiddenLegTensor_basic(make_compatible_tensor):
 
 
 def test_HiddenLegTensor_implicit_dual_contraction(make_compatible_tensor):
-    A_sym: SymmetricTensor = make_compatible_tensor(
-        codomain=2, domain=1, labels=['a', 'b', 'h'], use_pipes=False
-    )
+    A_sym: SymmetricTensor = make_compatible_tensor(codomain=2, domain=1, labels=['a', 'b', 'h'], use_pipes=False)
     # Contract public 'b': put dual of A's b in B's domain so compose is natural.
     B_sym: SymmetricTensor = make_compatible_tensor(
         codomain=1,
@@ -4099,9 +4097,7 @@ def test_HiddenLegTensor_scalar_ops_error_with_hidden(make_compatible_tensor):
 
 
 def test_HiddenLegTensor_split_legs_skips_hidden(make_compatible_tensor):
-    T: SymmetricTensor = make_compatible_tensor(
-        codomain=3, domain=1, labels=['a', 'b', 'c', 'h'], use_pipes=False
-    )
+    T: SymmetricTensor = make_compatible_tensor(codomain=3, domain=1, labels=['a', 'b', 'c', 'h'], use_pipes=False)
     try:
         combined = tensors.combine_legs(T, [0, 1])
     except (NotImplementedError, SymmetryError, BraidChiralityUnspecifiedError) as e:
@@ -4137,9 +4133,7 @@ def test_HiddenLegTensor_dagger_stars_hidden_labels(make_compatible_tensor):
 
 
 def test_HiddenLegTensor_permute_leaves_hidden_in_place(make_compatible_tensor):
-    T: SymmetricTensor = make_compatible_tensor(
-        codomain=2, domain=1, labels=['a', 'b', 'h'], use_pipes=False
-    )
+    T: SymmetricTensor = make_compatible_tensor(codomain=2, domain=1, labels=['a', 'b', 'h'], use_pipes=False)
     H = HiddenLegTensor(T, ['h'])
     try:
         res = tensors.permute_legs(H, [1, 0], [2])
