@@ -120,6 +120,10 @@ target-version = "py314"
 exclude = ["scripts/"]
 
 
+[tool.ruff.lint.isort]
+# CI ruff check does not install the package; pin first-party so I001 matches local.
+known-first-party = ["cyten"]
+
 [tool.ruff.lint]
 # Note: we use flake8 to lint docstrings, see .flake8
 # Full list of rules: https://docs.astral.sh/ruff/rules/
