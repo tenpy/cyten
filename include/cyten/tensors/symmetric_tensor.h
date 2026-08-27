@@ -49,6 +49,10 @@ class SymmetricTensor : public Tensor
     /// Backend-specific free parameters of tensors with the given symmetry.
     TensorBackend::DataPtr data;
 
+    /// When true, labels may contain a charge-leg marker ``!`` (used only as the
+    /// `ChargedTensor` invariant part). Normal SymmetricTensors must leave this false.
+    bool allow_charge_leg_label = false;
+
     /// ``check_complex_dtype`` must be false when constructing a `DiagonalTensor`
     /// subclass: virtual ``verify_dtype`` does not dispatch to the derived override while the
     /// base constructor runs, and diagonal tensors intentionally allow real dtypes.

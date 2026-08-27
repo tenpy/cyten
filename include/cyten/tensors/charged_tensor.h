@@ -12,28 +12,20 @@ namespace cyten {
 
 /// Tensors which are not symmetric, but carry a well defined charge.
 ///
-/// This captures two related but slightly different concepts.
-/// In both cases, the main component of a symmetric tensor is an invariant part, which
-/// is a `SymmetricTensor`, that has an additional hidden leg, which carries the charge.
-/// See notes below.
+/// The main component is an invariant part, which is a `SymmetricTensor` that has an additional
+/// charge leg (label ``"!"``) as ``domain.spaces[0]``. A particular state (i.e. a vector) on that
+/// extra leg is specified as `charged_state`. It is (generally) not symmetric, and thus this
+/// state is not a "tensor". The composite object of invariant part and this `charged_state` then
+/// has a well-defined transformation behavior under the action of the symmetry group; unlike a
+/// `SymmetricTensor`, which is invariant under the action, it transforms under the group
+/// representation associated with the sectors of the additional leg.
 ///
-/// If the symmetry is a group symmetry, a particular state (i.e. a vector) on the extra leg may be
-/// specified. It is (generally) not symmetric, and thus this state is not a "tensor".
-/// The composite object of invariant part and this `charged_state` then has a well-defined
-/// transformation behavior under the action of the symmetry group; unlike a `SymmetricTensor`,
-/// which is invariant under the action, it transforms under the group representation associated
-/// with the sectors of the additional leg.
-///
-/// Alternatively, if the symmetry has symmetric braiding (which includes all group symmetries),
-/// we can leave the charged state unspecified and use the `ChargedTensor` as a way to hide
-/// an additional leg from algorithms.
-/// We require the braiding to be symmetric, since otherwise the braiding behavior of the hidden
-/// leg is ambiguous.
+/// To hide legs from algorithms without specifying a charged state, use `HiddenLegTensor`.
 ///
 /// @param invariant_part The symmetry-invariant part. the charge leg is the its
 /// ``domain.spaces[0]``.
-/// @param charged_state Either ``None``, or a backend-specific block of shape
-/// ``(charge_leg.dim,)``, which specifies a state on the charge leg.
+/// @param charged_state A backend-specific block of shape ``(charge_leg.dim,)``, which specifies
+/// a state on the charge leg. Must not be ``None``.
 class ChargedTensor : public Tensor
 {
   public:
@@ -44,14 +36,13 @@ class ChargedTensor : public Tensor
     static constexpr char const* _CHARGE_LEG_LABEL = "!";
 
     SymmetricTensor::Ptr invariant_part;
-    /// ``nullptr`` means unspecified charged state (Python ``None``).
+    /// Non-null block of shape ``(charge_leg.dim,)``.
     BlockBackend::BlockPtr charged_state;
     /// Usually an `ElementarySpace`; may be a `LegPipe` after
     /// `from_two_charge_legs` / ``combine_legs``.
     Leg::Ptr charge_leg;
 
-    ChargedTensor(SymmetricTensor::Ptr invariant_part,
-                  BlockBackend::BlockPtr charged_state = nullptr);
+    ChargedTensor(SymmetricTensor::Ptr invariant_part, BlockBackend::BlockPtr charged_state);
 
     ~ChargedTensor() override = default;
 

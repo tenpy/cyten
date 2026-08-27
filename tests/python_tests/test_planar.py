@@ -1456,16 +1456,20 @@ def test_PlanarDiagram_single_charged_tensor(symmetry, np_random):
     res.test_sanity()
     assert isinstance(res, ct.ChargedTensor)
     assert set(res.labels) == {'vL', 'vR', 'p'}
-    expect_inv = ct.planar.planar_contraction(theta, op.invariant_part, 'p', 'p*')
-    expect = ct.ChargedTensor(expect_inv, op.charged_state)
-    assert ct.planar.planar_almost_equal(res, expect)
+    expect = ct.tdot(theta, op, ['p'], ['p*'])
+    assert ct.almost_equal(res, expect)
 
     op_sym = ct.testing.random_tensor(symmetry, codomain=[p], domain=[p], labels=['p', 'p*'], np_random=np_random)
     res_sym = diagram(theta=theta, op=op_sym)
     res_sym.test_sanity()
     assert isinstance(res_sym, ct.SymmetricTensor)
     assert set(res_sym.labels) == {'vL', 'vR', 'p'}
-    assert ct.planar.planar_almost_equal(res_sym, ct.planar.planar_contraction(theta, op_sym, 'p', 'p*'))
+    expect_sym = ct.tdot(theta, op_sym, ['p'], ['p*'])
+    # Diagram open-leg order may differ from tdot; compare dense blocks after a shared permute.
+    order = ['vL', 'vR', 'p']
+    res_np = ct.permute_legs(res_sym, order, bend_right=True).to_numpy(understood_braiding=True)
+    exp_np = ct.permute_legs(expect_sym, order, bend_right=True).to_numpy(understood_braiding=True)
+    npt.assert_almost_equal(res_np, exp_np)
 
 
 @pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry])
@@ -1549,12 +1553,12 @@ def test_PlanarDiagram_two_open_charge_legs(symmetry, np_random):
         np_random=np_random,
     )
     B = ct.HiddenLegTensor(B_sym, ['charge*'])
-    # PlanarDiagram relabel prefixes tensor names before hidden labels (e.g. A:!h),
-    # which HiddenLegTensor does not support yet; contract public legs via tdot instead.
-    res = ct.tdot(A, B, ['b'], ['b'])
+    res = contiguous(A=A, B=B)
     res.test_sanity()
     assert isinstance(res, ct.SymmetricTensor)
     assert set(res.labels) == {'a', 'c'}
+    expect = ct.tdot(A, B, ['b'], ['b'])
+    assert ct.planar.planar_almost_equal(res, expect)
 
 
 def test_PlanarDiagram_charged_flag_and_planarity():

@@ -324,8 +324,31 @@ def random_tensor(
         assert like.backend is backend
         assert like.symmetry is symmetry
         if isinstance(like, tensors.ChargedTensor):
-            inv_part = random_tensor(symmetry=symmetry, backend=backend, like=like.invariant_part)
-            return tensors.ChargedTensor(inv_part, like.charged_state)
+            # Preserve charge_leg so results remain addable (same dummy leg).
+            charge_leg = like.charge_leg
+            if charge_leg.dim == 1:
+                charged_state = [1]
+            else:
+                charged_state = random_block(
+                    block_backend=backend.block_backend,
+                    size=(charge_leg.dim,),
+                    real=False if like.dtype is None else like.dtype.is_real,
+                    np_random=np_random,
+                )
+            real = False if like.dtype is None else like.dtype.is_real
+            return tensors.ChargedTensor.from_block_func(
+                lambda size: random_block(
+                    block_backend=backend.block_backend, size=size, real=real, np_random=np_random
+                ),
+                charge=charge_leg,
+                codomain=like.codomain,
+                domain=like.domain,
+                charged_state=charged_state,
+                backend=backend,
+                labels=like.labels,
+                dtype=like.dtype,
+                device=like.device,
+            )
         elif isinstance(like, tensors.HiddenLegTensor):
             sym_part = random_tensor(
                 symmetry=symmetry,
@@ -334,6 +357,48 @@ def random_tensor(
             )
             which_legs = [like.labels[i] for i in like.hidden_leg_idcs()]
             return tensors.HiddenLegTensor(sym_part, which_legs)
+        elif isinstance(like, tensors.SymmetricTensor):
+            charge = tensors.ChargedTensor._CHARGE_LEG_LABEL
+            if like.labels and like.labels[-1] == charge:
+                # Like is a ChargedTensor invariant part (includes the charge leg).
+                dom_factors = list(like.domain)
+                public_domain = (
+                    spaces.TensorProduct(dom_factors[:-1], symmetry=symmetry)
+                    if len(dom_factors) > 1
+                    else spaces.TensorProduct([], symmetry=symmetry)
+                )
+                pub_labels = like.labels[:-1]
+                charged = random_tensor(
+                    symmetry=symmetry,
+                    backend=backend,
+                    codomain=like.codomain,
+                    domain=public_domain,
+                    labels=pub_labels,
+                    dtype=like.dtype,
+                    device=like.device,
+                    max_blocks=max_blocks,
+                    max_multiplicity=max_multiplicity,
+                    empty_ok=empty_ok,
+                    all_blocks=all_blocks,
+                    cls=tensors.ChargedTensor,
+                    allow_basis_perm=allow_basis_perm,
+                    use_pipes=use_pipes,
+                    np_random=np_random,
+                )
+                return charged.invariant_part
+            return random_tensor(
+                symmetry=symmetry,
+                codomain=like.codomain,
+                domain=like.domain,
+                labels=like.labels,
+                backend=backend,
+                dtype=like.dtype,
+                device=like.device,
+                max_blocks=max_blocks,
+                max_multiplicity=max_multiplicity,
+                cls=type(like),
+                np_random=np_random,
+            )
         elif isinstance(like, tensors.Tensor):
             return random_tensor(
                 symmetry=symmetry,
