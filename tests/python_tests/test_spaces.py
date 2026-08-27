@@ -577,6 +577,7 @@ def test_DirectSumSpace(is_dual, make_any_space, max_mult=3, max_sectors=3):
     # take_slice collapses
     if d.symmetry.can_be_dropped and d.dim > 0:
         import warnings
+
         mask = np.ones(int(d.dim), dtype=bool)
         mask[-1] = False if d.dim > 1 else True
         with warnings.catch_warnings(record=True) as w:

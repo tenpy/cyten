@@ -169,9 +169,7 @@ class DMRGEngine:
         mpo_left_leg = self.H_mpo[0].codomain[0]
         backend = self.psi.backend
         dtype = self.psi.Bs[0].dtype
-        eye = ct.SymmetricTensor.from_eye(
-            [mps_left_leg], backend=backend, labels=['vL', 'vL*'], dtype=dtype
-        )
+        eye = ct.SymmetricTensor.from_eye([mps_left_leg], backend=backend, labels=['vL', 'vL*'], dtype=dtype)
         # IdL is summand 0 of the finite MPO virtual leg
         unit = mpo_left_leg.unit_vector(0, backend=backend, labels=['wL', '!'], dtype=dtype)
         # Only squeeze the auxiliary trivial leg from the unit vector; the MPS bond may
@@ -183,9 +181,7 @@ class DMRGEngine:
         mpo_right_leg = self.H_mpo[-1].domain[1].dual
         backend = self.psi.backend
         dtype = self.psi.Bs[-1].dtype
-        eye = ct.SymmetricTensor.from_eye(
-            [mps_right_leg], backend=backend, labels=['vR', 'vR*'], dtype=dtype
-        )
+        eye = ct.SymmetricTensor.from_eye([mps_right_leg], backend=backend, labels=['vR', 'vR*'], dtype=dtype)
         # IdR is the last summand of the finite MPO virtual leg
         unit = mpo_right_leg.unit_vector(-1, backend=backend, labels=['wR', '!'], dtype=dtype)
         return ct.squeeze_legs(ct.outer(ct.dagger(unit), eye), '!*')
