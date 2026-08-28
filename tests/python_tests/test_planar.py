@@ -1305,7 +1305,7 @@ def test_PlanarDiagram_verify_diagram():
 
 
 @pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry, fibonacci_anyon_category])
-def test_PlanarLinearOperator(symmetry):
+def test_PlanarLinearOperator(symmetry, np_random):
     # ===========================================
     # define an operator
     # ===========================================
@@ -1356,10 +1356,12 @@ def test_PlanarLinearOperator(symmetry):
     # create example tensors
     # ===========================================
 
-    theta = ct.testing.random_tensor(symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'], max_multiplicity=3, max_blocks=3)
+    theta = ct.testing.random_tensor(
+        symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
+    )
     vL, p0, p1, vR = theta.legs
     Lp = ct.testing.random_tensor(
-        symmetry, [vL, None, vL.dual], labels=['vR*', 'wR', 'vR'], max_multiplicity=3, max_blocks=3
+        symmetry, [vL, None, vL.dual], labels=['vR*', 'wR', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
     )
     W0 = ct.testing.random_tensor(
         symmetry,
@@ -1367,6 +1369,7 @@ def test_PlanarLinearOperator(symmetry):
         labels=['p', 'wR', 'p*', 'wL'],
         max_multiplicity=3,
         max_blocks=3,
+        np_random=np_random,
     )
     W1 = ct.testing.random_tensor(
         symmetry,
@@ -1374,8 +1377,11 @@ def test_PlanarLinearOperator(symmetry):
         labels=['p', 'wR', 'p*', 'wL'],
         max_multiplicity=3,
         max_blocks=3,
+        np_random=np_random,
     )
-    Rp = ct.testing.random_tensor(symmetry, [vR, vR.dual, W1.get_leg('wR').dual], labels=['vL*', 'vL', 'wL'])
+    Rp = ct.testing.random_tensor(
+        symmetry, [vR, vR.dual, W1.get_leg('wR').dual], labels=['vL*', 'vL', 'wL'], np_random=np_random
+    )
 
     # ===========================================
     # create an op instance, call to_tensor and matvec

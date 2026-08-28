@@ -4144,3 +4144,36 @@ def test_HiddenLegTensor_permute_leaves_hidden_in_place(make_compatible_tensor):
     assert res.labels[2] == '!h'  # hidden stayed in domain
     assert '!h' in res.labels
     assert res.labels[2] == '!h'
+
+
+@pytest.mark.parametrize('do_dagger', [True, False])
+def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
+    labels = ['a', 'b', 'c', 'h']
+    T: SymmetricTensor = make_compatible_tensor(codomain=2, domain=2, labels=labels, use_pipes=False)
+    T = HiddenLegTensor(T, ['h'])
+    if do_dagger:
+        T2: SymmetricTensor = make_compatible_tensor(codomain=T.codomain, domain=T.domain, labels=labels)
+        T2 = HiddenLegTensor(T2, ['h'])
+    else:
+        T2: SymmetricTensor = make_compatible_tensor(
+            codomain=T.domain, domain=T.codomain, labels=[l + '*' for l in labels[::-1]]
+        )
+        T2 = HiddenLegTensor(T2, ['h*'])
+
+    res = tensors.inner(T, T2, do_dagger=do_dagger)
+    assert isinstance(res, T.backend.block_backend.Scalar)
+    res = res.to_numpy()
+    assert isinstance(res, (bool, float, complex, np.float32, np.float64, np.complex64, np.complex128))
+
+    if T.symmetry.has_trivial_braid:
+        if do_dagger:
+            expect = np.sum(np.conj(T.to_numpy()) * T2.to_numpy())
+        else:
+            expect = np.sum(np.transpose(T.to_numpy(), [*reversed(range(T.num_legs))]) * T2.to_numpy())
+        npt.assert_almost_equal(res, expect)
+    else:
+        pass  # TODO need to check some other way
+
+    # test norms
+    npt.assert_almost_equal(tensors.norm(T), tensors.inner(T, T, do_dagger=True))
+    npt.assert_almost_equal(tensors.norm(T2), tensors.inner(T2, T2, do_dagger=True))
