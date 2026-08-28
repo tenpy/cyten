@@ -16,7 +16,7 @@ _SCRIPTS = _REPO / 'scripts'
 def _is_compiled_core() -> bool:
     try:
         spec = importlib.util.find_spec('cyten._core')
-    except ImportError, ModuleNotFoundError, ValueError:
+    except (ImportError, ModuleNotFoundError, ValueError):  # fmt: skip
         return False
     if spec is None or spec.loader is None:
         return False

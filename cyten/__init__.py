@@ -55,7 +55,7 @@ from .symmetries._symmetries import (
     double_semion_category,
     semion_category,
 )
-from .symmetries.spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
+from .symmetries.spaces import AbelianLegPipe, DirectSumSpace, ElementarySpace, Leg, LegPipe, Space, TensorProduct
 from .symmetries.trees import FusionTree, fusion_trees
 from .tensors import (
     ChargedTensor,
