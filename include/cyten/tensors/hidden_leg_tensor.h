@@ -20,8 +20,10 @@ namespace cyten {
 /// - Contracting two `HiddenLegTensor`s implicitly contracts dual hidden labels
 ///   (``!a`` with ``!a*``). Equal hidden labels (both starred or neither) raise.
 /// - Unmatched hidden legs remain open on the result.
-/// - Scalar-returning ops (`trace`, `inner`, `norm`, `item`) require that no hidden legs remain.
-/// - `partial_trace` may leave open hidden legs.
+/// - `norm` is equivalent to `inner(T, T, do_dagger=True)` and contracts hidden legs
+///   with their duals (same as the Frobenius norm of the underlying `SymmetricTensor`).
+/// - Other scalar-returning ops (`trace`, `item`) require that no hidden legs remain on
+///   the input (except `inner`, which may pair hidden legs between arguments).
 ///
 /// Construct from an existing tensor by selecting which legs to hide; the constructor prefixes
 /// ``!`` to those labels.

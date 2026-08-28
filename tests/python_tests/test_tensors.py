@@ -4086,7 +4086,7 @@ def test_HiddenLegTensor_scalar_ops_error_with_hidden(make_compatible_tensor):
     T: SymmetricTensor = make_compatible_tensor(codomain=1, domain=1, labels=['a', 'h'])
     H = HiddenLegTensor(T, ['h'])
     with pytest.raises(ValueError, match='hidden'):
-        _ = tensors.norm(H)
+        _ = tensors.trace(H)
     # Equal (non-dual) hidden labels must raise on contraction.
     H2 = HiddenLegTensor(
         make_compatible_tensor(codomain=T.codomain, domain=T.domain, labels=['a', 'h']),
@@ -4174,6 +4174,6 @@ def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
     else:
         pass  # TODO need to check some other way
 
-    # test norms
-    npt.assert_almost_equal(tensors.norm(T), tensors.inner(T, T, do_dagger=True))
-    npt.assert_almost_equal(tensors.norm(T2), tensors.inner(T2, T2, do_dagger=True))
+    # norm(T) == sqrt(inner(T, T, do_dagger=True)); hidden legs are contracted implicitly.
+    npt.assert_almost_equal(tensors.norm(T) ** 2, tensors.inner(T, T, do_dagger=True))
+    npt.assert_almost_equal(tensors.norm(T2) ** 2, tensors.inner(T2, T2, do_dagger=True))

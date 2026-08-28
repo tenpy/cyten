@@ -1206,9 +1206,6 @@ norm_py(py::object tensor)
           np.attr("sqrt")(tensor.attr("leg").attr("dim")).cast<float64>()));
     }
     if (is_DiagonalTensor(tensor) || is_SymmetricTensor(tensor)) {
-        if (is_HiddenLegTensor(tensor)) {
-            require_no_remaining_hidden(tensor, "norm");
-        }
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
         return scalar_to_py(backend->norm(tensor.cast<TensorCPtr>()));
     }
@@ -2132,6 +2129,9 @@ tdot_py(py::object tensor1,
 py::object
 trace_py(py::object tensor)
 {
+    if (is_HiddenLegTensor(tensor)) {
+        require_no_remaining_hidden(tensor, "trace");
+    }
     check_spaces({ tensor.attr("domain") }, { tensor.attr("codomain") });
     if (is_Identity(tensor)) {
         return tensor.attr("leg").attr("dim");
@@ -2159,9 +2159,6 @@ trace_py(py::object tensor)
                             { 0 },
                             { 0 });
         return scalar_to_py(bb->item(res));
-    }
-    if (is_HiddenLegTensor(tensor)) {
-        require_no_remaining_hidden(tensor, "trace");
     }
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
     return scalar_to_py(backend->trace_full(tensor.cast<SymmetricTensorCPtr>(), {}, {}));
