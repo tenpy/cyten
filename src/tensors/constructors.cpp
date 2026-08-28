@@ -514,9 +514,7 @@ normalize_summand_index(DirectSumSpace const& space, int64 i)
     }
     if (i < 0 || i >= n) {
         throw std::invalid_argument(
-          std::format("summand index {} out of range for DirectSumSpace with {} summands",
-                      i,
-                      n));
+          std::format("summand index {} out of range for DirectSumSpace with {} summands", i, n));
     }
     return i;
 }
@@ -579,7 +577,8 @@ DirectSumSpace::inclusion_of_summand(int64 i,
                                      std::optional<LegLabels> labels,
                                      std::optional<std::string> device) const
 {
-    auto proj = projection_onto_summand(i, std::move(backend), std::move(labels), std::move(device));
+    auto proj =
+      projection_onto_summand(i, std::move(backend), std::move(labels), std::move(device));
     auto incl = std::dynamic_pointer_cast<Mask>(proj->dagger());
     if (!incl) {
         throw std::runtime_error("Mask::dagger did not return a Mask");
