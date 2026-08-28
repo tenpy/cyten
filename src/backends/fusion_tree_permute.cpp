@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cassert>
 #include <numeric>
-#include <set>
 #include <stdexcept>
 
 namespace cyten {
@@ -20,48 +19,6 @@ inverse_permutation(std::vector<int64> const& perm)
         inv[static_cast<std::size_t>(perm[i])] = static_cast<int64>(i);
     }
     return inv;
-}
-
-[[nodiscard]] std::vector<int64>
-permutation_as_swaps(std::vector<int64> const& permutation)
-{
-    int64 const N = static_cast<int64>(permutation.size());
-    std::set<int64> seen(permutation.begin(), permutation.end());
-    if (static_cast<int64>(seen.size()) != N) {
-        throw std::invalid_argument("permutation_as_swaps: not a permutation");
-    }
-    for (int64 x : seen) {
-        if (x < 0 || x >= N) {
-            throw std::invalid_argument("permutation_as_swaps: not a permutation");
-        }
-    }
-
-    std::vector<int64> current_positions(N);
-    std::iota(current_positions.begin(), current_positions.end(), 0);
-    std::vector<int64> swaps;
-    for (int64 target_pos = 0; target_pos < N - 1; ++target_pos) {
-        int64 const original_pos = permutation[static_cast<std::size_t>(target_pos)];
-        int64 const current_pos = current_positions[static_cast<std::size_t>(original_pos)];
-        for (int64 j = current_pos; j > target_pos; --j) {
-            swaps.push_back(j - 1);
-        }
-        std::vector<int64> perm(N);
-        std::iota(perm.begin(), perm.end(), 0);
-        for (int64 j = target_pos; j <= current_pos; ++j) {
-            if (j < current_pos) {
-                perm[static_cast<std::size_t>(j)] = j + 1;
-            } else if (j == current_pos) {
-                perm[static_cast<std::size_t>(j)] = target_pos;
-            }
-        }
-        std::vector<int64> new_current(N);
-        for (int64 p = 0; p < N; ++p) {
-            new_current[static_cast<std::size_t>(p)] =
-              perm[static_cast<std::size_t>(current_positions[static_cast<std::size_t>(p)])];
-        }
-        current_positions = std::move(new_current);
-    }
-    return swaps;
 }
 
 } // namespace

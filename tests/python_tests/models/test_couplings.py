@@ -940,20 +940,6 @@ def test_stretch_with_identities():
         assert factor.get_leg_co_domain('p') == site.leg
 
 
-def test_adjacent_transpositions():
-    """_adjacent_transpositions must realize every permutation via adjacent swaps."""
-    import itertools
-
-    for n in range(1, 5):
-        for perm in itertools.permutations(range(n)):
-            perm = list(perm)
-            swap_positions = couplings._adjacent_transpositions(perm)
-            working = list(range(n))
-            for pos in swap_positions:
-                working[pos], working[pos + 1] = working[pos + 1], working[pos]
-            assert working == perm
-
-
 def _to_matrix(dense, dims):
     """Convert a dense block with axes [p0,...,p(n-1), p(n-1)*,...,p0*] (bra reversed, as
     returned by Coupling.to_tensor().to_numpy()) into a plain (prod(dims), prod(dims)) matrix

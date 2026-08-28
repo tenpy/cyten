@@ -155,3 +155,22 @@ def test_permutation_as_swaps(N, which_perm, np_random):
         assert 0 <= j < j + 1 < N
         res[j], res[j + 1] = res[j + 1], res[j]
     assert res == expect
+
+
+def test_permutation_as_swaps_all_small():
+    """permutation_as_swaps must realize every permutation via adjacent swaps."""
+    import itertools
+
+    for n in range(0, 5):
+        for perm in itertools.permutations(range(n)):
+            perm = list(perm)
+            swap_positions = tools.misc.permutation_as_swaps(perm)
+            working = list(range(n))
+            for pos in swap_positions:
+                working[pos], working[pos + 1] = working[pos + 1], working[pos]
+            assert working == perm
+
+    with pytest.raises(ValueError, match='not a permutation'):
+        tools.misc.permutation_as_swaps([0, 0])
+    with pytest.raises(ValueError, match='not a permutation'):
+        tools.misc.permutation_as_swaps([1, 2])

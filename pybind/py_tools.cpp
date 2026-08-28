@@ -37,6 +37,11 @@ bind_tools(py::module_& m)
           py::arg("idx"),
           py::arg("length"),
           "Convert to a valid non-negative index into the given length.");
+
+    m.def("permutation_as_swaps",
+          &cyten::permutation_as_swaps,
+          py::arg("permutation"),
+          DOC(cyten, permutation_as_swaps));
 }
 
 } // namespace cyten

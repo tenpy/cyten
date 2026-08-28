@@ -26,6 +26,9 @@ Free functions
 .. doxygenfunction:: cyten::to_valid_idx
    :project: cyten
 
+.. doxygenfunction:: cyten::permutation_as_swaps
+   :project: cyten
+
 Subheaders
 ----------
 

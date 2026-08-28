@@ -1,7 +1,11 @@
 #include <cyten/tools.h>
 
+#include <algorithm>
 #include <format>
+#include <numeric>
 #include <pybind11/numpy.h>
+#include <stdexcept>
+#include <utility>
 
 namespace cyten {
 
@@ -57,6 +61,41 @@ to_valid_idx(int64 idx, int64 length)
     if (idx < 0)
         idx += length;
     return idx;
+}
+
+std::vector<int64>
+permutation_as_swaps(std::vector<int64> const& permutation)
+{
+    int64 const n = static_cast<int64>(permutation.size());
+    std::vector<int64> sorted = permutation;
+    std::sort(sorted.begin(), sorted.end());
+    for (int64 i = 0; i < n; ++i) {
+        if (sorted[static_cast<std::size_t>(i)] != i) {
+            throw std::invalid_argument("permutation_as_swaps: not a permutation");
+        }
+    }
+
+    std::vector<int64> working(static_cast<std::size_t>(n));
+    std::iota(working.begin(), working.end(), int64(0));
+    std::vector<int64> swap_positions;
+
+    for (int64 target_pos = 0; target_pos < n; ++target_pos) {
+        int64 const value = permutation[static_cast<std::size_t>(target_pos)];
+        int64 cur = target_pos;
+        for (int64 i = target_pos; i < n; ++i) {
+            if (working[static_cast<std::size_t>(i)] == value) {
+                cur = i;
+                break;
+            }
+        }
+        while (cur > target_pos) {
+            swap_positions.push_back(cur - 1);
+            std::swap(working[static_cast<std::size_t>(cur - 1)],
+                      working[static_cast<std::size_t>(cur)]);
+            --cur;
+        }
+    }
+    return swap_positions;
 }
 
 } // namespace cyten

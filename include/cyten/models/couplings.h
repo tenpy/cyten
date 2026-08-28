@@ -15,7 +15,6 @@
 namespace cyten {
 
 [[nodiscard]] std::map<std::string, py::object> space_to_dict(ElementarySpace::Ptr space);
-[[nodiscard]] std::vector<int64> adjacent_transpositions(std::vector<int64> const& permutation);
 /// Recursively turn the output of the ``_*_to_dict`` helpers into hashable nested tuples.
 [[nodiscard]] py::object freeze(py::object obj);
 

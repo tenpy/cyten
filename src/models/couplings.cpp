@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <format>
 #include <functional>
+#include <numeric>
 #include <ranges>
 #include <stdexcept>
 #include <utility>
@@ -385,33 +386,6 @@ space_to_dict(ElementarySpace::Ptr space)
     };
 }
 
-std::vector<int64>
-adjacent_transpositions(std::vector<int64> const& permutation)
-{
-    int64 const n = static_cast<int64>(permutation.size());
-    std::vector<int64> working(static_cast<std::size_t>(n));
-    std::iota(working.begin(), working.end(), int64(0));
-    std::vector<int64> swap_positions;
-
-    for (int64 target_pos = 0; target_pos < n; ++target_pos) {
-        int64 const value = permutation[static_cast<std::size_t>(target_pos)];
-        int64 cur = target_pos;
-        for (int64 i = target_pos; i < n; ++i) {
-            if (working[static_cast<std::size_t>(i)] == value) {
-                cur = i;
-                break;
-            }
-        }
-        while (cur > target_pos) {
-            swap_positions.push_back(cur - 1);
-            std::swap(working[static_cast<std::size_t>(cur - 1)],
-                      working[static_cast<std::size_t>(cur)]);
-            --cur;
-        }
-    }
-    return swap_positions;
-}
-
 py::object
 freeze(py::object obj)
 {
@@ -767,7 +741,7 @@ Coupling::permute(std::vector<int64> const& permutation, std::optional<LevelsSpe
         }
     }
 
-    std::vector<int64> swap_positions = adjacent_transpositions(permutation);
+    std::vector<int64> swap_positions = permutation_as_swaps(permutation);
 
     std::vector<Site::Ptr> permuted_sites = sites;
     std::vector<SymmetricTensorPtr> permuted_factorization = factorization;
