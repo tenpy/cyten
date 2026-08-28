@@ -8,13 +8,54 @@
 
 namespace cyten {
 
-/// SU(N) group symmetry.
+/// Standard file name for SU(N) symmetry data, per the SU(N) data convention:
+/// ``"<base>_N{N}_{kind}_hweight{hweight}.hdf5"``.
 ///
-/// Sectors are arrays of length `N` which correspond to first rows of normalized
-/// Gelfand–Tsetlin patterns (see https://arxiv.org/pdf/1009.0437).
-/// E.g. for SU(3) the 8-dimensional irrep is ``[2, 1, 0]``.
-/// Clebsch–Gordan coefficients and F/R symbols need to be calculated with the
-/// ``clebsch_gordan_coefficients`` package and exported as HDF5 files.
+/// \param kind  One of ``"CG"``, ``"F"``, ``"R"`` (case-insensitive on input, normalized to upper
+///              case in the result).
+/// \param filename_base  Defaults to the ``su_n_data_filename_base`` config option.
+std::string su_n_data_filename(int N,
+                               std::string const& kind,
+                               int64 hweight,
+                               std::optional<std::string> filename_base = std::nullopt);
+
+/// Full path to a standard SU(N) data file: ``<path>/<su_n_data_filename(...)>``.
+///
+/// \param path  Defaults to the ``su_n_data_path`` config option. A leading ``~`` is expanded.
+std::string su_n_data_file_path(int N,
+                                std::string const& kind,
+                                int64 hweight,
+                                std::optional<std::string> path = std::nullopt,
+                                std::optional<std::string> filename_base = std::nullopt);
+
+/// SU(N) group symmetry
+///
+/// The sectors are arrays of length N which correspond to first rows of normalized Gelfand-Tsetlin
+/// patterns (see https://arxiv.org/pdf/1009.0437 ).
+/// E.g. for SU(3) the 8 dimensional irreducible representation is labeled by [2,1,0]
+///
+/// Clebsch-Gordan coefficients and F/R symbols need to be calculated with the
+/// clebsch_gordan_coefficients package and exported as HDF5 files.
+///
+/// There are two ways to construct an SUN:
+///
+/// 1. From the standard data files, resolved from the config::
+///
+///        SUN(N, hweight, *, cg_hweight=None, f_hweight=None, r_hweight=None,
+///            path=None, filename_base=None, descriptive_name=None)
+///
+///    The three files are looked up as
+///    ``{su_n_data_path}/{su_n_data_filename_base}_N{N}_{CG|F|R}_hweight{H}.hdf5``,
+///    with the two braced names taken from the cyten config (see :mod:`cyten.config`).
+///    ``hweight`` sets all three highest weights; ``cg_hweight`` / ``f_hweight`` /
+///    ``r_hweight`` override them individually. The CG highest weight must be >= the
+///    F and R highest weights (they are usually all equal).
+///    ``path`` and ``filename_base`` override the config options for this call only.
+///    Use :func:`su_n_data_file_path` to see where cyten will look.
+///
+/// 2. From open ``h5py.File`` handles::
+///
+///        SUN(N, CGfile, Ffile, Rfile, descriptive_name=None)
 ///
 /// @param CGfile HDF5 file containing the Clebsch–Gordan coefficients.
 /// @param Ffile HDF5 file containing the F symbols.
@@ -38,14 +79,27 @@ class SUN : public Group
         std::optional<std::string> descriptive_name = std::nullopt);
     ~SUN() override = default;
 
+    /// Construct from the standard data files, resolved via ``su_n_data_file_path`` (i.e. via the
+    /// ``su_n_data_path`` / ``su_n_data_filename_base`` config options, unless overridden here).
+    ///
+    /// ``hweight`` sets the highest weight for all three files; ``cg_hweight`` / ``f_hweight`` /
+    /// ``r_hweight`` override it individually. The CG highest weight must be >= the F and R
+    /// highest weights.
+    static Ptr from_config(int N,
+                           int64 hweight,
+                           std::optional<int64> cg_hweight = std::nullopt,
+                           std::optional<int64> f_hweight = std::nullopt,
+                           std::optional<int64> r_hweight = std::nullopt,
+                           std::optional<std::string> path = std::nullopt,
+                           std::optional<std::string> filename_base = std::nullopt,
+                           std::optional<std::string> descriptive_name = std::nullopt);
+
     bool is_valid_sector(Sector a) const override;
     bool _is_equivalent_factor(SymmetryFactor const& other) const override;
     int64 sector_dim(Sector a) const override;
     std::string repr() const override;
     Sector dual_sector(Sector a) const override;
 
-    /// Returns a dictionary with the outer multiplicities for the irreps in the decomposition of a
-    /// x b.
     int64 hweight_from_CG_hdf5() const;
     int64 hweight_from_F_hdf5() const;
     int64 hweight_from_R_hdf5() const;
@@ -53,17 +107,25 @@ class SUN : public Group
     bool can_fuse_to(Sector a, Sector b, Sector c) const override;
     int64 _n_symbol(Sector a, Sector b, Sector c) const override;
 
+    /// To every SU(N) irrep, labeled by the first row of a GT pattern, we can assign an integer S.
     int64 S_index_irrep_weight(Sector a) const;
+    /// Returns the highest irrep which appears in the decomposition of a x b.
     Sector highest_irrep_in_decomp(Sector a, Sector b) const;
     SectorArray fusion_outcomes(Sector a, Sector b) const override;
 
+    /// Returns a dictionary with irreps as keys and their dimension as values.
+    ///
+    /// The irreps are the ones appearing in the decomposition of a x b.
+    /// Does not contain multiplicities!
     py::dict dims_of_irreps(Sector a, Sector b) const;
+    /// Returns a dictionary with the outer multiplicities for the irreps in the decomposition of a
+    /// x b.
     py::dict outer_multiplicity_from_CG(Sector a, Sector b) const;
 
     /// Evaluate a single Clebsch-Gordan coefficient.
     ///
-    /// @param a, b, c Sector for the fusion @f$ a \otimes b \mapsto c @f$.
-    /// @param q_a, q_b, q_c Indices of the Gelfand Tsetlin pattern
+    /// @param a,b,c Sector for the fusion @f$ a \otimes b \mapsto c @f$.
+    /// @param q_a,q_b,q_c Indices of the Gelfand Tsetlin pattern
     /// @param mu multiplicity index 1 <= mu
     /// @returns The CG coefficient for the given input
     float64 clebschgordan(Sector a, int64 q_a, Sector b, int64 q_b, Sector c, int64 q_c, int64 mu)
@@ -76,14 +138,14 @@ class SUN : public Group
     /// output is the conjugated F symbol [F^{abc}_{def}]^*_{mu,nu,kappa, lambda}
     /// where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e
     ///
-    /// @param a, b, c, d, e, f Irreps specifying the CG coefficient.
+    /// @param a,b,c,d,e,f Irreps specifying the CG coefficient.
     FusionSymbol _f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
       const;
     FusionSymbol _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
       const override;
     /// Returns the R symbol for the specified input irreps calculated from CG coefficients.
     ///
-    /// @param a, b, c Irreps specifying the R symbol.
+    /// @param a,b,c Irreps specifying the R symbol.
     FusionSymbol _r_symbol_from_CG(Sector a, Sector b, Sector c) const;
     FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const override;
     int64 frobenius_schur(Sector a) const override;

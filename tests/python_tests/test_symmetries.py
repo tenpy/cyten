@@ -1007,13 +1007,33 @@ def test_su2_symmetry(np_random):
     npt.assert_array_equal(sym.dual_sectors(np.stack([spin_1, spin_3_half])), np.stack([spin_1, spin_3_half]))
 
 
-@pytest.mark.parametrize('N', [3])
-@pytest.mark.parametrize('CGfile', ['Test_N_3_HWeight_7.hdf5'])
-@pytest.mark.parametrize('Ffile', ['Test_Fsymb_3_HWeight_4.hdf5'])
-@pytest.mark.parametrize('Rfile', ['Test_Rsymb_3_HWeight_4.hdf5'])
-def test_suN_symmetry(N, CGfile, Ffile, Rfile, np_random):
-    if not all([os.path.exists(f) for f in [CGfile, Ffile, Rfile]]):
-        pytest.skip('Need to provide files for SU(N) data!')
+def _locate_su_n_files(N, cg_h, f_h, r_h):
+    """Return (CGfile, Ffile, Rfile) paths for the given (N, hweights), or None if unavailable.
+
+    Tries the standard, config-resolved convention first; falls back to the legacy hand-made test
+    file names (kept so existing local data still works).
+    """
+    standard = [symmetries.su_n_data_file_path(N, kind, h) for kind, h in [('CG', cg_h), ('F', f_h), ('R', r_h)]]
+    if all(os.path.exists(f) for f in standard):
+        return standard
+    legacy = [
+        f'Test_N_{N}_HWeight_{cg_h}.hdf5',
+        f'Test_Fsymb_{N}_HWeight_{f_h}.hdf5',
+        f'Test_Rsymb_{N}_HWeight_{r_h}.hdf5',
+    ]
+    if all(os.path.exists(f) for f in legacy):
+        return legacy
+    return None
+
+
+@pytest.mark.parametrize('N, cg_h, f_h, r_h', [(3, 7, 4, 4)])
+def test_suN_symmetry(N, cg_h, f_h, r_h, np_random):
+    files = _locate_su_n_files(N, cg_h, f_h, r_h)
+    if files is None:
+        pytest.skip(
+            f'Need to provide files for SU(N) data! Expected e.g. {symmetries.su_n_data_file_path(N, "CG", cg_h)}'
+        )
+    CGfile, Ffile, Rfile = files
 
     def gen_irrepsTEST(N, k):
         """generates a list of all possible irreps for given N and highest weight k"""
@@ -1063,6 +1083,59 @@ def test_suN_symmetry(N, CGfile, Ffile, Rfile, np_random):
     assert sym != sym_with_name
     assert sym != symmetries.SU2()
     assert sym != fermion_parity
+
+
+@pytest.mark.parametrize('N, cg_h, f_h, r_h', [(3, 7, 4, 4)])
+def test_suN_from_config(N, cg_h, f_h, r_h):
+    files = _locate_su_n_files(N, cg_h, f_h, r_h)
+    if files is None:
+        pytest.skip('Need SU(N) data files following the standard naming convention!')
+    standard = [symmetries.su_n_data_file_path(N, kind, h) for kind, h in [('CG', cg_h), ('F', f_h), ('R', r_h)]]
+    if files != standard:
+        pytest.skip('Need SU(N) data files following the standard naming convention!')
+
+    sym = symmetries.SUN(N, cg_h, f_hweight=f_h, r_hweight=r_h)
+    assert sym.N == N
+    assert sym.hweight_from_CG_hdf5() == cg_h
+    assert sym.hweight_from_F_hdf5() == f_h
+    assert sym.hweight_from_R_hdf5() == r_h
+
+    handles = [h5py.File(f, 'r') for f in files]
+    assert sym == symmetries.SUN(N, *handles)
+
+    named = symmetries.SUN(N, cg_h, f_hweight=f_h, r_hweight=r_h, descriptive_name='foo')
+    assert named != sym
+
+
+def test_suN_missing_data_error(tmp_path):
+    from cyten.config import temporary_options
+
+    with temporary_options(su_n_data_path=str(tmp_path)):
+        with pytest.raises(FileNotFoundError, match=r'su_n_clebsch_gordan_data_N3_CG_hweight7\.hdf5'):
+            symmetries.SUN(3, 7)
+        with pytest.raises(FileNotFoundError, match='CYTEN_SU_N_DATA_PATH'):
+            symmetries.SUN(3, 7)
+
+    # the path/filename_base overrides are a per-call escape hatch too
+    with pytest.raises(FileNotFoundError, match=r'nope[/\\]base_N3_CG_hweight7\.hdf5'):
+        symmetries.SUN(3, 7, path=str(tmp_path / 'nope'), filename_base='base')
+
+
+def test_suN_hweight_validation(tmp_path):
+    with pytest.raises(ValueError, match='CG'):
+        symmetries.SUN(3, 4, cg_hweight=2, f_hweight=4, path=str(tmp_path))
+
+
+def test_suN_overload_dispatch():
+    """(N, hweight) and (N, CGfile, Ffile, Rfile) must not shadow each other.
+
+    cg/f/r hweight overrides are keyword-only, so ``SUN(3, 7, 4, 4)`` cannot hit the
+    ``(N, hweight, ...)`` overload. It is accepted by the ``(N, CGfile, Ffile, Rfile, ...)``
+    overload instead -- ``py::object`` parameters match any Python object, ints included -- and
+    fails once the body tries to treat the ints as HDF5 file handles.
+    """
+    with pytest.raises(AttributeError):
+        symmetries.SUN(3, 7, 4, 4)
 
 
 def test_fermion_parity(np_random):

@@ -7,6 +7,19 @@
 
 namespace cyten {
 
+/// Default directory for SU(N) symmetry data files.
+///
+/// Deliberately the literal POSIX form ``/home/<login-name>/.tenpy/su_n_symmetry_data`` on *all*
+/// platforms, matching the layout produced by the external ``clebsch_gordan_coefficients``
+/// generator (which computes ``f"/home/{getpass.getuser()}/.tenpy/su_n_symmetry_data"``).
+/// On Windows this path will usually not exist; override it via the ``su_n_data_path`` config
+/// option, the ``CYTEN_SU_N_DATA_PATH`` envvar, or ``.cytenconfig.yaml``.
+std::string default_su_n_data_path();
+
+/// Expand a leading ``~`` (or ``~/...``) to the user's home directory. ``~user`` forms and paths
+/// without a resolvable home directory are returned unchanged.
+std::string expand_user(std::string path);
+
 // NOLINTBEGIN(readability-magic-numbers)
 
 class CytenConfig
@@ -24,6 +37,12 @@ class CytenConfig
     /// Default is based on tests for 4-leg tensors: smaller values produced extra blocks from
     /// numerical noise when bending legs and restoring the original configuration.
     float64 fusion_tree_eps = 5.0e-14;
+    /// Directory holding the SU(N) Clebsch-Gordan / F-symbol / R-symbol HDF5 files.
+    /// See :cpp:func:`default_su_n_data_path`.
+    std::string su_n_data_path = default_su_n_data_path();
+    /// Stem of the SU(N) data file names. The full name is
+    /// ``<base>_N{N}_{CG|F|R}_hweight{H}.hdf5``.
+    std::string su_n_data_filename_base = "su_n_clebsch_gordan_data";
     /// Default singular-value cutoff when factorizing a `Coupling` (`from_dense_block` /
     /// `from_tensor`). Singular values below this threshold are discarded.
     float64 coupling_cutoff = 1.0e-13;

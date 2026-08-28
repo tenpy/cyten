@@ -35,6 +35,8 @@ from .._core import (
     ZNAnyonCategory2,  # noqa: F401
     double_semion_category,  # noqa: F401
     semion_category,  # noqa: F401
+    su_n_data_file_path,  # noqa: F401
+    su_n_data_filename,  # noqa: F401
 )
 from .sector_utils import (  # noqa: F401
     as_sector,
