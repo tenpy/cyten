@@ -10,6 +10,13 @@ from cyten import symmetries
 
 default_rng = np.random.default_rng()
 
+no_symmetry = symmetries.NoSymmetry().as_Symmetry()
+u1_symmetry = symmetries.U1().as_Symmetry()
+z2_symmetry = symmetries.ZN(N=2).as_Symmetry()
+z3_symmetry = symmetries.ZN(N=3).as_Symmetry()
+fermion_parity = symmetries.FermionParity().as_Symmetry()
+fermion_number = symmetries.FermionNumber().as_Symmetry()
+
 
 def shuffled(x, axis=0, np_rng=default_rng):
     """Like ``np.random.Generator.shuffle``, but returns a shuffled copy instead of acting in-place."""
@@ -719,12 +726,12 @@ def test_no_symmetry(np_random):
     assert sym == sym
     assert sym == symmetries.NoSymmetry()
     assert sym != symmetries.U1()
-    assert sym != symmetries.SU2() * symmetries.u1_symmetry
+    assert sym != symmetries.SU2() * u1_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(symmetries.NoSymmetry())
     assert not sym.is_equivalent_to(symmetries.U1())
-    assert not sym.is_equivalent_to(symmetries.SU2() * symmetries.u1_symmetry)
+    assert not sym.is_equivalent_to(symmetries.SU2() * u1_symmetry)
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(s), s)
@@ -771,7 +778,7 @@ def test_product_symmetry(np_random):
         sym, example_sectors=sectors, example_sectors_low_qdim=sectors, np_random=np_random, skip_fusion_tensor=False
     )
 
-    u1_z3 = symmetries.u1_symmetry * symmetries.z3_symmetry
+    u1_z3 = u1_symmetry * z3_symmetry
     common_checks(
         u1_z3,
         example_sectors=np.array([[42, 1], [-1, 2], [-2, 0]]),
@@ -791,7 +798,7 @@ def test_product_symmetry(np_random):
     assert u1_z3.has_symmetric_braid
 
     print('checking creation via __mul__')
-    sym2 = symmetries.SU2() * symmetries.u1_symmetry * symmetries.fermion_parity
+    sym2 = symmetries.SU2() * u1_symmetry * fermion_parity
     assert sym2 == sym
 
     print('checking valid sectors')
@@ -808,7 +815,7 @@ def test_product_symmetry(np_random):
     npt.assert_array_equal(outcomes, expect)
 
     print('checking fusion_outcomes_broadcast')
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         # sym is not abelian, so this should raise
         _ = sym.fusion_outcomes_broadcast(s1[None, :], s2[None, :])
     outcomes = u1_z3.fusion_outcomes_broadcast(np.array([[42, 2], [-2, 0]]), np.array([[1, 1], [2, 1]]))
@@ -821,14 +828,14 @@ def test_product_symmetry(np_random):
     print('checking equality')
     assert sym == sym
     assert sym != sym_with_name
-    assert sym != symmetries.SU2() * symmetries.u1_symmetry
-    assert sym != symmetries.no_symmetry
+    assert sym != symmetries.SU2() * u1_symmetry
+    assert sym != no_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(sym_with_name)
-    assert not sym.is_equivalent_to(symmetries.SU2() * symmetries.u1_symmetry)
-    assert not sym.is_equivalent_to(symmetries.no_symmetry)
+    assert not sym.is_equivalent_to(symmetries.SU2() * u1_symmetry)
+    assert not sym.is_equivalent_to(no_symmetry)
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(s1), np.array([5, -3, 1]))
@@ -876,14 +883,14 @@ def test_u1_symmetry(np_random):
     assert sym != sym_with_name
     assert sym == symmetries.U1()
     assert sym != symmetries.NoSymmetry()
-    assert sym != symmetries.SU2() * symmetries.u1_symmetry
+    assert sym != symmetries.SU2() * u1_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(sym_with_name)
     assert sym.is_equivalent_to(symmetries.U1('even_with_name'))
     assert not sym.is_equivalent_to(symmetries.NoSymmetry())
-    assert not sym.is_equivalent_to(symmetries.SU2() * symmetries.u1_symmetry)
+    assert not sym.is_equivalent_to(symmetries.SU2() * u1_symmetry)
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(s_1), s_neg1)
@@ -932,14 +939,14 @@ def test_ZN_symmetry(N, np_random):
     assert sym != sym_with_name
     assert sym == other[N]
     assert sym != other[N + 1]
-    assert sym != symmetries.u1_symmetry
+    assert sym != u1_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(sym_with_name)
     assert sym.is_equivalent_to(other[N])
     assert not sym.is_equivalent_to(other[N + 1])
-    assert not sym.is_equivalent_to(symmetries.u1_symmetry)
+    assert not sym.is_equivalent_to(u1_symmetry)
 
     print('checking dual_sector')
     for s in sectors_a:
@@ -978,7 +985,7 @@ def test_su2_symmetry(np_random):
     npt.assert_array_equal(sym.fusion_outcomes(spin_1, spin_3_half), np.array([[1], [3], [5]]))
 
     print('checking fusion_outcomes_broadcast')
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         # sym is not abelian, so this should raise
         _ = sym.fusion_outcomes_broadcast(spin_1[None, :], spin_3_half[None, :])
 
@@ -990,7 +997,7 @@ def test_su2_symmetry(np_random):
     assert sym == sym
     assert sym != sym_with_name
     assert sym == symmetries.SU2()
-    assert sym != symmetries.fermion_parity
+    assert sym != fermion_parity
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(spin_1), spin_1)
@@ -1075,7 +1082,7 @@ def test_suN_symmetry(N, cg_h, f_h, r_h, np_random):
     assert sym == sym
     assert sym != sym_with_name
     assert sym != symmetries.SU2()
-    assert sym != symmetries.fermion_parity
+    assert sym != fermion_parity
 
 
 @pytest.mark.parametrize('N, cg_h, f_h, r_h', [(3, 7, 4, 4)])
@@ -1166,11 +1173,11 @@ def test_fermion_parity(np_random):
     assert sym != symmetries.FermionNumber()
     assert sym != symmetries.NoSymmetry()
     assert sym != symmetries.SU2()
-    assert sym != symmetries.fermion_parity * symmetries.z2_symmetry
+    assert sym != fermion_parity * z2_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
-    assert not sym.is_equivalent_to(symmetries.no_symmetry)
+    assert not sym.is_equivalent_to(no_symmetry)
     assert not sym.is_equivalent_to(symmetries.SU2())
 
     print('checking dual_sector')
@@ -1209,7 +1216,7 @@ def test_fermion_number(np_random):
     assert sym != symmetries.FermionParity()
     assert sym != symmetries.NoSymmetry()
     assert sym != symmetries.SU2()
-    assert sym != symmetries.fermion_number * symmetries.z2_symmetry
+    assert sym != fermion_number * z2_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
@@ -1252,14 +1259,14 @@ def test_fibonacci_grading(handedness, np_random):
     assert sym == sym
     assert sym == symmetries.FibonacciAnyonCategory(handedness)
     assert sym != symmetries.FibonacciAnyonCategory(other_handedness)
-    assert sym != symmetries.no_symmetry
+    assert sym != no_symmetry
     assert sym != symmetries.SU2()
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(symmetries.FibonacciAnyonCategory(handedness))
     assert not sym.is_equivalent_to(symmetries.FibonacciAnyonCategory(other_handedness))
-    assert not sym.is_equivalent_to(symmetries.no_symmetry)
+    assert not sym.is_equivalent_to(no_symmetry)
     assert not sym.is_equivalent_to(symmetries.SU2())
 
     print('checking dual_sector')
@@ -1344,12 +1351,12 @@ def test_SU3_3AnyonCategory(np_random):
 
     print('checking equality')
     assert sym == sym
-    assert sym != symmetries.no_symmetry
+    assert sym != no_symmetry
     assert sym != symmetries.SU2()
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
-    assert not sym.is_equivalent_to(symmetries.no_symmetry)
+    assert not sym.is_equivalent_to(no_symmetry)
     assert not sym.is_equivalent_to(symmetries.SU2())
 
     print('checking dual_sector')
@@ -1366,7 +1373,7 @@ def test_SU3_3AnyonCategory(np_random):
 @pytest.mark.parametrize('cls', [symmetries.ZNAnyonCategory, symmetries.ZNAnyonCategory2])
 def test_ZNAnyonCategories(cls, N, n, np_random):
     if cls is symmetries.ZNAnyonCategory2 and N % 2 != 0:
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             _ = cls(N, n)
         return  # error is expected behavior
 
@@ -1421,7 +1428,7 @@ def test_ZNAnyonCategories(cls, N, n, np_random):
     assert sym.is_equivalent_to(other[1])
     for i in range(2, 5):
         assert not sym.is_equivalent_to(other[i])
-    assert not sym.is_equivalent_to(symmetries.u1_symmetry)
+    assert not sym.is_equivalent_to(u1_symmetry)
 
     print('checking dual_sector')
     for s in sectors_a:
@@ -1429,6 +1436,13 @@ def test_ZNAnyonCategories(cls, N, n, np_random):
 
     print('checking dual_sectors')
     npt.assert_array_equal(sym.dual_sectors(sectors_a), (-sectors_a) % N)
+
+
+def test_semion_constructors():
+    s = symmetries.semion_category()
+    assert s == symmetries.ZNAnyonCategory2(2, 0).as_Symmetry()
+    d = symmetries.double_semion_category()
+    assert d == symmetries.ZNAnyonCategory2(2, 0) * symmetries.ZNAnyonCategory2(2, 1)
 
 
 @pytest.mark.parametrize('N', [3, 8, 31])
@@ -1477,14 +1491,14 @@ def test_QuantumDoubleZNAnyonCategory(N, np_random):
     assert sym != other[1]
     assert sym != other[2]
     assert sym != other[3]
-    assert sym != symmetries.no_symmetry
+    assert sym != no_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(other[0])
     for i in range(1, 4):
         assert not sym.is_equivalent_to(other[i])
-    assert not sym.is_equivalent_to(symmetries.u1_symmetry)
+    assert not sym.is_equivalent_to(u1_symmetry)
 
     print('checking dual_sector')
     for s in sectors_a:

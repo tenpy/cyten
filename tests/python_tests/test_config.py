@@ -6,6 +6,8 @@ import pytest
 import cyten as ct
 from cyten.config import CytenConfig, get_config, get_option, restore_defaults, set_options, temporary_options
 
+u1_symmetry = ct.U1().as_Symmetry()
+
 FAKE_USER_CONFIG = """
 print_linewidth: 93
 maxlines_spaces: 11
@@ -79,7 +81,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('default_block_backend') == 'gpu'
     assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
-    invalid_fusion = ct.u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
+    invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
     set_options(print_linewidth=90, print_indent=1)
 
@@ -92,7 +94,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('default_block_backend') == 'gpu'
     assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
-    invalid_fusion = ct.u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
+    invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
     with temporary_options(print_linewidth=80, check_fusion=True):
         assert get_option('print_linewidth') == 80
@@ -105,7 +107,7 @@ def test_config_precedence(setup_fake_config):
         assert get_option('coupling_cutoff') == 1e-13
         # now, doing an invalid fusion should raise
         with pytest.raises(ct.SymmetryError, match='not consistent with fusion rules'):
-            invalid_fusion = ct.u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
+            invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
     assert get_option('print_linewidth') == 90
     assert get_option('print_indent') == 1
@@ -116,7 +118,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('default_block_backend') == 'gpu'
     assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
-    invalid_fusion = ct.u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
+    invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
 
 def test_options_consistency():
