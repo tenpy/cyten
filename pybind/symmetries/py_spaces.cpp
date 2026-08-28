@@ -746,26 +746,23 @@ bind_direct_sum_space(py::module_& m)
             py::arg("spaces"),
             py::arg("is_dual") = false);
 
-    cls.def_property_readonly(
-      "spaces",
-      [](DirectSumSpace const& self) { return self.spaces; });
+    cls.def_property_readonly("spaces", [](DirectSumSpace const& self) { return self.spaces; });
 
-    cls.def_static(
-         "from_spaces",
-         [](py::sequence spaces_obj, bool is_dual) {
-             std::vector<ElementarySpace::Ptr> spaces;
-             spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
-             for (py::handle item : spaces_obj) {
-                 spaces.push_back(item.cast<ElementarySpace::Ptr>());
-             }
-             return DirectSumSpace::from_spaces(std::move(spaces), is_dual);
-         },
-         py::arg("spaces"),
-         py::arg("is_dual") = false,
-         DOC(cyten, DirectSumSpace, from_spaces))
-      .def("mult_slices",
-           &DirectSumSpace::mult_slices,
-           DOC(cyten, DirectSumSpace, mult_slices))
+    cls
+      .def_static(
+        "from_spaces",
+        [](py::sequence spaces_obj, bool is_dual) {
+            std::vector<ElementarySpace::Ptr> spaces;
+            spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
+            for (py::handle item : spaces_obj) {
+                spaces.push_back(item.cast<ElementarySpace::Ptr>());
+            }
+            return DirectSumSpace::from_spaces(std::move(spaces), is_dual);
+        },
+        py::arg("spaces"),
+        py::arg("is_dual") = false,
+        DOC(cyten, DirectSumSpace, from_spaces))
+      .def("mult_slices", &DirectSumSpace::mult_slices, DOC(cyten, DirectSumSpace, mult_slices))
       .def("as_plain_ElementarySpace",
            &DirectSumSpace::as_plain_ElementarySpace,
            DOC(cyten, DirectSumSpace, as_plain_ElementarySpace))
@@ -804,33 +801,33 @@ bind_direct_sum_space(py::module_& m)
       .def("with_opposite_duality",
            &DirectSumSpace::with_opposite_duality,
            DOC(cyten, ElementarySpace, with_opposite_duality))
-      .def(
-        "projection_onto_summand",
-        &DirectSumSpace::projection_onto_summand,
-        py::arg("i"),
-        py::arg("backend") = nullptr,
-        py::arg("labels") = py::none(),
-        py::arg("device") = py::none(),
-        DOC(cyten, DirectSumSpace, projection_onto_summand))
-      .def(
-        "inclusion_of_summand",
-        &DirectSumSpace::inclusion_of_summand,
-        py::arg("i"),
-        py::arg("backend") = nullptr,
-        py::arg("labels") = py::none(),
-        py::arg("device") = py::none(),
-        DOC(cyten, DirectSumSpace, inclusion_of_summand))
-      .def(
-        "unit_vector_of_summand",
-        &DirectSumSpace::unit_vector_of_summand,
-        py::arg("i"),
-        py::arg("backend") = nullptr,
-        py::arg("labels") = py::none(),
-        py::arg("dtype") = py::none(),
-        py::arg("device") = py::none(),
-        DOC(cyten, DirectSumSpace, unit_vector_of_summand))
+      .def("projection_onto_summand",
+           &DirectSumSpace::projection_onto_summand,
+           py::arg("i"),
+           py::arg("backend") = nullptr,
+           py::arg("labels") = py::none(),
+           py::arg("device") = py::none(),
+           DOC(cyten, DirectSumSpace, projection_onto_summand))
+      .def("inclusion_of_summand",
+           &DirectSumSpace::inclusion_of_summand,
+           py::arg("i"),
+           py::arg("backend") = nullptr,
+           py::arg("labels") = py::none(),
+           py::arg("device") = py::none(),
+           DOC(cyten, DirectSumSpace, inclusion_of_summand))
+      .def("unit_vector_of_summand",
+           &DirectSumSpace::unit_vector_of_summand,
+           py::arg("i"),
+           py::arg("backend") = nullptr,
+           py::arg("labels") = py::none(),
+           py::arg("dtype") = py::none(),
+           py::arg("device") = py::none(),
+           DOC(cyten, DirectSumSpace, unit_vector_of_summand))
       .def("__repr__", [](DirectSumSpace const& self) { return self.repr(); })
-      .def("repr", &DirectSumSpace::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
+      .def("repr",
+           &DirectSumSpace::repr,
+           py::arg("show_symmetry") = true,
+           py::arg("one_line") = false)
       .def("__eq__",
            [](DirectSumSpace const& self, py::object other) -> py::object {
                if (!py::isinstance<DirectSumSpace>(other)) {
@@ -839,26 +836,24 @@ bind_direct_sum_space(py::module_& m)
                return py::cast(self.equals_dss(other.cast<DirectSumSpace const&>()));
            })
       // Shadow unsupported ElementarySpace factories
-      .def_static(
-        "from_basis",
-        [](py::args, py::kwargs) -> py::object {
-            throw py::type_error("from_basis is not supported for DirectSumSpace");
-        })
-      .def_static(
-        "from_null_space",
-        [](py::args, py::kwargs) -> py::object {
-            throw py::type_error("from_null_space is not supported for DirectSumSpace");
-        })
-      .def_static(
-        "from_defining_sectors",
-        [](py::args, py::kwargs) -> py::object {
-            throw py::type_error("from_defining_sectors is not supported for DirectSumSpace");
-        })
-      .def_static(
-        "from_trivial_sector",
-        [](py::args, py::kwargs) -> py::object {
-            throw py::type_error("from_trivial_sector is not supported for DirectSumSpace");
-        })
+      .def_static("from_basis",
+                  [](py::args, py::kwargs) -> py::object {
+                      throw py::type_error("from_basis is not supported for DirectSumSpace");
+                  })
+      .def_static("from_null_space",
+                  [](py::args, py::kwargs) -> py::object {
+                      throw py::type_error("from_null_space is not supported for DirectSumSpace");
+                  })
+      .def_static("from_defining_sectors",
+                  [](py::args, py::kwargs) -> py::object {
+                      throw py::type_error(
+                        "from_defining_sectors is not supported for DirectSumSpace");
+                  })
+      .def_static("from_trivial_sector",
+                  [](py::args, py::kwargs) -> py::object {
+                      throw py::type_error(
+                        "from_trivial_sector is not supported for DirectSumSpace");
+                  })
       .def("save_hdf5",
            &DirectSumSpace::save_hdf5,
            py::arg("hdf5_saver"),

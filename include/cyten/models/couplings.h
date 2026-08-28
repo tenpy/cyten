@@ -15,7 +15,6 @@
 namespace cyten {
 
 [[nodiscard]] std::map<std::string, py::object> space_to_dict(ElementarySpace::Ptr space);
-[[nodiscard]] std::vector<int64> adjacent_transpositions(std::vector<int64> const& permutation);
 /// Recursively turn the output of the ``_*_to_dict`` helpers into hashable nested tuples.
 [[nodiscard]] py::object freeze(py::object obj);
 
@@ -124,14 +123,14 @@ class Coupling
 
     /// Permute the sites of this coupling, braiding through the (possibly anyonic) legs.
     ///
-    /// Contracts `self` to a single tensor (`to_tensor`), realizes `permutation` as a
-    /// sequence of elementary adjacent-site transpositions (each one braiding the full ``(p, p*)``
-    /// leg pair of one site past that of its neighbour, as a single unit -- the two legs of one
-    /// site never cross each other), and re-factorizes the result (`from_tensor`) with the
-    /// sites reordered accordingly. This is analogous to how
-    /// `PermuteLegsInstructionEngine` realizes a leg
-    /// permutation as a sequence of elementary swaps, tracking a `levels` list that is itself
-    /// reordered as legs move.
+    /// Realizes `permutation` as a sequence of elementary adjacent-site transpositions and
+    /// applies each as a local swap gate to only the two `factorization` tensors it touches
+    /// (contract the pair, braid their physical ``(p, p*)`` legs past each other as a single
+    /// unit -- the two legs of one site never cross each other -- and re-split the pair via
+    /// `horizontal_factorization`), leaving every other tensor in `factorization` untouched.
+    /// This is analogous to how `PermuteLegsInstructionEngine` realizes a leg permutation as a
+    /// sequence of elementary swaps, tracking a `levels` list that is itself reordered as legs
+    /// move.
     ///
     /// Results are cached on `self` (not shared with `self`'s other permutations, or with the
     /// result of this call): calling ``self.permute(permutation, ...)`` twice with the same

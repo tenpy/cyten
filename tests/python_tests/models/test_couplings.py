@@ -138,8 +138,9 @@ def test_coupling(codom, make_compatible_space):
         coupling2 = couplings.Coupling.from_dense_block(coupling_to_numpy, site_list, understood_braiding=True)
         coupling2.test_sanity()
         npt.assert_array_equal(coupling2.sites, coupling.sites)
-        for i in range(codom):
-            assert tensors.almost_equal(coupling2.factorization[i], coupling.factorization[i])
+        # Factorizations need not match site-by-site (QR/SVD gauge on virtual legs).
+        assert tensors.almost_equal(coupling2.to_tensor(), T)
+        npt.assert_almost_equal(coupling2.to_numpy(understood_braiding=True), T.to_numpy(understood_braiding=True))
 
 
 # TEST SPIN COUPLINGS
@@ -940,20 +941,6 @@ def test_stretch_with_identities():
         assert factor.get_leg_co_domain('p') == site.leg
 
 
-def test_adjacent_transpositions():
-    """_adjacent_transpositions must realize every permutation via adjacent swaps."""
-    import itertools
-
-    for n in range(1, 5):
-        for perm in itertools.permutations(range(n)):
-            perm = list(perm)
-            swap_positions = couplings._adjacent_transpositions(perm)
-            working = list(range(n))
-            for pos in swap_positions:
-                working[pos], working[pos + 1] = working[pos + 1], working[pos]
-            assert working == perm
-
-
 def _to_matrix(dense, dims):
     """Convert a dense block with axes [p0,...,p(n-1), p(n-1)*,...,p0*] (bra reversed, as
     returned by Coupling.to_tensor().to_numpy()) into a plain (prod(dims), prod(dims)) matrix
@@ -1083,12 +1070,11 @@ def test_coupling_permute_matches_direct_permute_legs(site_factory, label):
     """Verify that `Coupling.permute` produces the exact same results as permuting the
     fully-contracted tensor directly.
 
-    Internally, `Coupling.permute` follows this exact chain:
-    contract -> permute_legs -> relabel -> re-factorize.
-
-    This test ensures that this entire re-factorization round-trip works perfectly
-    without losing or duplicating any data. It checks this behavior for both
-    fermionic and bosonic sites.
+    Internally, `Coupling.permute` applies each elementary transposition as a local swap gate
+    to only the two `factorization` tensors it touches, rather than permuting the fully
+    contracted tensor. This test ensures that this local-swap / re-factorization round-trip
+    reproduces the same result as the direct, whole-tensor `permute_legs`, without losing or
+    duplicating any data. It checks this behavior for both fermionic and bosonic sites.
     """
     site = site_factory()
     coupling = couplings.Coupling.from_dense_block(

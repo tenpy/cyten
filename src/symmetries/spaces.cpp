@@ -1971,10 +1971,8 @@ DirectSumSpace::prepare(std::vector<ElementarySpace::Ptr> spaces_in, bool is_dua
           flat, [&](ElementarySpace::Ptr const& o) { return o->Space::symmetry->equals(*sym); })) {
         throw std::invalid_argument("DirectSumSpace requires matching symmetries");
     }
-    if (!std::ranges::all_of(flat,
-                             [is_dual_](ElementarySpace::Ptr const& o) {
-                                 return o->is_dual == is_dual_;
-                             })) {
+    if (!std::ranges::all_of(
+          flat, [is_dual_](ElementarySpace::Ptr const& o) { return o->is_dual == is_dual_; })) {
         throw std::invalid_argument("DirectSumSpace requires matching duality");
     }
 
@@ -2102,9 +2100,12 @@ DirectSumSpace::as_plain_ElementarySpace() const
     if (Space::symmetry->can_be_dropped()) {
         perm = basis_perm();
     }
-    return ElementarySpace::from_defining_sectors(
-      Space::symmetry, defining_sectors, multiplicities, is_dual, std::move(perm),
-      /*unique_sectors=*/true);
+    return ElementarySpace::from_defining_sectors(Space::symmetry,
+                                                  defining_sectors,
+                                                  multiplicities,
+                                                  is_dual,
+                                                  std::move(perm),
+                                                  /*unique_sectors=*/true);
 }
 
 py::object
@@ -2275,9 +2276,7 @@ DirectSumSpace::from_trivial_sector(int64 /*dim*/,
 }
 
 void
-DirectSumSpace::save_hdf5(py::object hdf5_saver,
-                          py::object h5gr,
-                          std::string const& subpath) const
+DirectSumSpace::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
 {
     ElementarySpace::save_hdf5(hdf5_saver, h5gr, subpath);
     auto save = hdf5_saver.attr("save");

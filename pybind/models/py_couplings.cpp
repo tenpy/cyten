@@ -25,11 +25,6 @@ bind_models_couplings(py::module_& m)
 {
     m.def("freeze", &freeze, py::arg("obj"), DOC(cyten, freeze));
 
-    m.def("_adjacent_transpositions",
-          &adjacent_transpositions,
-          py::arg("permutation"),
-          doc_cpp_ref(R"pydoc(_adjacent_transpositions)pydoc", "cyten::_adjacent_transpositions"));
-
     m.def("space_to_dict", &space_to_dict, py::arg("space"));
 
     py::class_<Coupling, py::smart_holder> coupling(m, "Coupling");
