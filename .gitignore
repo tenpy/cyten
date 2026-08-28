@@ -30,6 +30,7 @@ src/version.h
 cyten/_version.py
 cyten/_core.py
 .cursor/plans
+.cursor/rules
 
 # Local checkouts / scratch (not for commit)
 tmp/
