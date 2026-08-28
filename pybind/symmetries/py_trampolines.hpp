@@ -839,6 +839,57 @@ class PyAbelianLegPipe
     }
 };
 
+/// Trampoline for Python subclasses of DirectSumSpace.
+class PyDirectSumSpace
+  : public DirectSumSpace
+  , public py::trampoline_self_life_support
+{
+  public:
+    using DirectSumSpace::DirectSumSpace;
+
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, DirectSumSpace, test_sanity); }
+
+    py::object as_Space() override { PYBIND11_OVERRIDE(py::object, DirectSumSpace, as_Space); }
+
+    py::object as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(py::object, DirectSumSpace, as_ElementarySpace, is_dual);
+    }
+
+    py::object change_symmetry(Symmetry::Ptr symmetry,
+                               SectorMapFn sector_map,
+                               bool injective) override
+    {
+        PYBIND11_OVERRIDE(
+          py::object, DirectSumSpace, change_symmetry, symmetry, sector_map, injective);
+    }
+
+    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    {
+        PYBIND11_OVERRIDE(py::object, DirectSumSpace, drop_symmetry, which);
+    }
+
+    ElementarySpace::Ptr take_slice(py::array blockmask) const override
+    {
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, DirectSumSpace, take_slice, blockmask);
+    }
+
+    ElementarySpace::Ptr with_opposite_duality() const override
+    {
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, DirectSumSpace, with_opposite_duality);
+    }
+
+    bool operator==(Leg const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, DirectSumSpace, "__eq__", operator==, other);
+    }
+
+    bool operator==(Space const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, DirectSumSpace, "__eq__", operator==, other);
+    }
+};
+
 /// Trampoline for Python subclasses of TensorProduct.
 ///
 /// Note: as for the other trampolines here, only virtuals that are bound as *methods* may be
