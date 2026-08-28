@@ -255,10 +255,8 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
                 single_charge = False
             if single_charge:
                 sector = charge.sector_decomposition[0]
-            elif vector.charged_state is not None:
-                sector = None
             else:
-                raise ValueError('Cannot infer charge_sector from a ChargedTensor with unspecified charged_state')
+                sector = None
         else:
             sector = 'trivial'
         if dtype is None:

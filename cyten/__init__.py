@@ -60,6 +60,7 @@ from .symmetries.trees import FusionTree, fusion_trees
 from .tensors import (
     ChargedTensor,
     DiagonalTensor,
+    HiddenLegTensor,
     Identity,
     Mask,
     PlanarDiagram,

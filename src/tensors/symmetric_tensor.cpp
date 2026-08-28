@@ -1,5 +1,6 @@
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/helpers.h>
+#include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
 #include <cyten/backends/abelian.h>
@@ -51,6 +52,12 @@ SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
   , data(std::move(data_in))
 {
     assert(backend->is_correct_data_type(data));
+    // Allow the ChargedTensor charge-leg marker "!" as the last label on bare
+    // SymmetricTensors that are used as invariant parts (tests / factories).
+    auto const labs = labels();
+    if (!labs.empty() && labs.back() && *labs.back() == "!") {
+        allow_charge_leg_label = true;
+    }
     if (check_complex_dtype) {
         verify_dtype();
     }
@@ -76,6 +83,26 @@ SymmetricTensor::test_sanity() const
     }
     backend->test_tensor_sanity(shared_from_this(), is_diagonal);
     verify_dtype();
+    // HiddenLegTensor validates `!` itself; ChargedTensor invariant parts set
+    // allow_charge_leg_label. All other SymmetricTensors must not contain `!`.
+    if (dynamic_cast<HiddenLegTensor const*>(this) == nullptr && !allow_charge_leg_label) {
+        reject_exclamation_in_labels(labels(), "SymmetricTensor");
+    } else if (allow_charge_leg_label) {
+        auto labs = labels();
+        for (std::size_t i = 0; i < labs.size(); ++i) {
+            if (!labs[i] || !label_contains_exclamation(labs[i])) {
+                continue;
+            }
+            // Only the charge leg (last label, starts with '!') is allowed.
+            if (i + 1 != labs.size() || !labs[i]->starts_with('!')) {
+                throw std::invalid_argument(std::format(
+                  "ChargedTensor invariant_part: only the last label may contain '!', got '{}' "
+                  "at position {}",
+                  *labs[i],
+                  i));
+            }
+        }
+    }
 }
 
 void

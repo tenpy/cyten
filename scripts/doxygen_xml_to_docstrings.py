@@ -728,6 +728,7 @@ CYTEN_MKDOC_HEADERS: tuple[str, ...] = (
     'tensors/diagonal_tensor.h',
     'tensors/mask.h',
     'tensors/charged_tensor.h',
+    'tensors/hidden_leg_tensor.h',
     'tensors/sparse.h',
     'tensors/planar.h',
     'tensors/krylov_based.h',

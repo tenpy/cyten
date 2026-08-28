@@ -1305,7 +1305,7 @@ def test_PlanarDiagram_verify_diagram():
 
 
 @pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry, fibonacci_anyon_category])
-def test_PlanarLinearOperator(symmetry):
+def test_PlanarLinearOperator(symmetry, np_random):
     # ===========================================
     # define an operator
     # ===========================================
@@ -1356,10 +1356,12 @@ def test_PlanarLinearOperator(symmetry):
     # create example tensors
     # ===========================================
 
-    theta = ct.testing.random_tensor(symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'], max_multiplicity=3, max_blocks=3)
+    theta = ct.testing.random_tensor(
+        symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
+    )
     vL, p0, p1, vR = theta.legs
     Lp = ct.testing.random_tensor(
-        symmetry, [vL, None, vL.dual], labels=['vR*', 'wR', 'vR'], max_multiplicity=3, max_blocks=3
+        symmetry, [vL, None, vL.dual], labels=['vR*', 'wR', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
     )
     W0 = ct.testing.random_tensor(
         symmetry,
@@ -1367,6 +1369,7 @@ def test_PlanarLinearOperator(symmetry):
         labels=['p', 'wR', 'p*', 'wL'],
         max_multiplicity=3,
         max_blocks=3,
+        np_random=np_random,
     )
     W1 = ct.testing.random_tensor(
         symmetry,
@@ -1374,8 +1377,11 @@ def test_PlanarLinearOperator(symmetry):
         labels=['p', 'wR', 'p*', 'wL'],
         max_multiplicity=3,
         max_blocks=3,
+        np_random=np_random,
     )
-    Rp = ct.testing.random_tensor(symmetry, [vR, vR.dual, W1.get_leg('wR').dual], labels=['vL*', 'vL', 'wL'])
+    Rp = ct.testing.random_tensor(
+        symmetry, [vR, vR.dual, W1.get_leg('wR').dual], labels=['vL*', 'vL', 'wL'], np_random=np_random
+    )
 
     # ===========================================
     # create an op instance, call to_tensor and matvec
@@ -1437,18 +1443,13 @@ def test_PlanarLinearOperator(symmetry):
     assert ct.almost_equal(H_theta_2, H_theta)
 
 
-def _drop_charged_state(t: ct.ChargedTensor) -> ct.ChargedTensor:
-    return ct.ChargedTensor(t.invariant_part, None)
-
-
 @pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry])
 def test_PlanarDiagram_single_charged_tensor(symmetry, np_random):
     diagram = ct.PlanarDiagram(
-        tensors='theta[vL, p, vR], op[p, p*, !]',
-        definition='theta:p @ op:p*, theta:vL -> vL, theta:vR -> vR, op:p -> p, op:! -> !',
+        tensors='theta[vL, p, vR], op[p, p*]',
+        definition='theta:p @ op:p*, theta:vL -> vL, theta:vR -> vR, op:p -> p',
         dims=dict(chi=['vL', 'vR'], d=['p', 'p*']),
     )
-    assert '!' not in diagram.open_legs
     assert set(diagram.open_legs) == {'vL', 'vR', 'p'}
 
     theta = ct.testing.random_tensor(symmetry, codomain=2, domain=1, labels=['vL', 'p', 'vR'], np_random=np_random)
@@ -1461,34 +1462,35 @@ def test_PlanarDiagram_single_charged_tensor(symmetry, np_random):
     res.test_sanity()
     assert isinstance(res, ct.ChargedTensor)
     assert set(res.labels) == {'vL', 'vR', 'p'}
-    expect_inv = ct.planar.planar_contraction(theta, op.invariant_part, 'p', 'p*')
-    expect_inv = ct.move_leg(expect_inv, '!', domain_pos=0)
-    expect = ct.ChargedTensor(expect_inv, op.charged_state)
-    assert ct.planar.planar_almost_equal(res, expect)
+    expect = ct.tdot(theta, op, ['p'], ['p*'])
+    assert ct.almost_equal(res, expect)
 
     op_sym = ct.testing.random_tensor(symmetry, codomain=[p], domain=[p], labels=['p', 'p*'], np_random=np_random)
     res_sym = diagram(theta=theta, op=op_sym)
     res_sym.test_sanity()
     assert isinstance(res_sym, ct.SymmetricTensor)
     assert set(res_sym.labels) == {'vL', 'vR', 'p'}
-    assert ct.planar.planar_almost_equal(res_sym, ct.planar.planar_contraction(theta, op_sym, 'p', 'p*'))
+    expect_sym = ct.tdot(theta, op_sym, ['p'], ['p*'])
+    # Diagram open-leg order may differ from tdot; compare dense blocks after a shared permute.
+    order = ['vL', 'vR', 'p']
+    res_np = ct.permute_legs(res_sym, order, bend_right=True).to_numpy(understood_braiding=True)
+    exp_np = ct.permute_legs(expect_sym, order, bend_right=True).to_numpy(understood_braiding=True)
+    npt.assert_almost_equal(res_np, exp_np)
 
 
 @pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry])
 def test_PlanarDiagram_transfer_matrix_charged(symmetry, np_random):
     diagram = ct.PlanarDiagram(
-        tensors='LP[vR*, vR], ket[vL, p, vR, !], bra[vR*, p*, vL*, !]',
-        definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:! @ bra:!, ket:vR -> vR, bra:vR* -> vR*',
+        tensors='LP[vR*, vR], ket[vL, p, vR], bra[vR*, p*, vL*]',
+        definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:vR -> vR, bra:vR* -> vR*',
         dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*']),
         allow_multiple_charged_tensors=True,
     )
-    assert '!' not in diagram.open_legs
     assert set(diagram.open_legs) == {'vR', 'vR*'}
 
     ket = ct.testing.random_tensor(
         symmetry, codomain=2, domain=1, labels=['vL', 'p', 'vR'], cls=ct.ChargedTensor, np_random=np_random
     )
-    ket = _drop_charged_state(ket)
     bra = ket.hc
     LP = ct.testing.random_tensor(
         symmetry,
@@ -1498,15 +1500,8 @@ def test_PlanarDiagram_transfer_matrix_charged(symmetry, np_random):
         np_random=np_random,
     )
 
-    res = diagram(LP=LP, ket=ket, bra=bra)
-    res.test_sanity()
-    assert isinstance(res, ct.SymmetricTensor)
-    assert set(res.labels) == {'vR', 'vR*'}
-
-    expect = ct.planar.planar_contraction(LP, ket.invariant_part, 'vR', 'vL')
-    expect = ct.planar.planar_contraction(expect, bra.invariant_part, ['p', 'vR*', '!'], ['p*', 'vL*', '!'])
-    expect.test_sanity()
-    assert ct.planar.planar_almost_equal(res, expect)
+    with pytest.raises(NotImplementedError, match='state_tensor_product'):
+        _ = diagram(LP=LP, ket=ket, bra=bra)
 
     ket_sym = ct.testing.random_tensor(
         symmetry, codomain=ket.codomain, domain=ket.domain, labels=ket.labels, np_random=np_random
@@ -1526,7 +1521,20 @@ def test_PlanarDiagram_transfer_matrix_charged(symmetry, np_random):
     expect_sym = ct.planar.planar_contraction(expect_sym, bra_sym, ['p', 'vR*'], ['p*', 'vL*'])
     assert ct.planar.planar_almost_equal(res_sym, expect_sym)
 
-    res_mixed = diagram(LP=LP_sym, ket=ket, bra=bra_sym)
+    ket_mixed = ct.testing.random_tensor(
+        symmetry, codomain=2, domain=1, labels=['vL', 'p', 'vR'], cls=ct.ChargedTensor, np_random=np_random
+    )
+    bra_for_mixed = ct.testing.random_tensor(
+        symmetry, codomain=ket_mixed.codomain, domain=ket_mixed.domain, labels=ket_mixed.labels, np_random=np_random
+    ).hc
+    LP_mixed = ct.testing.random_tensor(
+        symmetry,
+        codomain=[bra_for_mixed.get_leg('vL*').dual],
+        domain=[ket_mixed.get_leg('vL')],
+        labels=['vR*', 'vR'],
+        np_random=np_random,
+    )
+    res_mixed = diagram(LP=LP_mixed, ket=ket_mixed, bra=bra_for_mixed)
     res_mixed.test_sanity()
     assert isinstance(res_mixed, ct.ChargedTensor)
     assert set(res_mixed.labels) == {'vR', 'vR*'}
@@ -1535,70 +1543,64 @@ def test_PlanarDiagram_transfer_matrix_charged(symmetry, np_random):
 @pytest.mark.parametrize('symmetry', [no_symmetry, u1_symmetry])
 def test_PlanarDiagram_two_open_charge_legs(symmetry, np_random):
     contiguous = ct.PlanarDiagram(
-        tensors='A[a, b, !], B[b, c, !]',
-        definition='A:b @ B:b, A:a -> a, A:! -> !, B:c -> c, B:! -> !',
+        tensors='A[a, b], B[b, c]',
+        definition='A:b @ B:b, A:a -> a, B:c -> c',
         dims=dict(chi=['a', 'b', 'c']),
-        allow_multiple_charged_tensors=True,
     )
-    assert '!' not in contiguous.open_legs
     assert set(contiguous.open_legs) == {'a', 'c'}
 
-    A = _drop_charged_state(
-        ct.testing.random_tensor(symmetry, codomain=2, labels=['a', 'b'], cls=ct.ChargedTensor, np_random=np_random)
+    A_sym = ct.testing.random_tensor(symmetry, codomain=3, labels=['a', 'b', 'charge'], np_random=np_random)
+    A = ct.HiddenLegTensor(A_sym, ['charge'])
+    B_sym = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A_sym.get_leg('b').dual, None],
+        domain=[None],
+        labels=['b', 'c', 'charge*'],
+        np_random=np_random,
     )
-    B = _drop_charged_state(
-        ct.testing.random_tensor(
-            symmetry,
-            codomain=[A.get_leg('b').dual, None],
-            labels=['b', 'c'],
-            cls=ct.ChargedTensor,
-            np_random=np_random,
-        )
-    )
+    B = ct.HiddenLegTensor(B_sym, ['charge*'])
     res = contiguous(A=A, B=B)
     res.test_sanity()
-    assert isinstance(res, ct.ChargedTensor)
+    assert isinstance(res, ct.SymmetricTensor)
     assert set(res.labels) == {'a', 'c'}
-
-    with pytest.raises(ValueError, match='Open charge legs are not contiguous'):
-        _ = ct.PlanarDiagram(
-            tensors='A[!, a, b], B[b, !, c]',
-            definition='A:b @ B:b, A:a -> a, A:! -> !, B:c -> c, B:! -> !',
-            dims=dict(chi=['a', 'b', 'c']),
-            allow_multiple_charged_tensors=True,
-        )
+    expect = ct.tdot(A, B, ['b'], ['b'])
+    assert ct.planar.planar_almost_equal(res, expect)
 
 
 def test_PlanarDiagram_charged_flag_and_planarity():
-    with pytest.raises(ValueError, match='allow_multiple_charged_tensors'):
+    with pytest.raises(ValueError, match='!'):
         _ = ct.PlanarDiagram(
             tensors='A[a, !], B[a, !]',
-            definition='A:a @ B:a, A:! -> !, B:! -> !',
+            definition='A:a @ B:a',
             dims=dict(chi=['a']),
         )
 
-    with pytest.raises(ValueError, match='Not a planar'):
+    with pytest.raises(ValueError, match='!'):
         _ = ct.PlanarDiagram(
-            tensors='A[a, x, !, y], B[a, x, !, y]',
-            definition='A:a @ B:a, A:! @ B:!, A:x -> x1, A:y -> y1, B:x -> x2, B:y -> y2',
-            dims=dict(chi=['a', 'x', 'y']),
-            allow_multiple_charged_tensors=True,
+            tensors='A[a, !]',
+            definition='A:a -> a',
+            dims=dict(chi=['a']),
         )
 
+    # Public-leg diagram stays planar even when tensors carry hidden legs that would cross.
     diagram = ct.PlanarDiagram(
-        tensors='A[a, b, !]',
-        definition='A:a -> a, A:b -> b, A:! -> !',
-        dims=dict(chi=['a', 'b']),
-        allow_multiple_charged_tensors=True,
+        tensors='A[a, x, y], B[a, x, y]',
+        definition='A:a @ B:a, A:x -> x1, A:y -> y1, B:x -> x2, B:y -> y2',
+        dims=dict(chi=['a', 'x', 'y']),
     )
-    added = diagram.add_tensor(
-        tensor='B[b, c, !]',
-        extra_definition='B:b @ A:b, B:c -> c, B:! -> !',
+    assert set(diagram.open_legs) == {'x1', 'x2', 'y1', 'y2'}
+
+    diagram2 = ct.PlanarDiagram(
+        tensors='A[a, b]',
+        definition='A:a -> a, A:b -> b',
+        dims=dict(chi=['a', 'b']),
+    )
+    added = diagram2.add_tensor(
+        tensor='B[b, c]',
+        extra_definition='B:b @ A:b, B:c -> c',
         extra_dims=dict(chi=['b', 'c']),
     )
-    assert added.allow_multiple_charged_tensors is True
     assert set(added.open_legs) == {'a', 'c'}
 
     removed = added.remove_tensor(name='B', extra_definition='A:b -> b', order='definition')
-    assert removed.allow_multiple_charged_tensors is True
     assert set(removed.open_legs) == {'a', 'b'}

@@ -372,7 +372,9 @@ A TeNPy array with non-trivial ``qtotal`` (for example :math:`S^+` at
 conserved :math:`S^z`) cannot be a
 :class:`~cyten.tensors.SymmetricTensor`. Create a
 :class:`~cyten.tensors.ChargedTensor` instead: a symmetric *invariant part*
-plus a hidden charge leg.
+plus a specified ``charged_state`` on the charge leg. To hide legs from
+diagrams without fixing a charge state, use
+:class:`~cyten.tensors.HiddenLegTensor`.
 
 .. code-block:: python
 

@@ -11,6 +11,7 @@ from .._core import (  # noqa: F401
     ChargedTensor,
     DiagonalTensor,
     DirectSum,
+    HiddenLegTensor,
     Identity,
     LabelledLegs,
     Mask,

@@ -286,11 +286,10 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
 [[nodiscard]] TensorPtr squeeze_legs(TensorCPtr tensor,
                                      std::optional<std::vector<LegRef>> legs = std::nullopt);
 
-/// Contract one multiplicity of one sector on a leg, as a `ChargedTensor`.
+/// Contract one multiplicity of one sector on a leg, as a `HiddenLegTensor`.
 ///
 /// The leftover space is an `ElementarySpace` with that sector and multiplicity 1. It becomes
-/// the charge leg (`"!"`) of the result, with `charged_state` unset. This does not require a
-/// droppable symmetry.
+/// a hidden leg (label ``"!slice"``) of the result. This does not require a droppable symmetry.
 ///
 /// Two ways to name the kept copy:
 ///
@@ -300,7 +299,7 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
 ///   that leg; `multiplicity` in `range(leg.sector_multiplicity(sector))`.
 ///
 /// `leg` is an integer index or a label, as for `apply_mask`.
-/// Slicing a `ChargedTensor` (a second charge leg) is not supported.
+/// Slicing a `ChargedTensor` or `HiddenLegTensor` is not supported.
 ///
 /// After `E, V = eigh(H)`::
 ///
@@ -310,14 +309,13 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
 /// @param tensor The tensor to slice.
 /// @param leg Leg index or label to slice.
 /// @param idx Public-basis index into that leg (droppable symmetries only).
-/// @returns A `ChargedTensor` whose charge leg is the leftover one-sector space.
-[[nodiscard]] ChargedTensorPtr slice_leg(TensorCPtr tensor, LegRef leg, int64 idx);
+/// @returns A `HiddenLegTensor` whose hidden leg is the leftover one-sector space.
+[[nodiscard]] HiddenLegTensorPtr slice_leg(TensorCPtr tensor, LegRef leg, int64 idx);
 
-/// Contract one multiplicity of one sector on a leg, as a `ChargedTensor`.
+/// Contract one multiplicity of one sector on a leg, as a `HiddenLegTensor`.
 ///
 /// The leftover space is an `ElementarySpace` with that sector and multiplicity 1. It becomes
-/// the charge leg (`"!"`) of the result, with `charged_state` unset. This does not require a
-/// droppable symmetry.
+/// a hidden leg (label ``"!slice"``) of the result. This does not require a droppable symmetry.
 ///
 /// Two ways to name the kept copy:
 ///
@@ -327,7 +325,7 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
 ///   that leg; `multiplicity` in `range(leg.sector_multiplicity(sector))`.
 ///
 /// `leg` is an integer index or a label, as for `apply_mask`.
-/// Slicing a `ChargedTensor` (a second charge leg) is not supported.
+/// Slicing a `ChargedTensor` or `HiddenLegTensor` is not supported.
 ///
 /// After `E, V = eigh(H)`::
 ///
@@ -338,10 +336,10 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
 /// @param leg Leg index or label to slice.
 /// @param sector Sector to keep on that leg.
 /// @param multiplicity Multiplicity index of `sector` (default `0`).
-/// @returns A `ChargedTensor` whose charge leg is the leftover one-sector space.
-[[nodiscard]] ChargedTensorPtr slice_leg(TensorCPtr tensor,
-                                         LegRef leg,
-                                         Sector const& sector,
-                                         int64 multiplicity = 0);
+/// @returns A `HiddenLegTensor` whose hidden leg is the leftover one-sector space.
+[[nodiscard]] HiddenLegTensorPtr slice_leg(TensorCPtr tensor,
+                                           LegRef leg,
+                                           Sector const& sector,
+                                           int64 multiplicity = 0);
 
 } // namespace cyten
