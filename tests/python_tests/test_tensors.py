@@ -19,6 +19,7 @@ from cyten.symmetries import (
     U1,
     ZN,
     AbelianLegPipe,
+    DirectSumSpace,
     ElementarySpace,
     FermionParity,
     FibonacciAnyonCategory,
@@ -3783,6 +3784,12 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
     levels = np_random.permutation(T.num_legs)
 
     res1 = tensors.tensor_from_grid(grid)
+    if row > 1:
+        assert isinstance(res1.codomain[0], DirectSumSpace)
+        assert len(res1.codomain[0].spaces) == row
+    if col > 1:
+        assert isinstance(res1.domain[-1], DirectSumSpace)
+        assert len(res1.domain[-1].spaces) == col
     # check to_numpy
     if T.symmetry.can_be_dropped:
         res_np = [
