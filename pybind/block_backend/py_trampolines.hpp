@@ -247,9 +247,19 @@ class PyBlockBackend
         PYBIND11_OVERRIDE_PURE(
           PYBIND11_TYPE(std::tuple<BlockPtr, BlockPtr>), BlockBackend, eigh, block, sort);
     }
+    std::tuple<BlockPtr, BlockPtr> eig(const BlockCPtr& block,
+                                       std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE_PURE(
+          PYBIND11_TYPE(std::tuple<BlockPtr, BlockPtr>), BlockBackend, eig, block, sort);
+    }
     BlockPtr eigvalsh(const BlockCPtr& block, std::optional<std::string> sort) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, eigvalsh, block, sort);
+    }
+    BlockPtr eigvals(const BlockCPtr& block, std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, eigvals, block, sort);
     }
     BlockPtr enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis) override
     {
@@ -614,9 +624,19 @@ class PyArrayApiBlockBackend
         PYBIND11_OVERRIDE(
           PYBIND11_TYPE(std::tuple<BlockPtr, BlockPtr>), ArrayApiBlockBackend, eigh, block, sort);
     }
+    std::tuple<BlockPtr, BlockPtr> eig(const BlockCPtr& block,
+                                       std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE(
+          PYBIND11_TYPE(std::tuple<BlockPtr, BlockPtr>), ArrayApiBlockBackend, eig, block, sort);
+    }
     BlockPtr eigvalsh(const BlockCPtr& block, std::optional<std::string> sort) override
     {
         PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, eigvalsh, block, sort);
+    }
+    BlockPtr eigvals(const BlockCPtr& block, std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, eigvals, block, sort);
     }
     BlockPtr enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis) override
     {

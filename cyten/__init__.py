@@ -74,11 +74,12 @@ from .symmetries._symmetries import (
     z8_symmetry,
     z9_symmetry,
 )
-from .symmetries.spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
+from .symmetries.spaces import AbelianLegPipe, DirectSumSpace, ElementarySpace, Leg, LegPipe, Space, TensorProduct
 from .symmetries.trees import FusionTree, fusion_trees
 from .tensors import (
     ChargedTensor,
     DiagonalTensor,
+    HiddenLegTensor,
     Identity,
     Mask,
     PlanarDiagram,
@@ -96,7 +97,10 @@ from .tensors import (
     compose,
     cutoff_inverse,
     dagger,
+    eig,
     eigh,
+    eigvals,
+    eigvalsh,
     enlarge_leg,
     entropy,
     exp,

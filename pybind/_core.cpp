@@ -29,6 +29,7 @@ PYBIND11_MODULE(_core, m)
     bind_tensors_diagonal_tensor(m);
     bind_tensors_mask(m);
     bind_tensors_charged_tensor(m);
+    bind_tensors_hidden_leg_tensor(m);
     bind_tensors_helpers(m);
     bind_tensors_constructors(m);
     bind_tensors_ops_elementwise(m);

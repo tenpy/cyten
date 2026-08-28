@@ -11,7 +11,6 @@ print_linewidth: 93
 maxlines_spaces: 11
 maxlines_tensors: 22
 default_block_backend: gpu
-su_n_data_path: /fake/user/su_n
 """
 
 FAKE_LOCAL_CONFIG = """
@@ -19,7 +18,6 @@ print_linewidth: 92
 print_indent: 3
 maxlines_spaces: 10
 check_fusion: False
-su_n_data_filename_base: local_base
 """
 
 
@@ -67,9 +65,7 @@ def test_config_precedence(setup_fake_config):
     ------------------------  ------  ------  ------  ------  ------  ------
     default_block_backend                                     gpu     numpy
     ------------------------  ------  ------  ------  ------  ------  ------
-    su_n_data_path                                             /fake/user/su_n   /home/<login>/...
-    ------------------------  ------  ------  ------  ------  ------  ------
-    su_n_data_filename_base                           local_base        su_n_clebsch_gordan_data
+    coupling_cutoff                                                   1e-13
     ========================  ======  ======  ======  ======  ======  ======
 
     """
@@ -81,8 +77,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('check_fusion') is False
     assert get_option('default_tensor_backend') == 'abelian'
     assert get_option('default_block_backend') == 'gpu'
-    assert get_option('su_n_data_path') == '/fake/user/su_n'
-    assert get_option('su_n_data_filename_base') == 'local_base'
+    assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
     invalid_fusion = ct.u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
@@ -95,8 +90,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('check_fusion') is False
     assert get_option('default_tensor_backend') == 'abelian'
     assert get_option('default_block_backend') == 'gpu'
-    assert get_option('su_n_data_path') == '/fake/user/su_n'
-    assert get_option('su_n_data_filename_base') == 'local_base'
+    assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
     invalid_fusion = ct.u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
@@ -108,8 +102,7 @@ def test_config_precedence(setup_fake_config):
         assert get_option('check_fusion') is True
         assert get_option('default_tensor_backend') == 'abelian'
         assert get_option('default_block_backend') == 'gpu'
-        assert get_option('su_n_data_path') == '/fake/user/su_n'
-        assert get_option('su_n_data_filename_base') == 'local_base'
+        assert get_option('coupling_cutoff') == 1e-13
         # now, doing an invalid fusion should raise
         with pytest.raises(ct.SymmetryError, match='not consistent with fusion rules'):
             invalid_fusion = ct.u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
@@ -121,8 +114,7 @@ def test_config_precedence(setup_fake_config):
     assert get_option('check_fusion') is False
     assert get_option('default_tensor_backend') == 'abelian'
     assert get_option('default_block_backend') == 'gpu'
-    assert get_option('su_n_data_path') == '/fake/user/su_n'
-    assert get_option('su_n_data_filename_base') == 'local_base'
+    assert get_option('coupling_cutoff') == 1e-13
     # now, doing an invalid fusion should not raise
     invalid_fusion = ct.u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 

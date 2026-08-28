@@ -249,6 +249,21 @@ class FusionTreeBackend : public TensorBackend
       bool new_leg_dual,
       std::optional<std::string> sort = std::nullopt) override;
 
+    std::tuple<DataPtr, DataPtr, ElementarySpace::Ptr> eig(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) override;
+
+    std::tuple<DataPtr, ElementarySpace::Ptr> eigvalsh(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) override;
+
+    std::tuple<DataPtr, ElementarySpace::Ptr> eigvals(
+      SymmetricTensorCPtr a,
+      bool new_leg_dual,
+      std::optional<std::string> sort = std::nullopt) override;
+
     DataPtr eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::string device) override;
 
     DataPtr from_dense_block(BlockBackend::BlockPtr a,

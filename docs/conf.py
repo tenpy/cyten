@@ -31,7 +31,7 @@ def _extension_module_available(name: str = 'cyten._core') -> bool:
     """True if a compiled extension (not a pure-Python stub) can be loaded."""
     try:
         spec = importlib.util.find_spec(name)
-    except (ImportError, ModuleNotFoundError, ValueError):
+    except (ImportError, ModuleNotFoundError, ValueError):  # fmt: skip
         return False
     if spec is None or spec.origin is None:
         return False
@@ -208,6 +208,7 @@ intersphinx_mapping = {
     'numpy': ('https://numpy.org/doc/stable', None),
     'scipy': ('https://docs.scipy.org/doc/scipy/', None),
     'tenpy': ('https://tenpy.readthedocs.org/en/stable', None),
+    'tenpy_v1': ('https://tenpy.readthedocs.org/en/v1.1.1', None),
     'matplotlib': ('https://matplotlib.org', None),
     'h5py': ('https://docs.h5py.org/en/stable/', None),
 }

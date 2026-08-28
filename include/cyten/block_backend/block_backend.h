@@ -385,6 +385,14 @@ class BlockBackend
     virtual std::tuple<BlockPtr, BlockPtr> eigh(
       const BlockCPtr& block,
       std::optional<std::string> sort = std::nullopt) = 0;
+    /// Eigenvalue decomposition of a general 2D square block.
+    ///
+    /// Return a 1D block of (generally complex) eigenvalues and a 2D block of eigenvectors.
+    ///
+    /// @param block The block to decompose
+    /// @param sort How the eigenvalues are sorted
+    virtual std::tuple<BlockPtr, BlockPtr> eig(const BlockCPtr& block,
+                                               std::optional<std::string> sort = std::nullopt) = 0;
     /// Eigenvalues of a 2D hermitian block.
     ///
     /// Return a 1D block of eigenvalues
@@ -393,6 +401,14 @@ class BlockBackend
     /// @param sort How the eigenvalues are sorted
     virtual BlockPtr eigvalsh(const BlockCPtr& block,
                               std::optional<std::string> sort = std::nullopt) = 0;
+    /// Eigenvalues of a general 2D square block.
+    ///
+    /// Return a 1D block of (generally complex) eigenvalues.
+    ///
+    /// @param block The block to decompose
+    /// @param sort How the eigenvalues are sorted
+    virtual BlockPtr eigvals(const BlockCPtr& block,
+                             std::optional<std::string> sort = std::nullopt) = 0;
     virtual BlockPtr enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis) = 0;
     /// The *elementwise* exponential.
     virtual BlockPtr exp(const BlockCPtr& a) = 0;

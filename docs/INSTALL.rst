@@ -20,7 +20,10 @@ Building from source
 To build cyten locally on your machine, install the following requirements
 (currently only tested on standard linux distros like ubuntu - no Windows support yet, use WSL):
 
-- C++ compiler with at least C++17 standard  (can be installed manually with `conda install -c conda-forge compilers` if needed)
+- C++ compiler with at least C++17 standard. In a conda env this **must** be
+  conda-forge ``cxx-compiler`` (included in ``environment.yml``), not a newer
+  system ``g++``. Python already loads conda's ``libstdc++``; objects compiled
+  with a newer GCC fail at ``import cyten`` with missing ``GLIBCXX_*`` symbols.
 - CMake, make
 - Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed in `environment.yml`
 - **PyTorch** (``torch`` / conda-forge ``pytorch``): required at build and runtime.

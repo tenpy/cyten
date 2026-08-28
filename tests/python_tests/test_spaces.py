@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from cyten import SymmetryError, get_backend, symmetries
+from cyten import SymmetryError, get_backend, symmetries, tensors
 from cyten.block_backends import NumpyBlockBackend
 from cyten.symmetries import (
     U1,
@@ -15,6 +15,7 @@ from cyten.symmetries import (
     spaces,
     trees,
 )
+from cyten.tensors import SymmetricTensor
 from cyten.testing import random_ElementarySpace, random_LegPipe
 from cyten.tools import is_permutation, make_grid
 
@@ -520,6 +521,9 @@ def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
     assert a == spaces.ElementarySpace.direct_sum(a)
     d = spaces.ElementarySpace.direct_sum(a, b, c)
     d.test_sanity()
+    assert isinstance(d, spaces.DirectSumSpace)
+    assert d.is_direct_sum_space
+    assert d.spaces == [a, b, c]
     assert d.is_dual == is_dual
     if a.symmetry.can_be_dropped:
         expect = np.concatenate([leg.sectors_of_basis for leg in [a, b, c]], axis=0)
@@ -540,6 +544,79 @@ def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
         expected_order = slice(None, None, None)
     assert_sectors_equal(d.sector_decomposition[expected_order], sectors)
     npt.assert_array_equal(d.multiplicities[expected_order], mults)
+    # Structural equality: not equal to the collapsed plain ElementarySpace
+    plain = d.as_plain_ElementarySpace()
+    assert isinstance(plain, spaces.ElementarySpace)
+    assert not isinstance(plain, spaces.DirectSumSpace)
+    assert plain != d
+    assert plain.num_sectors == d.num_sectors
+    npt.assert_array_equal(plain.multiplicities, d.multiplicities)
+
+
+@pytest.mark.parametrize('is_dual', [True, False])
+def test_DirectSumSpace(is_dual, make_any_space, max_mult=3, max_sectors=3):
+    a = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
+    b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
+    c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
+    d = spaces.DirectSumSpace([a, b, c], is_dual=is_dual)
+    d.test_sanity()
+
+    # nesting flattens
+    nested = spaces.DirectSumSpace([a, spaces.DirectSumSpace([b, c], is_dual=is_dual)], is_dual=is_dual)
+    assert nested.spaces == [a, b, c]
+    assert nested == d
+
+    # dual / with_opposite_duality preserve structure
+    dual = d.dual
+    assert isinstance(dual, spaces.DirectSumSpace)
+    assert dual.is_dual == (not is_dual)
+    assert len(dual.spaces) == 3
+    dual.test_sanity()
+    assert dual.with_opposite_duality() == d
+
+    # take_slice collapses
+    if d.symmetry.can_be_dropped and d.dim > 0:
+        import warnings
+
+        mask = np.ones(int(d.dim), dtype=bool)
+        mask[-1] = False if d.dim > 1 else True
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter('always')
+            sliced = d.take_slice(mask)
+            assert any('direct-sum structure' in str(x.message) for x in w)
+        assert isinstance(sliced, spaces.ElementarySpace)
+        assert not isinstance(sliced, spaces.DirectSumSpace)
+
+
+def test_DirectSumSpace_inclusion_unit_vector(compatible_symmetry, compatible_backend):
+    """Inclusions / unit vectors without requiring a dense basis."""
+    sym = compatible_symmetry
+    backend = compatible_backend
+    I = spaces.ElementarySpace.from_trivial_sector(1, symmetry=sym)
+    d = spaces.DirectSumSpace([I, I, I])
+    d.test_sanity()
+
+    for i in (0, 1, -1):
+        proj = d.projection_onto_summand(i, backend=backend)
+        incl = d.inclusion_of_summand(i, backend=backend)
+        proj.test_sanity()
+        incl.test_sanity()
+        assert proj.is_projection
+        assert not incl.is_projection
+        assert (incl.dagger == proj).all()
+
+    mps = spaces.ElementarySpace.from_trivial_sector(2, symmetry=sym)
+    eye = SymmetricTensor.from_eye([mps], backend=backend, labels=['vL', 'vL*'])
+    unit = d.unit_vector_of_summand(0, backend=backend, labels=['wL'], dtype=eye.dtype)
+    assert unit.num_legs == 1
+    lp = tensors.outer(eye, tensors.dagger(unit))
+    lp.test_sanity()
+    assert lp.labels == ['vL', 'wL*', 'vL*']
+    rp_unit = d.unit_vector_of_summand(-1, backend=backend, labels=['wR'], dtype=eye.dtype)
+    assert rp_unit.num_legs == 1
+    rp = tensors.outer(tensors.dagger(rp_unit), eye)
+    rp.test_sanity()
+    assert 'vL' in rp.labels and 'wR*' in rp.labels
 
 
 def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines=20):

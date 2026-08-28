@@ -13,6 +13,28 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Prefer the conda-forge compiler (headers + libstdc++) that conda Python
+# actually loads. A newer system g++ (e.g. Fedora GCC 16) emits symbols
+# such as GLIBCXX_3.4.36 that conda's libstdc++ (GCC 15) does not provide;
+# `import cyten` then fails because Python has already loaded the older
+# libstdc++. Install with: conda install -c conda-forge cxx-compiler
+if(NOT CMAKE_CXX_COMPILER AND DEFINED ENV{CONDA_PREFIX})
+  foreach(_cyten_cxx
+      "$ENV{CONDA_PREFIX}/bin/c++"
+      "$ENV{CONDA_PREFIX}/bin/g++")
+    if(EXISTS "${_cyten_cxx}")
+      set(CMAKE_CXX_COMPILER "${_cyten_cxx}")
+      break()
+    endif()
+  endforeach()
+  if(NOT CMAKE_CXX_COMPILER)
+    file(GLOB _cyten_conda_gxx "$ENV{CONDA_PREFIX}/bin/*-conda-*-g++")
+    if(_cyten_conda_gxx)
+      list(GET _cyten_conda_gxx 0 CMAKE_CXX_COMPILER)
+    endif()
+  endif()
+endif()
+
 message(STATUS " Generator: ${CMAKE_GENERATOR}")
 message(STATUS " Build Target: ${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS " Installation Prefix: ${CMAKE_INSTALL_PREFIX}")
@@ -62,6 +84,52 @@ cmake_print_variables(Python_VERSION)
 cmake_print_variables(Python_INCLUDE_DIRS)
 cmake_print_variables(Python_NumPy_VERSION)
 cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
+
+# Reject a compiler whose libstdc++ is newer than the one conda Python loads.
+function(cyten_glibcxx_max so_file out_var)
+  set(_max "")
+  if(EXISTS "${so_file}")
+    execute_process(
+      COMMAND strings -a "${so_file}"
+      COMMAND grep "^GLIBCXX_[0-9]"
+      COMMAND sort -V
+      COMMAND tail -1
+      OUTPUT_VARIABLE _sym
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET)
+    string(REGEX REPLACE "^GLIBCXX_" "" _max "${_sym}")
+  endif()
+  set(${out_var} "${_max}" PARENT_SCOPE)
+endfunction()
+
+set(_cyten_conda_stdcxx "")
+if(DEFINED ENV{CONDA_PREFIX}
+   AND EXISTS "$ENV{CONDA_PREFIX}/lib/libstdc++.so.6")
+  set(_cyten_conda_stdcxx "$ENV{CONDA_PREFIX}/lib/libstdc++.so.6")
+endif()
+if(_cyten_conda_stdcxx)
+  execute_process(
+    COMMAND "${CMAKE_CXX_COMPILER}" -print-file-name=libstdc++.so
+    OUTPUT_VARIABLE _cyten_cxx_stdcxx
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  get_filename_component(_cyten_cxx_stdcxx "${_cyten_cxx_stdcxx}" REALPATH)
+  get_filename_component(_cyten_conda_stdcxx_real
+    "${_cyten_conda_stdcxx}" REALPATH)
+  cyten_glibcxx_max("${_cyten_cxx_stdcxx}" _cyten_cxx_glibcxx)
+  cyten_glibcxx_max("${_cyten_conda_stdcxx_real}" _cyten_conda_glibcxx)
+  if(_cyten_cxx_glibcxx AND _cyten_conda_glibcxx
+     AND _cyten_cxx_glibcxx VERSION_GREATER _cyten_conda_glibcxx)
+    message(FATAL_ERROR
+      "C++ compiler ${CMAKE_CXX_COMPILER} uses libstdc++ ${_cyten_cxx_stdcxx} "
+      "(GLIBCXX_${_cyten_cxx_glibcxx}), but conda Python loads "
+      "${_cyten_conda_stdcxx_real} (GLIBCXX_${_cyten_conda_glibcxx}). "
+      "Install the matching compiler and reconfigure from a clean build dir:\n"
+      "  conda install -c conda-forge cxx-compiler\n"
+      "  conda activate $CONDA_PREFIX\n"
+      "  rm -rf <build-dir>  # or delete CMakeCache.txt\n"
+      "The env compiler is selected automatically via CXX / PATH.")
+  endif()
+endif()
 
 
 # #####################################################################
@@ -180,6 +248,7 @@ set(CYTEN_MKDOC_HEADERS
   tensors/diagonal_tensor.h
   tensors/mask.h
   tensors/charged_tensor.h
+  tensors/hidden_leg_tensor.h
   tensors/sparse.h
   tensors/planar.h
   tensors/krylov_based.h

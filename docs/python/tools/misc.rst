@@ -10,3 +10,5 @@ Classes and functions imported from the pybind11 module :mod:`cyten._core`.
 .. autofunction:: cyten.tools.misc.to_iterable
 
 .. autofunction:: cyten.tools.misc.to_valid_idx
+
+.. autofunction:: cyten.tools.misc.permutation_as_swaps

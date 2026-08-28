@@ -53,5 +53,15 @@ from ._symmetries import (
     z8_symmetry,
     z9_symmetry,
 )
-from .spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct, swap_gate, twist_gate
+from .spaces import (
+    AbelianLegPipe,
+    DirectSumSpace,
+    ElementarySpace,
+    Leg,
+    LegPipe,
+    Space,
+    TensorProduct,
+    swap_gate,
+    twist_gate,
+)
 from .trees import FusionTree, fusion_trees

@@ -2,13 +2,14 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 import warnings
-from collections.abc import Generator, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
 from .._core import (
     SectorArray,
     is_iterable,  # noqa
+    permutation_as_swaps,  # noqa
     to_iterable,  # noqa
     to_valid_idx,  # noqa
 )
@@ -54,37 +55,6 @@ def as_immutable_array(a, dtype=None):
     a = np.asarray(a, dtype=dtype)
     a.setflags(write=False)
     return a
-
-
-def permutation_as_swaps(permutation: list[int]) -> Generator[int]:
-    """Decompose an arbitrary permutation into a sequence of swaps.
-
-    Parameters
-    ----------
-    permutation : list of int
-        A permutation. The goal is to move ``permutation[j]`` to position ``j`` via the sequence of
-        swaps.
-
-    Yields
-    ------
-    j : int
-        Represents a swap of ``j <-> j + 1``, i.e. the permutation
-        ``[*range(j), j + 1, j, *range(j + 2, len(permutation))]``.
-
-    """
-    N = len(permutation)
-    if set(permutation) != set(range(N)):
-        raise ValueError('Not a permutation')
-    current_positions = np.arange(N)
-    for target_pos, original_pos in enumerate(permutation[:-1]):
-        current_pos = current_positions[original_pos]
-        # due to the set-up we always have target_pos <= current_pos
-        yield from reversed(range(target_pos, current_pos))
-        # update current positions: build the permutation we just yielded as swaps
-        perm = np.arange(N)
-        perm[target_pos : current_pos + 1] = np.roll(perm[target_pos : current_pos + 1], -1)
-        current_positions = perm[current_positions]
-    return
 
 
 # TODO remove in favor of backend.block_argsort?

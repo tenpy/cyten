@@ -252,6 +252,45 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("sort") = py::none(),
       DOC(cyten, NoSymmetryBackend, eigh));
     cls.def(
+      "eig",
+      [](NoSymmetryBackend& self,
+         SymmetricTensorCPtr a,
+         bool new_leg_dual,
+         std::optional<std::string> sort) {
+          auto [w, v, leg] = self.eig(a, new_leg_dual, std::move(sort));
+          return std::make_tuple(py_block(std::move(w)), py_block(std::move(v)), std::move(leg));
+      },
+      py::arg("a"),
+      py::arg("new_leg_dual"),
+      py::arg("sort") = py::none(),
+      DOC(cyten, NoSymmetryBackend, eig));
+    cls.def(
+      "eigvalsh",
+      [](NoSymmetryBackend& self,
+         SymmetricTensorCPtr a,
+         bool new_leg_dual,
+         std::optional<std::string> sort) {
+          auto [w, leg] = self.eigvalsh(a, new_leg_dual, std::move(sort));
+          return std::make_tuple(py_block(std::move(w)), std::move(leg));
+      },
+      py::arg("a"),
+      py::arg("new_leg_dual"),
+      py::arg("sort") = py::none(),
+      DOC(cyten, NoSymmetryBackend, eigvalsh));
+    cls.def(
+      "eigvals",
+      [](NoSymmetryBackend& self,
+         SymmetricTensorCPtr a,
+         bool new_leg_dual,
+         std::optional<std::string> sort) {
+          auto [w, leg] = self.eigvals(a, new_leg_dual, std::move(sort));
+          return std::make_tuple(py_block(std::move(w)), std::move(leg));
+      },
+      py::arg("a"),
+      py::arg("new_leg_dual"),
+      py::arg("sort") = py::none(),
+      DOC(cyten, NoSymmetryBackend, eigvals));
+    cls.def(
       "eye_data",
       [](NoSymmetryBackend& self, TensorProduct::Ptr co_domain, Dtype dtype, std::string device) {
           return py_block(self.eye_data(co_domain, dtype, std::move(device)));

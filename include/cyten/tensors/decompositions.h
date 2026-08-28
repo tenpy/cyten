@@ -76,6 +76,64 @@ namespace cyten {
   bool new_leg_dual,
   std::optional<std::string> sort = std::nullopt);
 
+/// The eigen-decomposition of a general (not necessarily hermitian) tensor.
+///
+/// A tensor decomposition `tensor ~ V @ W @ pinv(V)` with the following properties:
+///
+/// - `W` is a `DiagonalTensor` with the (generally complex) eigenvalues of `tensor`.
+/// - `V` contains the corresponding right eigenvectors. It is in general not unitary.
+///
+/// Requires that `tensor.domain == tensor.codomain`.
+///
+/// @param tensor The tensor to decompose.
+/// @param new_labels Labels for the new legs. Three labels `[a, b, c]` result in
+///     `V.labels[-1] == a` and `W.labels == [b, c]`. Two labels `[a, b]` are equivalent to
+///     `[a, b, a]`. A single label `a` is equivalent to `[a, a*, a]`.
+/// @param new_leg_dual If the new leg should be a ket space (`false`) or bra space (`true`).
+/// @param sort How the eigenvalues are sorted *within* each charge block.
+///     One of `"m>"`, `"m<"`, `">"`, `"<"`, `"LI"`, `"SI"`, or `nullopt`.
+///     Defaults to `nullopt`, which leaves the backend default order (unsorted for `eig`).
+///     See `argsort` for details.
+/// @returns `(W, V)`: eigenvalues and right eigenvectors.
+[[nodiscard]] std::tuple<DiagonalTensorPtr, TensorPtr> eig(
+  TensorCPtr tensor,
+  LegLabels new_labels,
+  bool new_leg_dual,
+  std::optional<std::string> sort = std::nullopt);
+
+/// Eigenvalues of a hermitian tensor, without eigenvectors.
+///
+/// *Assumes* that `tensor` is hermitian: `dagger(tensor) ~ tensor`, which requires in particular
+/// that `tensor.domain == tensor.codomain`.
+///
+/// @param tensor The hermitian tensor.
+/// @param new_labels Labels for the eigenvalue tensor `W` only. One label `a` is equivalent to
+///     `[a, a*]`. Two labels `[b, c]` set `W.labels == [b, c]`.
+/// @param new_leg_dual If the new leg should be a ket space (`false`) or bra space (`true`).
+/// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort` for
+///     details. Defaults to `nullopt`, which is the same as `"<"`.
+/// @returns `W`: real eigenvalues as a `DiagonalTensor`.
+[[nodiscard]] DiagonalTensorPtr eigvalsh(TensorCPtr tensor,
+                                         LegLabels new_labels,
+                                         bool new_leg_dual,
+                                         std::optional<std::string> sort = std::nullopt);
+
+/// Eigenvalues of a general tensor, without eigenvectors.
+///
+/// Requires that `tensor.domain == tensor.codomain`.
+///
+/// @param tensor The tensor.
+/// @param new_labels Labels for the eigenvalue tensor `W` only. One label `a` is equivalent to
+///     `[a, a*]`. Two labels `[b, c]` set `W.labels == [b, c]`.
+/// @param new_leg_dual If the new leg should be a ket space (`false`) or bra space (`true`).
+/// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort` for
+///     details. Defaults to `nullopt`, which leaves the backend default order (unsorted).
+/// @returns `W`: (generally complex) eigenvalues as a `DiagonalTensor`.
+[[nodiscard]] DiagonalTensorPtr eigvals(TensorCPtr tensor,
+                                        LegLabels new_labels,
+                                        bool new_leg_dual,
+                                        std::optional<std::string> sort = std::nullopt);
+
 /// The entropy of a probability distribution.
 ///
 /// Assumes that `p` is a probability distribution, i.e. real, non-negative and normalized to

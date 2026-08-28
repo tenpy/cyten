@@ -57,6 +57,7 @@ bind_config(py::module_& m)
       .def_readonly("fusion_tree_eps", &CytenConfig::fusion_tree_eps)
       .def_readonly("su_n_data_path", &CytenConfig::su_n_data_path)
       .def_readonly("su_n_data_filename_base", &CytenConfig::su_n_data_filename_base)
+      .def_readonly("coupling_cutoff", &CytenConfig::coupling_cutoff)
       .def_static(
         "all_option_keys", &CytenConfig::all_option_keys, "Names of all recognized config options")
       .def_static("env_var_name",

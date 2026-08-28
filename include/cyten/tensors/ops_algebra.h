@@ -205,6 +205,9 @@ using LevelsSpec = std::vector<std::optional<int64>>;
 /// The norm is given by @f$ \Vert A \Vert_\text{F} = \sqrt{\langle A \vert A \rangle_\text{F}}
 /// @f$, where @f$ \langle {-} \vert {-} \rangle_\text{F} @f$ is the Frobenius inner product,
 /// implemented in `inner`.
+///
+/// For a `ChargedTensor` with unspecified `charged_state`, this is `norm(invariant_part)` if
+/// `charge_leg.dim == 1`, and raises otherwise.
 [[nodiscard]] BlockBackend::Scalar norm(TensorCPtr tensor);
 
 /// Norm of a `VectorLike` (Tensor or DirectSum).

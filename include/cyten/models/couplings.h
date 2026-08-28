@@ -15,7 +15,6 @@
 namespace cyten {
 
 [[nodiscard]] std::map<std::string, py::object> space_to_dict(ElementarySpace::Ptr space);
-[[nodiscard]] std::vector<int64> adjacent_transpositions(std::vector<int64> const& permutation);
 /// Recursively turn the output of the ``_*_to_dict`` helpers into hashable nested tuples.
 [[nodiscard]] py::object freeze(py::object obj);
 
@@ -23,13 +22,13 @@ namespace cyten {
 ///
 /// A coupling represents an operator of the following form::
 ///
-///     |        p0   p1   ..   pN
+///     |        p0*  p1*  ..  pN*
 ///     |        │    │    │    │
 ///     |       ┏┷━━━━┷━━━━┷━━━━┷┓
 ///     |       ┃       h        ┃
 ///     |       ┗┯━━━━┯━━━━┯━━━━┯┛
 ///     |        │    │    │    │
-///     |        p0*  p1*  ..  pN*
+///     |        p0   p1   ..   pN
 ///
 /// The intended use case is to build tensor network representations (e.g. MPOs) of Hamiltonians.
 ///
@@ -71,7 +70,8 @@ class Coupling
     /// @param understood_braiding Set if the caller has accounted for non-trivial braiding of the
     /// dense block.
     /// @param cutoff_singular_values If given, truncate singular values (see
-    /// `horizontal_factorization`) below this threshold.
+    /// `horizontal_factorization`) below this threshold. If omitted, the `coupling_cutoff` config
+    /// option is used.
     [[nodiscard]] static Coupling from_dense_block(
       py::object operator_,
       std::vector<Site::Ptr> sites,
@@ -91,8 +91,8 @@ class Coupling
     /// @param sites The sites that the operator acts on.
     /// @param name A descriptive name that can be used when pretty-printing, to identify the
     /// coupling. For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
-    /// @param cutoff If given, truncate singular values (see
-    /// `horizontal_factorization`) below this threshold.
+    /// @param cutoff If given, truncate singular values (see `horizontal_factorization`) below
+    /// this threshold. If omitted, the `coupling_cutoff` config option is used.
     [[nodiscard]] static Coupling from_tensor(SymmetricTensorPtr operator_,
                                               std::vector<Site::Ptr> sites,
                                               std::optional<std::string> name = std::nullopt,
@@ -123,38 +123,30 @@ class Coupling
 
     /// Permute the sites of this coupling, braiding through the (possibly anyonic) legs.
     ///
-    /// Contracts `self` to a single tensor (`to_tensor`), realizes `permutation` as a
-    /// sequence of elementary adjacent-site transpositions (each one braiding the full ``(p, p*)``
-    /// leg pair of one site past that of its neighbour, as a single unit -- the two legs of one
-    /// site never cross each other), and re-factorizes the result (`from_tensor`) with the
-    /// sites reordered accordingly. This is analogous to how
-    /// `PermuteLegsInstructionEngine` realizes a leg
-    /// permutation as a sequence of elementary swaps, tracking a `levels` list that is itself
-    /// reordered as legs move.
+    /// Realizes `permutation` as a sequence of elementary adjacent-site transpositions and
+    /// applies each as a local swap gate to only the two `factorization` tensors it touches
+    /// (contract the pair, braid their physical ``(p, p*)`` legs past each other as a single
+    /// unit -- the two legs of one site never cross each other -- and re-split the pair via
+    /// `horizontal_factorization`), leaving every other tensor in `factorization` untouched.
+    /// This is analogous to how `PermuteLegsInstructionEngine` realizes a leg permutation as a
+    /// sequence of elementary swaps, tracking a `levels` list that is itself reordered as legs
+    /// move.
     ///
     /// Results are cached on `self` (not shared with `self`'s other permutations, or with the
     /// result of this call): calling ``self.permute(permutation, ...)`` twice with the same
-    /// `permutation` returns the same (cached) result, using `levels`/`over_braid` only the first
-    /// time; a different `permutation` triggers a new computation.
+    /// `permutation` returns the same (cached) result, using `levels` only the first time; a
+    /// different `permutation` triggers a new computation.
     ///
     /// @param permutation A permutation of ``range(len(self.sites))``. ``permutation[k]`` is the
     /// index (in `self`'s current order) of the site that ends up at new position `k`.
     /// @param levels One entry per site of `self` (in `self`'s current order): its "height", used
-    /// to derive the braid chirality (over/under) for any elementary transposition whose
-    /// `over_braid` entry is ``None``, the same way `Symmetry` legs with a higher level braid over
-    /// those with a lower one. Only needed for symmetries without a symmetric braid (see
-    /// `braiding_style`); ignored otherwise.
-    /// @param over_braid One entry per elementary adjacent-site transposition needed to realize
-    /// `permutation` (i.e. NOT one entry per site -- the number of transpositions depends on
-    /// `permutation`, e.g. via the number of its inversions). Explicitly fixes the braid chirality
-    /// for that transposition (``True`` = the site moving from the lower position over the one
-    /// moving from the higher position); ``None`` derives it from `levels`.
+    /// to derive the braid chirality (over/under) for each elementary transposition, the same way
+    /// `Symmetry` legs with a higher level braid over those with a lower one. Only needed for
+    /// symmetries without a symmetric braid (see `braiding_style`); ignored otherwise.
     /// @returns A new coupling with `sites` (and the represented operator) reordered according to
     /// `permutation`.
-    [[nodiscard]] Coupling permute(
-      std::vector<int64> const& permutation,
-      std::optional<LevelsSpec> levels = std::nullopt,
-      std::optional<std::vector<std::optional<bool>>> over_braid = std::nullopt) const;
+    [[nodiscard]] Coupling permute(std::vector<int64> const& permutation,
+                                   std::optional<LevelsSpec> levels = std::nullopt) const;
 
     [[nodiscard]] std::tuple<py::object, std::vector<Site::Ptr>, std::vector<SymmetricTensorPtr>>
     key() const;

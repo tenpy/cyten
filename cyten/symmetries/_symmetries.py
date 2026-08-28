@@ -48,7 +48,7 @@ try:
     import h5py
 
     h5py_version = h5py.version.version_tuple
-except ImportError, AttributeError:
+except (ImportError, AttributeError):  # fmt: skip
     h5py_version = (0, 0)
 
 

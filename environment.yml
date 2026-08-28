@@ -16,6 +16,7 @@ dependencies:
   - scipy
   - openblas
   - cmake
+  - cxx-compiler  # conda-forge g++ / libstdc++; must match conda Python (do not use a newer system g++)
   - doxygen  # required: generates pybind/docstrings/ DOC() headers at build time
   - pytorch
   #- xtensor

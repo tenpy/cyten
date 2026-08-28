@@ -810,6 +810,52 @@ bind_tensors_planar(py::module_& m)
       DOC(cyten, planar_eigh));
 
     m.def(
+      "planar_eig",
+      [](TensorCPtr tensor,
+         int64 codomain_cut,
+         int64 domain_cut,
+         py::object new_labels,
+         bool new_leg_dual,
+         py::object sort) {
+          return planar_eig(std::move(tensor),
+                            codomain_cut,
+                            domain_cut,
+                            py_opt_labels(new_labels),
+                            new_leg_dual,
+                            py_opt_string(sort));
+      },
+      py::arg("tensor"),
+      py::arg("codomain_cut"),
+      py::arg("domain_cut"),
+      py::arg("new_labels") = py::none(),
+      py::arg("new_leg_dual") = false,
+      py::arg("sort") = py::none(),
+      DOC(cyten, planar_eig));
+
+    m.def(
+      "planar_eigvals",
+      [](TensorCPtr tensor,
+         int64 codomain_cut,
+         int64 domain_cut,
+         py::object new_labels,
+         bool new_leg_dual,
+         py::object sort) {
+          return planar_eigvals(std::move(tensor),
+                                codomain_cut,
+                                domain_cut,
+                                py_opt_labels(new_labels),
+                                new_leg_dual,
+                                py_opt_string(sort));
+      },
+      py::arg("tensor"),
+      py::arg("codomain_cut"),
+      py::arg("domain_cut"),
+      py::arg("new_labels") = py::none(),
+      py::arg("new_leg_dual") = false,
+      py::arg("sort") = py::none(),
+      DOC(cyten, planar_eigvals));
+
+    m.def(
       "planar_lq",
       [](TensorCPtr tensor,
          int64 codomain_cut,
@@ -952,6 +998,14 @@ bind_tensors_planar(py::module_& m)
               return py::cast(planar_eigh(
                 tensor, codomain_cut, domain_cut, labs, new_leg_dual, py_opt_string(kw("sort"))));
           }
+          if (which == "eig") {
+              return py::cast(planar_eig(
+                tensor, codomain_cut, domain_cut, labs, new_leg_dual, py_opt_string(kw("sort"))));
+          }
+          if (which == "eigvals") {
+              return py::cast(planar_eigvals(
+                tensor, codomain_cut, domain_cut, labs, new_leg_dual, py_opt_string(kw("sort"))));
+          }
           if (which == "lq") {
               return py::cast(planar_lq(tensor, codomain_cut, domain_cut, labs, new_leg_dual));
           }
@@ -1006,8 +1060,9 @@ bind_tensors_planar(py::module_& m)
       py::arg("new_leg_dual") = false,
       R"pydoc(Planar generalization of eigen, QR, LQ, SV, and truncated SV decompositions.
 
-See the respective docstrings of :func:`planar_eigh`, :func:`planar_qr`, :func:`planar_lq`,
-:func:`planar_svd`, and :func:`planar_truncated_svd` for more details.
+See the respective docstrings of :func:`planar_eigh`, :func:`planar_eig`, :func:`planar_eigvals`,
+:func:`planar_qr`, :func:`planar_lq`, :func:`planar_svd`, and :func:`planar_truncated_svd` for
+more details.
 )pydoc");
 }
 

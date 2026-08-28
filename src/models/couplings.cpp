@@ -1,5 +1,6 @@
 #include <cyten/models/couplings.h>
 
+#include <cyten/config.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/factors/fibonacci_anyon_category.h>
 #include <cyten/symmetries/symmetry.h>
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <format>
 #include <functional>
+#include <numeric>
 #include <ranges>
 #include <stdexcept>
 #include <utility>
@@ -143,6 +145,56 @@ compose_tensors(SymmetricTensorPtr tensor1,
         throw std::runtime_error("compose unexpectedly returned a scalar");
     }
     return as_symmetric(std::get<TensorPtr>(std::move(res)));
+}
+
+/// Swap two adjacent `Coupling::factorization` tensors, braiding their physical ``(p, p*)``
+/// legs past each other as a single unit. `Wa`'s `wL` and `Wb`'s `wR` (the coupling's own
+/// boundary legs, possibly non-trivial) are left untouched; a fresh bond is created between the
+/// two returned tensors. `over` selects the same chirality convention as the `p{pos}`/`p{pos}*`
+/// vs. `p{pos+1}`/`p{pos+1}*` levels used to braid a fully-contracted coupling tensor: ``true``
+/// means `Wa`'s site braids over `Wb`'s.
+std::pair<SymmetricTensorPtr, SymmetricTensorPtr>
+swap_adjacent_factors(SymmetricTensorPtr const& Wa, SymmetricTensorPtr const& Wb, bool over)
+{
+    // Bring each tensor into a shape where the wR/wL bond is the sole domain/codomain leg, so
+    // `compose_tensors` can contract it without an ambiguous implicit permutation (mirrors the
+    // per-tensor prep in `Coupling::to_tensor`).
+    SymmetricTensorPtr Wa_prepped =
+      as_symmetric(permute_legs(Wa,
+                                std::vector<LegRef>{ "wL", "p*", "p" },
+                                std::vector<LegRef>{ "wR" },
+                                std::nullopt,
+                                false));
+    Wa_prepped->relabel({ { "p", "p0" }, { "p*", "p0*" } });
+    SymmetricTensorPtr Wb_prepped =
+      as_symmetric(permute_legs(Wb,
+                                std::vector<LegRef>{ "wL" },
+                                std::vector<LegRef>{ "p*", "wR", "p" },
+                                std::nullopt,
+                                true));
+    SymmetricTensorPtr T =
+      compose_tensors(Wa_prepped,
+                      Wb_prepped,
+                      std::map<std::string, std::string>{ { "p", "p1" }, { "p*", "p1*" } });
+
+    std::map<std::string, int64> level_dict{
+        { "p0", over ? 1 : 0 },
+        { "p0*", over ? 1 : 0 },
+        { "p1", over ? 0 : 1 },
+        { "p1*", over ? 0 : 1 },
+    };
+    T = as_symmetric(permute_legs(T,
+                                  std::vector<LegRef>{ "wL", "p1", "p0" },
+                                  std::vector<LegRef>{ "p1*", "p0*", "wR" },
+                                  levels_from_label_dict(T, level_dict),
+                                  true));
+
+    auto [left, right] = horizontal_factorization(T, 2, 1, LegLabels{ "wR", "wL" }, std::nullopt);
+    SymmetricTensorPtr Wleft = as_symmetric(std::move(left));
+    SymmetricTensorPtr Wright = as_symmetric(std::move(right));
+    Wleft->relabel({ { "p1", "p" }, { "p1*", "p*" } });
+    Wright->relabel({ { "p0", "p" }, { "p0*", "p*" } });
+    return { Wleft, Wright };
 }
 
 py::object
@@ -334,33 +386,6 @@ space_to_dict(ElementarySpace::Ptr space)
     };
 }
 
-std::vector<int64>
-adjacent_transpositions(std::vector<int64> const& permutation)
-{
-    int64 const n = static_cast<int64>(permutation.size());
-    std::vector<int64> working(static_cast<std::size_t>(n));
-    std::iota(working.begin(), working.end(), int64(0));
-    std::vector<int64> swap_positions;
-
-    for (int64 target_pos = 0; target_pos < n; ++target_pos) {
-        int64 const value = permutation[static_cast<std::size_t>(target_pos)];
-        int64 cur = target_pos;
-        for (int64 i = target_pos; i < n; ++i) {
-            if (working[static_cast<std::size_t>(i)] == value) {
-                cur = i;
-                break;
-            }
-        }
-        while (cur > target_pos) {
-            swap_positions.push_back(cur - 1);
-            std::swap(working[static_cast<std::size_t>(cur - 1)],
-                      working[static_cast<std::size_t>(cur)]);
-            --cur;
-        }
-    }
-    return swap_positions;
-}
-
 py::object
 freeze(py::object obj)
 {
@@ -534,6 +559,15 @@ Coupling::from_tensor(SymmetricTensorPtr operator_,
         throw std::invalid_argument("operator labels do not match expected p-label order");
     }
 
+    if (!cutoff) {
+        cutoff = get_config().coupling_cutoff;
+    }
+    // Truncated SVD divides by ||S|| and keeps at least one singular value. A (numerically) zero
+    // operator hits divide-by-zero and cannot satisfy svd_min vs chi_min, so fall back to QR.
+    if (norm(TensorCPtr{ operator_ }).as_float64() <= *cutoff) {
+        cutoff.reset();
+    }
+
     std::vector<SymmetricTensorPtr> factorization;
     if (sites.size() == 1) {
         SymmetricTensorPtr W =
@@ -677,9 +711,7 @@ Coupling::stretch_with_identities(std::vector<Site::Ptr> const& all_sites,
 }
 
 Coupling
-Coupling::permute(std::vector<int64> const& permutation,
-                  std::optional<LevelsSpec> levels,
-                  std::optional<std::vector<std::optional<bool>>> over_braid) const
+Coupling::permute(std::vector<int64> const& permutation, std::optional<LevelsSpec> levels) const
 {
     int64 const n = static_cast<int64>(sites.size());
     if (!is_permutation(permutation)) {
@@ -709,88 +741,34 @@ Coupling::permute(std::vector<int64> const& permutation,
         }
     }
 
-    std::vector<int64> swap_positions = adjacent_transpositions(permutation);
-    if (over_braid.has_value()) {
-        if (static_cast<int64>(over_braid->size()) != static_cast<int64>(swap_positions.size())) {
-            throw std::invalid_argument(std::format("need {} entries in `over_braid`, got {}",
-                                                    swap_positions.size(),
-                                                    over_braid->size()));
-        }
-    }
+    std::vector<int64> swap_positions = permutation_as_swaps(permutation);
 
-    SymmetricTensorPtr tensor = to_tensor();
     std::vector<Site::Ptr> permuted_sites = sites;
-    std::vector<std::string> codomain_labels;
-    std::vector<std::string> domain_labels;
-    codomain_labels.reserve(static_cast<std::size_t>(n));
-    domain_labels.reserve(static_cast<std::size_t>(n));
-    for (int64 i = 0; i < n; ++i) {
-        codomain_labels.push_back(std::format("p{}", i));
-        domain_labels.push_back(std::format("p{}*", i));
+    std::vector<SymmetricTensorPtr> permuted_factorization = factorization;
+
+    for (int64 pos : swap_positions) {
+        auto const lo = static_cast<std::size_t>(pos);
+        auto const hi = lo + 1;
+        if (!levels_state[lo].has_value() || !levels_state[hi].has_value()) {
+            throw BraidChiralityUnspecifiedError("Sites that braid must have specified levels.");
+        }
+        int64 const level_1 = *levels_state[lo];
+        int64 const level_2 = *levels_state[hi];
+        if (level_1 == level_2) {
+            throw BraidChiralityUnspecifiedError("Sites that braid can not have the same level.");
+        }
+        bool const over = level_1 > level_2;
+
+        auto [Wleft, Wright] =
+          swap_adjacent_factors(permuted_factorization[lo], permuted_factorization[hi], over);
+        permuted_factorization[lo] = std::move(Wleft);
+        permuted_factorization[hi] = std::move(Wright);
+
+        std::swap(permuted_sites[lo], permuted_sites[hi]);
+        std::swap(levels_state[lo], levels_state[hi]);
     }
 
-    for (std::size_t step = 0; step < swap_positions.size(); ++step) {
-        int64 const pos = swap_positions[step];
-        bool over = false;
-        if (over_braid.has_value() && (*over_braid)[step].has_value()) {
-            over = *(*over_braid)[step];
-        } else {
-            if (!levels_state[static_cast<std::size_t>(pos)].has_value() ||
-                !levels_state[static_cast<std::size_t>(pos + 1)].has_value()) {
-                throw BraidChiralityUnspecifiedError(
-                  "Sites that braid must have specified levels.");
-            }
-            int64 const level_1 = *levels_state[static_cast<std::size_t>(pos)];
-            int64 const level_2 = *levels_state[static_cast<std::size_t>(pos + 1)];
-            if (level_1 == level_2) {
-                throw BraidChiralityUnspecifiedError(
-                  "Sites that braid can not have the same level.");
-            }
-            over = level_1 > level_2;
-        }
-
-        std::vector<std::string> new_codomain = codomain_labels;
-        std::swap(new_codomain[static_cast<std::size_t>(pos)],
-                  new_codomain[static_cast<std::size_t>(pos + 1)]);
-        std::vector<std::string> new_domain = domain_labels;
-        std::swap(new_domain[static_cast<std::size_t>(pos)],
-                  new_domain[static_cast<std::size_t>(pos + 1)]);
-
-        std::map<std::string, int64> level_dict{
-            { codomain_labels[static_cast<std::size_t>(pos)], over ? 1 : 0 },
-            { domain_labels[static_cast<std::size_t>(pos)], over ? 1 : 0 },
-            { codomain_labels[static_cast<std::size_t>(pos + 1)], over ? 0 : 1 },
-            { domain_labels[static_cast<std::size_t>(pos + 1)], over ? 0 : 1 },
-        };
-        std::vector<LegRef> codomain_refs;
-        std::vector<LegRef> domain_refs;
-        codomain_refs.reserve(new_codomain.size());
-        domain_refs.reserve(new_domain.size());
-        for (auto const& lab : new_codomain) {
-            codomain_refs.emplace_back(lab);
-        }
-        for (auto const& lab : new_domain) {
-            domain_refs.emplace_back(lab);
-        }
-        tensor = as_symmetric(permute_legs(
-          tensor, codomain_refs, domain_refs, levels_from_label_dict(tensor, level_dict)));
-        codomain_labels = std::move(new_codomain);
-        domain_labels = std::move(new_domain);
-        std::swap(permuted_sites[static_cast<std::size_t>(pos)],
-                  permuted_sites[static_cast<std::size_t>(pos + 1)]);
-        std::swap(levels_state[static_cast<std::size_t>(pos)],
-                  levels_state[static_cast<std::size_t>(pos + 1)]);
-    }
-
-    std::map<std::string, std::string> relabelling;
-    for (std::size_t new_pos = 0; new_pos < permutation.size(); ++new_pos) {
-        int64 const old_idx = permutation[new_pos];
-        relabelling[std::format("p{}", old_idx)] = std::format("p{}", new_pos);
-        relabelling[std::format("p{}*", old_idx)] = std::format("p{}*", new_pos);
-    }
-    tensor->relabel(relabelling);
-
-    Coupling result = from_tensor(tensor, permuted_sites, name);
+    Coupling result(permuted_sites, permuted_factorization, name);
     result._levels.resize(permutation.size());
     for (std::size_t new_pos = 0; new_pos < permutation.size(); ++new_pos) {
         result._levels[new_pos] = _levels[static_cast<std::size_t>(permutation[new_pos])];

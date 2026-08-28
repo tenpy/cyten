@@ -7,6 +7,7 @@
 #include <cyten/symmetries/spaces.h>
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/labels.h>
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/ops_algebra.h>
@@ -75,6 +76,41 @@ bool
 is_ChargedTensor(py::object obj)
 {
     return is_python_instance(obj, "ChargedTensor") || py::isinstance<ChargedTensor>(obj);
+}
+
+bool
+is_HiddenLegTensor(py::object obj)
+{
+    return is_python_instance(obj, "HiddenLegTensor") || py::isinstance<HiddenLegTensor>(obj);
+}
+
+/// Cast a TensorCPtr to a Python object of the most-derived bound type.
+[[nodiscard]] py::object
+tensor_as_py(TensorCPtr const& tensor)
+{
+    if (auto p = std::dynamic_pointer_cast<HiddenLegTensor const>(tensor)) {
+        return py::cast(p);
+    }
+    if (auto p = std::dynamic_pointer_cast<ChargedTensor const>(tensor)) {
+        return py::cast(p);
+    }
+    if (auto p = std::dynamic_pointer_cast<Mask const>(tensor)) {
+        return py::cast(p);
+    }
+    if (auto p = std::dynamic_pointer_cast<Identity const>(tensor)) {
+        return py::cast(p);
+    }
+    if (auto p = std::dynamic_pointer_cast<DiagonalTensor const>(tensor)) {
+        return py::cast(p);
+    }
+    if (auto p = std::dynamic_pointer_cast<SymmetricTensor const>(tensor)) {
+        if (HiddenLegTensor::has_hidden_leg_labels(p->labels())) {
+            return py::cast(std::make_shared<HiddenLegTensor>(
+              std::const_pointer_cast<SymmetricTensor>(p)));
+        }
+        return py::cast(p);
+    }
+    return py::cast(tensor);
 }
 
 bool
@@ -408,16 +444,62 @@ permute_legs_py(py::object tensor,
             }
         }
         if (!missing.empty()) {
-            std::string joined;
-            bool first = true;
-            for (auto m : missing) {
-                if (!first) {
-                    joined += ", ";
+            // For HiddenLegTensor, unspecified hidden legs stay in their current slots.
+            if (is_HiddenLegTensor(tensor)) {
+                auto labs = leg_labels_from_py(tensor.attr("_labels"));
+                std::vector<int64> public_missing;
+                for (auto m : missing) {
+                    if (HiddenLegTensor::is_hidden_leg_label(
+                          labs[static_cast<std::size_t>(m)])) {
+                        // Insert hidden leg into the (co)domain where it currently lives,
+                        // preserving relative order among hidden legs.
+                        if (m < num_codomain_legs) {
+                            // find insertion point in codomain_v by original order
+                            auto it = codomain_v.begin();
+                            while (it != codomain_v.end() && *it < m) {
+                                ++it;
+                            }
+                            // Only insert if not already going to domain
+                            bool goes_to_domain = false;
+                            // keep in codomain at a stable position relative to neighbors
+                            codomain_v.insert(it, m);
+                        } else {
+                            auto it = domain_v.begin();
+                            // domain_v is typically descending by leg index for legs order
+                            while (it != domain_v.end() && *it > m) {
+                                ++it;
+                            }
+                            domain_v.insert(it, m);
+                        }
+                    } else {
+                        public_missing.push_back(m);
+                    }
                 }
-                first = false;
-                joined += std::to_string(m);
+                if (!public_missing.empty()) {
+                    std::string joined;
+                    bool first = true;
+                    for (auto m : public_missing) {
+                        if (!first) {
+                            joined += ", ";
+                        }
+                        first = false;
+                        joined += std::to_string(m);
+                    }
+                    throw std::invalid_argument(
+                      std::format("Missing public legs. By leg index: {}", joined));
+                }
+            } else {
+                std::string joined;
+                bool first = true;
+                for (auto m : missing) {
+                    if (!first) {
+                        joined += ", ";
+                    }
+                    first = false;
+                    joined += std::to_string(m);
+                }
+                throw std::invalid_argument(std::format("Missing legs. By leg index: {}", joined));
             }
-            throw std::invalid_argument(std::format("Missing legs. By leg index: {}", joined));
         }
     }
 
@@ -597,6 +679,32 @@ permute_legs_py(py::object tensor,
         return make_python_charged_tensor(inv_part, tensor.attr("charged_state"));
     }
 
+    // For HiddenLegTensor: assign levels below all public levels for hidden legs.
+    if (is_HiddenLegTensor(tensor)) {
+        auto labs = leg_labels_from_py(tensor.attr("_labels"));
+        int64 min_public = 0;
+        bool any_public_level = false;
+        for (int64 i = 0; i < num_legs; ++i) {
+            if (!HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(i)]) &&
+                levels_v[static_cast<std::size_t>(i)].has_value()) {
+                if (!any_public_level || *levels_v[static_cast<std::size_t>(i)] < min_public) {
+                    min_public = *levels_v[static_cast<std::size_t>(i)];
+                }
+                any_public_level = true;
+            }
+        }
+        for (int64 i = 0; i < num_legs; ++i) {
+            if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(i)]) &&
+                !levels_v[static_cast<std::size_t>(i)].has_value()) {
+                levels_v[static_cast<std::size_t>(i)] =
+                  any_public_level ? std::optional<int64>{ min_public - 1 } : std::nullopt;
+            }
+        }
+        // Reject specifying a hidden leg in domain/codomain args by label was already
+        // parsed as index; user naming hidden is discouraged but indices may appear from
+        // internal callers (tdot). Keep going.
+    }
+
     // Build new codomain and domain
     TensorProduct::Ptr new_codomain;
     TensorProduct::Ptr new_domain;
@@ -645,11 +753,17 @@ permute_legs_py(py::object tensor,
     for (auto n : domain_v) {
         dom_labels.push_back(all_labels[static_cast<std::size_t>(n)]);
     }
-    return make_python_symmetric_tensor(std::move(data),
-                                        py::cast(new_codomain),
-                                        py::cast(new_domain),
-                                        backend,
-                                        nested_leg_labels_to_py(cod_labels, dom_labels));
+    py::object res = make_python_symmetric_tensor(std::move(data),
+                                                  py::cast(new_codomain),
+                                                  py::cast(new_domain),
+                                                  backend,
+                                                  nested_leg_labels_to_py(cod_labels, dom_labels));
+    if (is_HiddenLegTensor(tensor) &&
+        (HiddenLegTensor::has_hidden_leg_labels(cod_labels) ||
+         HiddenLegTensor::has_hidden_leg_labels(dom_labels))) {
+        return py::cast(std::make_shared<HiddenLegTensor>(res.cast<SymmetricTensor::Ptr>()));
+    }
+    return res;
 }
 
 py::object
@@ -768,6 +882,19 @@ combine_legs_py(py::object tensor,
         py::object inv_part = combine_legs_py(
           tensor.attr("invariant_part"), which_as_py, pipe_dualities, pipes, levels_for_inv);
         return make_python_charged_tensor(inv_part, tensor.attr("charged_state"));
+    }
+
+    if (is_HiddenLegTensor(tensor)) {
+        auto labs = leg_labels_from_py(tensor.attr("_labels"));
+        for (auto const& group : which_legs_v) {
+            for (auto idx : group) {
+                if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(idx)])) {
+                    throw std::invalid_argument(
+                      "combine_legs: cannot combine hidden legs (they must not appear inside "
+                      "pipes). Hide a pipe after combining public legs instead.");
+                }
+            }
+        }
     }
 
     // 2) permute legs such that the groups are contiguous and fully in codomain or fully in domain
@@ -966,8 +1093,12 @@ combine_legs_py(py::object tensor,
     // (right-to-left build), matching Python [*codomain_labels, *domain_labels_reversed]
     res_labels.insert(
       res_labels.end(), domain_labels_reversed.begin(), domain_labels_reversed.end());
-    return make_python_symmetric_tensor(
+    py::object res = make_python_symmetric_tensor(
       std::move(data), codomain, domain, backend, labels_to_py(res_labels));
+    if (HiddenLegTensor::has_hidden_leg_labels(res_labels) && is_HiddenLegTensor(tensor)) {
+        return py::cast(std::make_shared<HiddenLegTensor>(res.cast<SymmetricTensor::Ptr>()));
+    }
+    return res;
 }
 
 py::object
@@ -1020,25 +1151,48 @@ split_legs_py(py::object tensor, py::object legs)
     int64 num_legs = tensor.attr("num_legs").cast<int64>();
 
     if (legs.is_none()) {
+        auto labs = leg_labels_from_py(tensor.attr("_labels"));
         int64 n = 0;
         for (auto l : tensor.attr("codomain")) {
             if (is_LegPipe(py::reinterpret_borrow<py::object>(l))) {
-                codomain_split.push_back(n);
+                // Do not auto-split hidden pipes.
+                if (!(is_HiddenLegTensor(tensor) &&
+                      HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(n)]))) {
+                    codomain_split.push_back(n);
+                }
             }
             ++n;
         }
         n = 0;
+        int64 n_cod = tensor.attr("num_codomain_legs").cast<int64>();
         for (auto l : tensor.attr("domain")) {
             if (is_LegPipe(py::reinterpret_borrow<py::object>(l))) {
-                domain_split.push_back(n);
+                int64 leg_idx = num_legs - 1 - n;
+                if (!(is_HiddenLegTensor(tensor) &&
+                      HiddenLegTensor::is_hidden_leg_label(
+                        labs[static_cast<std::size_t>(leg_idx)]))) {
+                    domain_split.push_back(n);
+                }
             }
             ++n;
+            (void)n_cod;
         }
         leg_idcs = codomain_split;
         for (auto it = domain_split.rbegin(); it != domain_split.rend(); ++it) {
             leg_idcs.push_back(num_legs - 1 - *it);
         }
     } else {
+        if (is_HiddenLegTensor(tensor)) {
+            auto labs = leg_labels_from_py(tensor.attr("_labels"));
+            auto sorted = get_leg_idcs_py(tensor, legs);
+            for (auto idx : sorted) {
+                if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(idx)])) {
+                    throw std::invalid_argument(
+                      "split_legs: cannot specify hidden legs. Omit legs= to split public pipes "
+                      "only.");
+                }
+            }
+        }
         auto sorted = get_leg_idcs_py(tensor, legs);
         std::sort(sorted.begin(), sorted.end());
         for (auto l : sorted) {
@@ -1118,8 +1272,12 @@ split_legs_py(py::object tensor, py::object legs)
                                     leg_idcs,
                                     codomain.cast<TensorProduct::Ptr>(),
                                     domain.cast<TensorProduct::Ptr>());
-    return make_python_symmetric_tensor(
+    py::object res = make_python_symmetric_tensor(
       std::move(data), codomain, domain, backend, labels_to_py(labels));
+    if (HiddenLegTensor::has_hidden_leg_labels(labels) && is_HiddenLegTensor(tensor)) {
+        return py::cast(std::make_shared<HiddenLegTensor>(res.cast<SymmetricTensor::Ptr>()));
+    }
+    return res;
 }
 
 py::object
@@ -1330,13 +1488,13 @@ bend_legs(TensorCPtr tensor,
           std::optional<int64> num_codomain_legs,
           std::optional<int64> num_domain_legs)
 {
-    return bend_legs_py(py::cast(tensor), num_codomain_legs, num_domain_legs).cast<TensorPtr>();
+    return bend_legs_py(tensor_as_py(tensor), num_codomain_legs, num_domain_legs).cast<TensorPtr>();
 }
 
 void
 check_same_legs(TensorCPtr t1, TensorCPtr t2)
 {
-    check_same_legs_py(py::cast(t1), py::cast(t2));
+    check_same_legs_py(tensor_as_py(t1), tensor_as_py(t2));
 }
 
 TensorPtr
@@ -1346,7 +1504,7 @@ combine_legs(TensorCPtr tensor,
              std::optional<std::vector<Leg::Ptr>> pipes,
              std::optional<LevelsSpec> levels)
 {
-    return combine_legs_py(py::cast(tensor),
+    return combine_legs_py(tensor_as_py(tensor),
                            py_which_legs(which_legs),
                            py_pipe_dualities(pipe_dualities),
                            py_pipes(pipes),
@@ -1361,7 +1519,7 @@ combine_to_matrix(TensorCPtr tensor,
                   std::optional<LevelsSpec> levels)
 {
     return combine_to_matrix_py(
-             py::cast(tensor), py_opt_legs(codomain), py_opt_legs(domain), py_levels(levels))
+             tensor_as_py(tensor), py_opt_legs(codomain), py_opt_legs(domain), py_levels(levels))
       .cast<TensorPtr>();
 }
 
@@ -1373,7 +1531,7 @@ move_leg(TensorCPtr tensor,
          std::optional<LevelsSpec> levels,
          std::optional<BendRight> bend_right)
 {
-    return move_leg_py(py::cast(tensor),
+    return move_leg_py(tensor_as_py(tensor),
                        py_leg(which_leg),
                        codomain_pos,
                        domain_pos,
@@ -1389,7 +1547,7 @@ permute_legs(TensorCPtr tensor,
              std::optional<LevelsSpec> levels,
              std::optional<BendRight> bend_right)
 {
-    return permute_legs_py(py::cast(tensor),
+    return permute_legs_py(tensor_as_py(tensor),
                            py_opt_legs(codomain),
                            py_opt_legs(domain),
                            py_levels(levels),
@@ -1400,13 +1558,13 @@ permute_legs(TensorCPtr tensor,
 TensorPtr
 split_legs(TensorCPtr tensor, std::optional<std::vector<LegRef>> legs)
 {
-    return split_legs_py(py::cast(tensor), py_opt_legs(legs)).cast<TensorPtr>();
+    return split_legs_py(tensor_as_py(tensor), py_opt_legs(legs)).cast<TensorPtr>();
 }
 
 TensorPtr
 squeeze_legs(TensorCPtr tensor, std::optional<std::vector<LegRef>> legs)
 {
-    return squeeze_legs_py(py::cast(tensor), py_opt_legs(legs)).cast<TensorPtr>();
+    return squeeze_legs_py(tensor_as_py(tensor), py_opt_legs(legs)).cast<TensorPtr>();
 }
 
 namespace {
@@ -1430,15 +1588,14 @@ check_slice_leg_tensor(TensorCPtr const& tensor)
     if (std::dynamic_pointer_cast<ChargedTensor const>(tensor)) {
         throw std::invalid_argument("slice_leg is not supported for ChargedTensor.");
     }
-    if (!ChargedTensor::supports_symmetry(tensor->symmetry)) {
-        throw SymmetryError(std::format("ChargedTensor is not well-defined for symmetry {}.",
-                                        tensor->symmetry->repr()));
+    if (std::dynamic_pointer_cast<HiddenLegTensor const>(tensor)) {
+        throw std::invalid_argument("slice_leg is not supported for HiddenLegTensor.");
     }
 }
 
 } // namespace
 
-ChargedTensorPtr
+HiddenLegTensorPtr
 slice_leg(TensorCPtr tensor, LegRef leg, int64 idx)
 {
     check_slice_leg_tensor(tensor);
@@ -1458,7 +1615,7 @@ slice_leg(TensorCPtr tensor, LegRef leg, int64 idx)
     return slice_leg(std::move(tensor), std::move(leg), sector, m);
 }
 
-ChargedTensorPtr
+HiddenLegTensorPtr
 slice_leg(TensorCPtr tensor, LegRef leg, Sector const& sector, int64 multiplicity)
 {
     check_slice_leg_tensor(tensor);
@@ -1497,12 +1654,12 @@ slice_leg(TensorCPtr tensor, LegRef leg, Sector const& sector, int64 multiplicit
                           leg,
                           /*codomain_pos=*/std::nullopt,
                           /*domain_pos=*/0);
-    moved->set_label(-1, std::string(ChargedTensor::_CHARGE_LEG_LABEL));
+    moved->set_label(-1, std::string("slice"));
     auto inv = std::dynamic_pointer_cast<SymmetricTensor>(moved);
     if (!inv) {
         inv = moved->as_SymmetricTensor();
     }
-    return std::make_shared<ChargedTensor>(std::move(inv), nullptr);
+    return HiddenLegTensor::from_tensor(std::move(inv), { LegRef{ int64(-1) } });
 }
 
 } // namespace cyten

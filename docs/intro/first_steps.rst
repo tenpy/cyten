@@ -84,5 +84,5 @@ What to try next
   ``Sz`` when :math:`S^z` is conserved).
 - The :mod:`cyten.models` reference lists further couplings (fields, hopping,
   density-density, …). Tensor operations live in :mod:`cyten.tensors`.
-- Coming from TeNPy's :mod:`tenpy.linalg.np_conserved`? See
-  :doc:`from_np_conserved` for what changed and how to update existing code.
+- Coming from TeNPy? :doc:`from_np_conserved` covers the tensor library;
+  :doc:`from_tenpy_models` covers sites, couplings, and Jordan-Wigner.

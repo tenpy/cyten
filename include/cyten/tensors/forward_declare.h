@@ -18,6 +18,7 @@ class DiagonalTensor;
 class Identity;
 class Mask;
 class ChargedTensor;
+class HiddenLegTensor;
 
 using VectorLikePtr = std::shared_ptr<VectorLike>;
 using VectorLikeCPtr = std::shared_ptr<const VectorLike>;
@@ -42,5 +43,8 @@ using MaskCPtr = std::shared_ptr<const Mask>;
 
 using ChargedTensorPtr = std::shared_ptr<ChargedTensor>;
 using ChargedTensorCPtr = std::shared_ptr<const ChargedTensor>;
+
+using HiddenLegTensorPtr = std::shared_ptr<HiddenLegTensor>;
+using HiddenLegTensorCPtr = std::shared_ptr<const HiddenLegTensor>;
 
 } // namespace cyten

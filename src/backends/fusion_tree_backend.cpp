@@ -2066,6 +2066,75 @@ FusionTreeBackend::eigh(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<
     return { wrap(w_data), wrap(v_data), new_leg };
 }
 
+std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>
+FusionTreeBackend::eig(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort)
+{
+    auto a_data = data_from_tensor(a);
+    auto new_leg =
+      py::cast(a->domain).attr("as_ElementarySpace")(new_leg_dual).cast<ElementarySpace::Ptr>();
+    Dtype cdtype = dtype::to_complex(a->dtype);
+    std::vector<BlockBackend::BlockPtr> v_blocks;
+    std::vector<BlockBackend::BlockPtr> w_blocks;
+    auto col0 = a_data->block_inds.column(0);
+    int64 n = 0;
+    int64 bi = col0.empty() ? -1 : col0[static_cast<std::size_t>(n)];
+    int64 num_sectors = py::cast(a->codomain).attr("num_sectors").cast<int64>();
+    for (int64 i = 0; i < num_sectors; ++i) {
+        if (i == bi) {
+            auto [vals, vects] =
+              block_backend->eig(a_data->blocks[static_cast<std::size_t>(n)], sort);
+            v_blocks.push_back(vects);
+            w_blocks.push_back(vals);
+            ++n;
+            bi =
+              static_cast<std::size_t>(n) >= col0.size() ? -1 : col0[static_cast<std::size_t>(n)];
+        } else {
+            int64 block_size = tp_mults(py::cast(a->codomain))[static_cast<std::size_t>(i)];
+            v_blocks.push_back(block_backend->eye_matrix(block_size, cdtype));
+        }
+    }
+    BlockInds v_block_inds = BlockInds::arange_diag(static_cast<std::size_t>(num_sectors));
+    auto w_data = make_data(cdtype, a_data->device, std::move(w_blocks), a_data->block_inds, true);
+    auto v_data = make_data(cdtype, a_data->device, std::move(v_blocks), v_block_inds);
+    return { wrap(w_data), wrap(v_data), new_leg };
+}
+
+std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
+FusionTreeBackend::eigvalsh(SymmetricTensorCPtr a,
+                            bool new_leg_dual,
+                            std::optional<std::string> sort)
+{
+    auto a_data = data_from_tensor(a);
+    auto new_leg =
+      py::cast(a->domain).attr("as_ElementarySpace")(new_leg_dual).cast<ElementarySpace::Ptr>();
+    std::vector<BlockBackend::BlockPtr> w_blocks;
+    w_blocks.reserve(a_data->blocks.size());
+    for (auto const& block : a_data->blocks) {
+        w_blocks.push_back(block_backend->eigvalsh(block, sort));
+    }
+    auto w_data = make_data(
+      dtype::to_real(a->dtype), a_data->device, std::move(w_blocks), a_data->block_inds, true);
+    return { wrap(w_data), new_leg };
+}
+
+std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
+FusionTreeBackend::eigvals(SymmetricTensorCPtr a,
+                           bool new_leg_dual,
+                           std::optional<std::string> sort)
+{
+    auto a_data = data_from_tensor(a);
+    auto new_leg =
+      py::cast(a->domain).attr("as_ElementarySpace")(new_leg_dual).cast<ElementarySpace::Ptr>();
+    Dtype cdtype = dtype::to_complex(a->dtype);
+    std::vector<BlockBackend::BlockPtr> w_blocks;
+    w_blocks.reserve(a_data->blocks.size());
+    for (auto const& block : a_data->blocks) {
+        w_blocks.push_back(block_backend->eigvals(block, sort));
+    }
+    auto w_data = make_data(cdtype, a_data->device, std::move(w_blocks), a_data->block_inds, true);
+    return { wrap(w_data), new_leg };
+}
+
 std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr>
 FusionTreeBackend::lq(SymmetricTensorCPtr a, TensorProduct::Ptr new_co_domain)
 {

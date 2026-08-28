@@ -78,6 +78,14 @@ cyten.tensors.ChargedTensor
    :undoc-members:
    :show-inheritance:
 
+cyten.tensors.HiddenLegTensor
+-----------------------------
+
+.. autoclass:: cyten.tensors.HiddenLegTensor
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Functions
 ---------
 
@@ -108,6 +116,12 @@ Functions
 .. autofunction:: cyten.tensors.dagger
 
 .. autofunction:: cyten.tensors.eigh
+
+.. autofunction:: cyten.tensors.eig
+
+.. autofunction:: cyten.tensors.eigvalsh
+
+.. autofunction:: cyten.tensors.eigvals
 
 .. autofunction:: cyten.tensors.enlarge_leg
 

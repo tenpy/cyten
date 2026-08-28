@@ -138,8 +138,9 @@ def test_coupling(codom, make_compatible_space):
         coupling2 = couplings.Coupling.from_dense_block(coupling_to_numpy, site_list, understood_braiding=True)
         coupling2.test_sanity()
         npt.assert_array_equal(coupling2.sites, coupling.sites)
-        for i in range(codom):
-            assert tensors.almost_equal(coupling2.factorization[i], coupling.factorization[i])
+        # Factorizations need not match site-by-site (QR/SVD gauge on virtual legs).
+        assert tensors.almost_equal(coupling2.to_tensor(), T)
+        npt.assert_almost_equal(coupling2.to_numpy(understood_braiding=True), T.to_numpy(understood_braiding=True))
 
 
 # TEST SPIN COUPLINGS
@@ -940,20 +941,6 @@ def test_stretch_with_identities():
         assert factor.get_leg_co_domain('p') == site.leg
 
 
-def test_adjacent_transpositions():
-    """_adjacent_transpositions must realize every permutation via adjacent swaps."""
-    import itertools
-
-    for n in range(1, 5):
-        for perm in itertools.permutations(range(n)):
-            perm = list(perm)
-            swap_positions = couplings._adjacent_transpositions(perm)
-            working = list(range(n))
-            for pos in swap_positions:
-                working[pos], working[pos + 1] = working[pos + 1], working[pos]
-            assert working == perm
-
-
 def _to_matrix(dense, dims):
     """Convert a dense block with axes [p0,...,p(n-1), p(n-1)*,...,p0*] (bra reversed, as
     returned by Coupling.to_tensor().to_numpy()) into a plain (prod(dims), prod(dims)) matrix
@@ -1004,10 +991,8 @@ def test_coupling_permute():
 
     permutation = [2, 3, 0, 1]
     levels = [1, 2, 3, 4]
-    swap_positions = couplings._adjacent_transpositions(permutation)
-    over_braid = [None] * len(swap_positions)  # auto-derive chirality from `levels`
 
-    result = coupling.permute(permutation, levels, over_braid)
+    result = coupling.permute(permutation, levels)
     result.test_sanity()
 
     # structure: sites reordered as expected
@@ -1024,14 +1009,14 @@ def test_coupling_permute():
     result_mat = _to_matrix(result.to_tensor().to_numpy(understood_braiding=True), new_dims)
     np.testing.assert_allclose(result_mat, expected_mat, atol=1e-10)
 
-    # caching: same permutation returns the cached object, even with different levels/over_braid
-    result_again = coupling.permute(permutation, [9, 9, 9, 9], [None] * len(swap_positions))
+    # caching: same permutation returns the cached object, even with different levels
+    result_again = coupling.permute(permutation, [9, 9, 9, 9])
     assert result_again is result
     assert len(coupling._permuted) == 1
 
     # a different permutation triggers a new computation and a new cache entry
     other_permutation = [1, 0, 2, 3]
-    other_result = coupling.permute(other_permutation, levels, [None])
+    other_result = coupling.permute(other_permutation, levels)
     assert other_result is not result
     assert len(coupling._permuted) == 2
 
@@ -1042,7 +1027,7 @@ def test_coupling_permute_identity():
     dims = [s.dim for s in sites]
     coupling = _random_hermitian_coupling(sites, seed=5)
 
-    result = coupling.permute([0, 1, 2], [1, 2, 3], [])
+    result = coupling.permute([0, 1, 2], [1, 2, 3])
     assert [s is s2 for s, s2 in zip(result.sites, coupling.sites)] == [True, True, True]
     H_mat = _to_matrix(coupling.to_tensor().to_numpy(understood_braiding=True), dims)
     result_mat = _to_matrix(result.to_tensor().to_numpy(understood_braiding=True), dims)
@@ -1056,15 +1041,11 @@ def test_coupling_permute_errors():
     levels = [1, 2, 3, 4]
 
     with pytest.raises(ValueError):
-        coupling.permute([0, 1, 2, 2], levels, [None] * 10)  # not a valid permutation
-
-    with pytest.raises(ValueError):
-        # permutation [1, 0, 2, 3] needs exactly 1 adjacent swap
-        coupling.permute([1, 0, 2, 3], levels, [None, None])
+        coupling.permute([0, 1, 2, 2], levels)  # not a valid permutation
 
     with pytest.raises(BraidChiralityUnspecifiedError):
         # two sites that must braid (adjacent swap) with equal levels: chirality is ambiguous
-        coupling.permute([1, 0, 3, 2], [5, 5, 7, 7], [None, None])
+        coupling.permute([1, 0, 3, 2], [5, 5, 7, 7])
 
 
 def _asym_hopping_dense_block(site):
@@ -1089,20 +1070,20 @@ def test_coupling_permute_matches_direct_permute_legs(site_factory, label):
     """Verify that `Coupling.permute` produces the exact same results as permuting the
     fully-contracted tensor directly.
 
-    Internally, `Coupling.permute` follows this exact chain:
-    contract -> permute_legs -> relabel -> re-factorize.
-
-    This test ensures that this entire re-factorization round-trip works perfectly
-    without losing or duplicating any data. It checks this behavior for both
-    fermionic and bosonic sites.
+    Internally, `Coupling.permute` applies each elementary transposition as a local swap gate
+    to only the two `factorization` tensors it touches, rather than permuting the fully
+    contracted tensor. This test ensures that this local-swap / re-factorization round-trip
+    reproduces the same result as the direct, whole-tensor `permute_legs`, without losing or
+    duplicating any data. It checks this behavior for both fermionic and bosonic sites.
     """
     site = site_factory()
     coupling = couplings.Coupling.from_dense_block(
         _asym_hopping_dense_block(site), [site, site], understood_braiding=True
     )
 
-    over = True
-    permuted = coupling.permute([1, 0], levels=[1, 2], over_braid=[over])
+    levels = [2, 1]
+    over = levels[0] > levels[1]  # higher level braids over the lower one
+    permuted = coupling.permute([1, 0], levels=levels)
 
     codomain_labels, domain_labels = ['p0', 'p1'], ['p0*', 'p1*']
     level_dict = {
@@ -1151,7 +1132,7 @@ def test_coupling_permute_exchange_sign(site_factory, expected_sign, label):
     h_rev = (annihilator @ JW)[:, None, None, :] * creator[None, :, :, None]
     coupling_rev = couplings.Coupling.from_dense_block(h_rev, [site, site], understood_braiding=True)
 
-    permuted = coupling_fwd.permute([1, 0], levels=[1, 2], over_braid=[None])
+    permuted = coupling_fwd.permute([1, 0], levels=[1, 2])
 
     labels = ['p0', 'p1', 'p0*', 'p1*']
     dim_permuted = permuted.to_tensor().to_numpy(labels, understood_braiding=True)

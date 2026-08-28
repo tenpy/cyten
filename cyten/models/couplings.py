@@ -9,7 +9,6 @@ two sites that have a spin degree of freedom.
 
 from .._core import (  # noqa: F401
     Coupling,
-    _adjacent_transpositions,
     aklt_coupling,
     chemical_potential,
     chiral_3spin_coupling,

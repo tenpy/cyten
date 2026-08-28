@@ -11,7 +11,6 @@ If you're new here, start with the :doc:`readme_wrap` and the
     readme_wrap
     INSTALL
     intro/first_steps
-    intro/from_np_conserved
     introductions
     guidelines/code_style
 

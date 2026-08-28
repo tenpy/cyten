@@ -2,7 +2,6 @@
 
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/cyten.h>
-#include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/decompositions.h>
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/labels.h>
@@ -36,9 +35,6 @@ using PlanarResult = std::variant<TensorPtr, BlockBackend::Scalar>;
 
 /// Strip whitespace and check that `name` is valid as a tensor name or leg label.
 [[nodiscard]] std::string _as_valid_name(std::string name);
-
-/// Whether a (possibly relabelled) label refers to a ChargedTensor charge leg.
-[[nodiscard]] bool _is_charge_leg_label(LegLabel const& label);
 
 /// Raise if `actual` is not a cyclic permutation of `expected`.
 void _assert_cyclic_labels(std::string const& name,
@@ -88,25 +84,6 @@ using TensorPlaceholderMap = std::map<std::string, TensorPlaceholder>;
                                                         TensorCPtr tensor);
 [[nodiscard]] std::vector<std::string> _expected_labels(std::vector<std::string> const& ph_labels,
                                                         TensorPlaceholder const& tensor);
-
-/// Combine leftover charge-like labels on a placeholder into a single ``'!'``.
-[[nodiscard]] TensorPlaceholder _combine_placeholder_charge_legs(TensorPlaceholder const& ph);
-
-/// Move leftover charge legs to the domain, combine them, and wrap as a ChargedTensor.
-[[nodiscard]] PlanarResult _wrap_open_charge_legs(
-  TensorPtr tens,
-  std::map<std::string, BlockBackend::BlockPtr> const& charged_states);
-
-/// Combine leftover charge legs after a planar contraction.
-[[nodiscard]] TensorPlaceholder _finalize_charge_legs(
-  TensorPlaceholder const& tens,
-  std::map<std::string, BlockBackend::BlockPtr> const& charged_states);
-[[nodiscard]] PlanarResult _finalize_charge_legs(
-  TensorPtr tens,
-  std::map<std::string, BlockBackend::BlockPtr> const& charged_states);
-[[nodiscard]] PlanarResult _finalize_charge_legs(
-  PlanarResult tens,
-  std::map<std::string, BlockBackend::BlockPtr> const& charged_states);
 
 /// Node in a `ContractionTree`.
 ///
@@ -253,23 +230,15 @@ class ContractionTree
 /// It is possible to use a planar diagram for creating a new one by adding or removing a tensor,
 /// see `add_tensor` and `remove_tensor`, respectively.
 ///
-/// It is possible to create planar diagrams that contract `ChargedTensor` by adding the
-/// corresponding charge leg labels (`'!'`) to the tensor placeholders, where a ChargedTensor
-/// is allowed. Still, plain `SymmetricTensor` are accepted for such placeholders during
-/// evaluation, in which case the charge leg label is ignored. The result of a planar diagram
-/// containing open charge legs is always a `ChargedTensor`, and any remaining open charge legs
-/// need to be contiguous after the contractions.
+/// It is possible to create planar diagrams that contract `ChargedTensor` and
+/// `HiddenLegTensor`. Placeholders list **public** leg labels only (the same labels
+/// returned by `ChargedTensor.labels` or the non-hidden labels of a `HiddenLegTensor`).
+/// A lone `'!'` or any `'!'`-prefixed label is not a valid placeholder label; hidden legs
+/// are not part of the planar diagram specification.
 ///
-/// If multiple ChargedTensor placeholders with `'!'` label are specified
-/// (and `allow_multiple_charged_tensors` is set to True),
-/// one can also specify contractions between the charge legs, as is done for
-/// regular legs, just using the `'!'` leg label.
-/// Again, these contractions are ignored during evaluation if the
-/// corresponding tensors are `SymmetricTensor` without charge and corresponding charge legs.
-/// If both tensors are `ChargedTensor`, the charge leg will be contracted (and has to match!),
-/// potentially resulting in a SymmetricTensor for the result.
-/// This is useful e.g. for infinite MPS with non-zero charge in the unit cell,
-/// where we contract the charge legs when applying the transfer matrix.
+/// During `evaluate`, `ChargedTensor` inputs are used as-is; contractions via `tdot` /
+/// `compose` handle charged states. `HiddenLegTensor` inputs are also kept as-is;
+/// dual hidden labels (``!a`` with ``!a*``) are contracted implicitly by `tdot`.
 ///
 /// @param tensors Specifies the tensors in the planar diagram, each with leg labels and a unique
 /// name. Syntax for string input: a comma (`,`) separated list of entries, each for one tensor.
@@ -295,14 +264,8 @@ class ContractionTree
 /// and interpret the bracketing as the order of pairwise contractions, contracting innermost
 /// tuples first. The same format as the attribute `order` (``ContractionTree``) is accepted as
 /// well.
-/// @param allow_multiple_charged_tensors Whether multiple `ChargedTensor` are allowed to be part
-/// of the planar diagram. When there are multiple open charge legs, they must be contiguous after
-/// the contractions, such that the individual charge legs can be combined to a single one. When
-/// there is a specified contraction between two charge legs, this contraction must also be planar.
-/// It is allowed to evaluate a planar diagram containing tensor placeholders for `ChargedTensor`
-/// (placeholders containing the label `'!'`) with `SymmetricTensor`. In this case, the
-/// `SymmetricTensor` must have the same leg labels except for the charge leg label. The
-/// contraction between the charge legs is then ignored.
+/// @param allow_multiple_charged_tensors Retained for API compatibility. Multiple
+/// `ChargedTensor` placeholders with public-only labels are always allowed at verify time.
 ///
 /// Attributes:
 ///
@@ -320,10 +283,9 @@ class ContractionTree
 /// open_legs : list of str
 ///     The open legs of the planar diagram, up to cyclical permutation.
 ///     This is such that the result of `evaluate` has these leg labels (up to cycl. perm.).
-///     Charge legs (``'!'``) are not included; remaining open charge legs make the result a
-///     `ChargedTensor`.
+///     Hidden legs are not included.
 /// allow_multiple_charged_tensors : bool
-///     Whether multiple `ChargedTensor` are allowed to be part of the planar diagram.
+///     Retained for API compatibility; no longer restricts diagram construction.
 ///
 /// Examples:
 ///
@@ -371,17 +333,6 @@ class ContractionTree
 ///     )
 ///     exp_val2 = exp_val_diagram2.evaluate(dict(theta=theta, theta_hc=theta.hc, U=op))
 ///     assert np.isclose(exp_val, exp_val2)  # number, not a tensor
-///
-/// 4. Contraction of a left MPS environment with the transfer matrix, where the MPS tensors may
-/// have a charge leg::
-///
-///     TM_diagram = PlanarDiagram(
-///         tensors='LP[vR*, vR], ket[vL, p, vR, !], bra[vR*, p*, vL*, !]',
-///         definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:! @ bra:!, ket:vR ->
-///         vR, bra:vR* -> vR*', dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*']),
-///         allow_multiple_charged_tensors=True,
-///     )
-///     LP = TM_diagram.evaluate(dict(LP=LP, ket=ket, bra=bra))
 class PlanarDiagram
 {
   public:
@@ -730,6 +681,51 @@ class PlanarLinearOperator : public LinearOperator
   std::optional<LegLabels> new_labels = std::nullopt,
   bool new_leg_dual = false,
   std::optional<std::string> sort = std::nullopt);
+
+/// Planar eigen-decomposition of a general (not necessarily hermitian) tensor.
+///
+/// A tensor decomposition ``tensor ~ V @ W @ pinv(V)``. Unlike `planar_eigh`, `V` is in general
+/// not unitary and `W` is generally complex.
+///
+/// This planar decomposition differs from `eig` in the sense that it decomposes a tensor into
+/// more general left and right parts rather than into codomain and domain.
+///
+/// Requires that the bent tensor `T` obtained by moving legs according to `codomain_cut` and
+/// `domain_cut` has ``T.domain == T.codomain``.
+///
+/// @param tensor The tensor to decompose.
+/// @param codomain_cut The first `codomain_cut` legs from the codomain end up in the codomain of
+///     `V`.
+/// @param domain_cut The first `domain_cut` legs from the domain end up in the domain of `V`.
+/// @param new_labels Labels for the new legs, same convention as `eig` / `planar_eigh`.
+///     Unlabelled by default.
+/// @param new_leg_dual If the new leg should be a ket space (`false`) or bra space (`true`).
+/// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort`.
+/// @returns `(W, V)`: eigenvalues and right eigenvectors.
+[[nodiscard]] std::tuple<DiagonalTensorPtr, TensorPtr> planar_eig(
+  TensorCPtr tensor,
+  int64 codomain_cut,
+  int64 domain_cut,
+  std::optional<LegLabels> new_labels = std::nullopt,
+  bool new_leg_dual = false,
+  std::optional<std::string> sort = std::nullopt);
+
+/// Planar eigenvalues of a general tensor, without eigenvectors.
+///
+/// Same as `planar_eig`, but returns only the eigenvalues `W`.
+///
+/// @param tensor The tensor to decompose.
+/// @param codomain_cut, domain_cut Same as `planar_eig`.
+/// @param new_labels Labels for `W` only. One label `a` is equivalent to `[a, a*]`. Two labels
+///     `[b, c]` set `W.labels == [b, c]`. Unlabelled by default.
+/// @param new_leg_dual If the new leg should be a ket space (`false`) or bra space (`true`).
+/// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort`.
+[[nodiscard]] DiagonalTensorPtr planar_eigvals(TensorCPtr tensor,
+                                               int64 codomain_cut,
+                                               int64 domain_cut,
+                                               std::optional<LegLabels> new_labels = std::nullopt,
+                                               bool new_leg_dual = false,
+                                               std::optional<std::string> sort = std::nullopt);
 
 /// Planar LQ decomposition of a tensor.
 ///

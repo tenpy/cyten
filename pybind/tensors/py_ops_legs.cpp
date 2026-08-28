@@ -1,5 +1,6 @@
 #include <cyten/symmetries/sector.h>
 #include <cyten/tensors/charged_tensor.h>
+#include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/tensor.h>
 
@@ -65,7 +66,7 @@ py_is_public_idx(py::handle obj)
     return false;
 }
 
-ChargedTensorPtr
+HiddenLegTensorPtr
 py_slice_leg(TensorCPtr tensor, py::object leg, py::object idx_or_sector, py::object multiplicity)
 {
     LegRef l = py_as_leg_ref(leg);

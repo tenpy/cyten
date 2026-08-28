@@ -52,6 +52,12 @@ Free functions
 .. doxygenfunction:: cyten::planar_eigh
    :project: cyten
 
+.. doxygenfunction:: cyten::planar_eig
+   :project: cyten
+
+.. doxygenfunction:: cyten::planar_eigvals
+   :project: cyten
+
 .. doxygenfunction:: cyten::planar_lq
    :project: cyten
 

@@ -50,6 +50,9 @@ The following options are available::
                                            HDF5 files.
     ------------------------  -----------  ----------------------------------------------------------------------
     su_n_data_filename_base   (see below)  Stem of the SU(N) data file names.
+    ------------------------  -----------  ----------------------------------------------------------------------
+    coupling_cutoff           1e-13        Default singular-value cutoff when factorizing a Coupling
+                                           (``from_dense_block`` / ``from_tensor``).
     ========================  ===========  ======================================================================
 
 The default for ``su_n_data_path`` is the *literal* POSIX path

@@ -909,6 +909,24 @@ TorchBlockBackend::eigh(const BlockCPtr& block, std::optional<std::string> sort)
     return { wrap(std::move(w)), wrap(std::move(v)) };
 }
 
+std::tuple<BlockPtr, BlockPtr>
+TorchBlockBackend::eig(const BlockCPtr& block, std::optional<std::string> sort)
+{
+    auto pair = torch::linalg_eig(tens(block));
+    Dtype cdtype = dtype::to_complex(get_dtype(block));
+    torch::Tensor w = std::get<0>(pair);
+    torch::Tensor v = std::get<1>(pair);
+    BlockPtr w_b = to_dtype(wrap(std::move(w)), cdtype);
+    BlockPtr v_b = to_dtype(wrap(std::move(v)), cdtype);
+    if (sort) {
+        BlockPtr perm = argsort(w_b, sort, /*axis=*/0);
+        torch::Tensor p = tens(perm);
+        w_b = wrap(tens(w_b).index({ p }));
+        v_b = wrap(tens(v_b).index({ Slice(), p }));
+    }
+    return { std::move(w_b), std::move(v_b) };
+}
+
 BlockPtr
 TorchBlockBackend::eigvalsh(const BlockCPtr& block, std::optional<std::string> sort)
 {
@@ -918,6 +936,18 @@ TorchBlockBackend::eigvalsh(const BlockCPtr& block, std::optional<std::string> s
         w = w.index({ tens(perm) });
     }
     return wrap(std::move(w));
+}
+
+BlockPtr
+TorchBlockBackend::eigvals(const BlockCPtr& block, std::optional<std::string> sort)
+{
+    Dtype cdtype = dtype::to_complex(get_dtype(block));
+    BlockPtr w = to_dtype(wrap(torch::linalg_eigvals(tens(block))), cdtype);
+    if (sort) {
+        BlockPtr perm = argsort(w, sort, /*axis=*/0);
+        w = wrap(tens(w).index({ tens(perm) }));
+    }
+    return w;
 }
 
 BlockPtr

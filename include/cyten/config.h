@@ -43,6 +43,9 @@ class CytenConfig
     /// Stem of the SU(N) data file names. The full name is
     /// ``<base>_N{N}_{CG|F|R}_hweight{H}.hdf5``.
     std::string su_n_data_filename_base = "su_n_clebsch_gordan_data";
+    /// Default singular-value cutoff when factorizing a `Coupling` (`from_dense_block` /
+    /// `from_tensor`). Singular values below this threshold are discarded.
+    float64 coupling_cutoff = 1.0e-13;
 
     CytenConfig() = default;
 
