@@ -138,8 +138,9 @@ def test_coupling(codom, make_compatible_space):
         coupling2 = couplings.Coupling.from_dense_block(coupling_to_numpy, site_list, understood_braiding=True)
         coupling2.test_sanity()
         npt.assert_array_equal(coupling2.sites, coupling.sites)
-        for i in range(codom):
-            assert tensors.almost_equal(coupling2.factorization[i], coupling.factorization[i])
+        # Factorizations need not match site-by-site (QR/SVD gauge on virtual legs).
+        assert tensors.almost_equal(coupling2.to_tensor(), T)
+        npt.assert_almost_equal(coupling2.to_numpy(understood_braiding=True), T.to_numpy(understood_braiding=True))
 
 
 # TEST SPIN COUPLINGS
