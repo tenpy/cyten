@@ -1604,3 +1604,47 @@ def test_PlanarDiagram_charged_flag_and_planarity():
 
     removed = added.remove_tensor(name='B', extra_definition='A:b -> b', order='definition')
     assert set(removed.open_legs) == {'a', 'b'}
+
+
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_issue_x(symmetry, backend, np_random):
+    # this is the contraction of a right environment RP with B_ket-W-B_bra,
+    # where the B_ket-W-B_bra are already contracted and W has no wR leg
+    backend = ct.get_backend(backend, 'numpy')
+    A: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=4,
+        domain=1,
+        labels=[['vL', 'wL', 'vL*', 'vR*'], ['vR']],
+        backend=backend,
+        np_random=np_random,
+    )
+    RP: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A._as_domain_leg('vR*')],
+        domain=[A._as_codomain_leg('vR')],
+        labels=[['vL*'], ['vL']],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    # this works
+    A_ = ct.planar.planar_permute_legs(A, domain=['vR', 'vR*'])
+    RP_ = ct.planar.planar_permute_legs(RP, codomain=['vL', 'vL*'])
+    expect = ct.compose(A_, RP_)
+
+    # this does not work
+    # NOTE there are currently two distinct ValueError: "Not a planar contraction" and "Inconsistent inner sector."
+    res1 = ct.planar_contraction(A, RP, ['vR', 'vR*'], ['vL', 'vL*'])
+    assert ct.planar.planar_almost_equal(res1, expect)
+    res2 = ct.planar_contraction(RP, A, ['vL', 'vL*'], ['vR', 'vR*'])
+    assert ct.planar.planar_almost_equal(res2, expect)
