@@ -1616,7 +1616,7 @@ def test_PlanarDiagram_charged_flag_and_planarity():
         (fibonacci_anyon_category, 'fusion_tree'),
     ],
 )
-def test_issue_x(symmetry, backend, np_random):
+def test_issue_270(symmetry, backend, np_random):
     # this is the contraction of a right environment RP with B_ket-W-B_bra,
     # where the B_ket-W-B_bra are already contracted and W has no wR leg
     backend = ct.get_backend(backend, 'numpy')
