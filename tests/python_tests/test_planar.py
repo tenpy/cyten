@@ -1648,3 +1648,50 @@ def test_issue_270(symmetry, backend, np_random):
     assert ct.planar.planar_almost_equal(res1, expect)
     res2 = ct.planar_contraction(RP, A, ['vL', 'vL*'], ['vR', 'vR*'])
     assert ct.planar.planar_almost_equal(res2, expect)
+
+
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_issue_270_2(symmetry, backend, np_random):
+    backend = ct.get_backend(backend, 'numpy')
+    LP: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=1,
+        domain=1,
+        labels=[['vR*'], ['vR']],
+        backend=backend,
+        np_random=np_random,
+    )
+    RP: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[LP._as_domain_leg('vR*')],
+        domain=[LP._as_codomain_leg('vR')],
+        labels=[['vL*'], ['vL']],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    # this works
+    LP_ = ct.planar.planar_permute_legs(LP, domain=['vR', 'vR*'])
+    RP_ = ct.planar.planar_permute_legs(RP, codomain=['vL', 'vL*'])
+    expect = ct.compose(LP_, RP_).to_numpy()
+
+    # this also works
+    res1 = ct.planar_contraction(LP, RP, ['vR', 'vR*'], ['vL', 'vL*']).to_numpy()
+    npt.assert_almost_equal(res1, expect)
+    res2 = ct.planar_contraction(RP, LP, ['vL', 'vL*'], ['vR', 'vR*']).to_numpy()
+    npt.assert_almost_equal(res2, expect)
+
+    # this fails
+    res3 = ct.planar_contraction(LP_, RP_, ['vR', 'vR*'], ['vL', 'vL*']).to_numpy()
+    npt.assert_almost_equal(res3, expect)
+    res4 = ct.planar_contraction(RP_, LP_, ['vL', 'vL*'], ['vR', 'vR*']).to_numpy()
+    npt.assert_almost_equal(res4, expect)
