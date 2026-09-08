@@ -2008,12 +2008,40 @@ planar_contraction(TensorCPtr tensor1,
     for (auto c1 : contr1) {
         contr2.push_back(legs2_idcs[static_cast<std::size_t>(index_of(legs1_idcs, c1))]);
     }
+    bool planar_ok = true;
     for (std::size_t n = 0; n + 1 < contr2.size(); ++n) {
         auto n1 = contr2[n];
         auto n2 = contr2[n + 1];
         if (n2 != py_mod(n1 - 1, tensor2->num_legs)) {
-            throw std::invalid_argument("Not a planar contraction");
+            planar_ok = false;
+            break;
         }
+    }
+    if (!planar_ok && static_cast<int64>(legs1_idcs.size()) == tensor1->num_legs) {
+        // tensor1 is fully contracted here: parse_leg_bipartition always returns the canonical
+        // ascending range for contr1 in that case, discarding which physical leg the caller
+        // considers "first". That leaves an unresolved rotational degree of freedom, so contr2
+        // (derived from contr1's order above) may end up checked against the wrong orientation.
+        // Retry with both reversed before rejecting.
+        auto contr1_rev = reversed_copy(contr1);
+        auto contr2_rev = reversed_copy(contr2);
+        bool planar_ok_rev = true;
+        for (std::size_t n = 0; n + 1 < contr2_rev.size(); ++n) {
+            auto n1 = contr2_rev[n];
+            auto n2 = contr2_rev[n + 1];
+            if (n2 != py_mod(n1 - 1, tensor2->num_legs)) {
+                planar_ok_rev = false;
+                break;
+            }
+        }
+        if (planar_ok_rev) {
+            contr1 = std::move(contr1_rev);
+            contr2 = std::move(contr2_rev);
+            planar_ok = true;
+        }
+    }
+    if (!planar_ok) {
+        throw std::invalid_argument("Not a planar contraction");
     }
 
     // find out how we can have the least number of bends before compose / partial_compose
@@ -2043,7 +2071,17 @@ planar_contraction(TensorCPtr tensor1,
             }
             return compose(t1, t2, relabel1, relabel2);
         } else {
-            auto [t2, partial_compose_leg] = _planar_contraction_helper(tensor2, contr2, false);
+            // `contr2` is passed reversed here so that `_planar_contraction_helper`'s
+            // "all legs contracted" case builds tensor2's new codomain in the same order that
+            // the companion `t1`'s (structurally required, see below) reversed domain listing
+            // pairs against -- using `contr2` unreversed here mismatches the two operands'
+            // leg order whenever >=2 legs are contracted.
+            auto [t2, partial_compose_leg] =
+              _planar_contraction_helper(tensor2, reversed_copy(contr2), false);
+            // `tensor1`'s domain listing must be `reversed_copy(contr1)`: `planar_permute_legs`
+            // requires a domain argument to be a self-consistent descending arc (see its own
+            // `expect`/reversal check), which the ascending `contr1` from `parse_leg_bipartition`
+            // is not -- this reversal is a structural requirement, not a free choice.
             auto t1 =
               planar_permute_legs(tensor1, as_leg_refs(open1), as_leg_refs(reversed_copy(contr1)));
             if (t2->num_codomain_legs() > num_contr) {

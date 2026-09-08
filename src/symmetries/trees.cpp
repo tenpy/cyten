@@ -1235,7 +1235,17 @@ FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
           std::span<std::uint8_t const>(vector_slice(are_dual, 0, static_cast<std::size_t>(n))),
           std::span<std::uint8_t const>(
             vector_slice(are_dual, static_cast<std::size_t>(n) + 1, are_dual.size())));
-        std::size_t const idx = static_cast<std::size_t>(std::max<int64>(0, n - 1));
+        // `idx` selects which inner_sectors entry becomes redundant (and is dropped) once
+        // uncoupled[n] is removed. For n==0 or a middle position, that entry is inner_sectors[n-1].
+        // At the last position (n == num_uncoupled-1) there is no inner_sectors[n-1] -- the last
+        // valid index is num_inner_edges-1 -- so that boundary must be special-cased separately,
+        // mirroring the analogous n==num_uncoupled-1 special case in the general branch below
+        // (see `d_initial`).
+        std::size_t const idx =
+          (n == 0) ? std::size_t{ 0 }
+          : (static_cast<std::size_t>(n) == num_uncoupled - 1 && num_inner_edges > 0)
+              ? num_inner_edges - 1
+              : static_cast<std::size_t>(std::max<int64>(0, n - 1));
         SectorArray const res_inners =
           inner_sectors.slice(0, idx).concat(inner_sectors.slice(idx + 1, num_inner_edges));
         std::vector<int64> const res_mults = concat_vectors(
