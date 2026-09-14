@@ -1695,3 +1695,89 @@ def test_issue_270_2(symmetry, backend, np_random):
     npt.assert_almost_equal(res3, expect)
     res4 = ct.planar_contraction(RP_, LP_, ['vL', 'vL*'], ['vR', 'vR*']).to_numpy()
     npt.assert_almost_equal(res4, expect)
+
+
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_issue_273(symmetry, backend, np_random):
+    diagram = ct.PlanarDiagram(
+        tensors='RP[vL*, vL], W[wL, p, p*], ket[vL, p, vR], bra[vR*, p*, vL*]',
+        definition=(
+            'RP:vL @ ket:vR, ket:p @ W:p*, RP:vL* @ bra:vR*, W:p @ bra:p*, ket:vL -> vL, bra:vL* -> vL*, W:wL -> wL'
+        ),
+        dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*'], w=['wL']),
+    )
+    backend = ct.get_backend(backend, 'numpy')
+    RP: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=1,
+        domain=1,
+        labels=[['vL*'], ['vL']],
+        backend=backend,
+        np_random=np_random,
+    )
+    ket: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=2,
+        domain=[RP._as_codomain_leg('vL')],
+        labels=[['vL', 'p'], ['vR']],
+        backend=backend,
+        np_random=np_random,
+    )
+    bra: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[RP._as_domain_leg('vL*')],
+        domain=2,
+        labels=[['vR*'], ['vL*', 'p*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    W: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[None, bra._as_domain_leg('p*')],
+        domain=[ket._as_codomain_leg('p')],
+        labels=[['wL', 'p'], ['p*']],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    new_RP = ct.planar_contraction(ket, RP, ['vR'], ['vL'])
+    new_RP = ct.planar_contraction(new_RP, W, ['p'], ['p*'])
+    new_RP = ct.planar_contraction(new_RP, bra, ['vL*', 'p'], ['vR*', 'p*'])
+
+    new_RP_diagram = diagram.evaluate(dict(RP=RP, W=W, ket=ket, bra=bra))
+    assert ct.planar.planar_almost_equal(new_RP, new_RP_diagram)
+
+    ket: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[ket._as_codomain_leg('vL'), ket._as_codomain_leg('p')],
+        domain=[None, ket._as_domain_leg('vR')],
+        labels=[['vL', 'p'], ['charge', 'vR']],
+        backend=backend,
+        np_random=np_random,
+    )
+    bra: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[ket._as_codomain_leg('charge'), bra._as_codomain_leg('vR*')],
+        domain=[bra._as_domain_leg('vL*'), bra._as_domain_leg('p*')],
+        labels=[['charge*', 'vR*'], ['vL*', 'p*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    ket = ct.HiddenLegTensor(ket, ['charge'])
+    bra = ct.HiddenLegTensor(bra, ['charge*'])
+
+    new_RP = ct.planar_contraction(ket, RP, ['vR'], ['vL'])
+    new_RP = ct.planar_contraction(new_RP, W, ['p'], ['p*'])
+    new_RP = ct.planar_contraction(new_RP, bra, ['vL*', 'p'], ['vR*', 'p*'])
+
+    new_RP_diagram = diagram.evaluate(dict(RP=RP, W=W, ket=ket, bra=bra))
+    assert ct.planar.planar_almost_equal(new_RP, new_RP_diagram)
