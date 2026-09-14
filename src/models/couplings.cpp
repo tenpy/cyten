@@ -673,6 +673,17 @@ Coupling::stretch_with_identities(std::vector<Site::Ptr> const& all_sites,
             throw std::invalid_argument("`coupling_positions` must be strictly ascending");
         }
     }
+    int64 const num_all_sites = static_cast<int64>(all_sites.size());
+    for (std::size_t i = 0; i < coupling_positions.size(); ++i) {
+        if (coupling_positions[i] < 0 || coupling_positions[i] >= num_all_sites) {
+            throw std::invalid_argument(
+              std::format("`coupling_positions[{}]` = {} is out of range for `all_sites` of "
+                          "length {}",
+                          i,
+                          coupling_positions[i],
+                          num_all_sites));
+        }
+    }
     for (std::size_t i = 0; i < sites.size(); ++i) {
         if (!legs_equal(as_leg(sites[i]->leg),
                         as_leg(all_sites[static_cast<std::size_t>(coupling_positions[i])]->leg))) {
@@ -681,6 +692,11 @@ Coupling::stretch_with_identities(std::vector<Site::Ptr> const& all_sites,
         }
     }
 
+    if (coupling_positions.empty()) {
+        throw std::invalid_argument(
+          "`coupling_positions` is empty; a `Coupling` with no factorization tensors cannot be "
+          "stretched");
+    }
     int64 const start = coupling_positions.front();
     int64 const stop = coupling_positions.back() + 1;
     std::map<int64, SymmetricTensorPtr> by_position;
