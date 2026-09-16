@@ -103,6 +103,7 @@ from ._tensors import (
     item,
     linear_combination,
     lq,
+    move_hidden_leg,
     move_leg,
     norm,
     on_device,

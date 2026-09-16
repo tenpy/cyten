@@ -93,6 +93,7 @@ from .tensors import (
     item,
     krylov_based,
     lq,
+    move_hidden_leg,
     move_leg,
     norm,
     on_device,

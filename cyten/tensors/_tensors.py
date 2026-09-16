@@ -60,6 +60,7 @@ from .._core import (  # noqa: F401
     is_valid_leg_label,
     item,
     lq,
+    move_hidden_leg,
     move_leg,
     norm,
     on_device,
