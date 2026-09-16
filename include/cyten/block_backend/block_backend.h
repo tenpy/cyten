@@ -221,8 +221,15 @@ class BlockBackend
         /// convenience access for further methods, delegating to block_backend
         Scalar real() const;
         Scalar imag() const;
+        /// Complex conjugate. Real dtypes are returned unchanged.
+        Scalar conj() const;
         Scalar abs() const;
         Scalar sqrt() const;
+        /// If close to real, return the real part; otherwise return `*this`.
+        ///
+        /// `tol` is in multiples of machine epsilon for the dtype (same convention as
+        /// `numpy.real_if_close`; default `100`).
+        Scalar real_if_close(float64 tol = 100.) const;
         /// The *elementwise* exponential.
         ///
         /// Not to be confused with `matrix_exp`, the *matrix* exponential.

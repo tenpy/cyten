@@ -595,6 +595,12 @@ BlockBackend::Scalar::imag() const
 }
 
 BlockBackend::Scalar
+BlockBackend::Scalar::conj() const
+{
+    return block_->get_backend()->conj(block_);
+}
+
+BlockBackend::Scalar
 BlockBackend::Scalar::abs() const
 {
     return block_->get_backend()->abs(block_);
@@ -604,6 +610,12 @@ BlockBackend::Scalar
 BlockBackend::Scalar::sqrt() const
 {
     return block_->get_backend()->sqrt(block_);
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::real_if_close(float64 tol) const
+{
+    return block_->get_backend()->real_if_close(block_, tol);
 }
 
 BlockBackend::Scalar

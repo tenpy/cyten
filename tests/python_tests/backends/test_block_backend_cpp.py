@@ -143,6 +143,28 @@ def test_scalar_real_imag():
     assert i.dtype == Dtype.float64
 
 
+def test_scalar_conj_real_if_close():
+    from cyten._core import BlockBackend
+
+    be = NumpyBlockBackend.from_factory('cpu')
+    z = be.as_scalar(3.0 + 4.0j)
+    c = z.conj()
+    assert isinstance(c, BlockBackend.Scalar)
+    assert c.as_complex128() == 3.0 - 4.0j
+    real = be.as_scalar(2.5)
+    assert real.conj().as_float64() == 2.5
+    almost = be.as_scalar(1.0 + 1e-20j)
+    dropped = almost.real_if_close()
+    assert isinstance(dropped, BlockBackend.Scalar)
+    assert not dropped.dtype.is_complex
+    assert dropped.as_float64() == pytest.approx(1.0)
+    far = be.as_scalar(1.0 + 0.5j)
+    kept = far.real_if_close()
+    assert kept.dtype.is_complex
+    assert kept.as_complex128() == pytest.approx(1.0 + 0.5j)
+    assert real.real_if_close().as_float64() == 2.5
+
+
 def test_numpy_block_backend_apply_leg_permutations():
     be = NumpyBlockBackend.from_factory('cpu')
     # block shape (2, 3); permute first axis [1,0], second axis identity [0,1,2]

@@ -447,6 +447,14 @@ bind_block_backend(py::module_& m)
       .def("real", &BlockBackend::Scalar::real, "Real part as a Scalar (valid for any dtype).")
       .def(
         "imag", &BlockBackend::Scalar::imag, "Imaginary part as a Scalar (valid for any dtype).")
+      .def("conj",
+           &BlockBackend::Scalar::conj,
+           "Complex conjugate as a Scalar. Real dtypes are unchanged.")
+      .def("real_if_close",
+           &BlockBackend::Scalar::real_if_close,
+           py::arg("tol") = 100.,
+           "If close to real, return the real part; otherwise return this Scalar. "
+           "`tol` is in multiples of machine epsilon (numpy.real_if_close convention).")
       .def("__abs__", &BlockBackend::Scalar::abs, "Absolute value.")
       .def("sqrt", &BlockBackend::Scalar::sqrt, "Square root.")
       .def("exp", &BlockBackend::Scalar::exp, "Elementwise / scalar exponential.")

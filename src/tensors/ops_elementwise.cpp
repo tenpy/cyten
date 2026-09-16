@@ -85,7 +85,7 @@ complex_conj(DiagonalTensorCPtr x)
 BlockBackend::Scalar
 complex_conj(BlockBackend::Scalar const& x)
 {
-    return numpy_unary_scalar(x, "conj");
+    return x.conj();
 }
 
 DiagonalTensorPtr
@@ -127,9 +127,7 @@ real_if_close(DiagonalTensorCPtr x, float64 tol)
 BlockBackend::Scalar
 real_if_close(BlockBackend::Scalar const& x, float64 tol)
 {
-    return numpy()
-      .attr("real_if_close")(py::cast(x), py::arg("tol") = tol)
-      .cast<BlockBackend::Scalar>();
+    return x.real_if_close(tol);
 }
 
 DiagonalTensorPtr
