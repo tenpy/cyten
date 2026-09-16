@@ -105,8 +105,8 @@ tensor_as_py(TensorCPtr const& tensor)
     }
     if (auto p = std::dynamic_pointer_cast<SymmetricTensor const>(tensor)) {
         if (HiddenLegTensor::has_hidden_leg_labels(p->labels())) {
-            return py::cast(std::make_shared<HiddenLegTensor>(
-              std::const_pointer_cast<SymmetricTensor>(p)));
+            return py::cast(
+              std::make_shared<HiddenLegTensor>(std::const_pointer_cast<SymmetricTensor>(p)));
         }
         return py::cast(p);
     }
@@ -449,8 +449,7 @@ permute_legs_py(py::object tensor,
                 auto labs = leg_labels_from_py(tensor.attr("_labels"));
                 std::vector<int64> public_missing;
                 for (auto m : missing) {
-                    if (HiddenLegTensor::is_hidden_leg_label(
-                          labs[static_cast<std::size_t>(m)])) {
+                    if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(m)])) {
                         // Insert hidden leg into the (co)domain where it currently lives,
                         // preserving relative order among hidden legs.
                         if (m < num_codomain_legs) {
@@ -679,7 +678,9 @@ permute_legs_py(py::object tensor,
         return make_python_charged_tensor(inv_part, tensor.attr("charged_state"));
     }
 
-    // For HiddenLegTensor: assign levels below all public levels for hidden legs.
+    // For HiddenLegTensor: hidden legs live on a second plane and may braid past
+    // public legs, so they get a level below every public level. If the caller did
+    // not specify public levels, treat public legs as level 0.
     if (is_HiddenLegTensor(tensor)) {
         auto labs = leg_labels_from_py(tensor.attr("_labels"));
         int64 min_public = 0;
@@ -693,11 +694,13 @@ permute_legs_py(py::object tensor,
                 any_public_level = true;
             }
         }
+        if (!any_public_level) {
+            min_public = 0;
+        }
         for (int64 i = 0; i < num_legs; ++i) {
             if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(i)]) &&
                 !levels_v[static_cast<std::size_t>(i)].has_value()) {
-                levels_v[static_cast<std::size_t>(i)] =
-                  any_public_level ? std::optional<int64>{ min_public - 1 } : std::nullopt;
+                levels_v[static_cast<std::size_t>(i)] = min_public - 1;
             }
         }
         // Reject specifying a hidden leg in domain/codomain args by label was already
@@ -758,9 +761,8 @@ permute_legs_py(py::object tensor,
                                                   py::cast(new_domain),
                                                   backend,
                                                   nested_leg_labels_to_py(cod_labels, dom_labels));
-    if (is_HiddenLegTensor(tensor) &&
-        (HiddenLegTensor::has_hidden_leg_labels(cod_labels) ||
-         HiddenLegTensor::has_hidden_leg_labels(dom_labels))) {
+    if (is_HiddenLegTensor(tensor) && (HiddenLegTensor::has_hidden_leg_labels(cod_labels) ||
+                                       HiddenLegTensor::has_hidden_leg_labels(dom_labels))) {
         return py::cast(std::make_shared<HiddenLegTensor>(res.cast<SymmetricTensor::Ptr>()));
     }
     return res;
@@ -1168,9 +1170,8 @@ split_legs_py(py::object tensor, py::object legs)
         for (auto l : tensor.attr("domain")) {
             if (is_LegPipe(py::reinterpret_borrow<py::object>(l))) {
                 int64 leg_idx = num_legs - 1 - n;
-                if (!(is_HiddenLegTensor(tensor) &&
-                      HiddenLegTensor::is_hidden_leg_label(
-                        labs[static_cast<std::size_t>(leg_idx)]))) {
+                if (!(is_HiddenLegTensor(tensor) && HiddenLegTensor::is_hidden_leg_label(
+                                                      labs[static_cast<std::size_t>(leg_idx)]))) {
                     domain_split.push_back(n);
                 }
             }
@@ -1488,7 +1489,8 @@ bend_legs(TensorCPtr tensor,
           std::optional<int64> num_codomain_legs,
           std::optional<int64> num_domain_legs)
 {
-    return bend_legs_py(tensor_as_py(tensor), num_codomain_legs, num_domain_legs).cast<TensorPtr>();
+    return bend_legs_py(tensor_as_py(tensor), num_codomain_legs, num_domain_legs)
+      .cast<TensorPtr>();
 }
 
 void

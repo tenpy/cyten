@@ -4,6 +4,8 @@
 #include <cyten/symmetries/spaces.h>
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/hidden_leg_tensor.h>
+#include <cyten/tensors/labels.h>
+#include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
@@ -90,8 +92,7 @@ _public_string_labels(TensorCPtr tensor)
         return as_strings(labs);
     }
     for (auto const& l : labs) {
-        if (HiddenLegTensor::is_hidden_leg_label(l) ||
-            HiddenLegTensor::is_charge_temp_label(l)) {
+        if (HiddenLegTensor::is_hidden_leg_label(l) || HiddenLegTensor::is_charge_temp_label(l)) {
             continue;
         }
         out.push_back(l.value_or("None"));
@@ -1395,7 +1396,8 @@ PlanarDiagram::verify_diagram()
     }
 
     for (auto const& [name, ph] : tensors) {
-        _assert_valid_planar_placeholder_labels(ph.string_labels(), std::format("Tensor '{}'", name));
+        _assert_valid_planar_placeholder_labels(ph.string_labels(),
+                                                std::format("Tensor '{}'", name));
     }
 
     // run the contraction with placeholders.
@@ -1930,6 +1932,187 @@ _to_public_positions(std::vector<int64> const& leg_idcs, std::vector<int64> cons
     return out;
 }
 
+[[nodiscard]] std::vector<int64>
+_hidden_leg_idcs(TensorCPtr tensor)
+{
+    if (auto hidden = std::dynamic_pointer_cast<HiddenLegTensor const>(tensor)) {
+        return hidden->hidden_leg_idcs();
+    }
+    return {};
+}
+
+[[nodiscard]] std::vector<int64>
+_map_public_positions(std::vector<int64> const& public_idcs, std::vector<int64> const& positions)
+{
+    std::vector<int64> out;
+    out.reserve(positions.size());
+    for (auto p : positions) {
+        out.push_back(public_idcs[static_cast<std::size_t>(p)]);
+    }
+    return out;
+}
+
+/// Dual hidden-label pairs between two HiddenLegTensors (``!a`` with ``!a*``).
+[[nodiscard]] std::vector<std::pair<std::string, std::string>>
+_hidden_dual_label_pairs(TensorCPtr tensor1, TensorCPtr tensor2)
+{
+    auto h1 = std::dynamic_pointer_cast<HiddenLegTensor const>(tensor1);
+    auto h2 = std::dynamic_pointer_cast<HiddenLegTensor const>(tensor2);
+    if (!h1 || !h2) {
+        return {};
+    }
+    auto labs1 = tensor1->labels();
+    auto labs2 = tensor2->labels();
+    std::vector<std::pair<int64, std::string>> hidden1;
+    std::vector<std::pair<int64, std::string>> hidden2;
+    for (int64 i = 0; i < tensor1->num_legs; ++i) {
+        auto const& lab = labs1[static_cast<std::size_t>(i)];
+        if (HiddenLegTensor::is_hidden_leg_label(lab)) {
+            hidden1.emplace_back(i, *lab);
+        }
+    }
+    for (int64 i = 0; i < tensor2->num_legs; ++i) {
+        auto const& lab = labs2[static_cast<std::size_t>(i)];
+        if (HiddenLegTensor::is_hidden_leg_label(lab)) {
+            hidden2.emplace_back(i, *lab);
+        }
+    }
+    std::vector<std::pair<std::string, std::string>> pairs;
+    std::vector<bool> used2(hidden2.size(), false);
+    for (auto const& [i1, lab1] : hidden1) {
+        (void)i1;
+        auto dual1 = _dual_leg_label(LegLabel{ lab1 });
+        for (std::size_t j = 0; j < hidden2.size(); ++j) {
+            if (used2[j]) {
+                continue;
+            }
+            auto const& [i2, lab2] = hidden2[j];
+            (void)i2;
+            if (lab1 == lab2) {
+                throw std::invalid_argument(std::format(
+                  "Cannot contract HiddenLegTensors with equal hidden label '{}' "
+                  "(both or neither starred). Dual pairs like '!a' with '!a*' are contracted "
+                  "implicitly.",
+                  lab1));
+            }
+            if (dual1 && *dual1 == lab2) {
+                pairs.emplace_back(lab1, lab2);
+                used2[j] = true;
+                break;
+            }
+        }
+    }
+    return pairs;
+}
+
+/// Place hidden legs on a second plane around a public contracted arc.
+///
+/// Resulting counterclockwise order is
+/// ``open_public + unmatched_hidden + (extra_contr if extra_at_ccw_start)
+///  + public_contr + (extra_contr otherwise)``.
+/// Dual hidden legs (`extra_contr`) sit with the contracted public legs so
+/// `compose` contracts them; unmatched hidden legs sit with the open public
+/// legs. For tensor2 of a planar contraction, pass `extra_at_ccw_start=true`
+/// so the extra legs lie at the clockwise end of the contracted arc.
+[[nodiscard]] TensorCPtr
+_arrange_hidden_around_public_contr(TensorCPtr tensor,
+                                    std::vector<int64> const& public_contr_ccw,
+                                    std::vector<int64> const& extra_contr,
+                                    bool extra_at_ccw_start = false)
+{
+    auto hidden = _hidden_leg_idcs(tensor);
+    if (hidden.empty()) {
+        return tensor;
+    }
+    std::set<int64> extra_set(extra_contr.begin(), extra_contr.end());
+    std::vector<int64> unmatched;
+    for (auto h : hidden) {
+        if (!extra_set.contains(h)) {
+            unmatched.push_back(h);
+        }
+    }
+    auto public_idcs = _public_leg_idcs(tensor);
+    std::set<int64> contr_set(public_contr_ccw.begin(), public_contr_ccw.end());
+    std::vector<int64> open_public;
+    if (public_contr_ccw.empty()) {
+        open_public = public_idcs;
+    } else {
+        auto back = public_contr_ccw.back();
+        auto it = std::ranges::find(public_idcs, back);
+        if (it == public_idcs.end()) {
+            throw std::invalid_argument(
+              "planar_contraction: contracted legs must be public (not hidden)");
+        }
+        auto start = static_cast<int64>(it - public_idcs.begin());
+        auto n_pub = static_cast<int64>(public_idcs.size());
+        for (int64 k = 1; k < n_pub; ++k) {
+            auto idx = public_idcs[static_cast<std::size_t>(py_mod(start + k, n_pub))];
+            if (!contr_set.contains(idx)) {
+                open_public.push_back(idx);
+            }
+        }
+    }
+    std::vector<int64> extra_ccw = extra_contr;
+    if (extra_at_ccw_start) {
+        std::ranges::reverse(extra_ccw);
+    }
+    std::vector<int64> new_ccw;
+    new_ccw.reserve(static_cast<std::size_t>(tensor->num_legs));
+    new_ccw.insert(new_ccw.end(), open_public.begin(), open_public.end());
+    new_ccw.insert(new_ccw.end(), unmatched.begin(), unmatched.end());
+    if (extra_at_ccw_start) {
+        new_ccw.insert(new_ccw.end(), extra_ccw.begin(), extra_ccw.end());
+        new_ccw.insert(new_ccw.end(), public_contr_ccw.begin(), public_contr_ccw.end());
+    } else {
+        new_ccw.insert(new_ccw.end(), public_contr_ccw.begin(), public_contr_ccw.end());
+        new_ccw.insert(new_ccw.end(), extra_ccw.begin(), extra_ccw.end());
+    }
+    if (static_cast<int64>(new_ccw.size()) != tensor->num_legs) {
+        throw std::logic_error("hidden arrangement does not cover all legs");
+    }
+    bool identity = true;
+    for (int64 i = 0; i < tensor->num_legs; ++i) {
+        if (new_ccw[static_cast<std::size_t>(i)] != i) {
+            identity = false;
+            break;
+        }
+    }
+    if (identity && tensor->num_domain_legs() == 0) {
+        return tensor;
+    }
+    LevelsSpec levels(static_cast<std::size_t>(tensor->num_legs), std::optional<int64>{ 0 });
+    auto labs = tensor->labels();
+    for (int64 i = 0; i < tensor->num_legs; ++i) {
+        if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(i)])) {
+            levels[static_cast<std::size_t>(i)] = -1;
+        }
+    }
+    return permute_legs(
+      tensor, as_leg_refs(new_ccw), std::vector<LegRef>{}, levels, BendRight{ true });
+}
+
+[[nodiscard]] PlanarResult
+_wrap_hidden_planar_result(PlanarResult res)
+{
+    if (!std::holds_alternative<TensorPtr>(res)) {
+        return res;
+    }
+    auto t = std::get<TensorPtr>(std::move(res));
+    if (auto s = std::dynamic_pointer_cast<SymmetricTensor>(t)) {
+        return HiddenLegTensor::maybe_wrap(std::move(s));
+    }
+    return t;
+}
+
+[[nodiscard]] PlanarResult
+_wrap_hidden_planar_result(TensorPtr t)
+{
+    if (auto s = std::dynamic_pointer_cast<SymmetricTensor>(t)) {
+        return HiddenLegTensor::maybe_wrap(std::move(s));
+    }
+    return t;
+}
+
 PlanarResult
 planar_contraction(TensorCPtr tensor1,
                    TensorCPtr tensor2,
@@ -1945,14 +2128,70 @@ planar_contraction(TensorCPtr tensor1,
         throw std::invalid_argument("legs1 and legs2 must have the same length");
     }
 
-    bool const has_hidden =
-      std::dynamic_pointer_cast<HiddenLegTensor const>(tensor1) ||
-      std::dynamic_pointer_cast<HiddenLegTensor const>(tensor2);
+    bool const has_hidden = std::dynamic_pointer_cast<HiddenLegTensor const>(tensor1) ||
+                            std::dynamic_pointer_cast<HiddenLegTensor const>(tensor2);
     bool const has_charged = std::dynamic_pointer_cast<ChargedTensor const>(tensor1) ||
                              std::dynamic_pointer_cast<ChargedTensor const>(tensor2);
 
-    if (has_hidden || has_charged) {
-        // Planarity considers public legs only; hidden legs may "cross" on a lower level.
+    if (has_hidden) {
+        // Planarity considers public legs only; hidden legs live on a second plane and
+        // may braid past public legs at a lower level.
+        auto public1 = _public_leg_idcs(tensor1);
+        auto public2 = _public_leg_idcs(tensor2);
+        auto public_contr1 = _to_public_positions(legs1_idcs, public1);
+        auto public_contr2_unsorted = _to_public_positions(legs2_idcs, public2);
+
+        auto [contr1_pub, open1_pub] =
+          parse_leg_bipartition(public_contr1, static_cast<int64>(public1.size()));
+        auto [contr2_pub_ccw, open2_pub] =
+          parse_leg_bipartition(public_contr2_unsorted, static_cast<int64>(public2.size()));
+        (void)open1_pub;
+        (void)open2_pub;
+
+        std::vector<int64> contr2_pub;
+        contr2_pub.reserve(contr1_pub.size());
+        for (auto c1 : contr1_pub) {
+            auto which = index_of(public_contr1, c1);
+            contr2_pub.push_back(public_contr2_unsorted[static_cast<std::size_t>(which)]);
+        }
+        for (std::size_t n = 0; n + 1 < contr2_pub.size(); ++n) {
+            auto n1 = contr2_pub[n];
+            auto n2 = contr2_pub[n + 1];
+            if (n2 != py_mod(n1 - 1, static_cast<int64>(public2.size()))) {
+                throw std::invalid_argument("Not a planar contraction");
+            }
+        }
+
+        auto dual_labels = _hidden_dual_label_pairs(tensor1, tensor2);
+        std::vector<int64> extra1;
+        std::vector<int64> extra2;
+        extra1.reserve(dual_labels.size());
+        extra2.reserve(dual_labels.size());
+        for (auto const& [l1, l2] : dual_labels) {
+            extra1.push_back(tensor1->get_leg_idcs(std::vector<LegRef>{ LegRef{ l1 } })[0]);
+            extra2.push_back(tensor2->get_leg_idcs(std::vector<LegRef>{ LegRef{ l2 } })[0]);
+        }
+        tensor1 = _arrange_hidden_around_public_contr(
+          tensor1, _map_public_positions(public1, contr1_pub), extra1);
+        tensor2 = _arrange_hidden_around_public_contr(
+          tensor2, _map_public_positions(public2, contr2_pub_ccw), extra2, true);
+
+        std::optional<std::map<std::string, std::string>> r1 =
+          relabel1.empty() ? std::nullopt : std::optional{ std::move(relabel1) };
+        std::optional<std::map<std::string, std::string>> r2 =
+          relabel2.empty() ? std::nullopt : std::optional{ std::move(relabel2) };
+        auto res = tdot(std::move(tensor1),
+                        std::move(tensor2),
+                        std::move(legs1),
+                        std::move(legs2),
+                        std::move(r1),
+                        std::move(r2));
+        if (std::holds_alternative<BlockBackend::Scalar>(res)) {
+            return std::get<BlockBackend::Scalar>(std::move(res));
+        }
+        return _wrap_hidden_planar_result(std::get<TensorPtr>(std::move(res)));
+    } else if (has_charged) {
+        // ChargedTensor charge legs are not part of the public circle; tdot handles them.
         auto public1 = _public_leg_idcs(tensor1);
         auto public2 = _public_leg_idcs(tensor2);
         auto public_contr1 = _to_public_positions(legs1_idcs, public1);
@@ -2067,9 +2306,10 @@ planar_contraction(TensorCPtr tensor1,
             auto t2 = planar_permute_legs(
               tensor2, as_leg_refs(reversed_copy(contr2)), as_leg_refs(reversed_copy(open2)));
             if (t1->num_domain_legs() > num_contr) {
-                return partial_compose(t1, t2, LegRef{ *partial_compose_leg }, relabel1, relabel2);
+                return _wrap_hidden_planar_result(
+                  partial_compose(t1, t2, LegRef{ *partial_compose_leg }, relabel1, relabel2));
             }
-            return compose(t1, t2, relabel1, relabel2);
+            return _wrap_hidden_planar_result(compose(t1, t2, relabel1, relabel2));
         } else {
             // `contr2` is passed reversed here so that `_planar_contraction_helper`'s
             // "all legs contracted" case builds tensor2's new codomain in the same order that
@@ -2085,9 +2325,10 @@ planar_contraction(TensorCPtr tensor1,
             auto t1 =
               planar_permute_legs(tensor1, as_leg_refs(open1), as_leg_refs(reversed_copy(contr1)));
             if (t2->num_codomain_legs() > num_contr) {
-                return partial_compose(t2, t1, LegRef{ *partial_compose_leg }, relabel2, relabel1);
+                return _wrap_hidden_planar_result(
+                  partial_compose(t2, t1, LegRef{ *partial_compose_leg }, relabel2, relabel1));
             }
-            return compose(t1, t2, relabel1, relabel2);
+            return _wrap_hidden_planar_result(compose(t1, t2, relabel1, relabel2));
         }
     } else {
         auto tensor1_bend_away = tensor1->num_codomain_legs() + tensor1_bend_down - num_contr;
@@ -2096,17 +2337,19 @@ planar_contraction(TensorCPtr tensor1,
             auto [t1, partial_compose_leg] = _planar_contraction_helper(tensor1, contr1, false);
             auto t2 = planar_permute_legs(tensor2, as_leg_refs(open2), as_leg_refs(contr2));
             if (t1->num_codomain_legs() > num_contr) {
-                return partial_compose(t1, t2, LegRef{ *partial_compose_leg }, relabel1, relabel2);
+                return _wrap_hidden_planar_result(
+                  partial_compose(t1, t2, LegRef{ *partial_compose_leg }, relabel1, relabel2));
             }
-            return compose(t2, t1, relabel2, relabel1);
+            return _wrap_hidden_planar_result(compose(t2, t1, relabel2, relabel1));
         } else {
             auto [t2, partial_compose_leg] = _planar_contraction_helper(tensor2, contr2, true);
             auto t1 =
               planar_permute_legs(tensor1, as_leg_refs(contr1), as_leg_refs(reversed_copy(open1)));
             if (t2->num_domain_legs() > num_contr) {
-                return partial_compose(t2, t1, LegRef{ *partial_compose_leg }, relabel2, relabel1);
+                return _wrap_hidden_planar_result(
+                  partial_compose(t2, t1, LegRef{ *partial_compose_leg }, relabel2, relabel1));
             }
-            return compose(t2, t1, relabel2, relabel1);
+            return _wrap_hidden_planar_result(compose(t2, t1, relabel2, relabel1));
         }
     }
 }
@@ -2995,8 +3238,9 @@ parse_leg_bipartition(std::vector<int64> const& legs, int64 num_legs)
 }
 
 std::pair<TensorPtr, std::optional<int64>>
-_planar_contraction_helper(TensorCPtr tensor, std::vector<int64> const& contr, bool domain)
+_planar_contraction_helper(TensorCPtr tensor, std::vector<int64> const& contr_in, bool domain)
 {
+    auto contr = contr_in;
     // case 1: no legs are contracted, compose used in planar_contraction,
     //         do appropriate bends here, resulting leg order does not matter
     if (contr.empty()) {
@@ -3017,6 +3261,31 @@ _planar_contraction_helper(TensorCPtr tensor, std::vector<int64> const& contr, b
         std::optional<std::vector<LegRef>> new_dom =
           domain ? std::optional{ as_leg_refs(contr) } : std::nullopt;
         return { planar_permute_legs(tensor, new_codom, new_dom), std::nullopt };
+    }
+
+    // If the contracted arc wraps around the circle, cyclically permute so it
+    // occupies a contiguous block at the end of the label list. `min(contr)` is
+    // then the CCW start of that block (needed by partial_compose); without the
+    // rotation it is the wrong end of the arc.
+    bool const wraps = contains(contr, int64{ 0 }) && contains(contr, tensor->num_legs - 1);
+    if (wraps) {
+        auto n = tensor->num_legs;
+        auto n_contr = static_cast<int64>(contr.size());
+        auto k = py_mod(contr.front() - (n - n_contr), n);
+        std::vector<int64> new_codom;
+        new_codom.reserve(static_cast<std::size_t>(tensor->num_codomain_legs()));
+        for (int64 i = 0; i < tensor->num_codomain_legs(); ++i) {
+            new_codom.push_back(py_mod(k + i, n));
+        }
+        std::vector<int64> new_dom;
+        new_dom.reserve(static_cast<std::size_t>(tensor->num_domain_legs()));
+        for (int64 i = 0; i < tensor->num_domain_legs(); ++i) {
+            new_dom.push_back(py_mod(k + n - 1 - i, n));
+        }
+        tensor = planar_permute_legs(tensor, as_leg_refs(new_codom), as_leg_refs(new_dom));
+        for (auto& c : contr) {
+            c = py_mod(c - k, n);
+        }
     }
 
     // case 3: legs are contracted, there is at least one uncontracted leg left,
