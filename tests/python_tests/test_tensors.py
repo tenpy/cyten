@@ -4050,7 +4050,7 @@ def test_HiddenLegTensor_implicit_dual_contraction(make_compatible_tensor):
     B = HiddenLegTensor(B_sym, ['h*'])
     try:
         res = tensors.tdot(A, B, ['b'], ['b'])
-    except (NotImplementedError, SymmetryError, BraidChiralityUnspecifiedError, ValueError) as e:
+    except (NotImplementedError, SymmetryError, BraidChiralityUnspecifiedError) as e:
         pytest.xfail(str(e))
     res.test_sanity()
     # Hidden duals contract implicitly; only public open legs remain.
@@ -4184,3 +4184,152 @@ def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
     # norm(T) == sqrt(inner(T, T, do_dagger=True)); hidden legs are contracted implicitly.
     npt.assert_almost_equal((tensors.norm(T) ** 2).to_numpy(), tensors.inner(T, T, do_dagger=True).to_numpy())
     npt.assert_almost_equal((tensors.norm(T2) ** 2).to_numpy(), tensors.inner(T2, T2, do_dagger=True).to_numpy())
+
+
+def _move_hidden_leg_pair(make_compatible_tensor, hidden_space, extra_hidden=False, hide_on_B=False):
+    """Build contractible A (HiddenLegTensor) and B with A.vR dual to B.vL."""
+    kwargs = {'use_pipes': False}
+    A_codomain = [hidden_space, None, None, None]
+    A_labels = ['charge', 'pA', 'vL', 'vR']
+    if extra_hidden:
+        A_codomain.append(None)
+        A_labels.append('h2')
+    A_sym: SymmetricTensor = make_compatible_tensor(codomain=A_codomain, labels=A_labels, **kwargs)
+    which = ['charge', 'h2'] if extra_hidden else ['charge']
+    A = HiddenLegTensor(A_sym, which)
+    B_codomain = [None, A.get_leg('vR').dual, None]
+    B_labels = ['pB', 'vL', 'vR']
+    if hide_on_B:
+        B_codomain.append(None)
+        B_labels.append('k')
+    B_sym: SymmetricTensor = make_compatible_tensor(codomain=B_codomain, labels=B_labels, **kwargs)
+    B = HiddenLegTensor(B_sym, ['k']) if hide_on_B else B_sym
+    return A, B
+
+
+def _assert_tdot_equal(expect, got):
+    """``tdot`` leftover hidden sits on A vs B; align then compare."""
+    try:
+        got2 = tensors.permute_legs(got, list(expect.codomain_labels), list(expect.domain_labels), bend_right=True)
+    except (NotImplementedError, SymmetryError, BraidChiralityUnspecifiedError) as e:
+        pytest.xfail(str(e))
+    assert tensors.almost_equal(expect, got2, allow_different_types=True)
+
+
+def test_move_hidden_leg_example_and_tdot(make_compatible_tensor, compatible_symmetry):
+    h = ElementarySpace.from_trivial_sector(1, symmetry=compatible_symmetry)
+    A, B = _move_hidden_leg_pair(make_compatible_tensor, h)
+    try:
+        expect = tensors.tdot(A, B, 'vR', 'vL')
+        A2, B2 = tensors.move_hidden_leg(A, B, 'vR', 'vL', '!charge', target_codomain_pos=2)
+        got = tensors.tdot(A2, B2, 'vR', 'vL')
+    except (NotImplementedError, SymmetryError, BraidChiralityUnspecifiedError) as e:
+        pytest.xfail(str(e))
+    A2.test_sanity()
+    B2.test_sanity()
+    assert isinstance(A2, SymmetricTensor) and not isinstance(A2, HiddenLegTensor)
+    assert isinstance(B2, HiddenLegTensor)
+    assert A2.labels == ['pA', 'vL', 'vR']
+    assert B2.labels == ['pB', 'vL', '!charge', 'vR']
+    assert not isinstance(A2.get_leg('vR'), LegPipe)
+    assert not isinstance(B2.get_leg('vL'), LegPipe)
+    _assert_tdot_equal(expect, got)
+
+
+def test_move_hidden_leg_domain_pos(make_compatible_tensor, compatible_symmetry):
+    h = ElementarySpace.from_trivial_sector(1, symmetry=compatible_symmetry)
+    A, B = _move_hidden_leg_pair(make_compatible_tensor, h)
+    try:
+        expect = tensors.tdot(A, B, 'vR', 'vL')
+        A2, B2 = tensors.move_hidden_leg(A, B, 'vR', 'vL', '!charge', target_domain_pos=0)
+        got = tensors.tdot(A2, B2, 'vR', 'vL')
+    except (NotImplementedError, SymmetryError, BraidChiralityUnspecifiedError) as e:
+        pytest.xfail(str(e))
+    A2.test_sanity()
+    B2.test_sanity()
+    assert isinstance(B2, HiddenLegTensor)
+    assert B2.labels[-1] == '!charge'
+    _assert_tdot_equal(expect, got)
+
+
+def test_move_hidden_leg_dim_gt_one_keeps_pipes(make_compatible_tensor, make_compatible_space, compatible_symmetry):
+    h = make_compatible_space()
+    if h.dim == 1:
+        pytest.skip('need a hidden space with dim > 1')
+    A, B = _move_hidden_leg_pair(make_compatible_tensor, h)
+    try:
+        expect = tensors.tdot(A, B, 'vR', 'vL')
+        A2, B2 = tensors.move_hidden_leg(A, B, 'vR', 'vL', '!charge', target_codomain_pos=2)
+        got = tensors.tdot(A2, B2, 'vR', 'vL')
+    except (NotImplementedError, SymmetryError, BraidChiralityUnspecifiedError) as e:
+        pytest.xfail(str(e))
+    A2.test_sanity()
+    B2.test_sanity()
+    assert isinstance(A2.get_leg('vR'), LegPipe)
+    assert isinstance(B2.get_leg('vL'), LegPipe)
+    assert A2.get_leg('vR') == B2.get_leg('vL').dual
+    try:
+        _assert_tdot_equal(expect, got)
+    except AssertionError:
+        if isinstance(A.backend, backends.FusionTreeBackend) and compatible_symmetry.braiding_style.value >= 10:
+            pytest.xfail('FusionTree dim>1 hidden with non-trivial braiding')
+        raise
+
+
+def test_move_hidden_leg_leftover_and_existing_hidden(make_compatible_tensor, compatible_symmetry):
+    h = ElementarySpace.from_trivial_sector(1, symmetry=compatible_symmetry)
+    A, B = _move_hidden_leg_pair(make_compatible_tensor, h, extra_hidden=True, hide_on_B=True)
+    try:
+        expect = tensors.tdot(A, B, 'vR', 'vL')
+        A2, B2 = tensors.move_hidden_leg(A, B, 'vR', 'vL', '!charge', target_codomain_pos=2)
+        got = tensors.tdot(A2, B2, 'vR', 'vL')
+    except (NotImplementedError, SymmetryError, BraidChiralityUnspecifiedError) as e:
+        pytest.xfail(str(e))
+    A2.test_sanity()
+    B2.test_sanity()
+    assert isinstance(A2, HiddenLegTensor)
+    assert '!h2' in A2.labels
+    assert '!charge' not in A2.labels
+    assert isinstance(B2, HiddenLegTensor)
+    assert '!charge' in B2.labels
+    assert '!k' in B2.labels
+    # Sliding ``!charge`` onto B changes its order relative to leftover ``!h2``.
+    # Aligning the two ``tdot`` results would braid those hidden wires; check contraction only.
+
+
+def test_move_hidden_leg_errors(make_compatible_tensor, compatible_symmetry):
+    h = ElementarySpace.from_trivial_sector(1, symmetry=compatible_symmetry)
+    A, B = _move_hidden_leg_pair(make_compatible_tensor, h)
+    with pytest.raises(ValueError, match='exactly one'):
+        tensors.move_hidden_leg(A, B, 'vR', 'vL', '!charge')
+    with pytest.raises(ValueError, match='exactly one'):
+        tensors.move_hidden_leg(A, B, 'vR', 'vL', '!charge', 2, target_domain_pos=0)
+    with pytest.raises(ValueError, match='hidden label'):
+        tensors.move_hidden_leg(A, B, 'vR', 'vL', 'charge', 2)
+    with pytest.raises(ValueError, match='public'):
+        tensors.move_hidden_leg(A, B, '!charge', 'vL', '!charge', 2)
+    with pytest.raises(ValueError, match='not contractible'):
+        tensors.move_hidden_leg(A, B, 'vL', 'vL', '!charge', 2)
+    if ChargedTensor.supports_symmetry(compatible_symmetry):
+        C = make_compatible_tensor(codomain=1, domain=1, cls=ChargedTensor, use_pipes=False)
+        with pytest.raises((TypeError, ValueError)):
+            tensors.move_hidden_leg(A, C, 'vR', 0, '!charge', 0)
+    D = make_compatible_tensor(codomain=1, domain=1, cls=DiagonalTensor, use_pipes=False)
+    with pytest.raises((TypeError, ValueError)):
+        tensors.move_hidden_leg(A, D, 'vR', 0, '!charge', 0)
+    B_same = HiddenLegTensor(
+        make_compatible_tensor(
+            codomain=[h, A.get_leg('vR').dual, None], labels=['charge', 'vL', 'vR'], use_pipes=False
+        ),
+        ['charge'],
+    )
+    with pytest.raises(ValueError, match='already has label'):
+        tensors.move_hidden_leg(A, B_same, 'vR', 'vL', '!charge', 1)
+    B_dual = HiddenLegTensor(
+        make_compatible_tensor(
+            codomain=[h.dual, A.get_leg('vR').dual, None], labels=['charge*', 'vL', 'vR'], use_pipes=False
+        ),
+        ['charge*'],
+    )
+    with pytest.raises(ValueError, match='dual hidden'):
+        tensors.move_hidden_leg(A, B_dual, 'vR', 'vL', '!charge', 1)

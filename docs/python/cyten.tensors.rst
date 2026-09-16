@@ -147,6 +147,8 @@ Functions
 
 .. autofunction:: cyten.tensors.lq
 
+.. autofunction:: cyten.tensors.move_hidden_leg
+
 .. autofunction:: cyten.tensors.move_leg
 
 .. autofunction:: cyten.tensors.norm
