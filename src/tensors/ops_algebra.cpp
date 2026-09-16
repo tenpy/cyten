@@ -112,15 +112,15 @@ tensor_as_py(TensorCPtr const& tensor)
         // Might still be a HiddenLegTensor that failed the first cast if typeinfo differs —
         // check labels as a fallback.
         if (HiddenLegTensor::has_hidden_leg_labels(p->labels())) {
-            return py::cast(std::make_shared<HiddenLegTensor>(
-              std::const_pointer_cast<SymmetricTensor>(p)));
+            return py::cast(
+              std::make_shared<HiddenLegTensor>(std::const_pointer_cast<SymmetricTensor>(p)));
         }
         return py::cast(p);
     }
     return py::cast(tensor);
 }
 
-bool is_Number_or_Scalar(py::object obj); // defined below
+bool is_Number_or_Scalar(py::object obj);     // defined below
 LegLabels leg_labels_from_py(py::object seq); // defined below
 
 /// Raise if any of `leg_idcs` refers to a hidden leg on `tensor`.
@@ -139,12 +139,12 @@ reject_hidden_leg_arguments(py::object tensor, std::vector<int64> const& leg_idc
             continue;
         }
         if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(idx)])) {
-            throw std::invalid_argument(std::format(
-              "{}: cannot specify hidden leg '{}' (index {}) in arguments. "
-              "Hidden legs are handled implicitly.",
-              op,
-              labs[static_cast<std::size_t>(idx)].value_or("?"),
-              idx));
+            throw std::invalid_argument(
+              std::format("{}: cannot specify hidden leg '{}' (index {}) in arguments. "
+                          "Hidden legs are handled implicitly.",
+                          op,
+                          labs[static_cast<std::size_t>(idx)].value_or("?"),
+                          idx));
         }
     }
 }
@@ -753,8 +753,8 @@ dagger_py(py::object tensor)
         inv_part = tensors_mod().attr("move_leg")(
           inv_part, 0, py::arg("domain_pos") = 0, py::arg("bend_right") = true);
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-        py::object charged_state =
-          py::cast(backend->block_backend->conj(tensor.attr("charged_state").cast<BlockBackend::BlockPtr>()));
+        py::object charged_state = py::cast(backend->block_backend->conj(
+          tensor.attr("charged_state").cast<BlockBackend::BlockPtr>()));
         return make_python_charged_tensor(inv_part, charged_state);
     }
     throw py::type_error("Invalid type for tensor. Expected a Tensor subtype");
@@ -1671,9 +1671,10 @@ partial_trace_py(py::object tensor, std::vector<py::object> pairs, py::object le
             labels.push_back(all_labels[n]);
         }
     }
-    return maybe_wrap_hidden(make_python_symmetric_tensor(
-      std::move(data), py::cast(codomain), py::cast(domain), backend, labels_to_py(labels)),
-                           is_HiddenLegTensor(tensor));
+    return maybe_wrap_hidden(
+      make_python_symmetric_tensor(
+        std::move(data), py::cast(codomain), py::cast(domain), backend, labels_to_py(labels)),
+      is_HiddenLegTensor(tensor));
 }
 
 py::object
@@ -1734,9 +1735,10 @@ scalar_multiply_py(py::object a, py::object v)
     if (is_HiddenLegTensor(v)) {
         auto backend = v.attr("backend").cast<TensorBackend::Ptr>();
         auto data = backend->mul(a.cast<BlockBackend::Scalar>(), v.cast<TensorCPtr>());
-        return maybe_wrap_hidden(make_python_symmetric_tensor(
-                                   std::move(data), v.attr("codomain"), v.attr("domain"), backend, v.attr("_labels")),
-                               true);
+        return maybe_wrap_hidden(
+          make_python_symmetric_tensor(
+            std::move(data), v.attr("codomain"), v.attr("domain"), backend, v.attr("_labels")),
+          true);
     }
     // remaining case: SymmetricTensor
     auto backend = v.attr("backend").cast<TensorBackend::Ptr>();
@@ -1847,8 +1849,8 @@ tdot_py(py::object tensor1,
 
     // deal with relabelling once using recursion.
     // This means we do not need to worry about labels in each of the many return sites below
-    bool do_relabel = (relabel1.has_value() && !relabel1->empty()) ||
-                      (relabel2.has_value() && !relabel2->empty());
+    bool do_relabel =
+      (relabel1.has_value() && !relabel1->empty()) || (relabel2.has_value() && !relabel2->empty());
     if (do_relabel) {
         // Implicit hidden duals are contracted even if not listed in legs1/legs2.
         auto hidden_pairs = implicit_hidden_contraction_pairs(tensor1, tensor2);
@@ -2113,10 +2115,15 @@ tdot_py(py::object tensor1,
     // OPTIMIZE actually, we only need to permute legs to *any* matching order.
     //          could use ``legs1[perm]`` and ``legs2[perm]`` instead, if that means fewer braids.
     try {
+        // Hidden legs may need to bend past public legs; fusion-tree backends
+        // refuse unspecified bend_right. Public-only tdot keeps None.
+        py::object bend = (is_HiddenLegTensor(tensor1) || is_HiddenLegTensor(tensor2))
+                            ? py::object(py::bool_(true))
+                            : py::none();
         tensor1 = tensors_mod().attr("permute_legs")(
-          tensor1, py::arg("domain") = legs1_idcs, py::arg("bend_right") = py::none());
+          tensor1, py::arg("domain") = legs1_idcs, py::arg("bend_right") = bend);
         tensor2 = tensors_mod().attr("permute_legs")(
-          tensor2, py::arg("codomain") = legs2_idcs, py::arg("bend_right") = py::none());
+          tensor2, py::arg("codomain") = legs2_idcs, py::arg("bend_right") = bend);
     } catch (...) {
         handle_permute_legs_symmetry_error();
     }
@@ -2323,9 +2330,7 @@ inner(VectorLikeCPtr A, VectorLikeCPtr B, bool do_dagger)
     }
     if (auto ta = std::dynamic_pointer_cast<Tensor const>(A)) {
         if (auto tb = std::dynamic_pointer_cast<Tensor const>(B)) {
-            return coerce_scalar(
-              inner_py(tensor_as_py(ta), tensor_as_py(tb), do_dagger),
-              ta);
+            return coerce_scalar(inner_py(tensor_as_py(ta), tensor_as_py(tb), do_dagger), ta);
         }
     }
     return A->vector_inner(std::move(B), do_dagger);
@@ -2349,8 +2354,7 @@ linear_combination(BlockBackend::Scalar const& a,
                    BlockBackend::Scalar const& b,
                    TensorCPtr w)
 {
-    return linear_combination_py(
-             py::cast(a), tensor_as_py(v), py::cast(b), tensor_as_py(w))
+    return linear_combination_py(py::cast(a), tensor_as_py(v), py::cast(b), tensor_as_py(w))
       .cast<TensorPtr>();
 }
 
