@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from cyten._core import Dtype, NumpyBlockBackend
+from cyten.config import get_option, temporary_options
 
 
 def test_numpy_block_backend_zeros_get_shape():
@@ -155,6 +157,46 @@ def test_numpy_block_backend_apply_leg_permutations():
     # row 0 and row 1 swapped: (1,0,0) moved to row 1
     assert out[1, 0] == 1.0
     assert out[0, 0] == 0.0
+
+
+def test_scalar_implicit_conversion_disabled_in_tests():
+    be = NumpyBlockBackend.from_factory('cpu')
+    s = be.as_scalar(2.5)
+    assert get_option('implicit_scalar_conversion') is False
+    with pytest.raises(TypeError, match='implicit_scalar_conversion'):
+        float(s)
+    with pytest.raises(TypeError, match='implicit_scalar_conversion'):
+        complex(s)
+    with pytest.raises(TypeError, match='implicit_scalar_conversion'):
+        np.asarray(s)
+    assert s.as_float64() == 2.5
+    assert s.to_numpy() == np.float64(2.5)
+
+
+def test_scalar_implicit_conversion_when_enabled():
+    from cyten._core import BlockBackend
+
+    be = NumpyBlockBackend.from_factory('cpu')
+    s = be.as_scalar(2.5)
+    s2 = be.as_scalar(3.5)
+    z = be.as_scalar(1.0 + 2.0j)
+    with temporary_options(implicit_scalar_conversion=True):
+        assert get_option('implicit_scalar_conversion') is True
+        assert float(s) == 2.5
+        assert complex(s) == 2.5 + 0j
+        assert complex(z) == 1.0 + 2.0j
+        with pytest.raises(RuntimeError, match='complex'):
+            float(z)
+        arr = np.array([s, s2])
+        assert arr.dtype == np.float64
+        np.testing.assert_array_equal(arr, np.array([2.5, 3.5]))
+        a = np.asarray(s)
+        assert a.shape == ()
+        assert a == np.float64(2.5)
+        z_arr = np.array([z, z])
+        assert np.iscomplexobj(z_arr)
+        np.testing.assert_array_equal(z_arr, np.array([1.0 + 2.0j, 1.0 + 2.0j]))
+    assert isinstance(s, BlockBackend.Scalar)
 
 
 def test_numpy_block_backend_argmin():

@@ -18,6 +18,11 @@ class CytenConfig
     int64 maxlines_tensors = 30;
     /// If the symmetry methods should check their inputs are valid
     bool check_fusion = true;
+    /// If Python may implicitly convert a `BlockBackend::Scalar` to float / complex / numpy.
+    /// Default True for interactive use; tests force this False. Explicit accessors (`as_float64`,
+    /// `to_numpy`, …) are never gated. Later this can track autograd (off when conversion would
+    /// drop the graph).
+    bool implicit_scalar_conversion = true;
     std::string default_tensor_backend = "abelian";
     std::string default_block_backend = "numpy";
     /// Threshold for discarding near-zero fusion-tree blocks after topological moves.

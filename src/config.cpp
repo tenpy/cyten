@@ -174,9 +174,10 @@ const std::vector<std::string>&
 CytenConfig::all_option_keys()
 {
     static const std::vector<std::string> keys = {
-        "print_linewidth",       "print_indent",    "maxlines_spaces",
-        "maxlines_tensors",      "check_fusion",    "default_tensor_backend",
-        "default_block_backend", "fusion_tree_eps", "coupling_cutoff",
+        "print_linewidth",        "print_indent",          "maxlines_spaces",
+        "maxlines_tensors",       "check_fusion",          "implicit_scalar_conversion",
+        "default_tensor_backend", "default_block_backend", "fusion_tree_eps",
+        "coupling_cutoff",
     };
     return keys;
 }
@@ -232,6 +233,8 @@ CytenConfig::set_option(const std::string& key, bool value)
 {
     if (key == "check_fusion") {
         check_fusion = value;
+    } else if (key == "implicit_scalar_conversion") {
+        implicit_scalar_conversion = value;
     } else if (std::ranges::contains(all_option_keys(), key)) {
         throw py::type_error("Config option '" + key + "' is not a bool");
     } else {
@@ -245,7 +248,7 @@ CytenConfig::set_option(const std::string& key, const std::string& value)
     if (key == "print_linewidth" || key == "print_indent" || key == "maxlines_spaces" ||
         key == "maxlines_tensors") {
         set_option(key, parse_int64(value));
-    } else if (key == "check_fusion") {
+    } else if (key == "check_fusion" || key == "implicit_scalar_conversion") {
         set_option(key, coerce_bool(value));
     } else if (key == "fusion_tree_eps" || key == "coupling_cutoff") {
         set_option(key, parse_float64(value));
@@ -356,6 +359,8 @@ CytenConfig::get_option(const std::string& key) const
         return py::cast(maxlines_tensors);
     if (key == "check_fusion")
         return py::cast(check_fusion);
+    if (key == "implicit_scalar_conversion")
+        return py::cast(implicit_scalar_conversion);
     if (key == "default_tensor_backend")
         return py::cast(default_tensor_backend);
     if (key == "default_block_backend")
@@ -402,8 +407,17 @@ CytenConfig::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::strin
 {
     CytenConfig obj;
     py::dict options;
-    for (const auto& key : all_option_keys())
-        options[py::str(key)] = hdf5_loader.attr("load")(subpath + key);
+    for (const auto& key : all_option_keys()) {
+        try {
+            options[py::str(key)] = hdf5_loader.attr("load")(subpath + key);
+        } catch (py::error_already_set& e) {
+            // Older files may omit newly added keys; keep the class default.
+            if (!e.matches(PyExc_KeyError))
+                throw;
+            e.restore();
+            PyErr_Clear();
+        }
+    }
     obj.update(options);
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;

@@ -157,6 +157,17 @@ from cyten.testing import random_block, random_ElementarySpace, random_symmetry_
 # OVERRIDE pytest routines
 
 
+@pytest.fixture(autouse=True)
+def _disable_implicit_scalar_conversion():
+    """Force explicit Scalar conversion in tests.
+
+    Users get ``implicit_scalar_conversion=True`` by default. Tests keep native Scalars
+    so accidental ``float(s)`` / ``np.asarray(s)`` cannot hide missing Scalar handling.
+    """
+    with ct.temporary_options(implicit_scalar_conversion=False):
+        yield
+
+
 def pytest_addoption(parser):
     parser.addoption('--block-backends', action='store', default='numpy', help=f'Comma separated block-backend names')
     parser.addoption('--rng-seed', action='store', default=12345, type=int, help=f'The rng seed')
