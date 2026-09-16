@@ -2005,6 +2005,62 @@ _hidden_dual_label_pairs(TensorCPtr tensor1, TensorCPtr tensor2)
     return pairs;
 }
 
+[[nodiscard]] std::vector<int64>
+_hidden_circle_positions(std::vector<int64> const& hidden_idcs, std::vector<int64> const& extra)
+{
+    std::vector<int64> pos;
+    pos.reserve(extra.size());
+    for (auto e : extra) {
+        auto it = std::ranges::find(hidden_idcs, e);
+        if (it == hidden_idcs.end()) {
+            throw std::logic_error("extra hidden leg is not a hidden leg");
+        }
+        pos.push_back(static_cast<int64>(it - hidden_idcs.begin()));
+    }
+    return pos;
+}
+
+/// Dual hidden extras live on their own circle (public legs skipped). They may
+/// pass public legs, but extras that are not a contiguous hidden arc — or that
+/// pair with the other tensor in a non-clockwise way — would have to braid.
+void
+_check_hidden_circle_planar_contraction(TensorCPtr tensor1,
+                                        TensorCPtr tensor2,
+                                        std::vector<int64> const& extra1,
+                                        std::vector<int64> const& extra2)
+{
+    if (extra1.empty()) {
+        return;
+    }
+    auto h1 = _hidden_leg_idcs(tensor1);
+    auto h2 = _hidden_leg_idcs(tensor2);
+    auto n1 = static_cast<int64>(h1.size());
+    auto n2 = static_cast<int64>(h2.size());
+    auto pos1 = _hidden_circle_positions(h1, extra1);
+    auto pos2_unsorted = _hidden_circle_positions(h2, extra2);
+    std::vector<int64> contr1;
+    try {
+        contr1 = parse_leg_bipartition(pos1, n1).first;
+        (void)parse_leg_bipartition(pos2_unsorted, n2);
+    } catch (std::invalid_argument const&) {
+        throw std::invalid_argument(
+          "Not a planar contraction: hidden legs would have to be braided");
+    }
+    std::vector<int64> contr2;
+    contr2.reserve(contr1.size());
+    for (auto c1 : contr1) {
+        contr2.push_back(pos2_unsorted[static_cast<std::size_t>(index_of(pos1, c1))]);
+    }
+    for (std::size_t n = 0; n + 1 < contr2.size(); ++n) {
+        auto n_from = contr2[n];
+        auto n_to = contr2[n + 1];
+        if (n_to != py_mod(n_from - 1, n2)) {
+            throw std::invalid_argument(
+              "Not a planar contraction: hidden legs would have to be braided");
+        }
+    }
+}
+
 /// Place hidden legs on a second plane around a public contracted arc.
 ///
 /// Public cyclic order is preserved (so public legs do not braid). Dual hidden
@@ -2206,6 +2262,7 @@ planar_contraction(TensorCPtr tensor1,
             extra1.push_back(tensor1->get_leg_idcs(std::vector<LegRef>{ LegRef{ l1 } })[0]);
             extra2.push_back(tensor2->get_leg_idcs(std::vector<LegRef>{ LegRef{ l2 } })[0]);
         }
+        _check_hidden_circle_planar_contraction(tensor1, tensor2, extra1, extra2);
         auto [t1_arr, map1] = _arrange_hidden_around_public_contr(
           tensor1, _map_public_positions(public1, contr1_pub), extra1);
         auto [t2_arr, map2] = _arrange_hidden_around_public_contr(
@@ -2355,6 +2412,26 @@ planar_contraction(TensorCPtr tensor1,
         }
     }
     if (!planar_ok) {
+        if (has_hidden) {
+            // Public and hidden circles were already checked separately. Dual extras live
+            // on a second plane, so the combined index circle after splicing may look
+            // non-planar even when no hidden-hidden braid is required. tdot contracts the
+            // extras implicitly without treating them as public legs.
+            std::optional<std::map<std::string, std::string>> r1 =
+              relabel1.empty() ? std::nullopt : std::optional{ std::move(relabel1) };
+            std::optional<std::map<std::string, std::string>> r2 =
+              relabel2.empty() ? std::nullopt : std::optional{ std::move(relabel2) };
+            auto res = tdot(std::move(tensor1),
+                            std::move(tensor2),
+                            std::move(legs1),
+                            std::move(legs2),
+                            std::move(r1),
+                            std::move(r2));
+            if (std::holds_alternative<BlockBackend::Scalar>(res)) {
+                return std::get<BlockBackend::Scalar>(std::move(res));
+            }
+            return _wrap_hidden_planar_result(std::get<TensorPtr>(std::move(res)));
+        }
         throw std::invalid_argument("Not a planar contraction");
     }
 

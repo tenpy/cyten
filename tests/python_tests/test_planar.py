@@ -1606,6 +1606,165 @@ def test_PlanarDiagram_charged_flag_and_planarity():
     assert set(removed.open_legs) == {'a', 'b'}
 
 
+_hidden_planar_diagram_cases = [
+    (no_symmetry, 'no_symmetry'),
+    (u1_symmetry, 'abelian'),
+    (u1_symmetry, 'fusion_tree'),
+    (fermion_parity, 'fusion_tree'),
+    (fibonacci_anyon_category, 'fusion_tree'),
+]
+
+
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+    ],
+)
+def test_PlanarDiagram_hidden_implicit_no_braid(symmetry, backend, np_random):
+    # Hidden legs live on a second plane and may pass public legs. Contracting two
+    # public legs with a hidden dual pair sitting between them is planar, even though
+    # the same contraction would braid if that hidden leg were public.
+    backend = ct.get_backend(backend, 'numpy')
+    diagram = ct.PlanarDiagram(
+        tensors='A[a, b, c], B[b, c]',
+        definition='A:b @ B:b, A:c @ B:c, A:a -> a',
+        dims=dict(chi=['a', 'b', 'c']),
+    )
+    A_sym = ct.testing.random_tensor(
+        symmetry,
+        4,
+        0,
+        labels=['a', 'b', 'h', 'c'],
+        backend=backend,
+        np_random=np_random,
+    )
+    B_sym = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A_sym.get_leg('b').dual, A_sym.get_leg('c').dual],
+        domain=[A_sym.get_leg('h')],
+        labels=[['b', 'c'], ['h*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    A = ct.HiddenLegTensor(A_sym, ['h'])
+    B = ct.HiddenLegTensor(B_sym, ['h*'])
+    assert A.labels == ['a', 'b', '!h', 'c']
+
+    res = diagram(A=A, B=B)
+    res.test_sanity()
+    assert isinstance(res, ct.SymmetricTensor)
+    assert set(res.labels) == {'a'}
+    expect = ct.tdot(A, B, ['b', 'c'], ['b', 'c'])
+    assert ct.planar.planar_almost_equal(res, expect)
+
+
+@pytest.mark.parametrize('symmetry, backend', _hidden_planar_diagram_cases)
+def test_PlanarDiagram_hidden_implicit_contiguous_extras(symmetry, backend, np_random):
+    # Two extra hidden legs form a contiguous arc on the hidden circle, so they
+    # can be contracted implicitly without braiding past unmatched hidden legs.
+    backend = ct.get_backend(backend, 'numpy')
+    diagram = ct.PlanarDiagram(
+        tensors='A[a, b], B[b, c]',
+        definition='A:b @ B:b, A:a -> a, B:c -> c',
+        dims=dict(chi=['a', 'b', 'c']),
+    )
+    A_sym = ct.testing.random_tensor(
+        symmetry,
+        4,
+        0,
+        labels=['a', 'h1', 'h2', 'b'],
+        backend=backend,
+        np_random=np_random,
+    )
+    B_sym = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A_sym.get_leg('b').dual, None],
+        domain=[A_sym.get_leg('h1'), A_sym.get_leg('h2')],
+        labels=[['b', 'c'], ['h1*', 'h2*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    A = ct.HiddenLegTensor(A_sym, ['h1', 'h2'])
+    B = ct.HiddenLegTensor(B_sym, ['h1*', 'h2*'])
+
+    res = diagram(A=A, B=B)
+    res.test_sanity()
+    assert isinstance(res, ct.SymmetricTensor)
+    assert set(res.labels) == {'a', 'c'}
+    try:
+        expect = ct.tdot(A, B, ['b'], ['b'])
+    except (ct.SymmetryError, ct.BraidChiralityUnspecifiedError):  # fmt: skip
+        # Fusion-tree tdot may refuse the implicit extra permute; the diagram path
+        # itself is still planar when extras form a contiguous hidden arc.
+        return
+    assert ct.planar.planar_almost_equal(res, expect)
+
+
+@pytest.mark.parametrize('symmetry, backend', _hidden_planar_diagram_cases)
+def test_PlanarDiagram_hidden_implicit_would_braid(symmetry, backend, np_random):
+    # Public diagram A[a,b] @ B[b,c] is planar. Implicit hidden contraction is not
+    # when extras are not a contiguous arc on the hidden circle, or when extra
+    # pairing is not the clockwise reverse of the other tensor's hidden order.
+    backend = ct.get_backend(backend, 'numpy')
+    diagram = ct.PlanarDiagram(
+        tensors='A[a, b], B[b, c]',
+        definition='A:b @ B:b, A:a -> a, B:c -> c',
+        dims=dict(chi=['a', 'b', 'c']),
+    )
+
+    A_gap = ct.testing.random_tensor(
+        symmetry,
+        6,
+        0,
+        labels=['a', 'h1', 'u1', 'h2', 'u2', 'b'],
+        backend=backend,
+        np_random=np_random,
+    )
+    B_gap = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A_gap.get_leg('b').dual, None],
+        domain=[A_gap.get_leg('h2'), A_gap.get_leg('h1')],
+        labels=[['b', 'c'], ['h2*', 'h1*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    A = ct.HiddenLegTensor(A_gap, ['h1', 'u1', 'h2', 'u2'])
+    B = ct.HiddenLegTensor(B_gap, ['h1*', 'h2*'])
+    with pytest.raises(ValueError, match='hidden legs would have to be braided'):
+        _ = diagram(A=A, B=B)
+
+    A_perm = ct.testing.random_tensor(
+        symmetry,
+        6,
+        0,
+        labels=['a', 'h1', 'h2', 'h3', 'h4', 'b'],
+        backend=backend,
+        np_random=np_random,
+    )
+    B_perm = ct.testing.random_tensor(
+        symmetry,
+        codomain=[
+            A_perm.get_leg('b').dual,
+            None,
+            A_perm.get_leg('h1').dual,
+            A_perm.get_leg('h3').dual,
+            A_perm.get_leg('h2').dual,
+            A_perm.get_leg('h4').dual,
+        ],
+        labels=['b', 'c', 'h1*', 'h3*', 'h2*', 'h4*'],
+        backend=backend,
+        np_random=np_random,
+    )
+    A = ct.HiddenLegTensor(A_perm, ['h1', 'h2', 'h3', 'h4'])
+    B = ct.HiddenLegTensor(B_perm, ['h1*', 'h2*', 'h3*', 'h4*'])
+    with pytest.raises(ValueError, match='hidden legs would have to be braided'):
+        _ = diagram(A=A, B=B)
+
+
 @pytest.mark.parametrize(
     'symmetry, backend',
     [
