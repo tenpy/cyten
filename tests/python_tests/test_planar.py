@@ -1766,9 +1766,11 @@ def test_issue_273(symmetry, backend, np_random):
     )
     bra: ct.SymmetricTensor = ct.testing.random_tensor(
         symmetry,
-        codomain=[ket._as_codomain_leg('charge'), bra._as_codomain_leg('vR*')],
-        domain=[bra._as_domain_leg('vL*'), bra._as_domain_leg('p*')],
-        labels=[['charge*', 'vR*'], ['vL*', 'p*']],
+        # tdot/compose dual pairing: bra domain carries ket's charge space
+        # (not ChargedTensor-style ket._as_codomain_leg in the bra codomain).
+        codomain=[bra._as_codomain_leg('vR*')],
+        domain=[ket.get_leg('charge'), bra._as_domain_leg('vL*'), bra._as_domain_leg('p*')],
+        labels=[['vR*'], ['charge*', 'vL*', 'p*']],
         backend=backend,
         np_random=np_random,
     )

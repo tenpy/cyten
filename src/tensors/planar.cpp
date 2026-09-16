@@ -2007,22 +2007,25 @@ _hidden_dual_label_pairs(TensorCPtr tensor1, TensorCPtr tensor2)
 
 /// Place hidden legs on a second plane around a public contracted arc.
 ///
-/// Resulting counterclockwise order is
-/// ``open_public + unmatched_hidden + (extra_contr if extra_at_ccw_start)
-///  + public_contr + (extra_contr otherwise)``.
-/// Dual hidden legs (`extra_contr`) sit with the contracted public legs so
-/// `compose` contracts them; unmatched hidden legs sit with the open public
-/// legs. For tensor2 of a planar contraction, pass `extra_at_ccw_start=true`
-/// so the extra legs lie at the clockwise end of the contracted arc.
-[[nodiscard]] TensorCPtr
+/// Public cyclic order is preserved (so public legs do not braid). Dual hidden
+/// legs (`extra_contr`) are spliced next to the contracted public arc; unmatched
+/// hidden legs sit in the open public arc. For tensor2, pass
+/// `extra_at_ccw_start=true` so extra legs lie at the clockwise end of the
+/// contracted arc. Returns the arranged tensor and `old_to_new[old_idx]`.
+[[nodiscard]] std::pair<TensorCPtr, std::vector<int64>>
 _arrange_hidden_around_public_contr(TensorCPtr tensor,
                                     std::vector<int64> const& public_contr_ccw,
                                     std::vector<int64> const& extra_contr,
                                     bool extra_at_ccw_start = false)
 {
+    auto identity_map = [](int64 n) {
+        std::vector<int64> m(static_cast<std::size_t>(n));
+        std::iota(m.begin(), m.end(), int64{ 0 });
+        return m;
+    };
     auto hidden = _hidden_leg_idcs(tensor);
     if (hidden.empty()) {
-        return tensor;
+        return { tensor, identity_map(tensor->num_legs) };
     }
     std::set<int64> extra_set(extra_contr.begin(), extra_contr.end());
     std::vector<int64> unmatched;
@@ -2058,17 +2061,45 @@ _arrange_hidden_around_public_contr(TensorCPtr tensor,
     }
     std::vector<int64> new_ccw;
     new_ccw.reserve(static_cast<std::size_t>(tensor->num_legs));
-    new_ccw.insert(new_ccw.end(), open_public.begin(), open_public.end());
-    new_ccw.insert(new_ccw.end(), unmatched.begin(), unmatched.end());
-    if (extra_at_ccw_start) {
+    bool extra_inserted = extra_ccw.empty();
+    bool unmatched_inserted = unmatched.empty();
+    if (open_public.empty() && !unmatched_inserted) {
+        new_ccw.insert(new_ccw.end(), unmatched.begin(), unmatched.end());
+        unmatched_inserted = true;
+    }
+    if (public_contr_ccw.empty() && extra_at_ccw_start && !extra_inserted) {
         new_ccw.insert(new_ccw.end(), extra_ccw.begin(), extra_ccw.end());
-        new_ccw.insert(new_ccw.end(), public_contr_ccw.begin(), public_contr_ccw.end());
-    } else {
-        new_ccw.insert(new_ccw.end(), public_contr_ccw.begin(), public_contr_ccw.end());
+        extra_inserted = true;
+    }
+    for (auto p : public_idcs) {
+        if (!extra_inserted && extra_at_ccw_start && !public_contr_ccw.empty() &&
+            p == public_contr_ccw.front()) {
+            new_ccw.insert(new_ccw.end(), extra_ccw.begin(), extra_ccw.end());
+            extra_inserted = true;
+        }
+        if (!unmatched_inserted && !open_public.empty() && p == open_public.front()) {
+            new_ccw.insert(new_ccw.end(), unmatched.begin(), unmatched.end());
+            unmatched_inserted = true;
+        }
+        new_ccw.push_back(p);
+        if (!extra_inserted && !extra_at_ccw_start && !public_contr_ccw.empty() &&
+            p == public_contr_ccw.back()) {
+            new_ccw.insert(new_ccw.end(), extra_ccw.begin(), extra_ccw.end());
+            extra_inserted = true;
+        }
+    }
+    if (!extra_inserted) {
         new_ccw.insert(new_ccw.end(), extra_ccw.begin(), extra_ccw.end());
+    }
+    if (!unmatched_inserted) {
+        new_ccw.insert(new_ccw.end(), unmatched.begin(), unmatched.end());
     }
     if (static_cast<int64>(new_ccw.size()) != tensor->num_legs) {
         throw std::logic_error("hidden arrangement does not cover all legs");
+    }
+    std::vector<int64> old_to_new(static_cast<std::size_t>(tensor->num_legs));
+    for (int64 i = 0; i < tensor->num_legs; ++i) {
+        old_to_new[static_cast<std::size_t>(new_ccw[static_cast<std::size_t>(i)])] = i;
     }
     bool identity = true;
     for (int64 i = 0; i < tensor->num_legs; ++i) {
@@ -2078,8 +2109,11 @@ _arrange_hidden_around_public_contr(TensorCPtr tensor,
         }
     }
     if (identity && tensor->num_domain_legs() == 0) {
-        return tensor;
+        return { tensor, std::move(old_to_new) };
     }
+    // Bend to all-codomain so later planar_permute_legs only edge-bends.
+    // Public cyclic order is unchanged, so public legs do not braid; hidden at
+    // -1 may braid past public at 0.
     LevelsSpec levels(static_cast<std::size_t>(tensor->num_legs), std::optional<int64>{ 0 });
     auto labs = tensor->labels();
     for (int64 i = 0; i < tensor->num_legs; ++i) {
@@ -2087,8 +2121,9 @@ _arrange_hidden_around_public_contr(TensorCPtr tensor,
             levels[static_cast<std::size_t>(i)] = -1;
         }
     }
-    return permute_legs(
-      tensor, as_leg_refs(new_ccw), std::vector<LegRef>{}, levels, BendRight{ true });
+    return { permute_legs(
+               tensor, as_leg_refs(new_ccw), std::vector<LegRef>{}, levels, BendRight{ true }),
+             std::move(old_to_new) };
 }
 
 [[nodiscard]] PlanarResult
@@ -2171,25 +2206,65 @@ planar_contraction(TensorCPtr tensor1,
             extra1.push_back(tensor1->get_leg_idcs(std::vector<LegRef>{ LegRef{ l1 } })[0]);
             extra2.push_back(tensor2->get_leg_idcs(std::vector<LegRef>{ LegRef{ l2 } })[0]);
         }
-        tensor1 = _arrange_hidden_around_public_contr(
+        auto [t1_arr, map1] = _arrange_hidden_around_public_contr(
           tensor1, _map_public_positions(public1, contr1_pub), extra1);
-        tensor2 = _arrange_hidden_around_public_contr(
+        auto [t2_arr, map2] = _arrange_hidden_around_public_contr(
           tensor2, _map_public_positions(public2, contr2_pub_ccw), extra2, true);
+        tensor1 = std::move(t1_arr);
+        tensor2 = std::move(t2_arr);
 
-        std::optional<std::map<std::string, std::string>> r1 =
-          relabel1.empty() ? std::nullopt : std::optional{ std::move(relabel1) };
-        std::optional<std::map<std::string, std::string>> r2 =
-          relabel2.empty() ? std::nullopt : std::optional{ std::move(relabel2) };
-        auto res = tdot(std::move(tensor1),
-                        std::move(tensor2),
-                        std::move(legs1),
-                        std::move(legs2),
-                        std::move(r1),
-                        std::move(r2));
-        if (std::holds_alternative<BlockBackend::Scalar>(res)) {
-            return std::get<BlockBackend::Scalar>(std::move(res));
+        bool extras_match = true;
+        for (std::size_t k = 0; k < extra1.size(); ++k) {
+            auto i1 = map1[static_cast<std::size_t>(extra1[k])];
+            auto i2 = map2[static_cast<std::size_t>(extra2[k])];
+            auto d = tensor1->_as_domain_leg(i1);
+            auto c = tensor2->_as_codomain_leg(i2);
+            if (!d || !c || !(*d == *c)) {
+                extras_match = false;
+                break;
+            }
         }
-        return _wrap_hidden_planar_result(std::get<TensorPtr>(std::move(res)));
+
+        if (!extra1.empty() && !extras_match) {
+            // Hidden duals are not compose-compatible (ChargedTensor-style same-side
+            // pairing). tdot still contracts them implicitly.
+            std::optional<std::map<std::string, std::string>> r1 =
+              relabel1.empty() ? std::nullopt : std::optional{ std::move(relabel1) };
+            std::optional<std::map<std::string, std::string>> r2 =
+              relabel2.empty() ? std::nullopt : std::optional{ std::move(relabel2) };
+            auto res = tdot(std::move(tensor1),
+                            std::move(tensor2),
+                            std::move(legs1),
+                            std::move(legs2),
+                            std::move(r1),
+                            std::move(r2));
+            if (std::holds_alternative<BlockBackend::Scalar>(res)) {
+                return std::get<BlockBackend::Scalar>(std::move(res));
+            }
+            return _wrap_hidden_planar_result(std::get<TensorPtr>(std::move(res)));
+        }
+
+        // Include matching dual hidden legs so compose sees a contiguous arc.
+        // Do not use tdot here: remaining-in-index-order scrambles public cyclic order.
+        std::vector<int64> new_legs1;
+        new_legs1.reserve(legs1_idcs.size() + extra1.size());
+        for (auto i : legs1_idcs) {
+            new_legs1.push_back(map1[static_cast<std::size_t>(i)]);
+        }
+        for (auto i : extra1) {
+            new_legs1.push_back(map1[static_cast<std::size_t>(i)]);
+        }
+        std::vector<int64> new_legs2;
+        new_legs2.reserve(legs2_idcs.size() + extra2.size());
+        for (auto i : legs2_idcs) {
+            new_legs2.push_back(map2[static_cast<std::size_t>(i)]);
+        }
+        for (auto i : extra2) {
+            new_legs2.push_back(map2[static_cast<std::size_t>(i)]);
+        }
+        legs1_idcs = std::move(new_legs1);
+        legs2_idcs = std::move(new_legs2);
+        num_contr = static_cast<int64>(legs1_idcs.size());
     } else if (has_charged) {
         // ChargedTensor charge legs are not part of the public circle; tdot handles them.
         auto public1 = _public_leg_idcs(tensor1);
