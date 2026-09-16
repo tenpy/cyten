@@ -227,7 +227,7 @@ def test_spin_field_coupling(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        npt.assert_almost_equal(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
         # check eigenvalues
         h = np.sqrt(hx**2 + hy**2 + hz**2)
         if isinstance(site, sites.SpinSite):
@@ -301,7 +301,7 @@ def test_chiral_3spin_coupling(any_backend, np_random):
             # hermiticity
             assert tensors.almost_equal(tensor.hc, tensor)
             # trace is zero
-            npt.assert_almost_equal(tensors.trace(tensor), 0)
+            npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
             if site1 == site2:
                 # cyclic permutation relation
                 tensor_commuted = tensors.permute_legs(tensor, codomain=[2, 0, 1], domain=[3, 5, 4])
@@ -465,7 +465,7 @@ def test_hopping(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        npt.assert_almost_equal(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
         # if there is a permutation s.t. species1 <-> species2, we can commute the legs
         symmetric = False
         for perm in it.permutations(range(len(species1))):
@@ -521,7 +521,7 @@ def test_pairing(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        npt.assert_almost_equal(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
         # if there is a permutation s.t. species1 <-> species2, we can commute the legs
         symmetric = False
         for perm in it.permutations(range(len(species1))):
@@ -571,12 +571,12 @@ def test_onsite_pairing(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        npt.assert_almost_equal(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
         if isinstance(site, degrees_of_freedom.FermionicDOF):
             # default case is trivial for fermions
             coupling = couplings.onsite_pairing([site], Delta=1)
             coupling.test_sanity()
-            npt.assert_almost_equal(tensors.norm(coupling.to_tensor()), 0)
+            npt.assert_almost_equal(tensors.norm(coupling.to_tensor()).to_numpy(), 0)
 
     check_coupling(couplings.onsite_pairing, site_num=1, invalid_site_nums=[2], boson_fermion_mixing=False)
 
@@ -594,7 +594,7 @@ def test_clock_clock_coupling(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        npt.assert_almost_equal(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
         # commutation relation
         tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
         tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
@@ -615,7 +615,7 @@ def test_clock_field_coupling(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        npt.assert_almost_equal(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
         # check eigenvalues
         if isinstance(site.leg.symmetry.factors[0], cyten.ZN):
             expect_evs = 2 * np.cos(np.linspace(0, 2 * np.pi, site.q, endpoint=False))

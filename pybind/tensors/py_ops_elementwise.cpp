@@ -94,7 +94,11 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
           return dispatch_elementwise(
             x,
             [](DiagonalTensorCPtr t) { return complex_conj(t); },
-            [](py::object n) { return numpy().attr("conj")(n); });
+            [](py::object n) {
+                if (py::isinstance<BlockBackend::Scalar>(n))
+                    return py::cast(n.cast<BlockBackend::Scalar>().conj());
+                return numpy().attr("conj")(n);
+            });
       },
       py::arg("x"),
       doc_plus(DOC(cyten, complex_conj),
@@ -137,6 +141,8 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
             x,
             [tol](DiagonalTensorCPtr t) { return real_if_close(t, tol); },
             [tol](py::object n) {
+                if (py::isinstance<BlockBackend::Scalar>(n))
+                    return py::cast(n.cast<BlockBackend::Scalar>().real_if_close(tol));
                 return numpy().attr("real_if_close")(n, py::arg("tol") = tol);
             });
       },

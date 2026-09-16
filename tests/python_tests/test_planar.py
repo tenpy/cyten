@@ -727,7 +727,7 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
 
     assert isinstance(S, ct.DiagonalTensor)
     assert (S >= 0).all()
-    npt.assert_almost_equal(ct.norm(S), ct.norm(T))
+    npt.assert_almost_equal(ct.norm(S).to_numpy(), ct.norm(T).to_numpy())
 
     assert ct.planar.planar_almost_equal(ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd'), T)
     eye = ct.SymmetricTensor.from_eye(S.domain, backend=T.backend, labels=['a*', 'a'])
@@ -782,7 +782,7 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
             ct.norm(
                 T.as_SymmetricTensor()
                 - ct.planar_permute_legs(T_approx, codomain=T.codomain_labels, domain=T.domain_labels)
-            ),
+            ).to_numpy(),
         )
 
         # check isometric properties

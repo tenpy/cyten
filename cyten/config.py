@@ -25,30 +25,35 @@ precedence::
 
 The following options are available::
 
-    ========================  ===========  ======================================================================
-    name                      default      meaning
-    ========================  ===========  ======================================================================
-    print_linewidth           100          Maximum linewidth for printing tensors, spaces, ...
-    ------------------------  -----------  ----------------------------------------------------------------------
-    print_indent              2            Number of spaces for indenting when printing
-    ------------------------  -----------  ----------------------------------------------------------------------
-    maxlines_spaces           15           Maximum number of lines for printing spaces
-    ------------------------  -----------  ----------------------------------------------------------------------
-    maxlines_tensors          30           Maximum number of lines for printing tensors
-    ------------------------  -----------  ----------------------------------------------------------------------
-    check_fusion              True         If input checks for correct fusion should be enabled.
-                                           Disabling can improve performance, but make errors more cryptic.
-    ------------------------  -----------  ----------------------------------------------------------------------
-    default_tensor_backend    'abelian'    Tensor-backend to be used by default. See :func:`cyten.get_backend`.
-    ------------------------  -----------  ----------------------------------------------------------------------
-    default_block_backend     'numpy'      Block-backend to be used by default. See :func:`cyten.get_backend`.
-    ------------------------  -----------  ----------------------------------------------------------------------
-    fusion_tree_eps           5e-14        Threshold for discarding near-zero fusion-tree blocks after
-                                           topological moves (braids, bends, twists).
-    ------------------------  -----------  ----------------------------------------------------------------------
-    coupling_cutoff           1e-13        Default singular-value cutoff when factorizing a Coupling
-                                           (``from_dense_block`` / ``from_tensor``).
-    ========================  ===========  ======================================================================
+    ==============================  ===========  ======================================================================
+    name                            default      meaning
+    ==============================  ===========  ======================================================================
+    print_linewidth                 100          Maximum linewidth for printing tensors, spaces, ...
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    print_indent                    2            Number of spaces for indenting when printing
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    maxlines_spaces                 15           Maximum number of lines for printing spaces
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    maxlines_tensors                30           Maximum number of lines for printing tensors
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    check_fusion                    True         If input checks for correct fusion should be enabled.
+                                                 Disabling can improve performance, but make errors more cryptic.
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    implicit_scalar_conversion      True         Allow implicit Python conversion of Scalar to float / complex /
+                                                 numpy (``float(s)``, ``np.asarray(s)``, …). Tests force this
+                                                 False. Explicit ``as_*`` / ``to_numpy()`` are never gated.
+                                                 Later this can track autograd.
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    default_tensor_backend          'abelian'    Tensor-backend to be used by default. See :func:`cyten.get_backend`.
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    default_block_backend           'numpy'      Block-backend to be used by default. See :func:`cyten.get_backend`.
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    fusion_tree_eps                 5e-14        Threshold for discarding near-zero fusion-tree blocks after
+                                                 topological moves (braids, bends, twists).
+    ------------------------------  -----------  ----------------------------------------------------------------------
+    coupling_cutoff                 1e-13        Default singular-value cutoff when factorizing a Coupling
+                                                 (``from_dense_block`` / ``from_tensor``).
+    ==============================  ===========  ======================================================================
 
 
 

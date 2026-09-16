@@ -11,6 +11,7 @@
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
+#include <cyten/config.h>
 #include <cyten/symmetries/spaces.h>
 #include <pybind11/detail/common.h>
 #include <span>
@@ -19,6 +20,17 @@
 namespace cyten {
 
 namespace {
+
+void
+require_implicit_scalar_conversion(const char* dest)
+{
+    if (!get_config().implicit_scalar_conversion) {
+        throw py::type_error(
+          std::string("Implicit conversion of Scalar to ") + dest +
+          " is disabled. Use as_float64() / as_complex128() / to_numpy(), or set "
+          "cyten.set_option('implicit_scalar_conversion', True).");
+    }
+}
 
 bool
 is_py_integer_scalar(const py::handle& obj)
@@ -363,7 +375,10 @@ bind_block_backend(py::module_& m)
     py::class_<BlockBackend::Scalar, py::smart_holder>(
       block_backend,
       "Scalar",
-      "Scalar value with Dtype; use accessors to cast to float, complex, or bool.")
+      "Scalar value with a Dtype, stored as a 0-d Block (may live on GPU).\n\n"
+      "Explicit conversion: as_float64(), as_complex128(), as_int64(), as_bool(), to_numpy().\n"
+      "Implicit Python conversion (float(), complex(), np.asarray()) is gated by the config\n"
+      "option implicit_scalar_conversion (default True; tests force False).")
       .def(py::init<std::shared_ptr<BlockBackend::Block>>(),
            py::arg("block"),
            "Construct from a 0-d block (ndim == 0). Raises if block is null or ndim != 0.")
@@ -394,6 +409,34 @@ bind_block_backend(py::module_& m)
       .def("as_bool", &BlockBackend::Scalar::as_bool, "As bool; raises if dtype is not Bool.")
       .def("to_numpy", &BlockBackend::Scalar::to_numpy, DOC(cyten, BlockBackend, Scalar, to_numpy))
       .def(
+        "__float__",
+        [](const BlockBackend::Scalar& self) {
+            require_implicit_scalar_conversion("float");
+            return self.as_float64();
+        },
+        "Convert to Python float. Gated by implicit_scalar_conversion; raises if dtype is "
+        "complex or bool.")
+      .def(
+        "__complex__",
+        [](const BlockBackend::Scalar& self) {
+            require_implicit_scalar_conversion("complex");
+            return self.as_complex128();
+        },
+        "Convert to Python complex. Gated by implicit_scalar_conversion.")
+      .def(
+        "__array__",
+        [](const BlockBackend::Scalar& self, py::object dtype, py::object /*copy*/) {
+            require_implicit_scalar_conversion("numpy");
+            py::object val = self.to_numpy();
+            auto np = py::module_::import("numpy");
+            if (dtype.is_none())
+                return np.attr("asarray")(val);
+            return np.attr("asarray")(val, py::arg("dtype") = dtype);
+        },
+        py::arg("dtype") = py::none(),
+        py::arg("copy") = py::none(),
+        "NumPy array protocol. Gated by implicit_scalar_conversion.")
+      .def(
         "__bool__",
         [](const BlockBackend::Scalar& self) {
             return self.as_bool(); // throws if dtype is not Bool!
@@ -404,6 +447,14 @@ bind_block_backend(py::module_& m)
       .def("real", &BlockBackend::Scalar::real, "Real part as a Scalar (valid for any dtype).")
       .def(
         "imag", &BlockBackend::Scalar::imag, "Imaginary part as a Scalar (valid for any dtype).")
+      .def("conj",
+           &BlockBackend::Scalar::conj,
+           "Complex conjugate as a Scalar. Real dtypes are unchanged.")
+      .def("real_if_close",
+           &BlockBackend::Scalar::real_if_close,
+           py::arg("tol") = 100.,
+           "If close to real, return the real part; otherwise return this Scalar. "
+           "`tol` is in multiples of machine epsilon (numpy.real_if_close convention).")
       .def("__abs__", &BlockBackend::Scalar::abs, "Absolute value.")
       .def("sqrt", &BlockBackend::Scalar::sqrt, "Square root.")
       .def("exp", &BlockBackend::Scalar::exp, "Elementwise / scalar exponential.")

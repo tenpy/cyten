@@ -121,6 +121,7 @@ def test_config_precedence(setup_fake_config):
 
 def test_options_consistency():
     config = CytenConfig()  # default config
+    assert config.get_option('implicit_scalar_conversion') is True
     for key in get_config().all_option_keys():
         default_val = get_option(key)
         config.set_option(key, default_val)  # make sure that the default is valid

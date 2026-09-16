@@ -3421,7 +3421,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
 
     assert isinstance(S, DiagonalTensor)
     assert (S >= 0).all()
-    npt.assert_almost_equal(tensors.norm(S), tensors.norm(T))
+    npt.assert_almost_equal(tensors.norm(S).to_numpy(), tensors.norm(T).to_numpy())
 
     assert tensors.almost_equal(U @ S @ Vh, T, allow_different_types=True)
     eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
@@ -3447,7 +3447,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
 
         assert isinstance(S, DiagonalTensor)
         assert (S >= 0).all()
-        npt.assert_almost_equal(tensors.norm(S), tensors.norm(T))
+        npt.assert_almost_equal(tensors.norm(S).to_numpy(), tensors.norm(T).to_numpy())
 
         assert isinstance(U, ChargedTensor)
         assert isinstance(Vh, SymmetricTensor)
@@ -3474,9 +3474,9 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         # check that U @ S @ Vd recovers the original tensor up to the error incurred
         T_approx = U @ S @ Vh / renormalize
         if isinstance(T, ChargedTensor):
-            npt.assert_almost_equal(err, tensors.norm(T - T_approx))
+            npt.assert_almost_equal(err, tensors.norm(T - T_approx).to_numpy())
         else:
-            npt.assert_almost_equal(err, tensors.norm(T.as_SymmetricTensor() - T_approx))
+            npt.assert_almost_equal(err, tensors.norm(T.as_SymmetricTensor() - T_approx).to_numpy())
         # check isometric properties
         eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
         assert tensors.almost_equal(U.hc @ U, eye, allow_different_types=True)
@@ -3499,7 +3499,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
             assert isinstance(U, ChargedTensor)
             assert isinstance(Vh, SymmetricTensor)
             T_approx = U @ S @ Vh / renormalize
-            npt.assert_almost_equal(err, tensors.norm(T - T_approx))
+            npt.assert_almost_equal(err, tensors.norm(T - T_approx).to_numpy())
             eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
             U_iso = tensors.move_leg(U.invariant_part, U._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
             assert tensors.almost_equal(U_iso.hc @ U_iso, eye, allow_different_types=True)
@@ -4182,5 +4182,5 @@ def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
         pass  # TODO need to check some other way
 
     # norm(T) == sqrt(inner(T, T, do_dagger=True)); hidden legs are contracted implicitly.
-    npt.assert_almost_equal(tensors.norm(T) ** 2, tensors.inner(T, T, do_dagger=True))
-    npt.assert_almost_equal(tensors.norm(T2) ** 2, tensors.inner(T2, T2, do_dagger=True))
+    npt.assert_almost_equal((tensors.norm(T) ** 2).to_numpy(), tensors.inner(T, T, do_dagger=True).to_numpy())
+    npt.assert_almost_equal((tensors.norm(T2) ** 2).to_numpy(), tensors.inner(T2, T2, do_dagger=True).to_numpy())
