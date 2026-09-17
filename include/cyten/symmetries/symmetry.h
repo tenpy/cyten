@@ -4,6 +4,7 @@
 #include "symmetry_factor.h"
 
 #include <cstdint>
+#include <cyten/tools/hdf5.h>
 #include <optional>
 #include <string>
 #include <vector>
@@ -167,9 +168,13 @@ class Symmetry : public BaseSymmetry
     Ptr mul(SymmetryFactor::Ptr other) const;
     Ptr mul(Symmetry const& other) const;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
     /// Slice of product sector belonging to factor ``i``.
     Sector factor_sector(Sector const& a, std::size_t i) const;

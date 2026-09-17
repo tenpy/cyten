@@ -9,6 +9,7 @@
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include "tools/hdf5_bind.h"
 #include <memory>
 #include <optional>
 #include <string>
@@ -508,14 +509,14 @@ bind_tensor_backend(py::module_& m)
         "zero_mask_data", &TensorBackend::zero_mask_data, py::arg("large_leg"), py::arg("device"))
       .def("is_real", &TensorBackend::is_real, py::arg("a"), DOC(cyten, TensorBackend, is_real))
       .def("save_hdf5",
-           &TensorBackend::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5<TensorBackend>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"));
 
     py::object classmethod = py::module_::import("builtins").attr("classmethod");
     tensor_backend.attr("from_hdf5") = classmethod(
-      py::cpp_function(&TensorBackend::from_hdf5,
+      py::cpp_function(cyten::hdf5::wrap_from_hdf5_classmethod<TensorBackend>(),
                        py::name("from_hdf5"),
                        py::arg("cls"),
                        py::arg("hdf5_loader"),

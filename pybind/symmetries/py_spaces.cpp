@@ -16,6 +16,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <array>
 #include <cmath>
 #include <optional>
@@ -719,12 +720,12 @@ bind_elementary_space(py::module_& m)
            py::arg("is_dual"),
            DOC(cyten, ElementarySpace, with_is_dual))
       .def("save_hdf5",
-           &ElementarySpace::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<ElementarySpace>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &ElementarySpace::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<ElementarySpace>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"))
@@ -859,12 +860,12 @@ bind_direct_sum_space(py::module_& m)
                         "from_trivial_sector is not supported for DirectSumSpace");
                   })
       .def("save_hdf5",
-           &DirectSumSpace::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<DirectSumSpace>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &DirectSumSpace::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<DirectSumSpace>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -1101,12 +1102,12 @@ bind_tensor_product(py::module_& m)
       .def(
         "repr", &TensorProduct::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
       .def("save_hdf5",
-           &TensorProduct::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<TensorProduct>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &TensorProduct::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<TensorProduct>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -1259,12 +1260,12 @@ bind_abelian_leg_pipe(py::module_& m)
            py::arg("show_symmetry") = true,
            py::arg("one_line") = false)
       .def("save_hdf5",
-           &AbelianLegPipe::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<AbelianLegPipe>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &AbelianLegPipe::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<AbelianLegPipe>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/zn_anyon_category.h>
 
+#include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
@@ -23,7 +24,7 @@ bind_zn_anyon_category(py::module_& m)
       .def_readonly("N", &ZNAnyonCategory::N)
       .def_readonly("n", &ZNAnyonCategory::n)
       .def_static("from_hdf5",
-                  &ZNAnyonCategory::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<ZNAnyonCategory>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

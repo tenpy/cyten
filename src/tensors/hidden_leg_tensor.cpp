@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <stdexcept>
 #include <unordered_set>
@@ -26,8 +28,7 @@ is_dual_pair(std::string const& a, std::string const& b)
 check_public_labels_no_bang(LegLabels const& labs)
 {
     for (auto const& lab : labs) {
-        if (lab && !HiddenLegTensor::is_hidden_leg_label(lab) &&
-            label_contains_exclamation(lab)) {
+        if (lab && !HiddenLegTensor::is_hidden_leg_label(lab) && label_contains_exclamation(lab)) {
             throw std::invalid_argument(std::format(
               "Public label '{}' must not contain '{}'", *lab, HiddenLegTensor::HIDDEN_PREFIX));
         }
@@ -47,12 +48,12 @@ reject_exclamation_in_labels(LegLabels const& labels, std::string const& context
 {
     for (auto const& lab : labels) {
         if (label_contains_exclamation(lab)) {
-            throw std::invalid_argument(std::format(
-              "{}: leg labels must not contain '{}'; got '{}'. "
-              "Use HiddenLegTensor to hide legs, or ChargedTensor for a charge leg.",
-              context,
-              HiddenLegTensor::HIDDEN_PREFIX,
-              *lab));
+            throw std::invalid_argument(
+              std::format("{}: leg labels must not contain '{}'; got '{}'. "
+                          "Use HiddenLegTensor to hide legs, or ChargedTensor for a charge leg.",
+                          context,
+                          HiddenLegTensor::HIDDEN_PREFIX,
+                          *lab));
         }
     }
 }
@@ -69,9 +70,8 @@ HiddenLegTensor::is_charge_temp_label(LegLabel const& label)
         return true;
     }
     std::string_view suffix(label->begin() + 1, label->end());
-    if (std::all_of(suffix.begin(), suffix.end(), [](unsigned char c) {
-            return std::isdigit(c) != 0;
-        })) {
+    if (std::all_of(
+          suffix.begin(), suffix.end(), [](unsigned char c) { return std::isdigit(c) != 0; })) {
         return true;
     }
     if (suffix.size() == 1 && std::isupper(static_cast<unsigned char>(suffix[0])) != 0) {
@@ -120,10 +120,8 @@ HiddenLegTensor::add_hidden_prefix(std::string const& label)
           std::format("Label '{}' already starts with '{}'", label, HIDDEN_PREFIX));
     }
     if (label.find(HIDDEN_PREFIX) != std::string::npos) {
-        throw std::invalid_argument(
-          std::format("Label '{}' must not contain '{}' except as a hidden prefix",
-                      label,
-                      HIDDEN_PREFIX));
+        throw std::invalid_argument(std::format(
+          "Label '{}' must not contain '{}' except as a hidden prefix", label, HIDDEN_PREFIX));
     }
     return std::string(1, HIDDEN_PREFIX) + label;
 }
@@ -144,11 +142,11 @@ HiddenLegTensor::validate_no_dual_hidden_pair(LegLabels const& labels)
                   std::format("Duplicate hidden leg label '{}'", hidden[i]));
             }
             if (is_dual_pair(hidden[i], hidden[j])) {
-                throw std::invalid_argument(std::format(
-                  "HiddenLegTensor must not contain a dual pair of hidden labels "
-                  "('{}' and '{}')",
-                  hidden[i],
-                  hidden[j]));
+                throw std::invalid_argument(
+                  std::format("HiddenLegTensor must not contain a dual pair of hidden labels "
+                              "('{}' and '{}')",
+                              hidden[i],
+                              hidden[j]));
             }
         }
     }
@@ -290,8 +288,8 @@ HiddenLegTensor::copy(bool deep,
                       std::optional<std::string> device_opt,
                       std::optional<Dtype> dtype_opt)
 {
-    auto base =
-      std::dynamic_pointer_cast<SymmetricTensor>(SymmetricTensor::copy(deep, device_opt, dtype_opt));
+    auto base = std::dynamic_pointer_cast<SymmetricTensor>(
+      SymmetricTensor::copy(deep, device_opt, dtype_opt));
     assert(base);
     return std::make_shared<HiddenLegTensor>(std::move(base));
 }
@@ -333,8 +331,8 @@ HiddenLegTensor::set_label(int64 pos, LegLabel label)
 {
     pos = to_valid_idx(pos, num_legs);
     if (label && !is_hidden_leg_label(label) && label_contains_exclamation(label)) {
-        throw std::invalid_argument(std::format(
-          "Public label '{}' must not contain '{}'", *label, HIDDEN_PREFIX));
+        throw std::invalid_argument(
+          std::format("Public label '{}' must not contain '{}'", *label, HIDDEN_PREFIX));
     }
     LabelledLegs::set_label(pos, label);
     validate_no_dual_hidden_pair(labels());
@@ -374,21 +372,23 @@ HiddenLegTensor::maybe_wrap(SymmetricTensor::Ptr tensor)
 }
 
 void
-HiddenLegTensor::save_hdf5(py::object hdf5_saver,
-                           py::object h5gr,
+HiddenLegTensor::save_hdf5(cyten::hdf5::Saver& saver,
+                           HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
     // Store as SymmetricTensor data + flag
-    SymmetricTensor::save_hdf5(hdf5_saver, h5gr, subpath);
-    h5gr.attr("attrs")["is_hidden_leg_tensor"] = true;
+    SymmetricTensor::save_hdf5(saver, h5gr, subpath);
+    cyten::hdf5::py_set_group_attr("is_hidden_leg_tensor", py::cast(true));
 }
 
 HiddenLegTensor::Ptr
-HiddenLegTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+HiddenLegTensor::from_hdf5(cyten::hdf5::Loader& loader,
+                           HighFive::Group& h5gr,
+                           std::string const& subpath)
 {
-    auto sym = SymmetricTensor::from_hdf5(hdf5_loader, h5gr, subpath);
+    auto sym = SymmetricTensor::from_hdf5(loader, h5gr, subpath);
     auto obj = std::make_shared<HiddenLegTensor>(std::move(sym));
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

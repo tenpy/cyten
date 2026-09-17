@@ -3,6 +3,8 @@
 
 #include <cctype>
 #include <cstdlib>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -394,22 +396,24 @@ CytenConfig::str() const
 }
 
 void
-CytenConfig::save_hdf5(py::object hdf5_saver,
-                       py::object /*h5gr*/,
+CytenConfig::save_hdf5(cyten::hdf5::Saver& saver,
+                       HighFive::Group& /*h5gr*/,
                        const std::string& subpath) const
 {
     for (const auto& key : all_option_keys())
-        hdf5_saver.attr("save")(get_option(key), subpath + key);
+        cyten::hdf5::py_save(subpath + key, get_option(key));
 }
 
 CytenConfig
-CytenConfig::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
+CytenConfig::from_hdf5(cyten::hdf5::Loader& loader,
+                       HighFive::Group& h5gr,
+                       std::string const& subpath)
 {
     CytenConfig obj;
     py::dict options;
     for (const auto& key : all_option_keys()) {
         try {
-            options[py::str(key)] = hdf5_loader.attr("load")(subpath + key);
+            options[py::str(key)] = cyten::hdf5::py_load(subpath + key);
         } catch (py::error_already_set& e) {
             // Older files may omit newly added keys; keep the class default.
             if (!e.matches(PyExc_KeyError))
@@ -419,7 +423,7 @@ CytenConfig::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::strin
         }
     }
     obj.update(options);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

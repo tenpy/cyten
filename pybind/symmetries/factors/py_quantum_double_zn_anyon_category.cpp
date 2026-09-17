@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/quantum_double_zn_anyon_category.h>
 
+#include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
@@ -21,7 +22,7 @@ bind_quantum_double_zn_anyon_category(py::module_& m)
            py::arg("descriptive_name") = py::none())
       .def_readonly("N", &QuantumDoubleZNAnyonCategory::N)
       .def_static("from_hdf5",
-                  &QuantumDoubleZNAnyonCategory::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<QuantumDoubleZNAnyonCategory>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

@@ -4,6 +4,7 @@
 
 #include "symmetries/casters.hpp"
 
+#include "tools/hdf5_bind.h"
 #include <cyten/symmetries/factors/no_symmetry.h>
 
 namespace cyten {
@@ -14,7 +15,7 @@ bind_no_symmetry(py::module_& m)
     py::class_<NoSymmetry, AbelianGroup, py::smart_holder>(m, "NoSymmetry", DOC(cyten, NoSymmetry))
       .def(py::init<>())
       .def_static("from_hdf5",
-                  &NoSymmetry::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<NoSymmetry>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

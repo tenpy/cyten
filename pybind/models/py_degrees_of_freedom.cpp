@@ -4,6 +4,7 @@
 #include "../py_cyten_pybind11.h"
 #include "docstrings/models/degrees_of_freedom.h"
 
+#include "tools/hdf5_bind.h"
 #include <cmath>
 #include <optional>
 #include <string>
@@ -107,7 +108,7 @@ bind_models_degrees_of_freedom(py::module_& m)
         "state_indices", &Site::state_indices, py::arg("labels"), DOC(cyten, Site, state_indices))
       .def("__repr__", &Site::repr)
       .def("save_hdf5",
-           &Site::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<Site>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
@@ -115,7 +116,7 @@ bind_models_degrees_of_freedom(py::module_& m)
 
     py::object classmethod = py::module_::import("builtins").attr("classmethod");
     site.attr("from_hdf5") =
-      classmethod(py::cpp_function(&Site::from_hdf5,
+      classmethod(py::cpp_function(cyten::hdf5::wrap_from_hdf5_classmethod<Site>(),
                                    py::name("from_hdf5"),
                                    py::arg("cls"),
                                    py::arg("hdf5_loader"),

@@ -7,6 +7,7 @@
 #include <cyten/symmetries/spaces.h>
 #include <cyten/symmetries/trees.h>
 
+#include <cyten/tools/hdf5.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -88,9 +89,13 @@ class AbelianBackendData : public TensorBackend::Data
     /// Get the block at given block indices, or ``nullptr`` if none exists.
     BlockBackend::BlockPtr get_block(BlockInds const& block_inds) const;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 };
 
 /// Charge-allowed block index combinations for ``codomain`` / ``domain``, lexsorted.

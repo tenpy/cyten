@@ -2,6 +2,7 @@
 
 #include "../group.h"
 
+#include <cyten/tools/hdf5.h>
 #include <optional>
 #include <string>
 #include <vector>
@@ -98,10 +99,12 @@ class SUN : public Group
     /// checked by the cyten tests for SU(N) symmetry.
     void sanity_check_hdf5(py::object file) const;
 
-    void save_hdf5(py::object hdf5_saver,
-                   py::object h5gr,
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
                    std::string const& subpath) const override;
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 };
 
 } // namespace cyten

@@ -18,6 +18,8 @@
 
 #include <cassert>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <functional>
 #include <numeric>
@@ -553,20 +555,22 @@ Site::hdf5_init_kwargs() const
 }
 
 void
-Site::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string const& subpath) const
+Site::save_hdf5(cyten::hdf5::Saver& saver,
+                HighFive::Group& /*h5gr*/,
+                std::string const& subpath) const
 {
-    hdf5_saver.attr("save")(hdf5_init_kwargs(), subpath + "init_kwargs");
+    cyten::hdf5::py_save(subpath + "init_kwargs", hdf5_init_kwargs());
 }
 
 py::object
 Site::from_hdf5(py::object cls,
-                py::object hdf5_loader,
-                py::object h5gr,
+                cyten::hdf5::Loader& loader,
+                HighFive::Group& h5gr,
                 std::string const& subpath)
 {
-    py::dict kwargs = hdf5_loader.attr("load")(subpath + "init_kwargs").cast<py::dict>();
+    py::dict kwargs = cyten::hdf5::py_load(subpath + "init_kwargs").cast<py::dict>();
     py::object obj = cls(**kwargs);
-    hdf5_loader.attr("memorize_load")(h5gr, obj);
+    cyten::hdf5::py_memorize_load(h5gr, obj);
     return obj;
 }
 

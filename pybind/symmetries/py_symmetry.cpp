@@ -8,6 +8,7 @@
 #include <cyten/symmetries/symmetry.h>
 #include <cyten/symmetries/symmetry_factor.h>
 
+#include "tools/hdf5_bind.h"
 #include <memory>
 #include <vector>
 
@@ -226,12 +227,12 @@ bind_symmetry(py::module_& m)
                return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
            })
       .def("save_hdf5",
-           &Symmetry::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<Symmetry>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &Symmetry::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<Symmetry>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

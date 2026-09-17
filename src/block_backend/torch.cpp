@@ -2,6 +2,8 @@
 #include <cyten/tools.h>
 #include <cyten/tools/warn.h>
 
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <map>
 #include <mutex>
 #include <numeric>
@@ -495,25 +497,24 @@ TorchBlockBackend::Block::pow(const BlockBackend::Block& exponent) const
 }
 
 void
-TorchBlockBackend::Block::save_hdf5(py::object hdf5_saver,
-                                    py::object /*h5gr*/,
+TorchBlockBackend::Block::save_hdf5(cyten::hdf5::Saver& saver,
+                                    HighFive::Group& /*h5gr*/,
                                     const std::string& subpath)
 {
-    hdf5_saver.attr("save")(to_numpy(), subpath + std::string("arr"));
-    hdf5_saver.attr("save")(device_, subpath + std::string("device"));
+    cyten::hdf5::py_save(subpath + std::string("arr"), to_numpy());
+    cyten::hdf5::py_save(subpath + std::string("device"), device_);
 }
 
 std::shared_ptr<TorchBlockBackend::Block>
-TorchBlockBackend::Block::from_hdf5(py::object hdf5_loader,
-                                    py::object h5gr,
-                                    const std::string& subpath)
+TorchBlockBackend::Block::from_hdf5(cyten::hdf5::Loader& loader,
+                                    HighFive::Group& h5gr,
+                                    std::string const& subpath)
 {
-    py::array arr = hdf5_loader.attr("load")(subpath + std::string("arr")).cast<py::array>();
+    py::array arr = cyten::hdf5::py_load(subpath + std::string("arr")).cast<py::array>();
     // Older files omit device; treat as factory default (cpu).
     std::string saved_device;
     try {
-        saved_device =
-          hdf5_loader.attr("load")(subpath + std::string("device")).cast<std::string>();
+        saved_device = cyten::hdf5::py_load(subpath + std::string("device")).cast<std::string>();
     } catch (py::error_already_set&) {
         PyErr_Clear();
         saved_device.clear();
@@ -521,7 +522,7 @@ TorchBlockBackend::Block::from_hdf5(py::object hdf5_loader,
     std::string device = device_for_hdf5_load(saved_device);
     torch::Tensor t = tensor_from_numpy_array(arr).to(canonicalize_torch_device(device));
     auto obj = std::make_shared<TorchBlockBackend::Block>(std::move(t));
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 
@@ -734,12 +735,14 @@ TorchBlockBackend::get_backend_name() const
 }
 
 std::shared_ptr<TorchBlockBackend>
-TorchBlockBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
+TorchBlockBackend::from_hdf5(cyten::hdf5::Loader& loader,
+                             HighFive::Group& h5gr,
+                             std::string const& subpath)
 {
     std::string device =
-      hdf5_loader.attr("load")(subpath + std::string("default_device")).cast<std::string>();
+      cyten::hdf5::py_load(subpath + std::string("default_device")).cast<std::string>();
     auto obj = TorchBlockBackend::from_factory_shared(device_for_hdf5_load(device));
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

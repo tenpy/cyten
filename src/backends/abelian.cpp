@@ -13,6 +13,8 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <functional>
 #include <map>
@@ -109,24 +111,26 @@ AbelianBackendData::get_block(BlockInds const& query) const
 }
 
 void
-AbelianBackendData::save_hdf5(py::object hdf5_saver,
-                              py::object /*h5gr*/,
+AbelianBackendData::save_hdf5(cyten::hdf5::Saver& saver,
+                              HighFive::Group& /*h5gr*/,
                               std::string const& subpath) const
 {
-    hdf5_saver.attr("save")(block_inds_to_numpy(block_inds), subpath + "block_inds");
-    hdf5_saver.attr("save")(blocks, subpath + "blocks");
-    hdf5_saver.attr("save")(dtype::to_numpy_dtype(dtype), subpath + "dtype");
-    hdf5_saver.attr("save")(device, subpath + "device");
+    cyten::hdf5::py_save(subpath + "block_inds", block_inds_to_numpy(block_inds));
+    cyten::hdf5::py_save(subpath + "blocks", blocks);
+    cyten::hdf5::py_save(subpath + "dtype", dtype::to_numpy_dtype(dtype));
+    cyten::hdf5::py_save(subpath + "device", device);
 }
 
 AbelianBackendData::Ptr
-AbelianBackendData::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+AbelianBackendData::from_hdf5(cyten::hdf5::Loader& loader,
+                              HighFive::Group& h5gr,
+                              std::string const& subpath)
 {
-    auto block_inds = block_inds_from_numpy(hdf5_loader.attr("load")(subpath + "block_inds"));
+    auto block_inds = block_inds_from_numpy(cyten::hdf5::py_load(subpath + "block_inds"));
     auto blocks =
-      hdf5_loader.attr("load")(subpath + "blocks").cast<std::vector<BlockBackend::BlockPtr>>();
-    auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
-    py::object dt = hdf5_loader.attr("load")(subpath + "dtype");
+      cyten::hdf5::py_load(subpath + "blocks").cast<std::vector<BlockBackend::BlockPtr>>();
+    auto device = cyten::hdf5::py_load(subpath + "device").cast<std::string>();
+    py::object dt = cyten::hdf5::py_load(subpath + "dtype");
     Dtype dtype = dtype::from_numpy_dtype(dt);
 
     // Blocks may have fallen back to another device (e.g. GPU → CPU); keep Data in sync.
@@ -136,7 +140,7 @@ AbelianBackendData::from_hdf5(py::object hdf5_loader, py::object h5gr, std::stri
 
     auto obj = std::make_shared<AbelianBackendData>(
       dtype, std::move(device), std::move(blocks), std::move(block_inds), /*is_sorted=*/true);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

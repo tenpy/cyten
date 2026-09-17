@@ -4,6 +4,8 @@
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -280,21 +282,21 @@ TensorBackend::is_real(TensorCPtr a)
 }
 
 void
-TensorBackend::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string subpath)
+TensorBackend::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string subpath)
 {
-    hdf5_saver.attr("save")(block_backend, subpath + "block_backend");
+    cyten::hdf5::py_save(subpath + "block_backend", block_backend);
 }
 
 TensorBackend::Ptr
 TensorBackend::from_hdf5(py::object cls,
-                         py::object hdf5_loader,
-                         py::object h5gr,
+                         cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
                          std::string subpath)
 {
     auto block_backend =
-      hdf5_loader.attr("load")(subpath + "block_backend").cast<std::shared_ptr<BlockBackend>>();
+      cyten::hdf5::py_load(subpath + "block_backend").cast<std::shared_ptr<BlockBackend>>();
     py::object obj = cls(block_backend);
-    hdf5_loader.attr("memorize_load")(h5gr, obj);
+    cyten::hdf5::py_memorize_load(h5gr, obj);
     return obj.cast<Ptr>();
 }
 

@@ -1,6 +1,7 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/sector.h"
 #include "py_cyten_pybind11.h"
+#include "tools/hdf5_bind.h"
 
 #include <cyten/symmetries/sector.h>
 #include <cyten/symmetries/sector_numpy.h>
@@ -230,26 +231,16 @@ bind_sector(py::module_& m)
         "to_numpy",
         [](Sector const& self) { return sector_to_numpy(self); },
         "Return a copy as a 1D ``int64`` NumPy array.")
-      .def(
-        "save_hdf5",
-        [](
-          Sector const& self, py::object hdf5_saver, py::object h5gr, std::string const& subpath) {
-            self.save_hdf5(hdf5_saver, h5gr, subpath);
-        },
-        py::arg("hdf5_saver"),
-        py::arg("h5gr"),
-        py::arg("subpath"))
-      .def_static(
-        "from_hdf5",
-        [](py::object hdf5_loader, py::object h5gr, std::string const& subpath) {
-            Sector obj = Sector::from_hdf5(hdf5_loader, h5gr, subpath);
-            py::object py_obj = py::cast(obj);
-            hdf5_loader.attr("memorize_load")(h5gr, py_obj);
-            return py_obj;
-        },
-        py::arg("hdf5_loader"),
-        py::arg("h5gr"),
-        py::arg("subpath"));
+      .def("save_hdf5",
+           cyten::hdf5::wrap_save_hdf5_const<Sector>(),
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"))
+      .def_static("from_hdf5",
+                  cyten::hdf5::wrap_from_hdf5<Sector>(),
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 
     py::implicitly_convertible<py::array, Sector>();
 
@@ -448,26 +439,16 @@ bind_sector(py::module_& m)
         py::arg("b"),
         py::arg("a_strict") = true,
         py::arg("b_strict") = true)
-      .def(
-        "save_hdf5",
-        [](SectorArray const& self,
-           py::object hdf5_saver,
-           py::object h5gr,
-           std::string const& subpath) { self.save_hdf5(hdf5_saver, h5gr, subpath); },
-        py::arg("hdf5_saver"),
-        py::arg("h5gr"),
-        py::arg("subpath"))
-      .def_static(
-        "from_hdf5",
-        [](py::object hdf5_loader, py::object h5gr, std::string const& subpath) {
-            SectorArray obj = SectorArray::from_hdf5(hdf5_loader, h5gr, subpath);
-            py::object py_obj = py::cast(obj);
-            hdf5_loader.attr("memorize_load")(h5gr, py_obj);
-            return py_obj;
-        },
-        py::arg("hdf5_loader"),
-        py::arg("h5gr"),
-        py::arg("subpath"));
+      .def("save_hdf5",
+           cyten::hdf5::wrap_save_hdf5_const<SectorArray>(),
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"))
+      .def_static("from_hdf5",
+                  cyten::hdf5::wrap_from_hdf5<SectorArray>(),
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 
     py::implicitly_convertible<py::array, SectorArray>();
 }

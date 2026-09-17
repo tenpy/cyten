@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <numeric>
 #include <ranges>
@@ -1835,43 +1837,46 @@ ElementarySpace::ascii_arrow() const
 }
 
 void
-ElementarySpace::save_hdf5(py::object hdf5_saver,
-                           py::object h5gr,
+ElementarySpace::save_hdf5(cyten::hdf5::Saver& saver,
+                           HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
-    auto save = hdf5_saver.attr("save");
-    save(py::cast(defining_sectors), subpath + "defining_sectors");
-    save(py::cast(sector_decomposition), subpath + "sector_decomposition");
-    save(sector_order ? py::cast(*sector_order) : py::none(), subpath + "sector_order");
-    save(optional_perm_to_py(_basis_perm), subpath + "_basis_perm");
-    save(optional_perm_to_py(_inverse_basis_perm), subpath + "_inverse_basis_perm");
-    save(vector_to_array(multiplicities), subpath + "multiplicities");
-    save(py::cast(Space::symmetry), subpath + "symmetry");
-    save(py::int_(static_cast<long long>(Space::dim)), subpath + "dim");
-    save(py::int_(num_sectors), subpath + "num_sectors");
-    save(slices_to_py(slices), subpath + "slices");
-    save(sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none(),
-         subpath + "sector_dims");
+    cyten::hdf5::py_save(subpath + "defining_sectors", py::cast(defining_sectors));
+    cyten::hdf5::py_save(subpath + "sector_decomposition", py::cast(sector_decomposition));
+    cyten::hdf5::py_save(subpath + "sector_order",
+                         sector_order ? py::cast(*sector_order) : py::none());
+    cyten::hdf5::py_save(subpath + "_basis_perm", optional_perm_to_py(_basis_perm));
+    cyten::hdf5::py_save(subpath + "_inverse_basis_perm",
+                         optional_perm_to_py(_inverse_basis_perm));
+    cyten::hdf5::py_save(subpath + "multiplicities", vector_to_array(multiplicities));
+    cyten::hdf5::py_save(subpath + "symmetry", py::cast(Space::symmetry));
+    cyten::hdf5::py_save(subpath + "dim", py::int_(static_cast<long long>(Space::dim)));
+    cyten::hdf5::py_save(subpath + "num_sectors", py::int_(num_sectors));
+    cyten::hdf5::py_save(subpath + "slices", slices_to_py(slices));
+    cyten::hdf5::py_save(subpath + "sector_dims",
+                         sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none());
 
-    h5gr.attr("attrs")["is_dual"] = is_dual;
+    cyten::hdf5::py_set_group_attr("is_dual", py::cast(is_dual));
 }
 
 ElementarySpace::Ptr
-ElementarySpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+ElementarySpace::from_hdf5(cyten::hdf5::Loader& loader,
+                           HighFive::Group& h5gr,
+                           std::string const& subpath)
 {
-    auto load = hdf5_loader.attr("load");
-    auto symmetry = load(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto defining_sectors = load(subpath + "defining_sectors").cast<SectorArray>();
-    auto multiplicities = py_array_to_i64(py::array::ensure(load(subpath + "multiplicities")));
-    auto basis_perm = optional_perm_from_py(load(subpath + "_basis_perm"));
-    auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
+    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto defining_sectors = cyten::hdf5::py_load(subpath + "defining_sectors").cast<SectorArray>();
+    auto multiplicities =
+      py_array_to_i64(py::array::ensure(cyten::hdf5::py_load(subpath + "multiplicities")));
+    auto basis_perm = optional_perm_from_py(cyten::hdf5::py_load(subpath + "_basis_perm"));
+    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
     auto obj = std::make_shared<ElementarySpace>(std::move(symmetry),
                                                  std::move(defining_sectors),
                                                  std::move(multiplicities),
                                                  is_dual,
                                                  std::move(basis_perm));
     py::object py_obj = py::cast(obj);
-    hdf5_loader.attr("memorize_load")(h5gr, py_obj);
+    cyten::hdf5::py_memorize_load(h5gr, py_obj);
     return obj;
 }
 
@@ -2233,31 +2238,33 @@ DirectSumSpace::from_trivial_sector(int64 /*dim*/,
 }
 
 void
-DirectSumSpace::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+DirectSumSpace::save_hdf5(cyten::hdf5::Saver& saver,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath) const
 {
-    ElementarySpace::save_hdf5(hdf5_saver, h5gr, subpath);
-    auto save = hdf5_saver.attr("save");
+    ElementarySpace::save_hdf5(saver, h5gr, subpath);
     py::list spaces_list;
     for (auto const& s : spaces) {
         spaces_list.append(py::cast(s));
     }
-    save(spaces_list, subpath + "spaces");
-    h5gr.attr("attrs")["is_direct_sum_space"] = true;
+    cyten::hdf5::py_save(subpath + "spaces", spaces_list);
+    cyten::hdf5::py_set_group_attr("is_direct_sum_space", py::cast(true));
 }
 
 DirectSumSpace::Ptr
-DirectSumSpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+DirectSumSpace::from_hdf5(cyten::hdf5::Loader& loader,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath)
 {
-    auto load = hdf5_loader.attr("load");
-    auto spaces_obj = load(subpath + "spaces");
+    auto spaces_obj = cyten::hdf5::py_load(subpath + "spaces");
     std::vector<ElementarySpace::Ptr> spaces_;
     for (py::handle item : spaces_obj) {
         spaces_.push_back(item.cast<ElementarySpace::Ptr>());
     }
-    auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
+    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
     auto obj = from_spaces(std::move(spaces_), is_dual);
     py::object py_obj = py::cast(obj);
-    hdf5_loader.attr("memorize_load")(h5gr, py_obj);
+    cyten::hdf5::py_memorize_load(h5gr, py_obj);
     return obj;
 }
 
@@ -3118,43 +3125,48 @@ TensorProduct::calc_sectors(std::vector<Leg::Ptr> const& factors_) const
 }
 
 void
-TensorProduct::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+TensorProduct::save_hdf5(cyten::hdf5::Saver& saver,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath) const
 {
     (void)h5gr;
-    auto save = hdf5_saver.attr("save");
     py::list factor_list;
     for (auto const& factor : factors) {
         factor_list.append(py::cast(factor));
     }
-    save(factor_list, subpath + "factors");
-    save(slices_to_py(slices), subpath + "slices");
-    save(py::cast(symmetry), subpath + "symmetry");
-    save(py::int_(num_sectors), subpath + "num_sectors");
-    save(py::int_(num_factors), subpath + "num_factors");
-    save(py::cast(sector_decomposition), subpath + "sector_decomposition");
-    save(sector_order ? py::cast(*sector_order) : py::none(), subpath + "sector_order");
-    save(dim_to_py(dim), subpath + "dim");
-    save(vector_to_array(multiplicities), subpath + "multiplicities");
-    save(sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none(),
-         subpath + "sector_dims");
+    cyten::hdf5::py_save(subpath + "factors", factor_list);
+    cyten::hdf5::py_save(subpath + "slices", slices_to_py(slices));
+    cyten::hdf5::py_save(subpath + "symmetry", py::cast(symmetry));
+    cyten::hdf5::py_save(subpath + "num_sectors", py::int_(num_sectors));
+    cyten::hdf5::py_save(subpath + "num_factors", py::int_(num_factors));
+    cyten::hdf5::py_save(subpath + "sector_decomposition", py::cast(sector_decomposition));
+    cyten::hdf5::py_save(subpath + "sector_order",
+                         sector_order ? py::cast(*sector_order) : py::none());
+    cyten::hdf5::py_save(subpath + "dim", dim_to_py(dim));
+    cyten::hdf5::py_save(subpath + "multiplicities", vector_to_array(multiplicities));
+    cyten::hdf5::py_save(subpath + "sector_dims",
+                         sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none());
 }
 
 TensorProduct::Ptr
-TensorProduct::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+TensorProduct::from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath)
 {
-    auto load = hdf5_loader.attr("load");
-    auto symmetry = load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
     std::vector<Leg::Ptr> factors;
-    for (py::handle factor : load(subpath + "factors")) {
+    for (py::handle factor : cyten::hdf5::py_load(subpath + "factors")) {
         factors.push_back(factor.cast<Leg::Ptr>());
     }
-    auto sector_decomposition = load(subpath + "sector_decomposition").cast<SectorArray>();
-    auto multiplicities = py_array_to_i64(py::array::ensure(load(subpath + "multiplicities")));
+    auto sector_decomposition =
+      cyten::hdf5::py_load(subpath + "sector_decomposition").cast<SectorArray>();
+    auto multiplicities =
+      py_array_to_i64(py::array::ensure(cyten::hdf5::py_load(subpath + "multiplicities")));
     auto obj = std::make_shared<TensorProduct>(std::move(factors),
                                                std::move(symmetry),
                                                std::move(sector_decomposition),
                                                std::move(multiplicities));
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 
@@ -3872,31 +3884,35 @@ AbelianLegPipe::repr(bool show_symmetry, bool one_line) const
 }
 
 void
-AbelianLegPipe::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+AbelianLegPipe::save_hdf5(cyten::hdf5::Saver& saver,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath) const
 {
     // note: the Python class inherits ElementarySpace.save_hdf5, which does not store the pipe
     // structure. We additionally store the legs and combine_cstyle, such that from_hdf5 can
     // reconstruct the pipe.
-    ElementarySpace::save_hdf5(hdf5_saver, h5gr, subpath);
+    ElementarySpace::save_hdf5(saver, h5gr, subpath);
     py::list leg_list;
     for (auto const& leg : legs) {
         leg_list.append(py::cast(leg));
     }
-    hdf5_saver.attr("save")(leg_list, subpath + "legs");
-    h5gr.attr("attrs")["combine_cstyle"] = combine_cstyle;
+    cyten::hdf5::py_save(subpath + "legs", leg_list);
+    cyten::hdf5::py_set_group_attr("combine_cstyle", py::cast(combine_cstyle));
 }
 
 AbelianLegPipe::Ptr
-AbelianLegPipe::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+AbelianLegPipe::from_hdf5(cyten::hdf5::Loader& loader,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath)
 {
     std::vector<ElementarySpace::Ptr> legs;
-    for (py::handle item : hdf5_loader.attr("load")(subpath + "legs")) {
+    for (py::handle item : cyten::hdf5::py_load(subpath + "legs")) {
         legs.push_back(item.cast<ElementarySpace::Ptr>());
     }
-    auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
-    auto const combine_cstyle = hdf5_loader.attr("get_attr")(h5gr, "combine_cstyle").cast<bool>();
+    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
+    auto const combine_cstyle = cyten::hdf5::py_get_attr(h5gr, "combine_cstyle").cast<bool>();
     auto obj = std::make_shared<AbelianLegPipe>(std::move(legs), is_dual, combine_cstyle);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

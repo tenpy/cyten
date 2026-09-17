@@ -13,6 +13,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cyten/tools/hdf5.h>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -423,9 +424,13 @@ class ElementarySpace
 
     std::string ascii_arrow() const override;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
     /// If this is a `DirectSumSpace` (default: false).
     [[nodiscard]] virtual bool is_direct_sum_space() const { return false; }
@@ -549,9 +554,13 @@ class DirectSumSpace : public ElementarySpace
                                    bool is_dual = false,
                                    std::optional<std::vector<int64>> basis_perm = std::nullopt);
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
   private:
     struct Prepared
@@ -719,9 +728,13 @@ class TensorProduct : public Space
     [[nodiscard]] std::pair<SectorArray, std::vector<int64>> calc_sectors(
       std::vector<Leg::Ptr> const& factors) const;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
   private:
     /// Arguments of the `Space` base, which is initialized before the constructor body.
@@ -884,7 +897,9 @@ class AbelianLegPipe
     /// The `legs`, downcast to `ElementarySpace`.
     [[nodiscard]] std::vector<ElementarySpace::Ptr> es_legs() const;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     /// Special case of a `LegPipe` for abelian group symmetries.
     ///
@@ -929,7 +944,9 @@ class AbelianLegPipe
     ///     Map for the embedding of uncoupled to coupled indices, see notes of the Python class.
     ///     Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
     ///     i.e. ``M == prod(leg.num_sectors for leg in legs)`` and ``N == 3 + len(legs)``.
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
   private:
     struct Prepared

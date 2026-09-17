@@ -12,6 +12,7 @@
 
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <map>
 #include <optional>
 #include <string>
@@ -401,13 +402,13 @@ bind_tensors_symmetric_tensor(py::module_& m)
             &SymmetricTensor::to_dense_block_trivial_sector,
             DOC(cyten, SymmetricTensor, to_dense_block_trivial_sector));
     cls.def("save_hdf5",
-            &SymmetricTensor::save_hdf5,
+            cyten::hdf5::wrap_save_hdf5_const<SymmetricTensor>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
             DOC(cyten, SymmetricTensor, save_hdf5));
     cls.def_static("from_hdf5",
-                   &SymmetricTensor::from_hdf5,
+                   cyten::hdf5::wrap_from_hdf5<SymmetricTensor>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),

@@ -12,6 +12,7 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <format>
 #include <optional>
 #include <stdexcept>
@@ -223,14 +224,14 @@ bind_tensors_mask(py::module_& m)
       DOC(cyten, Mask, from_zero));
 
     cls.def_static("from_hdf5",
-                   &Mask::from_hdf5,
+                   cyten::hdf5::wrap_from_hdf5<Mask>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
                    DOC(cyten, Mask, from_hdf5));
 
     cls.def("save_hdf5",
-            &Mask::save_hdf5,
+            cyten::hdf5::wrap_save_hdf5_const<Mask>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),

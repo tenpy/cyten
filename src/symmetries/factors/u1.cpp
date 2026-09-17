@@ -1,6 +1,8 @@
 #include <cyten/symmetries/factors/u1.h>
 
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <limits>
 #include <utility>
 
@@ -91,12 +93,12 @@ U1::_is_equivalent_factor(SymmetryFactor const& other) const
 }
 
 U1::Ptr
-U1::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+U1::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
-    bool trivial_shift = trivial_shift_from_hdf5(hdf5_loader, subpath);
+    bool trivial_shift = trivial_shift_from_hdf5(loader, subpath);
     auto obj = std::make_shared<U1>(name, trivial_shift);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

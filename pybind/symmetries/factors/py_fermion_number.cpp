@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/fermion_number.h>
 
+#include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
@@ -20,7 +21,7 @@ bind_fermion_number(py::module_& m)
            py::arg("descriptive_name") = py::none(),
            py::arg("trivial_shift") = true)
       .def_static("from_hdf5",
-                  &FermionNumber::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<FermionNumber>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

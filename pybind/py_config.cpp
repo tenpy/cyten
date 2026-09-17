@@ -1,6 +1,7 @@
 #include <cyten/config.h>
 
 #include "py_cyten_pybind11.h"
+#include "tools/hdf5_bind.h"
 
 namespace py = pybind11;
 namespace cyten {
@@ -89,13 +90,13 @@ bind_config(py::module_& m)
       .def("__str__", &CytenConfig::str)
       .def("__repr__", &CytenConfig::str)
       .def("save_hdf5",
-           &CytenConfig::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<CytenConfig>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Export config to hdf5 such that it can be re-imported with from_hdf5")
       .def_static("from_hdf5",
-                  &CytenConfig::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<CytenConfig>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),

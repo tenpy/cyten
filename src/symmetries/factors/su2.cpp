@@ -5,6 +5,8 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -232,11 +234,11 @@ SU2::Z_iso(Sector a) const
 }
 
 SU2::Ptr
-SU2::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& /*subpath*/)
+SU2::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& /*subpath*/)
 {
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
     auto obj = std::make_shared<SU2>(name);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

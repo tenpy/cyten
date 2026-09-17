@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/u1.h>
 
+#include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
@@ -18,8 +19,11 @@ bind_u1(py::module_& m)
       .def(py::init<std::optional<std::string>, bool>(),
            py::arg("descriptive_name") = py::none(),
            py::arg("trivial_shift") = true)
-      .def_static(
-        "from_hdf5", &U1::from_hdf5, py::arg("hdf5_loader"), py::arg("h5gr"), py::arg("subpath"));
+      .def_static("from_hdf5",
+                  cyten::hdf5::wrap_from_hdf5<U1>(),
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 }
 
 } // namespace cyten

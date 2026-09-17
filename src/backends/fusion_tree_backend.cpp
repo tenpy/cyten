@@ -30,6 +30,8 @@
 #include <vector>
 
 #include <cyten/symmetries/fusion_symbol.h>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 
 namespace cyten {
 
@@ -120,22 +122,24 @@ FusionTreeData::discard_zero_blocks(std::shared_ptr<BlockBackend> backend, float
 }
 
 void
-FusionTreeData::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string subpath) const
+FusionTreeData::save_hdf5(cyten::hdf5::Saver& saver,
+                          HighFive::Group& /*h5gr*/,
+                          std::string subpath) const
 {
-    hdf5_saver.attr("save")(block_inds_to_numpy(block_inds), subpath + "block_inds");
-    hdf5_saver.attr("save")(blocks, subpath + "blocks");
-    hdf5_saver.attr("save")(dtype, subpath + "dtype");
-    hdf5_saver.attr("save")(device, subpath + "device");
+    cyten::hdf5::py_save(subpath + "block_inds", block_inds_to_numpy(block_inds));
+    cyten::hdf5::py_save(subpath + "blocks", blocks);
+    cyten::hdf5::py_save(subpath + "dtype", dtype);
+    cyten::hdf5::py_save(subpath + "device", device);
 }
 
 FusionTreeData::Ptr
-FusionTreeData::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath)
+FusionTreeData::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string subpath)
 {
-    auto block_inds = block_inds_from_numpy(hdf5_loader.attr("load")(subpath + "block_inds"));
+    auto block_inds = block_inds_from_numpy(cyten::hdf5::py_load(subpath + "block_inds"));
     auto blocks =
-      hdf5_loader.attr("load")(subpath + "blocks").cast<std::vector<BlockBackend::BlockPtr>>();
-    auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
-    auto dtype = hdf5_loader.attr("load")(subpath + "dtype").cast<Dtype>();
+      cyten::hdf5::py_load(subpath + "blocks").cast<std::vector<BlockBackend::BlockPtr>>();
+    auto device = cyten::hdf5::py_load(subpath + "device").cast<std::string>();
+    auto dtype = cyten::hdf5::py_load(subpath + "dtype").cast<Dtype>();
 
     // Blocks may have fallen back to another device (e.g. GPU → CPU); keep Data in sync.
     if (!blocks.empty()) {
@@ -145,7 +149,7 @@ FusionTreeData::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string s
     // Already sorted when saved; skip lexsort.
     auto obj = std::make_shared<FusionTreeData>(
       std::move(block_inds), std::move(blocks), dtype, std::move(device), /*is_sorted=*/true);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

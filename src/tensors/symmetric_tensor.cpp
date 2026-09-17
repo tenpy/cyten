@@ -12,6 +12,8 @@
 #include <cyten/tools/warn.h>
 
 #include <cassert>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <numeric>
 #include <ranges>
@@ -856,42 +858,44 @@ SymmetricTensor::to_dense_block_trivial_sector() const
 }
 
 void
-SymmetricTensor::save_hdf5(py::object hdf5_saver,
-                           py::object h5gr,
+SymmetricTensor::save_hdf5(cyten::hdf5::Saver& saver,
+                           HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
     /// Export SymmetricTensor to hdf5 such that it can be re-imported with from_hdf5
-    hdf5_saver.attr("save")(py::cast(domain), subpath + "domain");
-    hdf5_saver.attr("save")(py::cast(codomain), subpath + "codomain");
-    hdf5_saver.attr("save")(py::cast(backend), subpath + "backend");
-    hdf5_saver.attr("save")(py::cast(data), subpath + "data");
-    hdf5_saver.attr("save")(py::cast(symmetry), subpath + "symmetry");
-    hdf5_saver.attr("save")(dtype::to_numpy_dtype(dtype), subpath + "dtype");
-    hdf5_saver.attr("save")(device, subpath + "device");
-    h5gr.attr("attrs")["num_legs"] = num_legs;
-    h5gr.attr("attrs")["shape"] = py::cast(shape);
-    h5gr.attr("attrs")["cls"] = class_name();
+    cyten::hdf5::py_save(subpath + "domain", py::cast(domain));
+    cyten::hdf5::py_save(subpath + "codomain", py::cast(codomain));
+    cyten::hdf5::py_save(subpath + "backend", py::cast(backend));
+    cyten::hdf5::py_save(subpath + "data", py::cast(data));
+    cyten::hdf5::py_save(subpath + "symmetry", py::cast(symmetry));
+    cyten::hdf5::py_save(subpath + "dtype", dtype::to_numpy_dtype(dtype));
+    cyten::hdf5::py_save(subpath + "device", device);
+    cyten::hdf5::py_set_group_attr("num_legs", py::cast(num_legs));
+    cyten::hdf5::py_set_group_attr("shape", py::cast(shape));
+    cyten::hdf5::py_set_group_attr("cls", py::cast(class_name()));
     if (std::ranges::all_of(_labels, [](LegLabel const& l) { return !l; })) {
-        h5gr.attr("attrs")["labels"] = py::list();
+        cyten::hdf5::py_set_group_attr("labels", py::list());
     } else {
-        h5gr.attr("attrs")["labels"] = py::cast(_labels);
+        cyten::hdf5::py_set_group_attr("labels", py::cast(_labels));
     }
 }
 
 SymmetricTensor::Ptr
-SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+SymmetricTensor::from_hdf5(cyten::hdf5::Loader& loader,
+                           HighFive::Group& h5gr,
+                           std::string const& subpath)
 {
     /// Import SymmetricTensor from hdf5
-    auto domain = hdf5_loader.attr("load")(subpath + "domain").cast<TensorProduct::Ptr>();
-    auto codomain = hdf5_loader.attr("load")(subpath + "codomain").cast<TensorProduct::Ptr>();
-    auto symmetry = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto backend = hdf5_loader.attr("load")(subpath + "backend").cast<TensorBackend::Ptr>();
-    auto data = hdf5_loader.attr("load")(subpath + "data").cast<TensorBackend::DataPtr>();
-    (void)hdf5_loader.attr("load")(subpath + "device"); // device follows loaded blocks / fallback
-    auto dt = dtype::from_numpy_dtype(hdf5_loader.attr("load")(subpath + "dtype"));
-    (void)hdf5_loader.attr("get_attr")(h5gr, "num_legs");
-    auto shape = hdf5_loader.attr("get_attr")(h5gr, "shape").cast<std::vector<float64>>();
-    auto labels = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
+    auto domain = cyten::hdf5::py_load(subpath + "domain").cast<TensorProduct::Ptr>();
+    auto codomain = cyten::hdf5::py_load(subpath + "codomain").cast<TensorProduct::Ptr>();
+    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto backend = cyten::hdf5::py_load(subpath + "backend").cast<TensorBackend::Ptr>();
+    auto data = cyten::hdf5::py_load(subpath + "data").cast<TensorBackend::DataPtr>();
+    (void)cyten::hdf5::py_load(subpath + "device"); // device follows loaded blocks / fallback
+    auto dt = dtype::from_numpy_dtype(cyten::hdf5::py_load(subpath + "dtype"));
+    (void)cyten::hdf5::py_get_attr(h5gr, "num_legs");
+    auto shape = cyten::hdf5::py_get_attr(h5gr, "shape").cast<std::vector<float64>>();
+    auto labels = cyten::hdf5::py_get_attr(h5gr, "labels").cast<LegLabels>();
     // Match Python save: all-None labels are stored as []; expand for the Tensor ctor.
     int64 nlegs = codomain->num_factors + domain->num_factors;
     if (labels.empty() && nlegs > 0) {
@@ -914,7 +918,7 @@ SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
         }
     }
     obj->shape = std::move(shape);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

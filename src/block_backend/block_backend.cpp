@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <memory>
 #include <numeric>
 #include <ostream>
@@ -410,27 +412,27 @@ BlockBackend::Scalar::_block() const
 }
 
 void
-BlockBackend::Scalar::save_hdf5(py::object hdf5_saver,
-                                py::object /*h5gr*/,
+BlockBackend::Scalar::save_hdf5(cyten::hdf5::Saver& saver,
+                                HighFive::Group& /*h5gr*/,
                                 const std::string& subpath)
 {
-    hdf5_saver.attr("save")(block_, subpath + std::string("_block"));
+    cyten::hdf5::py_save(subpath + std::string("_block"), block_);
 }
 
 BlockBackend::Scalar
-BlockBackend::Scalar::from_hdf5(py::object hdf5_loader,
-                                py::object h5gr,
-                                const std::string& subpath)
+BlockBackend::Scalar::from_hdf5(cyten::hdf5::Loader& loader,
+                                HighFive::Group& h5gr,
+                                std::string const& subpath)
 {
-    auto block = hdf5_loader.attr("load")(subpath + std::string("_block")).cast<BlockPtr>();
+    auto block = cyten::hdf5::py_load(subpath + std::string("_block")).cast<BlockPtr>();
     Scalar obj(block);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 
 std::shared_ptr<BlockBackend::Block>
-BlockBackend::Block::from_hdf5(py::object /*hdf5_loader*/,
-                               py::object /*h5gr*/,
+BlockBackend::Block::from_hdf5(cyten::hdf5::Loader& /*loader*/,
+                               HighFive::Group& /*h5gr*/,
                                const std::string& /*subpath*/)
 {
     throw NotImplemented(
@@ -1109,13 +1111,17 @@ BlockBackend::inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger)
 }
 
 void
-BlockBackend::save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath)
+BlockBackend::save_hdf5(cyten::hdf5::Saver& saver,
+                        HighFive::Group& h5gr,
+                        const std::string& subpath)
 {
-    hdf5_saver.attr("save")(default_device, subpath + std::string("default_device"));
+    cyten::hdf5::py_save(subpath + std::string("default_device"), default_device);
 }
 
 std::shared_ptr<BlockBackend>
-BlockBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
+BlockBackend::from_hdf5(cyten::hdf5::Loader& loader,
+                        HighFive::Group& h5gr,
+                        std::string const& subpath)
 {
     throw NotImplemented(
       "Needs to be implemented in Subclass, since we don't know the subclass type here!");

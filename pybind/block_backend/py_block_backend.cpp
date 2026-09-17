@@ -7,6 +7,7 @@
 #include "py_torch.cpp"
 #include "py_trampolines.hpp"
 
+#include "tools/hdf5_bind.h"
 #include <cyten/block_backend/array_api.h>
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
@@ -344,13 +345,13 @@ bind_block_backend(py::module_& m)
            &BlockBackend::Block::_item_as_int64,
            "Return the element of a zero-dimensional block as a int64.")
       .def("save_hdf5",
-           &BlockBackend::Block::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5<BlockBackend::Block>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Save block state to HDF5.")
       .def_static("from_hdf5",
-                  &BlockBackend::Block::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<BlockBackend::Block>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),
@@ -633,13 +634,13 @@ bind_block_backend(py::module_& m)
       .def_property_readonly(
         "_block", &BlockBackend::Scalar::_block, "Return the underlying block.")
       .def("save_hdf5",
-           &BlockBackend::Scalar::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5<BlockBackend::Scalar>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Save scalar to HDF5.")
       .def_static("from_hdf5",
-                  &BlockBackend::Scalar::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<BlockBackend::Scalar>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),
@@ -1058,12 +1059,12 @@ bind_block_backend(py::module_& m)
            py::arg("dtype"),
            py::arg("device") = py::none())
       .def("save_hdf5",
-           &BlockBackend::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5<BlockBackend>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &BlockBackend::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<BlockBackend>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath")); // completed block_backend methods
