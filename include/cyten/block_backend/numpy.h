@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cyten/block_backend/block_backend.h>
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <pybind11/pytypes.h>
 
@@ -57,12 +58,12 @@ class NumpyBlockBackend : public BlockBackend
         BlockPtr pow(const BlockBackend::Scalar& exponent) const override;
         BlockPtr pow(const BlockBackend::Block& exponent) const override;
 
-        void save_hdf5(py::object hdf5_saver,
-                       py::object h5gr,
-                       const std::string& subpath) override;
-        static std::shared_ptr<Block> from_hdf5(py::object hdf5_loader,
-                                                py::object h5gr,
-                                                const std::string& subpath);
+        void save_hdf5(cyten::hdf5::Saver& saver,
+                       HighFive::Group& h5gr,
+                       std::string const& subpath) override;
+        static std::shared_ptr<Block> from_hdf5(cyten::hdf5::Loader& loader,
+                                                HighFive::Group& h5gr,
+                                                std::string const& subpath);
 
       protected:
         py::array arr_;
@@ -92,9 +93,9 @@ class NumpyBlockBackend : public BlockBackend
     explicit NumpyBlockBackend();
 
   public:
-    static std::shared_ptr<NumpyBlockBackend> from_hdf5(py::object hdf5_loader,
-                                                        py::object h5gr,
-                                                        const std::string& subpath);
+    static std::shared_ptr<NumpyBlockBackend> from_hdf5(cyten::hdf5::Loader& loader,
+                                                        HighFive::Group& h5gr,
+                                                        std::string const& subpath);
 
     std::string get_backend_name() const override;
 

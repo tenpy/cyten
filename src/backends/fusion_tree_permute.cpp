@@ -9,20 +9,6 @@
 
 namespace cyten {
 
-namespace {
-
-[[nodiscard]] std::vector<int64>
-inverse_permutation(std::vector<int64> const& perm)
-{
-    std::vector<int64> inv(perm.size());
-    for (std::size_t i = 0; i < perm.size(); ++i) {
-        inv[static_cast<std::size_t>(perm[i])] = static_cast<int64>(i);
-    }
-    return inv;
-}
-
-} // namespace
-
 PermuteLegsInstructionEngine::PermuteLegsInstructionEngine(
   int64 num_codomain_legs_,
   int64 num_domain_legs_,

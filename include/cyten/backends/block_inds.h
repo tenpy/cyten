@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cyten/tools/hdf5.h>
 #include <functional>
 #include <optional>
 #include <span>
@@ -144,10 +145,12 @@ class BlockInds
     }
     friend bool operator!=(BlockInds const& a, BlockInds const& b) noexcept { return !(a == b); }
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static BlockInds from_hdf5(py::object hdf5_loader,
-                               py::object h5gr,
+    static BlockInds from_hdf5(cyten::hdf5::Loader& loader,
+                               HighFive::Group& h5gr,
                                std::string const& subpath);
 
   private:

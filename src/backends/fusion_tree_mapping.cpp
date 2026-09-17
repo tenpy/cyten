@@ -15,12 +15,6 @@ namespace cyten {
 
 namespace {
 
-py::module_
-misc()
-{
-    return py::module_::import("cyten.tools.misc");
-}
-
 BlockInds
 as_block_inds(py::object obj)
 {
@@ -54,16 +48,6 @@ b_set_add(BlockBackend::BlockPtr const& b, py::object key, BlockBackend::BlockPt
     b_set(b, key, (*b_get(b, key)) + (*v));
 }
 
-[[nodiscard]] std::vector<int64>
-inverse_permutation(std::vector<int64> const& perm)
-{
-    std::vector<int64> inv(perm.size());
-    for (std::size_t i = 0; i < perm.size(); ++i) {
-        inv[static_cast<std::size_t>(perm[i])] = static_cast<int64>(i);
-    }
-    return inv;
-}
-
 void
 collect_tree_pair_keys(TensorProduct::Ptr codomain,
                        TensorProduct::Ptr domain,
@@ -81,11 +65,12 @@ collect_tree_pair_keys(TensorProduct::Ptr codomain,
     };
 
     if (block_inds.is_none()) {
-        for (py::handle item : misc().attr("iter_common_sorted_arrays")(
-               codomain->sector_decomposition, domain->sector_decomposition)) {
-            auto tup = item.cast<py::tuple>();
-            process(tup[0].cast<int64>());
-        }
+        SectorArray::iter_common_sorted(
+          codomain->sector_decomposition,
+          domain->sector_decomposition,
+          true,
+          true,
+          [&](std::ptrdiff_t i, std::ptrdiff_t) { process(static_cast<int64>(i)); });
     } else {
         BlockInds bi = as_block_inds(block_inds);
         for (std::size_t row = 0; row < bi.nrows(); ++row) {
@@ -113,11 +98,12 @@ collect_splitting_and_fusion_trees(TensorProduct::Ptr codomain,
     };
 
     if (block_inds.is_none()) {
-        for (py::handle item : misc().attr("iter_common_sorted_arrays")(
-               codomain->sector_decomposition, domain->sector_decomposition)) {
-            auto tup = item.cast<py::tuple>();
-            process(tup[0].cast<int64>());
-        }
+        SectorArray::iter_common_sorted(
+          codomain->sector_decomposition,
+          domain->sector_decomposition,
+          true,
+          true,
+          [&](std::ptrdiff_t i, std::ptrdiff_t) { process(static_cast<int64>(i)); });
     } else {
         BlockInds bi = as_block_inds(block_inds);
         for (std::size_t row = 0; row < bi.nrows(); ++row) {
@@ -438,80 +424,86 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
     std::vector<std::vector<int64>> block_inds_rows;
     std::vector<BlockBackend::BlockPtr> blocks;
 
-    for (py::handle item : misc().attr("iter_common_sorted_arrays")(
-           new_codomain->sector_decomposition, new_domain->sector_decomposition)) {
-        auto tup = item.cast<py::tuple>();
-        int64 i = tup[0].cast<int64>();
-        int64 j = tup[1].cast<int64>();
-        Sector coupled = new_codomain->sector_decomposition[static_cast<std::size_t>(i)];
-        SectorArray coupled_arr = SectorArray::repeat(coupled, 1);
+    SectorArray::iter_common_sorted(
+      new_codomain->sector_decomposition,
+      new_domain->sector_decomposition,
+      true,
+      true,
+      [&](std::ptrdiff_t ii, std::ptrdiff_t jj) {
+          int64 i = static_cast<int64>(ii);
+          int64 j = static_cast<int64>(jj);
+          Sector coupled = new_codomain->sector_decomposition[static_cast<std::size_t>(i)];
+          SectorArray coupled_arr = SectorArray::repeat(coupled, 1);
 
-        auto shape = std::make_pair(new_codomain->block_size(i), new_domain->block_size(j));
-        auto block = block_backend->zeros({ shape.first, shape.second }, dtype, data.device);
-        bool is_zero_block = true;
+          auto shape = std::make_pair(new_codomain->block_size(i), new_domain->block_size(j));
+          auto block = block_backend->zeros({ shape.first, shape.second }, dtype, data.device);
+          bool is_zero_block = true;
 
-        for (auto const& xb : new_codomain->iter_tree_blocks(coupled_arr)) {
-            for (auto const& yb : new_domain->iter_tree_blocks(coupled_arr)) {
-                BlockBackend::BlockPtr tree_block;
-                for (auto const& [pair_I, self_I] : mapping.data) {
-                    auto it = self_I.find(std::make_pair(xb.tree, yb.tree));
-                    if (it == self_I.end()) {
-                        continue;
-                    }
-                    auto which_block = data.block_ind_from_coupled(pair_I.first.coupled, domain);
-                    if (!which_block.has_value()) {
-                        continue;
-                    }
-                    auto old_block = data.blocks[static_cast<std::size_t>(*which_block)];
-                    auto i1 = codomain->tree_block_slice(pair_I.first);
-                    auto i2 = domain->tree_block_slice(pair_I.second);
-                    auto sub = b_get(
-                      old_block,
-                      py::make_tuple(slice_from_index_slice(i1), slice_from_index_slice(i2)));
-                    auto add_block =
-                      block_backend->mul(block_backend->as_scalar(it->second, dtype), sub);
-                    if (!tree_block) {
-                        tree_block = add_block;
-                    } else {
-                        tree_block = (*tree_block) + (*add_block);
-                    }
-                }
-                if (!tree_block) {
-                    continue;
-                }
-                is_zero_block = false;
+          for (auto const& xb : new_codomain->iter_tree_blocks(coupled_arr)) {
+              for (auto const& yb : new_domain->iter_tree_blocks(coupled_arr)) {
+                  BlockBackend::BlockPtr tree_block;
+                  for (auto const& [pair_I, self_I] : mapping.data) {
+                      auto it = self_I.find(std::make_pair(xb.tree, yb.tree));
+                      if (it == self_I.end()) {
+                          continue;
+                      }
+                      auto which_block = data.block_ind_from_coupled(pair_I.first.coupled, domain);
+                      if (!which_block.has_value()) {
+                          continue;
+                      }
+                      auto old_block = data.blocks[static_cast<std::size_t>(*which_block)];
+                      auto i1 = codomain->tree_block_slice(pair_I.first);
+                      auto i2 = domain->tree_block_slice(pair_I.second);
+                      auto sub = b_get(
+                        old_block,
+                        py::make_tuple(slice_from_index_slice(i1), slice_from_index_slice(i2)));
+                      auto add_block =
+                        block_backend->mul(block_backend->as_scalar(it->second, dtype), sub);
+                      if (!tree_block) {
+                          tree_block = add_block;
+                      } else {
+                          tree_block = (*tree_block) + (*add_block);
+                      }
+                  }
+                  if (!tree_block) {
+                      continue;
+                  }
+                  is_zero_block = false;
 
-                std::vector<int64> leg_mults;
-                leg_mults.insert(
-                  leg_mults.end(), xb.multiplicities.begin(), xb.multiplicities.end());
-                leg_mults.insert(
-                  leg_mults.end(), yb.multiplicities.rbegin(), yb.multiplicities.rend());
-                std::vector<int64> old_mults;
-                old_mults.reserve(inv_leg_perm.size());
-                for (int64 idx : inv_leg_perm) {
-                    old_mults.push_back(leg_mults[static_cast<std::size_t>(idx)]);
-                }
+                  std::vector<int64> leg_mults;
+                  leg_mults.insert(
+                    leg_mults.end(), xb.multiplicities.begin(), xb.multiplicities.end());
+                  leg_mults.insert(
+                    leg_mults.end(), yb.multiplicities.rbegin(), yb.multiplicities.rend());
+                  std::vector<int64> old_mults;
+                  old_mults.reserve(inv_leg_perm.size());
+                  for (int64 idx : inv_leg_perm) {
+                      old_mults.push_back(leg_mults[static_cast<std::size_t>(idx)]);
+                  }
 
-                std::vector<int64> old_mults_cod(old_mults.begin(),
-                                                 old_mults.begin() + static_cast<std::size_t>(J));
-                std::vector<int64> old_mults_dom(old_mults.begin() + static_cast<std::size_t>(J),
-                                                 old_mults.end());
-                std::reverse(old_mults_dom.begin(), old_mults_dom.end());
+                  std::vector<int64> old_mults_cod(
+                    old_mults.begin(), old_mults.begin() + static_cast<std::size_t>(J));
+                  std::vector<int64> old_mults_dom(old_mults.begin() + static_cast<std::size_t>(J),
+                                                   old_mults.end());
+                  std::reverse(old_mults_dom.begin(), old_mults_dom.end());
 
-                auto permuted = block_backend->permute_combined_matrix(
-                  tree_block, old_mults_cod, tree_block_axes_1, old_mults_dom, tree_block_axes_2);
-                b_set(block,
-                      py::make_tuple(slice_from_index_slice(xb.slice),
-                                     slice_from_index_slice(yb.slice)),
-                      permuted);
-            }
-        }
-        if (is_zero_block) {
-            continue;
-        }
-        block_inds_rows.push_back({ i, j });
-        blocks.push_back(block);
-    }
+                  auto permuted = block_backend->permute_combined_matrix(tree_block,
+                                                                         old_mults_cod,
+                                                                         tree_block_axes_1,
+                                                                         old_mults_dom,
+                                                                         tree_block_axes_2);
+                  b_set(block,
+                        py::make_tuple(slice_from_index_slice(xb.slice),
+                                       slice_from_index_slice(yb.slice)),
+                        permuted);
+              }
+          }
+          if (is_zero_block) {
+              return;
+          }
+          block_inds_rows.push_back({ i, j });
+          blocks.push_back(block);
+      });
 
     BlockInds block_inds =
       block_inds_rows.empty() ? BlockInds::zeros(0, 2) : BlockInds::from_rows(block_inds_rows);
@@ -752,38 +744,41 @@ FactorizedTreeMapping::transform_tensor(FusionTreeData const& data,
     std::vector<std::vector<int64>> block_inds_rows;
     std::vector<BlockBackend::BlockPtr> blocks;
 
-    for (py::handle item : misc().attr("iter_common_sorted_arrays")(
-           new_codomain->sector_decomposition, new_domain->sector_decomposition)) {
-        auto tup = item.cast<py::tuple>();
-        int64 i = tup[0].cast<int64>();
-        int64 j = tup[1].cast<int64>();
-        Sector coupled = new_codomain->sector_decomposition[static_cast<std::size_t>(i)];
+    SectorArray::iter_common_sorted(
+      new_codomain->sector_decomposition,
+      new_domain->sector_decomposition,
+      true,
+      true,
+      [&](std::ptrdiff_t ii, std::ptrdiff_t jj) {
+          int64 i = static_cast<int64>(ii);
+          int64 j = static_cast<int64>(jj);
+          Sector coupled = new_codomain->sector_decomposition[static_cast<std::size_t>(i)];
 
-        auto which_block = data.block_ind_from_coupled(coupled, domain);
-        if (!which_block.has_value()) {
-            continue;
-        }
-        auto old_block = data.blocks[static_cast<std::size_t>(*which_block)];
-        auto shape = std::make_pair(new_codomain->multiplicities[static_cast<std::size_t>(i)],
-                                    new_domain->multiplicities[static_cast<std::size_t>(j)]);
+          auto which_block = data.block_ind_from_coupled(coupled, domain);
+          if (!which_block.has_value()) {
+              return;
+          }
+          auto old_block = data.blocks[static_cast<std::size_t>(*which_block)];
+          auto shape = std::make_pair(new_codomain->multiplicities[static_cast<std::size_t>(i)],
+                                      new_domain->multiplicities[static_cast<std::size_t>(j)]);
 
-        auto tmp_block = block_backend->zeros({ shape.first, shape.second }, dtype, data.device);
-        auto [after_split, split_zero] = transform_splitting_trees(
-          old_block, tmp_block, coupled, codomain, new_codomain, codomain_idcs, block_backend);
-        if (split_zero) {
-            continue;
-        }
+          auto tmp_block = block_backend->zeros({ shape.first, shape.second }, dtype, data.device);
+          auto [after_split, split_zero] = transform_splitting_trees(
+            old_block, tmp_block, coupled, codomain, new_codomain, codomain_idcs, block_backend);
+          if (split_zero) {
+              return;
+          }
 
-        auto block = block_backend->zeros({ shape.first, shape.second }, dtype, data.device);
-        auto [final_block, fusion_zero] = transform_fusion_trees(
-          after_split, block, coupled, domain, new_domain, tree_block_axes_2, block_backend);
-        if (fusion_zero) {
-            continue;
-        }
+          auto block = block_backend->zeros({ shape.first, shape.second }, dtype, data.device);
+          auto [final_block, fusion_zero] = transform_fusion_trees(
+            after_split, block, coupled, domain, new_domain, tree_block_axes_2, block_backend);
+          if (fusion_zero) {
+              return;
+          }
 
-        block_inds_rows.push_back({ i, j });
-        blocks.push_back(final_block);
-    }
+          block_inds_rows.push_back({ i, j });
+          blocks.push_back(final_block);
+      });
 
     BlockInds block_inds =
       block_inds_rows.empty() ? BlockInds::zeros(0, 2) : BlockInds::from_rows(block_inds_rows);

@@ -8,6 +8,7 @@
 #include <cyten/symmetries/symmetry.h>
 #include <cyten/symmetries/symmetry_factor.h>
 
+#include "tools/hdf5_bind.h"
 #include <memory>
 #include <vector>
 
@@ -61,8 +62,11 @@ bind_symmetry(py::module_& m)
       .def_readwrite("fusion_tensor_dtype", &Symmetry::fusion_tensor_dtype)
       .def_property_readonly("num_factors", &Symmetry::num_factors);
 
-    cls.def(
-         "as_Symmetry", [](py::object self) { return self; }, DOC(cyten, Symmetry, as_Symmetry))
+    cls
+      .def(
+        "as_Symmetry",
+        [](py::object self) { return self.cast<Symmetry::Ptr>(); },
+        DOC(cyten, Symmetry, as_Symmetry))
       .def(
         "is_valid_sector",
         [](Symmetry const& self, py::object a) {
@@ -223,12 +227,12 @@ bind_symmetry(py::module_& m)
                return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
            })
       .def("save_hdf5",
-           &Symmetry::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<Symmetry>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &Symmetry::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<Symmetry>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

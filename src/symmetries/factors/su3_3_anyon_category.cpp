@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <utility>
 #include <vector>
 
@@ -527,13 +529,13 @@ SU3_3AnyonCategory::all_sectors() const
 }
 
 SU3_3AnyonCategory::Ptr
-SU3_3AnyonCategory::from_hdf5(py::object hdf5_loader,
-                              py::object h5gr,
+SU3_3AnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
+                              HighFive::Group& h5gr,
                               std::string const& /*subpath*/)
 {
     auto obj = std::make_shared<SU3_3AnyonCategory>();
     obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

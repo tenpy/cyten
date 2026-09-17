@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <limits>
 #include <numeric>
 #include <stdexcept>
@@ -235,10 +237,10 @@ Symmetry::is_equivalent_to(Symmetry const& other, bool strict_ordering) const
     return true;
 }
 
-py::object
+Symmetry::Ptr
 Symmetry::as_Symmetry()
 {
-    return py::cast(std::static_pointer_cast<Symmetry>(shared_from_this()));
+    return std::static_pointer_cast<Symmetry>(shared_from_this());
 }
 
 bool
@@ -701,34 +703,37 @@ Symmetry::mul(Symmetry const& other) const
 }
 
 void
-Symmetry::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+Symmetry::save_hdf5(cyten::hdf5::Saver& saver,
+                    HighFive::Group& h5gr,
+                    std::string const& subpath) const
 {
     py::list factors_py;
     for (auto const& f : factors) {
         factors_py.append(py::cast(f));
     }
-    hdf5_saver.attr("save")(factors_py, subpath + "factors");
+    cyten::hdf5::py_save(subpath + "factors", factors_py);
     auto np = numpy();
     py::array slices = np.attr("array")(sector_slices, py::arg("dtype") = np.attr("int64"));
-    hdf5_saver.attr("save")(slices, subpath + "sector_slices");
+    cyten::hdf5::py_save(subpath + "sector_slices", slices);
     if (fusion_tensor_dtype.has_value()) {
-        hdf5_saver.attr("save")(static_cast<int>(*fusion_tensor_dtype),
-                                subpath + "fusion_tensor_dtype");
+        cyten::hdf5::py_save(subpath + "fusion_tensor_dtype",
+                             static_cast<int>(*fusion_tensor_dtype));
     } else {
-        hdf5_saver.attr("save")(py::none(), subpath + "fusion_tensor_dtype");
+        cyten::hdf5::py_save(subpath + "fusion_tensor_dtype", py::none());
     }
-    hdf5_saver.attr("save")(static_cast<int>(fusion_style), subpath + "fusion_style");
-    hdf5_saver.attr("save")(static_cast<int>(braiding_style), subpath + "braiding_style");
-    hdf5_saver.attr("save")(py::cast(trivial_sector), subpath + "trivial_sector");
-    hdf5_saver.attr("save")(num_sectors, subpath + "num_sectors");
-    hdf5_saver.attr("save")(static_cast<int>(sector_ind_len), subpath + "sector_ind_len");
-    h5gr.attr("attrs")["has_complex_topological_data"] = has_complex_topological_data;
+    cyten::hdf5::py_save(subpath + "fusion_style", static_cast<int>(fusion_style));
+    cyten::hdf5::py_save(subpath + "braiding_style", static_cast<int>(braiding_style));
+    cyten::hdf5::py_save(subpath + "trivial_sector", py::cast(trivial_sector));
+    cyten::hdf5::py_save(subpath + "num_sectors", num_sectors);
+    cyten::hdf5::py_save(subpath + "sector_ind_len", static_cast<int>(sector_ind_len));
+    cyten::hdf5::py_set_group_attr("has_complex_topological_data",
+                                   py::cast(has_complex_topological_data));
 }
 
 Symmetry::Ptr
-Symmetry::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+Symmetry::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
-    py::list factors_py = hdf5_loader.attr("load")(subpath + "factors").cast<py::list>();
+    py::list factors_py = cyten::hdf5::py_load(subpath + "factors").cast<py::list>();
     std::vector<SymmetryFactor::Ptr> factors;
     factors.reserve(factors_py.size());
     for (py::handle h : factors_py) {
@@ -736,7 +741,7 @@ Symmetry::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& 
     }
     auto obj = std::make_shared<Symmetry>(std::move(factors));
     py::object py_obj = py::cast(obj);
-    hdf5_loader.attr("memorize_load")(h5gr, py_obj);
+    cyten::hdf5::py_memorize_load(h5gr, py_obj);
     return obj;
 }
 

@@ -2,6 +2,7 @@
 #include "docstrings/block_backend/torch.h"
 // NOTE: this file is #included from py_block_backend.cpp
 
+#include "tools/hdf5_bind.h"
 #include <cyten/block_backend/torch.h>
 
 namespace cyten {
@@ -19,7 +20,7 @@ bind_block_backend_torch(py::module_& m)
       py::return_value_policy::reference,
       "Get the backend instance for the given device (nearly-singleton per device).");
     torch_block_backend.def_static("from_hdf5",
-                                   &TorchBlockBackend::from_hdf5,
+                                   cyten::hdf5::wrap_from_hdf5<TorchBlockBackend>(),
                                    py::arg("hdf5_loader"),
                                    py::arg("h5gr"),
                                    py::arg("subpath"),
@@ -35,13 +36,13 @@ bind_block_backend_torch(py::module_& m)
            py::arg("dtype"),
            py::return_value_policy::reference_internal)
       .def("save_hdf5",
-           &TorchBlockBackend::Block::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5<TorchBlockBackend::Block>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Save block (via numpy) to HDF5.")
       .def_static("from_hdf5",
-                  &TorchBlockBackend::Block::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<TorchBlockBackend::Block>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),

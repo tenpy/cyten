@@ -1,5 +1,7 @@
 #include <cyten/symmetries/factors/zn.h>
 
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -146,20 +148,20 @@ ZN::_is_equivalent_factor(SymmetryFactor const& other) const
 }
 
 void
-ZN::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+ZN::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
 {
-    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
-    hdf5_saver.attr("save")(N, subpath + "N");
+    SymmetryFactor::save_hdf5(saver, h5gr, subpath);
+    cyten::hdf5::py_save(subpath + "N", N);
 }
 
 ZN::Ptr
-ZN::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+ZN::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
-    int N = hdf5_loader.attr("load")(subpath + "N").cast<int>();
+    int N = cyten::hdf5::py_load(subpath + "N").cast<int>();
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
-    bool trivial_shift = trivial_shift_from_hdf5(hdf5_loader, subpath);
+    bool trivial_shift = trivial_shift_from_hdf5(loader, subpath);
     auto obj = std::make_shared<ZN>(N, name, trivial_shift);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

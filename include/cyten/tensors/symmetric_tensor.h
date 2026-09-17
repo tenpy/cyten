@@ -10,6 +10,7 @@
 #include <cyten/symmetries/trees.h>
 #include <cyten/tensors/tensor.h>
 
+#include <cyten/tools/hdf5.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -260,12 +261,14 @@ class SymmetricTensor : public Tensor
                                        std::optional<std::string> device = std::nullopt);
 
     /// Import SymmetricTensor from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Export SymmetricTensor to hdf5 such that it can be re-imported with from_hdf5
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     // --- Tensor overrides ---
 

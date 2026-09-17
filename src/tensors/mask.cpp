@@ -4,11 +4,14 @@
 #include <cyten/backends/backend_factory.h>
 #include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/symmetries/exceptions.h>
+#include <cyten/tensors/ops_algebra.h>
 #include <cyten/tools.h>
 #include <cyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <numeric>
 #include <ranges>
@@ -500,9 +503,13 @@ Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
         // OPTIMIZE how hard is it to deal with inclusions in the backend?
         auto proj = std::static_pointer_cast<Mask>(dagger());
         auto sym = proj->as_SymmetricTensor(false, std::nullopt, out_dtype);
-        return py::module_::import("cyten.tensors._tensors")
-          .attr("dagger")(py::cast(sym))
-          .cast<SymmetricTensorPtr>();
+        auto dag = cyten::dagger(sym);
+        auto out = std::dynamic_pointer_cast<SymmetricTensor>(dag);
+        if (!out) {
+            throw std::runtime_error(
+              "Mask::as_SymmetricTensor: expected SymmetricTensor after dagger");
+        }
+        return out;
     }
     auto new_data = backend->full_data_from_mask(
       std::static_pointer_cast<Mask const>(shared_from_this()), out_dtype);
@@ -805,42 +812,43 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
 }
 
 void
-Mask::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+Mask::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
 {
     /// Export Mask to hdf5 such that it can be re-imported with from_hdf5
-    hdf5_saver.attr("save")(py::cast(domain), subpath + "domain");
-    hdf5_saver.attr("save")(py::cast(codomain), subpath + "codomain");
-    hdf5_saver.attr("save")(py::cast(backend), subpath + "backend");
-    hdf5_saver.attr("save")(py::cast(data), subpath + "data");
-    hdf5_saver.attr("save")(py::cast(symmetry), subpath + "symmetry");
-    h5gr.attr("attrs")["dtype"] = dtype::repr(dtype);
-    h5gr.attr("attrs")["num_legs"] = num_legs;
-    h5gr.attr("attrs")["shape"] = py::module_::import("numpy").attr("array")(
-      py::cast(shape), py::module_::import("numpy").attr("intp"));
-    h5gr.attr("attrs")["is_projection"] = is_projection;
+    cyten::hdf5::py_save(subpath + "domain", py::cast(domain));
+    cyten::hdf5::py_save(subpath + "codomain", py::cast(codomain));
+    cyten::hdf5::py_save(subpath + "backend", py::cast(backend));
+    cyten::hdf5::py_save(subpath + "data", py::cast(data));
+    cyten::hdf5::py_save(subpath + "symmetry", py::cast(symmetry));
+    cyten::hdf5::py_set_group_attr("dtype", py::cast(dtype::repr(dtype)));
+    cyten::hdf5::py_set_group_attr("num_legs", py::cast(num_legs));
+    cyten::hdf5::py_set_group_attr("shape",
+                                   py::module_::import("numpy").attr("array")(
+                                     py::cast(shape), py::module_::import("numpy").attr("intp")));
+    cyten::hdf5::py_set_group_attr("is_projection", py::cast(is_projection));
     if (std::ranges::all_of(_labels, [](LegLabel const& l) { return !l; })) {
-        h5gr.attr("attrs")["labels"] = py::list();
+        cyten::hdf5::py_set_group_attr("labels", py::list());
     } else {
-        h5gr.attr("attrs")["labels"] = py::cast(_labels);
+        cyten::hdf5::py_set_group_attr("labels", py::cast(_labels));
     }
 }
 
 Mask::Ptr
-Mask::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+Mask::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
     /// Import Mask from hdf5
-    auto domain_tp = hdf5_loader.attr("load")(subpath + "domain").cast<TensorProduct::Ptr>();
-    auto codomain_tp = hdf5_loader.attr("load")(subpath + "codomain").cast<TensorProduct::Ptr>();
-    auto symmetry_in = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto backend_in = hdf5_loader.attr("load")(subpath + "backend").cast<TensorBackend::Ptr>();
-    auto data_in = hdf5_loader.attr("load")(subpath + "data").cast<TensorBackend::DataPtr>();
-    (void)hdf5_loader.attr("get_attr")(h5gr, "dtype");
-    (void)hdf5_loader.attr("get_attr")(h5gr, "num_legs");
-    auto shape_in = hdf5_loader.attr("get_attr")(h5gr, "shape").cast<std::vector<float64>>();
+    auto domain_tp = cyten::hdf5::py_load(subpath + "domain").cast<TensorProduct::Ptr>();
+    auto codomain_tp = cyten::hdf5::py_load(subpath + "codomain").cast<TensorProduct::Ptr>();
+    auto symmetry_in = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto backend_in = cyten::hdf5::py_load(subpath + "backend").cast<TensorBackend::Ptr>();
+    auto data_in = cyten::hdf5::py_load(subpath + "data").cast<TensorBackend::DataPtr>();
+    (void)cyten::hdf5::py_get_attr(h5gr, "dtype");
+    (void)cyten::hdf5::py_get_attr(h5gr, "num_legs");
+    auto shape_in = cyten::hdf5::py_get_attr(h5gr, "shape").cast<std::vector<float64>>();
 
     bool proj = true;
     try {
-        proj = hdf5_loader.attr("get_attr")(h5gr, "is_projection").cast<bool>();
+        proj = cyten::hdf5::py_get_attr(h5gr, "is_projection").cast<bool>();
     } catch (py::error_already_set&) {
         auto space_in = as_space(domain_tp->factors[0]);
         auto space_out = as_space(codomain_tp->factors[0]);
@@ -849,7 +857,7 @@ Mask::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subp
 
     LegLabels labels_in(2, std::nullopt);
     try {
-        labels_in = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
+        labels_in = cyten::hdf5::py_get_attr(h5gr, "labels").cast<LegLabels>();
         // Match Python save: all-None labels are stored as [].
         if (labels_in.empty()) {
             labels_in.assign(2, std::nullopt);
@@ -868,7 +876,7 @@ Mask::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subp
                                       std::move(labels_in),
                                       device_in);
     obj->shape = std::move(shape_in);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

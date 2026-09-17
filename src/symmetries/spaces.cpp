@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <numeric>
 #include <ranges>
@@ -37,24 +39,6 @@ arange(std::size_t n)
     std::vector<int64> out(n);
     std::iota(out.begin(), out.end(), int64{ 0 });
     return out;
-}
-
-[[nodiscard]] std::vector<int64>
-inverse_permutation(std::vector<int64> const& perm)
-{
-    std::vector<int64> inv(perm.size(), int64{ -1 });
-    for (std::size_t i = 0; i < perm.size(); ++i) {
-        auto const idx = perm[i];
-        if (idx < 0 || static_cast<std::size_t>(idx) >= perm.size() ||
-            inv[static_cast<std::size_t>(idx)] != -1) {
-            throw std::invalid_argument(
-              std::format("basis_perm must be a permutation of 0..{}, got invalid index {}",
-                          perm.size() - 1,
-                          idx));
-        }
-        inv[static_cast<std::size_t>(idx)] = static_cast<int64>(i);
-    }
-    return inv;
 }
 
 /// ``repr`` of a bool, using the Python spelling.
@@ -137,14 +121,14 @@ Leg::test_sanity() const
     }
 }
 
-py::object
+ElementarySpace::Ptr
 Leg::as_ElementarySpace(bool is_dual_)
 {
     // --- hints from Python Leg.as_ElementarySpace ---
     // can be overridden for performance
     // ---
     // can be overridden for performance
-    return as_Space().attr("as_ElementarySpace")(py::arg("is_dual") = is_dual_);
+    return as_space_obj()->as_ElementarySpace(is_dual_);
 }
 
 std::vector<int64>
@@ -574,7 +558,7 @@ Space::is_subspace_of(Space const& other) const
     return true;
 }
 
-py::object
+ElementarySpace::Ptr
 Space::as_ElementarySpace(bool is_dual_)
 {
     SectorArray defining_sectors;
@@ -595,7 +579,7 @@ Space::as_ElementarySpace(bool is_dual_)
         es = ElementarySpace::from_defining_sectors(
           symmetry, defining_sectors, multiplicities, is_dual_, std::nullopt, true);
     }
-    return py::cast(es);
+    return es;
 }
 
 Space::Ptr
@@ -662,20 +646,12 @@ combined_basis_perm(std::vector<Leg::Ptr> const& legs, bool combine_cstyle)
     if (!any_custom) {
         return std::nullopt;
     }
-    auto misc = py::module_::import("cyten.tools.misc");
-    py::list perms;
+    std::vector<std::vector<int64>> perms;
+    perms.reserve(legs.size());
     for (auto const& leg : legs) {
-        perms.append(vector_to_array(leg->basis_perm()));
+        perms.push_back(leg->basis_perm());
     }
-    py::array combined =
-      misc.attr("combine_permutations")(perms, py::arg("cstyle") = combine_cstyle);
-    auto casted = py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(combined);
-    auto r = casted.unchecked<1>();
-    std::vector<int64> out(static_cast<std::size_t>(r.shape(0)));
-    for (py::ssize_t i = 0; i < r.shape(0); ++i) {
-        out[static_cast<std::size_t>(i)] = r(i);
-    }
-    return out;
+    return combine_permutations(perms, combine_cstyle);
 }
 
 } // namespace
@@ -712,15 +688,12 @@ LegPipe::test_sanity() const
     Leg::test_sanity();
 }
 
-py::object
-LegPipe::as_Space()
+Space::Ptr
+LegPipe::as_space_obj()
 {
-    auto TensorProduct = py::module_::import("cyten.symmetries.spaces").attr("TensorProduct");
-    py::list spaces;
-    for (auto const& leg : legs) {
-        spaces.append(leg->as_Space());
-    }
-    return TensorProduct(spaces, py::arg("symmetry") = symmetry);
+    // Factors stay as Legs (ElementarySpace / nested LegPipe). Nested pipes must not be
+    // converted to TensorProduct here — TensorProduct factors are Leg::Ptr only.
+    return std::make_shared<TensorProduct>(legs, symmetry);
 }
 
 Leg::Ptr
@@ -967,20 +940,6 @@ slice_boundaries(std::vector<int64> const& values)
     return out;
 }
 
-/// ``cyten.tools.misc.rank_data``, i.e. ``argsort(argsort(a))`` with stable sorting.
-[[nodiscard]] std::vector<int64>
-rank_data(std::vector<int64> const& a)
-{
-    std::vector<std::size_t> order(a.size());
-    std::iota(order.begin(), order.end(), std::size_t{ 0 });
-    std::ranges::stable_sort(order, [&a](std::size_t i, std::size_t j) { return a[i] < a[j]; });
-    std::vector<int64> ranks(a.size());
-    for (std::size_t i = 0; i < order.size(); ++i) {
-        ranks[order[i]] = static_cast<int64>(i);
-    }
-    return ranks;
-}
-
 /// ``symmetry.batch_sector_dim(sectors) * multiplicities``, the number of states per sector.
 [[nodiscard]] std::vector<int64>
 num_states_per_sector(Symmetry const& symmetry,
@@ -1209,7 +1168,7 @@ ElementarySpace::from_largest_common_subspace(std::vector<Space::Ptr> const& spa
         throw std::invalid_argument("Need at least one space");
     }
     if (spaces.size() == 1) {
-        return spaces[0]->as_ElementarySpace(is_dual).cast<Ptr>();
+        return spaces[0]->as_ElementarySpace(is_dual);
     }
     if (spaces.size() > 2) {
         // OPTIMIZE directly implement for many
@@ -1604,13 +1563,13 @@ ElementarySpace::equals_es(ElementarySpace const& other) const
     return true;
 }
 
-py::object
+ElementarySpace::Ptr
 ElementarySpace::as_ElementarySpace(bool is_dual_)
 {
     if (is_dual_ == is_dual) {
-        return py::cast(shared_es());
+        return shared_es();
     }
-    return py::cast(with_opposite_duality());
+    return with_opposite_duality();
 }
 
 ElementarySpace::Ptr
@@ -1631,15 +1590,15 @@ ElementarySpace::as_bra_space()
     return with_opposite_duality();
 }
 
-py::object
+Space::Ptr
 ElementarySpace::change_symmetry(Symmetry::Ptr symmetry, SectorMapFn sector_map, bool injective)
 {
-    return py::cast(from_defining_sectors(std::move(symmetry),
-                                          sector_map(defining_sectors),
-                                          multiplicities,
-                                          is_dual,
-                                          _basis_perm,
-                                          injective));
+    return from_defining_sectors(std::move(symmetry),
+                                 sector_map(defining_sectors),
+                                 multiplicities,
+                                 is_dual,
+                                 _basis_perm,
+                                 injective);
 }
 
 ElementarySpace::Ptr
@@ -1655,14 +1614,14 @@ ElementarySpace::direct_sum(std::vector<Ptr> const& others) const
     return DirectSumSpace::from_spaces(std::move(all), is_dual);
 }
 
-py::object
+Space::Ptr
 ElementarySpace::drop_symmetry(std::optional<std::vector<int64>> which)
 {
     auto const [which_factors, remaining_symmetry] =
       parse_inputs_drop_symmetry(which, *Space::symmetry);
     if (!which_factors) {
-        return py::cast(from_trivial_sector(
-          static_cast<int64>(Space::dim), remaining_symmetry, is_dual, _basis_perm));
+        return from_trivial_sector(
+          static_cast<int64>(Space::dim), remaining_symmetry, is_dual, _basis_perm);
     }
     // the sector components that are kept
     std::vector<bool> mask(Space::symmetry->sector_ind_len, true);
@@ -1859,10 +1818,10 @@ ElementarySpace::with_is_dual(bool is_dual_) const
     return with_opposite_duality();
 }
 
-py::object
-ElementarySpace::as_Space()
+Space::Ptr
+ElementarySpace::as_space_obj()
 {
-    return py::cast(shared_es());
+    return shared_es();
 }
 
 bool
@@ -1878,43 +1837,46 @@ ElementarySpace::ascii_arrow() const
 }
 
 void
-ElementarySpace::save_hdf5(py::object hdf5_saver,
-                           py::object h5gr,
+ElementarySpace::save_hdf5(cyten::hdf5::Saver& saver,
+                           HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
-    auto save = hdf5_saver.attr("save");
-    save(py::cast(defining_sectors), subpath + "defining_sectors");
-    save(py::cast(sector_decomposition), subpath + "sector_decomposition");
-    save(sector_order ? py::cast(*sector_order) : py::none(), subpath + "sector_order");
-    save(optional_perm_to_py(_basis_perm), subpath + "_basis_perm");
-    save(optional_perm_to_py(_inverse_basis_perm), subpath + "_inverse_basis_perm");
-    save(vector_to_array(multiplicities), subpath + "multiplicities");
-    save(py::cast(Space::symmetry), subpath + "symmetry");
-    save(py::int_(static_cast<long long>(Space::dim)), subpath + "dim");
-    save(py::int_(num_sectors), subpath + "num_sectors");
-    save(slices_to_py(slices), subpath + "slices");
-    save(sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none(),
-         subpath + "sector_dims");
+    cyten::hdf5::py_save(subpath + "defining_sectors", py::cast(defining_sectors));
+    cyten::hdf5::py_save(subpath + "sector_decomposition", py::cast(sector_decomposition));
+    cyten::hdf5::py_save(subpath + "sector_order",
+                         sector_order ? py::cast(*sector_order) : py::none());
+    cyten::hdf5::py_save(subpath + "_basis_perm", optional_perm_to_py(_basis_perm));
+    cyten::hdf5::py_save(subpath + "_inverse_basis_perm",
+                         optional_perm_to_py(_inverse_basis_perm));
+    cyten::hdf5::py_save(subpath + "multiplicities", vector_to_array(multiplicities));
+    cyten::hdf5::py_save(subpath + "symmetry", py::cast(Space::symmetry));
+    cyten::hdf5::py_save(subpath + "dim", py::int_(static_cast<long long>(Space::dim)));
+    cyten::hdf5::py_save(subpath + "num_sectors", py::int_(num_sectors));
+    cyten::hdf5::py_save(subpath + "slices", slices_to_py(slices));
+    cyten::hdf5::py_save(subpath + "sector_dims",
+                         sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none());
 
-    h5gr.attr("attrs")["is_dual"] = is_dual;
+    cyten::hdf5::py_set_group_attr("is_dual", py::cast(is_dual));
 }
 
 ElementarySpace::Ptr
-ElementarySpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+ElementarySpace::from_hdf5(cyten::hdf5::Loader& loader,
+                           HighFive::Group& h5gr,
+                           std::string const& subpath)
 {
-    auto load = hdf5_loader.attr("load");
-    auto symmetry = load(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto defining_sectors = load(subpath + "defining_sectors").cast<SectorArray>();
-    auto multiplicities = py_array_to_i64(py::array::ensure(load(subpath + "multiplicities")));
-    auto basis_perm = optional_perm_from_py(load(subpath + "_basis_perm"));
-    auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
+    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto defining_sectors = cyten::hdf5::py_load(subpath + "defining_sectors").cast<SectorArray>();
+    auto multiplicities =
+      py_array_to_i64(py::array::ensure(cyten::hdf5::py_load(subpath + "multiplicities")));
+    auto basis_perm = optional_perm_from_py(cyten::hdf5::py_load(subpath + "_basis_perm"));
+    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
     auto obj = std::make_shared<ElementarySpace>(std::move(symmetry),
                                                  std::move(defining_sectors),
                                                  std::move(multiplicities),
                                                  is_dual,
                                                  std::move(basis_perm));
     py::object py_obj = py::cast(obj);
-    hdf5_loader.attr("memorize_load")(h5gr, py_obj);
+    cyten::hdf5::py_memorize_load(h5gr, py_obj);
     return obj;
 }
 
@@ -2108,16 +2070,16 @@ DirectSumSpace::as_plain_ElementarySpace() const
                                                   /*unique_sectors=*/true);
 }
 
-py::object
-DirectSumSpace::as_Space()
+Space::Ptr
+DirectSumSpace::as_space_obj()
 {
-    return py::cast(shared_dss());
+    return shared_dss();
 }
 
-py::object
+ElementarySpace::Ptr
 DirectSumSpace::as_ElementarySpace(bool is_dual_)
 {
-    return py::cast(with_is_dual(is_dual_));
+    return with_is_dual(is_dual_);
 }
 
 Space::Ptr
@@ -2138,27 +2100,27 @@ DirectSumSpace::dual_dss() const
     return std::dynamic_pointer_cast<DirectSumSpace>(with_opposite_duality());
 }
 
-py::object
+Space::Ptr
 DirectSumSpace::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
 {
     std::vector<ElementarySpace::Ptr> new_spaces;
     new_spaces.reserve(spaces.size());
     for (auto const& s : spaces) {
-        new_spaces.push_back(
-          s->change_symmetry(symmetry_, sector_map, injective).cast<ElementarySpace::Ptr>());
+        new_spaces.push_back(std::dynamic_pointer_cast<ElementarySpace>(
+          s->change_symmetry(symmetry_, sector_map, injective)));
     }
-    return py::cast(from_spaces(std::move(new_spaces), is_dual));
+    return from_spaces(std::move(new_spaces), is_dual);
 }
 
-py::object
+Space::Ptr
 DirectSumSpace::drop_symmetry(std::optional<std::vector<int64>> which)
 {
     std::vector<ElementarySpace::Ptr> new_spaces;
     new_spaces.reserve(spaces.size());
     for (auto const& s : spaces) {
-        new_spaces.push_back(s->drop_symmetry(which).cast<ElementarySpace::Ptr>());
+        new_spaces.push_back(std::dynamic_pointer_cast<ElementarySpace>(s->drop_symmetry(which)));
     }
-    return py::cast(from_spaces(std::move(new_spaces), is_dual));
+    return from_spaces(std::move(new_spaces), is_dual);
 }
 
 ElementarySpace::Ptr
@@ -2276,31 +2238,33 @@ DirectSumSpace::from_trivial_sector(int64 /*dim*/,
 }
 
 void
-DirectSumSpace::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+DirectSumSpace::save_hdf5(cyten::hdf5::Saver& saver,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath) const
 {
-    ElementarySpace::save_hdf5(hdf5_saver, h5gr, subpath);
-    auto save = hdf5_saver.attr("save");
+    ElementarySpace::save_hdf5(saver, h5gr, subpath);
     py::list spaces_list;
     for (auto const& s : spaces) {
         spaces_list.append(py::cast(s));
     }
-    save(spaces_list, subpath + "spaces");
-    h5gr.attr("attrs")["is_direct_sum_space"] = true;
+    cyten::hdf5::py_save(subpath + "spaces", spaces_list);
+    cyten::hdf5::py_set_group_attr("is_direct_sum_space", py::cast(true));
 }
 
 DirectSumSpace::Ptr
-DirectSumSpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+DirectSumSpace::from_hdf5(cyten::hdf5::Loader& loader,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath)
 {
-    auto load = hdf5_loader.attr("load");
-    auto spaces_obj = load(subpath + "spaces");
+    auto spaces_obj = cyten::hdf5::py_load(subpath + "spaces");
     std::vector<ElementarySpace::Ptr> spaces_;
     for (py::handle item : spaces_obj) {
         spaces_.push_back(item.cast<ElementarySpace::Ptr>());
     }
-    auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
+    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
     auto obj = from_spaces(std::move(spaces_), is_dual);
     py::object py_obj = py::cast(obj);
-    hdf5_loader.attr("memorize_load")(h5gr, py_obj);
+    cyten::hdf5::py_memorize_load(h5gr, py_obj);
     return obj;
 }
 
@@ -2320,7 +2284,13 @@ factor_change_symmetry(Leg::Ptr const& factor,
                        bool injective)
 {
     if (auto space = std::dynamic_pointer_cast<Space>(factor)) {
-        return space->change_symmetry(symmetry, sector_map, injective).cast<Leg::Ptr>();
+        auto changed = space->change_symmetry(symmetry, sector_map, injective);
+        auto leg = std::dynamic_pointer_cast<Leg>(changed);
+        if (!leg) {
+            throw std::invalid_argument(
+              "change_symmetry on a TensorProduct factor must yield a Leg");
+        }
+        return leg;
     }
     auto pipe = std::dynamic_pointer_cast<LegPipe>(factor);
     if (!pipe) {
@@ -2338,7 +2308,13 @@ factor_change_symmetry(Leg::Ptr const& factor,
 factor_drop_symmetry(Leg::Ptr const& factor, std::optional<std::vector<int64>> const& which)
 {
     if (auto space = std::dynamic_pointer_cast<Space>(factor)) {
-        return space->drop_symmetry(which).cast<Leg::Ptr>();
+        auto changed = space->drop_symmetry(which);
+        auto leg = std::dynamic_pointer_cast<Leg>(changed);
+        if (!leg) {
+            throw std::invalid_argument(
+              "drop_symmetry on a TensorProduct factor must yield a Leg");
+        }
+        return leg;
     }
     auto pipe = std::dynamic_pointer_cast<LegPipe>(factor);
     if (!pipe) {
@@ -2514,7 +2490,7 @@ as_space(Leg::Ptr const& leg)
     if (auto space = std::dynamic_pointer_cast<Space>(leg)) {
         return space;
     }
-    return leg->as_Space().cast<Space::Ptr>();
+    return leg->as_space_obj();
 }
 
 TensorProduct::Prepared
@@ -2631,7 +2607,7 @@ TensorProduct::block_size(std::variant<int64, Sector> coupled) const
     return sector_multiplicity(std::get<Sector>(coupled));
 }
 
-py::object
+Space::Ptr
 TensorProduct::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
 {
     auto sectors = sector_map(sector_decomposition);
@@ -2649,11 +2625,11 @@ TensorProduct::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, 
     }
     // note: unlike the Python version, which passes ``self.symmetry``, we pass the *new*
     // symmetry here. Otherwise the constructor rejects the new factors.
-    return py::cast(std::make_shared<TensorProduct>(
-      std::move(new_factors), std::move(symmetry_), std::move(sectors), std::move(mults)));
+    return std::make_shared<TensorProduct>(
+      std::move(new_factors), std::move(symmetry_), std::move(sectors), std::move(mults));
 }
 
-py::object
+Space::Ptr
 TensorProduct::drop_symmetry(std::optional<std::vector<int64>> which)
 {
     auto const [which_factors, remaining_symmetry] = parse_inputs_drop_symmetry(which, *symmetry);
@@ -2696,8 +2672,8 @@ TensorProduct::drop_symmetry(std::optional<std::vector<int64>> which)
     for (auto const& factor : factors) {
         new_factors.push_back(factor_drop_symmetry(factor, which_factors));
     }
-    return py::cast(std::make_shared<TensorProduct>(
-      std::move(new_factors), remaining_symmetry, std::move(sectors), std::move(mults)));
+    return std::make_shared<TensorProduct>(
+      std::move(new_factors), remaining_symmetry, std::move(sectors), std::move(mults));
 }
 
 bool
@@ -3149,68 +3125,52 @@ TensorProduct::calc_sectors(std::vector<Leg::Ptr> const& factors_) const
 }
 
 void
-TensorProduct::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+TensorProduct::save_hdf5(cyten::hdf5::Saver& saver,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath) const
 {
     (void)h5gr;
-    auto save = hdf5_saver.attr("save");
     py::list factor_list;
     for (auto const& factor : factors) {
         factor_list.append(py::cast(factor));
     }
-    save(factor_list, subpath + "factors");
-    save(slices_to_py(slices), subpath + "slices");
-    save(py::cast(symmetry), subpath + "symmetry");
-    save(py::int_(num_sectors), subpath + "num_sectors");
-    save(py::int_(num_factors), subpath + "num_factors");
-    save(py::cast(sector_decomposition), subpath + "sector_decomposition");
-    save(sector_order ? py::cast(*sector_order) : py::none(), subpath + "sector_order");
-    save(dim_to_py(dim), subpath + "dim");
-    save(vector_to_array(multiplicities), subpath + "multiplicities");
-    save(sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none(),
-         subpath + "sector_dims");
+    cyten::hdf5::py_save(subpath + "factors", factor_list);
+    cyten::hdf5::py_save(subpath + "slices", slices_to_py(slices));
+    cyten::hdf5::py_save(subpath + "symmetry", py::cast(symmetry));
+    cyten::hdf5::py_save(subpath + "num_sectors", py::int_(num_sectors));
+    cyten::hdf5::py_save(subpath + "num_factors", py::int_(num_factors));
+    cyten::hdf5::py_save(subpath + "sector_decomposition", py::cast(sector_decomposition));
+    cyten::hdf5::py_save(subpath + "sector_order",
+                         sector_order ? py::cast(*sector_order) : py::none());
+    cyten::hdf5::py_save(subpath + "dim", dim_to_py(dim));
+    cyten::hdf5::py_save(subpath + "multiplicities", vector_to_array(multiplicities));
+    cyten::hdf5::py_save(subpath + "sector_dims",
+                         sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none());
 }
 
 TensorProduct::Ptr
-TensorProduct::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+TensorProduct::from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath)
 {
-    auto load = hdf5_loader.attr("load");
-    auto symmetry = load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
     std::vector<Leg::Ptr> factors;
-    for (py::handle factor : load(subpath + "factors")) {
+    for (py::handle factor : cyten::hdf5::py_load(subpath + "factors")) {
         factors.push_back(factor.cast<Leg::Ptr>());
     }
-    auto sector_decomposition = load(subpath + "sector_decomposition").cast<SectorArray>();
-    auto multiplicities = py_array_to_i64(py::array::ensure(load(subpath + "multiplicities")));
+    auto sector_decomposition =
+      cyten::hdf5::py_load(subpath + "sector_decomposition").cast<SectorArray>();
+    auto multiplicities =
+      py_array_to_i64(py::array::ensure(cyten::hdf5::py_load(subpath + "multiplicities")));
     auto obj = std::make_shared<TensorProduct>(std::move(factors),
                                                std::move(symmetry),
                                                std::move(sector_decomposition),
                                                std::move(multiplicities));
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 
 namespace {
-
-/// ``cyten.tools.misc.make_stride``: the strides of a C- (or F-) style array of the given shape.
-[[nodiscard]] std::vector<int64>
-make_stride(std::vector<int64> const& shape, bool cstyle)
-{
-    auto const L = shape.size();
-    std::vector<int64> res(L, 1);
-    int64 stride = 1;
-    if (cstyle) {
-        for (std::size_t a = L; a-- > 1;) {
-            stride *= shape[a];
-            res[a - 1] = stride;
-        }
-    } else {
-        for (std::size_t a = 0; a + 1 < L; ++a) {
-            stride *= shape[a];
-            res[a + 1] = stride;
-        }
-    }
-    return res;
-}
 
 /// Entry ``n`` of row ``m`` of ``cyten.tools.misc.make_grid(shape, cstyle)``.
 ///
@@ -3589,16 +3549,16 @@ AbelianLegPipe::test_sanity() const
     ElementarySpace::test_sanity();
 }
 
-py::object
-AbelianLegPipe::as_Space()
+Space::Ptr
+AbelianLegPipe::as_space_obj()
 {
-    return py::cast(shared_es());
+    return shared_es();
 }
 
-py::object
+ElementarySpace::Ptr
 AbelianLegPipe::as_ElementarySpace(bool is_dual_)
 {
-    return py::cast(with_is_dual(is_dual_));
+    return with_is_dual(is_dual_);
 }
 
 Space::Ptr
@@ -3721,20 +3681,19 @@ AbelianLegPipe::from_trivial_sector(int64 /*dim*/,
     throw py::type_error("from_trivial_sector is not supported for AbelianLegPipe");
 }
 
-py::object
+Space::Ptr
 AbelianLegPipe::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
 {
     std::vector<ElementarySpace::Ptr> new_legs;
     new_legs.reserve(legs.size());
     for (auto const& leg : es_legs()) {
-        new_legs.push_back(
-          leg->change_symmetry(symmetry_, sector_map, injective).cast<ElementarySpace::Ptr>());
+        new_legs.push_back(std::dynamic_pointer_cast<ElementarySpace>(
+          leg->change_symmetry(symmetry_, sector_map, injective)));
     }
-    return py::cast(
-      std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle));
+    return std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle);
 }
 
-py::object
+Space::Ptr
 AbelianLegPipe::drop_symmetry(std::optional<std::vector<int64>> which)
 {
     // --- hints from Python AbelianLegPipe.drop_symmetry ---
@@ -3744,10 +3703,9 @@ AbelianLegPipe::drop_symmetry(std::optional<std::vector<int64>> which)
     std::vector<ElementarySpace::Ptr> new_legs;
     new_legs.reserve(legs.size());
     for (auto const& leg : es_legs()) {
-        new_legs.push_back(leg->drop_symmetry(which).cast<ElementarySpace::Ptr>());
+        new_legs.push_back(std::dynamic_pointer_cast<ElementarySpace>(leg->drop_symmetry(which)));
     }
-    return py::cast(
-      std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle));
+    return std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle);
 }
 
 void
@@ -3926,31 +3884,35 @@ AbelianLegPipe::repr(bool show_symmetry, bool one_line) const
 }
 
 void
-AbelianLegPipe::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+AbelianLegPipe::save_hdf5(cyten::hdf5::Saver& saver,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath) const
 {
     // note: the Python class inherits ElementarySpace.save_hdf5, which does not store the pipe
     // structure. We additionally store the legs and combine_cstyle, such that from_hdf5 can
     // reconstruct the pipe.
-    ElementarySpace::save_hdf5(hdf5_saver, h5gr, subpath);
+    ElementarySpace::save_hdf5(saver, h5gr, subpath);
     py::list leg_list;
     for (auto const& leg : legs) {
         leg_list.append(py::cast(leg));
     }
-    hdf5_saver.attr("save")(leg_list, subpath + "legs");
-    h5gr.attr("attrs")["combine_cstyle"] = combine_cstyle;
+    cyten::hdf5::py_save(subpath + "legs", leg_list);
+    cyten::hdf5::py_set_group_attr("combine_cstyle", py::cast(combine_cstyle));
 }
 
 AbelianLegPipe::Ptr
-AbelianLegPipe::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+AbelianLegPipe::from_hdf5(cyten::hdf5::Loader& loader,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath)
 {
     std::vector<ElementarySpace::Ptr> legs;
-    for (py::handle item : hdf5_loader.attr("load")(subpath + "legs")) {
+    for (py::handle item : cyten::hdf5::py_load(subpath + "legs")) {
         legs.push_back(item.cast<ElementarySpace::Ptr>());
     }
-    auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
-    auto const combine_cstyle = hdf5_loader.attr("get_attr")(h5gr, "combine_cstyle").cast<bool>();
+    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
+    auto const combine_cstyle = cyten::hdf5::py_get_attr(h5gr, "combine_cstyle").cast<bool>();
     auto obj = std::make_shared<AbelianLegPipe>(std::move(legs), is_dual, combine_cstyle);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

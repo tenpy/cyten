@@ -12,6 +12,7 @@
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include "tools/hdf5_bind.h"
 #include <memory>
 #include <optional>
 #include <string>
@@ -78,12 +79,12 @@ bind_abelian_backend_data(py::module_& m)
            py::arg("block_inds"),
            DOC(cyten, AbelianBackendData, get_block))
       .def("save_hdf5",
-           &AbelianBackendData::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<AbelianBackendData>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &AbelianBackendData::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<AbelianBackendData>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

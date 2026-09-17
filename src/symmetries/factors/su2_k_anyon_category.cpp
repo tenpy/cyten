@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <numbers>
 #include <stdexcept>
 #include <utility>
@@ -368,23 +370,25 @@ SU2_kAnyonCategory::all_sectors() const
 }
 
 void
-SU2_kAnyonCategory::save_hdf5(py::object hdf5_saver,
-                              py::object h5gr,
+SU2_kAnyonCategory::save_hdf5(cyten::hdf5::Saver& saver,
+                              HighFive::Group& h5gr,
                               std::string const& subpath) const
 {
-    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
-    hdf5_saver.attr("save")(k, subpath + "k");
-    hdf5_saver.attr("save")(handedness, subpath + "handedness");
+    SymmetryFactor::save_hdf5(saver, h5gr, subpath);
+    cyten::hdf5::py_save(subpath + "k", k);
+    cyten::hdf5::py_save(subpath + "handedness", handedness);
 }
 
 SU2_kAnyonCategory::Ptr
-SU2_kAnyonCategory::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+SU2_kAnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
+                              HighFive::Group& h5gr,
+                              std::string const& subpath)
 {
-    int k = hdf5_loader.attr("load")(subpath + "k").cast<int>();
-    std::string handedness = hdf5_loader.attr("load")(subpath + "handedness").cast<std::string>();
+    int k = cyten::hdf5::py_load(subpath + "k").cast<int>();
+    std::string handedness = cyten::hdf5::py_load(subpath + "handedness").cast<std::string>();
     auto obj = std::make_shared<SU2_kAnyonCategory>(k, handedness);
     obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

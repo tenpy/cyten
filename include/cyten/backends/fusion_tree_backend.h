@@ -5,6 +5,7 @@
 #include <cyten/symmetries/spaces.h>
 #include <cyten/symmetries/trees.h>
 
+#include <cyten/tools/hdf5.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -72,9 +73,9 @@ class FusionTreeData : public TensorBackend::Data
     /// Discard blocks whose norm is below the threshold `eps`.
     void discard_zero_blocks(std::shared_ptr<BlockBackend> backend, float64 eps);
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string subpath);
 };
 
 /// A backend based on fusion trees.

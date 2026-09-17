@@ -59,19 +59,20 @@ prod_i64(std::vector<int64> const& vals)
     return std::accumulate(vals.begin(), vals.end(), int64{ 1 }, std::multiplies<int64>{});
 }
 
-py::object
-rank_data_py(py::object arr)
-{
-    return py::module_::import("cyten.tools.misc").attr("rank_data")(arr);
-}
-
 std::optional<std::vector<int64>>
 rank_basis_perm_masked(py::object basis_perm, BlockBackend& bb, BlockBackend::BlockPtr const& mask)
 {
     if (basis_perm.is_none())
         return std::nullopt;
     py::object indexed = basis_perm[bb.to_numpy(mask)];
-    return rank_data_py(indexed).cast<std::vector<int64>>();
+    auto np = py::module_::import("numpy");
+    auto arr =
+      np.attr("asarray")(indexed, py::arg("dtype") = np.attr("intp")).cast<py::array_t<int64>>();
+    auto buf = arr.unchecked<1>();
+    std::vector<int64> vals(static_cast<std::size_t>(buf.shape(0)));
+    for (py::ssize_t i = 0; i < buf.shape(0); ++i)
+        vals[static_cast<std::size_t>(i)] = buf(i);
+    return rank_data(vals);
 }
 
 bool
@@ -325,9 +326,7 @@ NoSymmetryBackend::diagonal_transpose(DiagonalTensorCPtr tens)
 std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>
 NoSymmetryBackend::eigh(SymmetricTensorCPtr a, bool new_leg_dual, std::optional<std::string> sort)
 {
-    auto new_leg = py::cast(a->domain)
-                     .attr("as_ElementarySpace")(py::arg("is_dual") = new_leg_dual)
-                     .cast<ElementarySpace::Ptr>();
+    auto new_leg = a->domain->as_ElementarySpace(new_leg_dual);
     int64 J = a->num_codomain_legs();
     int64 N = 2 * J;
     std::vector<int64> perm;
@@ -361,9 +360,7 @@ NoSymSquareMat
 no_sym_as_square_matrix(NoSymmetryBackend& self, SymmetricTensorCPtr a, bool new_leg_dual)
 {
     NoSymSquareMat out;
-    out.new_leg = py::cast(a->domain)
-                    .attr("as_ElementarySpace")(py::arg("is_dual") = new_leg_dual)
-                    .cast<ElementarySpace::Ptr>();
+    out.new_leg = a->domain->as_ElementarySpace(new_leg_dual);
     out.J = a->num_codomain_legs();
     int64 N = 2 * out.J;
     std::vector<int64> perm;

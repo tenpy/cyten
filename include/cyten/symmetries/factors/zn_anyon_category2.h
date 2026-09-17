@@ -3,6 +3,7 @@
 #include "../symmetry.h"
 
 #include <complex>
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -49,10 +50,12 @@ class ZNAnyonCategory2 : public SymmetryFactor
       const override;
     SectorArray all_sectors() const override;
 
-    void save_hdf5(py::object hdf5_saver,
-                   py::object h5gr,
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
                    std::string const& subpath) const override;
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 };
 
 /// Semion category @f$ Z_2^{(1/2)} @f$ as a product `Symmetry`.

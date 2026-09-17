@@ -2,6 +2,7 @@
 
 #include "../group.h"
 
+#include <cyten/tools/hdf5.h>
 #include <optional>
 #include <string>
 #include <vector>
@@ -47,7 +48,9 @@ class SU2 : public Group
     FusionSymbol _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override;
     FusionSymbol Z_iso(Sector a) const override;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 };
 
 } // namespace cyten

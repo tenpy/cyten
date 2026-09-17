@@ -3,6 +3,7 @@
 #include <cyten/block_backend/array_api.h>
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <memory>
 #include <pybind11/pybind11.h>
 #include <span>
@@ -125,9 +126,20 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, pow, exponent);
     }
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath) override
+    void save_hdf5(cyten::hdf5::Saver& /*saver*/,
+                   HighFive::Group& /*h5gr*/,
+                   const std::string& subpath) override
     {
-        PYBIND11_OVERRIDE_PURE(void, BlockBackend::Block, save_hdf5, hdf5_saver, h5gr, subpath);
+        py::gil_scoped_acquire gil;
+        py::function ov = py::get_overload(static_cast<BlockBackend::Block*>(this), "save_hdf5");
+        if (!ov)
+            py::pybind11_fail(
+              "Tried to call pure virtual function \"BlockBackend::Block::save_hdf5\"");
+        py::object* ps = cyten::hdf5::tls_py_saver();
+        py::object* pg = cyten::hdf5::tls_py_h5gr();
+        if (!ps || !pg)
+            py::pybind11_fail("Block.save_hdf5 Python override requires an active hdf5 PyBridge");
+        ov(*ps, *pg, subpath);
     }
 }; // trampoline class PyBlock
 
