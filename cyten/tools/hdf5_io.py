@@ -3,6 +3,7 @@
 This module re-exports the standalone ``hdf5_io`` package (C++/pybind11
 implementation). Install it via ``pip install hdf5_io`` or the cyten ``[io]`` extra.
 """
+# Copyright (C) TeNPy Developers, Apache license
 
 from hdf5_io import *  # noqa: F403
 from hdf5_io import (  # noqa: F401
