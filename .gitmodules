@@ -1,3 +1,6 @@
 [submodule "docs/latex"]
 	path = docs/latex
 	url = https://git@git.overleaf.com/65e5f5db3d299471ca8a5979
+[submodule "external/hdf5_io"]
+	path = external/hdf5_io
+	url = https://github.com/tenpy/hdf5_io.git
