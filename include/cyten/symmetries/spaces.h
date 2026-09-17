@@ -25,6 +25,8 @@
 namespace cyten {
 
 class TensorBackend;
+class Space;
+class ElementarySpace;
 
 /// Common base of `Leg` and `Space`, providing ``shared_from_this``.
 ///
@@ -64,11 +66,16 @@ class Leg : public virtual LegOrSpace
     /// Perform sanity checks.
     virtual void test_sanity() const;
 
-    /// Convert to (an appropriate subclass of) `Space`.
-    virtual py::object as_Space() = 0;
+    /// Convert to (an appropriate subclass of) `Space` (MI hook; override `as_space_obj`).
+    std::shared_ptr<Space> as_space() { return as_space_obj(); }
+
+    /// Implement `as_space` for `Leg` subclasses.
+    ///
+    /// Named differently from `Space::as_Space` because `ElementarySpace` inherits both.
+    virtual std::shared_ptr<Space> as_space_obj() = 0;
 
     /// Convert to an isomorphic `ElementarySpace`.
-    virtual py::object as_ElementarySpace(bool is_dual = false);
+    virtual std::shared_ptr<ElementarySpace> as_ElementarySpace(bool is_dual = false);
 
     /// The dual leg (hook for MI; override `dual_leg`).
     Ptr dual() const { return dual_leg(); }
@@ -183,7 +190,7 @@ class Space : public virtual LegOrSpace
 
     [[nodiscard]] bool is_subspace_of(Space const& other) const;
 
-    virtual py::object as_ElementarySpace(bool is_dual = false);
+    virtual std::shared_ptr<ElementarySpace> as_ElementarySpace(bool is_dual = false);
 
     /// Change the symmetry by specifying how the sectors change.
     ///
@@ -202,16 +209,16 @@ class Space : public virtual LegOrSpace
     /// list of unique outputs, if the inputs are unique.
     /// @returns A space with the new symmetry. The order of the basis is preserved, but every
     /// basis element lives in a new sector, according to `sector_map`.
-    virtual py::object change_symmetry(Symmetry::Ptr symmetry,
-                                       SectorMapFn sector_map,
-                                       bool injective = false) = 0;
+    virtual Ptr change_symmetry(Symmetry::Ptr symmetry,
+                                SectorMapFn sector_map,
+                                bool injective = false) = 0;
 
     /// Drop some or all symmetries.
     ///
     /// @param which If ``'all'`` (default) the entire symmetry is dropped and the result has
     /// ``no_symmetry``. An integer or list of integers indicates to drop the `factors` with those
     /// indices.
-    virtual py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) = 0;
+    virtual Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) = 0;
 
     /// Convert to (an appropriate subclass of) `Space`.
     Ptr as_Space();
@@ -246,7 +253,7 @@ class LegPipe : public virtual Leg
     /// Perform sanity checks.
     void test_sanity() const override;
 
-    py::object as_Space() override;
+    std::shared_ptr<Space> as_space_obj() override;
 
     Leg::Ptr dual_leg() const override;
 
@@ -372,19 +379,19 @@ class ElementarySpace
     /// Common implementation of both ``operator==`` overloads.
     [[nodiscard]] bool equals_es(ElementarySpace const& other) const;
 
-    py::object as_ElementarySpace(bool is_dual = false) override;
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual = false) override;
 
     /// The ket space (``is_dual=False``) isomorphic or equal to self.
     [[nodiscard]] Ptr as_ket_space();
     [[nodiscard]] Ptr as_bra_space();
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective = false) override;
 
     [[nodiscard]] Ptr direct_sum(std::vector<Ptr> const& others) const;
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
 
     Space::Ptr dual_space() const override;
     Leg::Ptr dual_leg() const override;
@@ -410,7 +417,7 @@ class ElementarySpace
 
     [[nodiscard]] Ptr with_is_dual(bool is_dual) const;
 
-    py::object as_Space() override;
+    std::shared_ptr<Space> as_space_obj() override;
 
     bool is_trivial() const override;
 
@@ -471,18 +478,18 @@ class DirectSumSpace : public ElementarySpace
     /// same fused sectors / multiplicities / ``basis_perm``.
     [[nodiscard]] ElementarySpace::Ptr as_plain_ElementarySpace() const;
 
-    py::object as_Space() override;
-    py::object as_ElementarySpace(bool is_dual = false) override;
+    std::shared_ptr<Space> as_space_obj() override;
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual = false) override;
 
     Space::Ptr dual_space() const override;
     Leg::Ptr dual_leg() const override;
     [[nodiscard]] Ptr dual_dss() const;
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective = false) override;
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
 
     ElementarySpace::Ptr take_slice(py::array blockmask) const override;
 
@@ -620,11 +627,11 @@ class TensorProduct : public Space
     /// The size of a block (``coupled`` may be a sector index or a sector).
     [[nodiscard]] int64 block_size(std::variant<int64, Sector> coupled) const;
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective = false) override;
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
 
     [[nodiscard]] bool has_pipes() const;
 
@@ -765,9 +772,9 @@ class AbelianLegPipe
     /// Perform sanity checks.
     void test_sanity() const override;
 
-    py::object as_Space() override;
+    std::shared_ptr<Space> as_space_obj() override;
 
-    py::object as_ElementarySpace(bool is_dual = false) override;
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual = false) override;
 
     Space::Ptr dual_space() const override;
     Leg::Ptr dual_leg() const override;
@@ -843,11 +850,11 @@ class AbelianLegPipe
                                    bool is_dual = false,
                                    std::optional<std::vector<int64>> basis_perm = std::nullopt);
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective = false) override;
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
 
     void set_basis_perm(std::optional<std::vector<int64>> basis_perm) override;
 

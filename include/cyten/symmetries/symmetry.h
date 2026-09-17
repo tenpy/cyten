@@ -59,12 +59,13 @@ class Symmetry : public BaseSymmetry
     /// Ordering of the `factors` is also ignored, unless ``strict_ordering=True``.
     bool is_equivalent_to(Symmetry const& other, bool strict_ordering = false) const;
 
+    /// Identity: already a product `Symmetry`.
+    Ptr as_Symmetry() override;
+
     /// Check if `a` is a valid sector.
     ///
     /// For a `Symmetry`, the valid sectors are 1D integer arrays, which are "stacks" of
     /// valid sectors for each of the `factors`, see `sector_slices`.
-    py::object as_Symmetry() override;
-
     bool is_valid_sector(Sector a) const override;
     bool are_valid_sectors(SectorArray const& sectors) const override;
     /// Returns all outcomes for the fusion of sectors

@@ -99,7 +99,7 @@ bind_symmetry_factor(py::module_& m)
             // Use the Python-held shared_ptr; shared_from_this fails with smart_holder
             // trampolines.
             auto ptr = self.cast<SymmetryFactor::Ptr>();
-            return py::cast(std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ ptr }));
+            return std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ ptr });
         },
         DOC(cyten, SymmetryFactor, as_Symmetry))
       .def("__str__", &SymmetryFactor::str)

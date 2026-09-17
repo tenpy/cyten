@@ -94,14 +94,15 @@ class SymmetryFactor : public BaseSymmetry
 
     /// Convert any `SymmetryFactor` to a `Symmetry` with that single factor.
     ///
-    /// Convert to a product `Symmetry` with this single factor (via Python until
-    /// converted).
-    py::object as_Symmetry() override;
+    /// Convert to a product `Symmetry` with this single factor.
+    SymmetryPtr as_Symmetry() override;
 
     std::string str() const;
 
-    /// Product with another factor or product symmetry → Python ``Symmetry``.
-    py::object mul(py::object other);
+    /// Product with another factor → new product `Symmetry`.
+    SymmetryPtr mul(Ptr other);
+    /// Product with a product symmetry → new product `Symmetry`.
+    SymmetryPtr mul(Symmetry const& other);
 
     bool equals(SymmetryFactor const& other) const;
 

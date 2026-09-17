@@ -61,8 +61,11 @@ bind_symmetry(py::module_& m)
       .def_readwrite("fusion_tensor_dtype", &Symmetry::fusion_tensor_dtype)
       .def_property_readonly("num_factors", &Symmetry::num_factors);
 
-    cls.def(
-         "as_Symmetry", [](py::object self) { return self; }, DOC(cyten, Symmetry, as_Symmetry))
+    cls
+      .def(
+        "as_Symmetry",
+        [](py::object self) { return self.cast<Symmetry::Ptr>(); },
+        DOC(cyten, Symmetry, as_Symmetry))
       .def(
         "is_valid_sector",
         [](Symmetry const& self, py::object a) {

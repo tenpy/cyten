@@ -6,16 +6,44 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 namespace cyten {
 
 namespace {
 
-py::array
-combine_constraints_py(py::array good1, py::array good2, char const* warn)
+std::vector<bool>
+bool_array_to_vector(py::array arr)
 {
-    auto misc = py::module_::import("cyten.tools.misc");
-    return misc.attr("combine_constraints")(good1, good2, warn).cast<py::array>();
+    auto np = py::module_::import("numpy");
+    py::array_t<bool> flat = np.attr("asarray")(arr, py::arg("dtype") = np.attr("bool_"))
+                               .attr("ravel")()
+                               .cast<py::array_t<bool>>();
+    auto buf = flat.unchecked<1>();
+    std::vector<bool> out(static_cast<std::size_t>(buf.shape(0)));
+    for (py::ssize_t i = 0; i < buf.shape(0); ++i) {
+        out[static_cast<std::size_t>(i)] = static_cast<bool>(buf(i));
+    }
+    return out;
+}
+
+py::array
+bool_vector_to_array(std::vector<bool> const& v)
+{
+    auto np = py::module_::import("numpy");
+    py::array_t<bool> arr(static_cast<py::ssize_t>(v.size()));
+    auto buf = arr.mutable_unchecked<1>();
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        buf(static_cast<py::ssize_t>(i)) = v[i];
+    }
+    return np.attr("asarray")(arr, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
+}
+
+py::array
+combine_constraints_arr(py::array good1, py::array good2, char const* warn_msg)
+{
+    return bool_vector_to_array(
+      combine_constraints(bool_array_to_vector(good1), bool_array_to_vector(good2), warn_msg));
 }
 
 std::string
@@ -186,7 +214,7 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
         py::array good2 =
           np.attr("zeros")(n, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
         good2.attr("__setitem__")(py::slice(-*chi_max, std::nullopt, std::nullopt), true);
-        good = combine_constraints_py(good, good2, "chi_max");
+        good = combine_constraints_arr(good, good2, "chi_max");
     }
 
     if (chi_min > 1) {
@@ -194,7 +222,7 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
         py::array good2 =
           np.attr("ones")(n, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
         good2.attr("__setitem__")(py::slice(-chi_min + 1, std::nullopt, std::nullopt), false);
-        good = combine_constraints_py(good, good2, "chi_min");
+        good = combine_constraints_arr(good, good2, "chi_min");
     }
 
     if (degeneracy_tol > 0) {
@@ -206,18 +234,18 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
             .attr("__sub__")(logS.attr("__getitem__")(py::slice(std::nullopt, -1, std::nullopt)));
         good2.attr("__setitem__")(py::slice(1, std::nullopt, std::nullopt),
                                   np.attr("greater_equal")(dlog, degeneracy_tol));
-        good = combine_constraints_py(good, good2, "degeneracy_tol");
+        good = combine_constraints_arr(good, good2, "degeneracy_tol");
     }
 
     if (svd_min.has_value()) {
         py::array good2 = np.attr("greater_equal")(S_obj, *svd_min).cast<py::array>();
-        good = combine_constraints_py(good, good2, "svd_min");
+        good = combine_constraints_arr(good, good2, "svd_min");
     }
 
     {
         py::array good2 =
           np.attr("cumsum")(marginal_errs).attr("__gt__")(trunc_cut * trunc_cut).cast<py::array>();
-        good = combine_constraints_py(good, good2, "trunc_cut");
+        good = combine_constraints_arr(good, good2, "trunc_cut");
     }
 
     py::array nonzero =

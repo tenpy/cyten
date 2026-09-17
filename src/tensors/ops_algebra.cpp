@@ -17,10 +17,13 @@
 #include <cyten/tensors/tensor.h>
 #include <cyten/tools.h>
 
+#include <cyten/tensors/ops_legs.h>
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <format>
+#include <memory>
 #include <numeric>
 #include <stdexcept>
 #include <unordered_set>
@@ -31,61 +34,57 @@ namespace cyten {
 
 namespace {
 
+TensorProduct::Ptr
+tensor_product_from_py(py::object factors_obj, py::object symmetry_obj)
+{
+    auto factors = factors_obj.cast<std::vector<Leg::Ptr>>();
+    auto symmetry = symmetry_obj.cast<Symmetry::Ptr>();
+    return std::make_shared<TensorProduct>(std::move(factors), std::move(symmetry));
+}
+
 char const* _USE_PERMUTE_LEGS_ERR_MSG =
   "Legs can not be permuted automatically. Explicitly use permute_legs()";
-
-py::object
-tensors_mod()
-{
-    return py::module_::import("cyten.tensors._tensors");
-}
-
-bool
-is_python_instance(py::object obj, char const* class_name)
-{
-    return py::isinstance(obj, tensors_mod().attr(class_name));
-}
 
 bool
 is_Mask(py::object obj)
 {
-    return is_python_instance(obj, "Mask") || py::isinstance<Mask>(obj);
+    return py::isinstance<Mask>(obj);
 }
 
 bool
 is_DiagonalTensor(py::object obj)
 {
-    return is_python_instance(obj, "DiagonalTensor") || py::isinstance<DiagonalTensor>(obj);
+    return py::isinstance<DiagonalTensor>(obj);
 }
 
 bool
 is_Identity(py::object obj)
 {
-    return is_python_instance(obj, "Identity") || py::isinstance<Identity>(obj);
+    return py::isinstance<Identity>(obj);
 }
 
 bool
 is_SymmetricTensor(py::object obj)
 {
-    return is_python_instance(obj, "SymmetricTensor") || py::isinstance<SymmetricTensor>(obj);
+    return py::isinstance<SymmetricTensor>(obj);
 }
 
 bool
 is_ChargedTensor(py::object obj)
 {
-    return is_python_instance(obj, "ChargedTensor") || py::isinstance<ChargedTensor>(obj);
+    return py::isinstance<ChargedTensor>(obj);
 }
 
 bool
 is_HiddenLegTensor(py::object obj)
 {
-    return is_python_instance(obj, "HiddenLegTensor") || py::isinstance<HiddenLegTensor>(obj);
+    return py::isinstance<HiddenLegTensor>(obj);
 }
 
 bool
 is_Tensor(py::object obj)
 {
-    return is_python_instance(obj, "Tensor") || py::isinstance<Tensor>(obj);
+    return py::isinstance<Tensor>(obj);
 }
 
 /// Cast a TensorCPtr to a Python object of the most-derived bound type.
@@ -315,11 +314,13 @@ check_legs(std::vector<py::object> const& a,
     _check_compatible_legs(va, vb, expect_equal);
 }
 
-py::object
-data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& /*backend*/)
+[[nodiscard]] Space::Ptr
+as_space_leg(py::object leg)
 {
-    // C++ SymmetricTensor/Mask/DiagonalTensor ctors take DataPtr (including NoSymmetry BlockData).
-    return py::cast(std::move(data));
+    if (py::isinstance<LegPipe>(leg)) {
+        throw std::invalid_argument("DiagonalTensor / Mask is not defined on LegPipes.");
+    }
+    return leg.cast<Space::Ptr>();
 }
 
 py::object
@@ -329,17 +330,16 @@ make_python_symmetric_tensor(TensorBackend::DataPtr data,
                              TensorBackend::Ptr backend,
                              py::object labels)
 {
-    return tensors_mod().attr("SymmetricTensor")(data_as_python(std::move(data), backend),
-                                                 codomain,
-                                                 domain,
-                                                 py::arg("backend") = py::cast(backend),
-                                                 py::arg("labels") = labels);
+    auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+    return py::cast(std::make_shared<SymmetricTensor>(
+      std::move(data), init.codomain, init.domain, init.backend, init.symmetry, init.labels));
 }
 
 py::object
 make_python_charged_tensor(py::object invariant_part, py::object charged_state)
 {
-    return tensors_mod().attr("ChargedTensor")(invariant_part, charged_state);
+    return py::cast(std::make_shared<ChargedTensor>(invariant_part.cast<SymmetricTensor::Ptr>(),
+                                                    charged_state.cast<BlockBackend::BlockPtr>()));
 }
 
 py::object
@@ -348,10 +348,10 @@ make_python_diagonal_tensor(TensorBackend::DataPtr data,
                             TensorBackend::Ptr backend,
                             py::object labels)
 {
-    return tensors_mod().attr("DiagonalTensor")(data_as_python(std::move(data), backend),
-                                                leg,
-                                                py::arg("backend") = py::cast(backend),
-                                                py::arg("labels") = labels);
+    auto init = parse_tensor_init(
+      py::make_tuple(leg), py::make_tuple(leg), std::move(backend), labels, true);
+    return py::cast(std::make_shared<DiagonalTensor>(
+      std::move(data), as_space_leg(leg), init.backend, init.symmetry, init.labels));
 }
 
 py::object
@@ -362,19 +362,129 @@ make_python_mask(TensorBackend::DataPtr data,
                  TensorBackend::Ptr backend,
                  py::object labels)
 {
-    return tensors_mod().attr("Mask")(data_as_python(std::move(data), backend),
-                                      space_in,
-                                      space_out,
-                                      py::arg("is_projection") = is_projection,
-                                      py::arg("backend") = py::cast(backend),
-                                      py::arg("labels") = labels);
+    auto init = parse_tensor_init(
+      py::make_tuple(space_out), py::make_tuple(space_in), std::move(backend), labels);
+    auto device_s = init.backend->get_device_from_data(data);
+    return py::cast(std::make_shared<Mask>(std::move(data),
+                                           as_space_leg(space_in),
+                                           as_space_leg(space_out),
+                                           is_projection,
+                                           init.backend,
+                                           init.symmetry,
+                                           init.labels,
+                                           std::move(device_s)));
 }
 
 py::object
 make_python_identity(py::object leg, TensorBackend::Ptr backend, py::object labels)
 {
-    return tensors_mod().attr("Identity")(
-      leg, py::arg("backend") = py::cast(backend), py::arg("labels") = labels);
+    auto init = parse_tensor_init(
+      py::make_tuple(leg), py::make_tuple(leg), std::move(backend), labels, true);
+    auto dt = SymmetricTensor::_parse_default_dtype(std::nullopt, init.symmetry);
+    if (!dt.has_value()) {
+        dt = Dtype::Float64;
+    }
+    std::string device_s = init.backend->block_backend->default_device;
+    return py::cast(std::make_shared<Identity>(
+      as_space_leg(leg), init.backend, init.symmetry, init.labels, *dt, std::move(device_s)));
+}
+
+[[nodiscard]] std::vector<LegRef>
+leg_refs_from_ints(std::vector<int64> const& idcs)
+{
+    std::vector<LegRef> out;
+    out.reserve(idcs.size());
+    for (auto i : idcs) {
+        out.emplace_back(i);
+    }
+    return out;
+}
+
+[[nodiscard]] std::vector<LegRef>
+leg_refs_from_py(py::object seq)
+{
+    std::vector<LegRef> out;
+    for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
+        if (py::isinstance<py::str>(item)) {
+            out.emplace_back(item.cast<std::string>());
+        } else {
+            out.emplace_back(item.cast<int64>());
+        }
+    }
+    return out;
+}
+
+[[nodiscard]] std::optional<BendRight>
+bend_right_from_py(py::object obj)
+{
+    if (obj.is_none()) {
+        return std::nullopt;
+    }
+    if (py::isinstance<py::bool_>(obj)) {
+        return BendRight{ obj.cast<bool>() };
+    }
+    std::vector<std::optional<bool>> vals;
+    for (auto item : py::reinterpret_borrow<py::iterable>(obj)) {
+        if (item.is_none()) {
+            vals.push_back(std::nullopt);
+        } else {
+            vals.push_back(item.cast<bool>());
+        }
+    }
+    return BendRight{ std::move(vals) };
+}
+
+[[nodiscard]] py::object
+from_invariant_part_as_py(py::object inv_part, py::object charged_state)
+{
+    auto v = ChargedTensor::from_invariant_part(inv_part.cast<SymmetricTensor::Ptr>(),
+                                                charged_state.cast<BlockBackend::BlockPtr>());
+    return std::visit([](auto const& x) -> py::object { return py::cast(x); }, v);
+}
+
+[[nodiscard]] py::object
+from_two_charge_legs_as_py(py::object inv_part, py::object state1, py::object state2)
+{
+    auto v = ChargedTensor::from_two_charge_legs(inv_part.cast<SymmetricTensor::Ptr>(),
+                                                 state1.cast<BlockBackend::BlockPtr>(),
+                                                 state2.cast<BlockBackend::BlockPtr>());
+    return std::visit([](auto const& x) -> py::object { return py::cast(x); }, v);
+}
+
+[[nodiscard]] py::object
+move_leg_as_py(py::object tensor,
+               LegRef which,
+               std::optional<int64> codomain_pos = std::nullopt,
+               std::optional<int64> domain_pos = std::nullopt,
+               std::optional<BendRight> bend_right = std::nullopt)
+{
+    return tensor_as_py(move_leg(tensor.cast<TensorCPtr>(),
+                                 std::move(which),
+                                 codomain_pos,
+                                 domain_pos,
+                                 std::nullopt,
+                                 std::move(bend_right)));
+}
+
+[[nodiscard]] py::object
+permute_legs_as_py(py::object tensor,
+                   std::optional<std::vector<LegRef>> codomain = std::nullopt,
+                   std::optional<std::vector<LegRef>> domain = std::nullopt,
+                   std::optional<BendRight> bend_right = std::nullopt)
+{
+    return tensor_as_py(permute_legs(tensor.cast<TensorCPtr>(),
+                                     std::move(codomain),
+                                     std::move(domain),
+                                     std::nullopt,
+                                     std::move(bend_right)));
+}
+
+[[nodiscard]] py::object
+bend_legs_as_py(py::object tensor,
+                std::optional<int64> num_codomain_legs = std::nullopt,
+                std::optional<int64> num_domain_legs = std::nullopt)
+{
+    return tensor_as_py(bend_legs(tensor.cast<TensorCPtr>(), num_codomain_legs, num_domain_legs));
 }
 
 LegLabels
@@ -431,16 +541,10 @@ nested_labels_to_py(LegLabels const& codomain_labels, LegLabels const& domain_la
     return out;
 }
 
-py::object
-duplicate_entries(py::object seq)
-{
-    return py::module_::import("cyten.tools.misc").attr("duplicate_entries")(seq);
-}
-
 void
 check_same_legs_py(py::object t1, py::object t2)
 {
-    tensors_mod().attr("check_same_legs")(t1, t2);
+    check_same_legs(t1.cast<TensorCPtr>(), t2.cast<TensorCPtr>());
 }
 
 std::string
@@ -750,8 +854,7 @@ dagger_py(py::object tensor)
         // charge_leg ends up as codomain[0] and is dual.
         py::object inv_part = dagger_py(tensor.attr("invariant_part"));
         inv_part.attr("set_label")(0, charge_leg_label());
-        inv_part = tensors_mod().attr("move_leg")(
-          inv_part, 0, py::arg("domain_pos") = 0, py::arg("bend_right") = true);
+        inv_part = move_leg_as_py(inv_part, 0, std::nullopt, 0, BendRight{ true });
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
         py::object charged_state = py::cast(backend->block_backend->conj(
           tensor.attr("charged_state").cast<BlockBackend::BlockPtr>()));
@@ -925,12 +1028,9 @@ inner_py(py::object A, py::object B, bool do_dagger)
         auto bb = backend->block_backend;
         if (do_dagger) {
             py::object inv_part = py_from_compose_sym(_compose_SymmetricTensors(
-              tensors_mod()
-                .attr("bend_legs")(dagger_py(A.attr("invariant_part")),
-                                   py::arg("num_codomain_legs") = 1)
+              bend_legs_as_py(dagger_py(A.attr("invariant_part")), 1, std::nullopt)
                 .cast<SymmetricTensorCPtr>(),
-              tensors_mod()
-                .attr("bend_legs")(B.attr("invariant_part"), py::arg("num_domain_legs") = 1)
+              bend_legs_as_py(B.attr("invariant_part"), std::nullopt, 1)
                 .cast<SymmetricTensorCPtr>())); // ['!*', '!']
             // OPTIMIZE: like GEMM, should we offer an interface where dagger is implicitly done
             // during tdot?
@@ -956,17 +1056,21 @@ inner_py(py::object A, py::object B, bool do_dagger)
                 bend_right.push_back(py::bool_(true));
             }
             bend_right.push_back(py::bool_(false));
-            py::object A_inv =
-              tensors_mod().attr("permute_legs")(A.attr("invariant_part"),
-                                                 py::make_tuple(-1),
-                                                 py::cast(rev_legs),
-                                                 py::arg("bend_right") = py::cast(bend_right));
+            std::vector<std::optional<bool>> bend_right_bools;
+            bend_right_bools.reserve(bend_right.size());
+            for (auto const& b : bend_right) {
+                bend_right_bools.push_back(b.cast<bool>());
+            }
+            py::object A_inv = permute_legs_as_py(A.attr("invariant_part"),
+                                                  leg_refs_from_ints({ -1 }),
+                                                  leg_refs_from_ints(rev_legs),
+                                                  BendRight{ std::move(bend_right_bools) });
             std::vector<int64> fwd_legs(static_cast<std::size_t>(n_legs));
             std::iota(fwd_legs.begin(), fwd_legs.end(), 0);
-            py::object B_inv = tensors_mod().attr("permute_legs")(B.attr("invariant_part"),
-                                                                  py::cast(fwd_legs),
-                                                                  py::make_tuple(-1),
-                                                                  py::arg("bend_right") = true);
+            py::object B_inv = permute_legs_as_py(B.attr("invariant_part"),
+                                                  leg_refs_from_ints(fwd_legs),
+                                                  leg_refs_from_ints({ -1 }),
+                                                  BendRight{ true });
             py::object inv_part = py_from_compose_sym(
               _compose_SymmetricTensors(A_inv.cast<SymmetricTensorCPtr>(),
                                         B_inv.cast<SymmetricTensorCPtr>(),
@@ -1073,7 +1177,7 @@ item_py(py::object tensor)
         throw std::invalid_argument("Not a scalar");
     }
     if (is_Mask(tensor)) {
-        return tensors_mod().attr("Mask").attr("any")(tensor);
+        return py::cast(tensor.cast<MaskCPtr>()->any());
     }
     if (is_Identity(tensor)) {
         return dtype::one_scalar(tensor.attr("dtype").cast<Dtype>());
@@ -1276,12 +1380,9 @@ outer_py(py::object tensor1,
             r2[bang] = bang + "2";
             py::object inv_part =
               outer_py(tensor1.attr("invariant_part"), tensor2.attr("invariant_part"), r1, r2);
-            inv_part =
-              tensors_mod().attr("move_leg")(inv_part, bang + "2", py::arg("domain_pos") = 1);
-            return tensors_mod()
-              .attr("ChargedTensor")
-              .attr("from_two_charge_legs")(
-                inv_part, tensor1.attr("charged_state"), tensor2.attr("charged_state"));
+            inv_part = move_leg_as_py(inv_part, bang + "2", std::nullopt, 1);
+            return from_two_charge_legs_as_py(
+              inv_part, tensor1.attr("charged_state"), tensor2.attr("charged_state"));
         }
         py::object inv_part =
           outer_py(tensor1.attr("invariant_part"), tensor2, relabel1, relabel2);
@@ -1290,10 +1391,11 @@ outer_py(py::object tensor1,
     if (is_ChargedTensor(tensor2)) {
         py::object inv_part =
           outer_py(tensor1, tensor2.attr("invariant_part"), relabel1, relabel2);
-        inv_part = tensors_mod().attr("move_leg")(inv_part,
-                                                  tensor1.attr("num_codomain_legs").cast<int64>() +
-                                                    tensor2.attr("num_legs").cast<int64>(),
-                                                  py::arg("domain_pos") = 0);
+        inv_part = move_leg_as_py(inv_part,
+                                  tensor1.attr("num_codomain_legs").cast<int64>() +
+                                    tensor2.attr("num_legs").cast<int64>(),
+                                  std::nullopt,
+                                  0);
         return make_python_charged_tensor(inv_part, tensor2.attr("charged_state"));
     }
     if ((is_HiddenLegTensor(tensor1) && is_ChargedTensor(tensor2)) ||
@@ -1365,47 +1467,39 @@ partial_compose_py(py::object tensor1,
         py::object inv_part = tensor2.attr("invariant_part");
         if (tensor1_first_leg.cast<int64>() < tensor1.attr("num_codomain_legs").cast<int64>()) {
             // need to bend down charge leg first
-            inv_part = tensors_mod().attr("move_leg")(
-              inv_part,
-              c,
-              py::arg("codomain_pos") = tensor2.attr("num_codomain_legs").cast<int64>() - 1,
-              py::arg("bend_right") = true);
+            inv_part = move_leg_as_py(inv_part,
+                                      c,
+                                      tensor2.attr("num_codomain_legs").cast<int64>() - 1,
+                                      std::nullopt,
+                                      BendRight{ true });
         }
         inv_part =
           partial_compose_py(tensor1.attr("invariant_part"), inv_part, tensor1_first_leg, r1, r2);
         // domain_pos 1 since domain_pos 0 would mean braiding with c1
-        inv_part = tensors_mod().attr("move_leg")(
-          inv_part, c2, py::arg("domain_pos") = 1, py::arg("bend_right") = true);
-        return tensors_mod()
-          .attr("ChargedTensor")
-          .attr("from_two_charge_legs")(inv_part,
-                                        py::arg("state1") = tensor1.attr("charged_state"),
-                                        py::arg("state2") = tensor2.attr("charged_state"));
+        inv_part = move_leg_as_py(inv_part, c2, std::nullopt, 1, BendRight{ true });
+        return from_two_charge_legs_as_py(
+          inv_part, tensor1.attr("charged_state"), tensor2.attr("charged_state"));
     }
     if (is_ChargedTensor(tensor1)) {
         py::object inv_part = partial_compose_py(
           tensor1.attr("invariant_part"), tensor2, tensor1_first_leg, relabel1, relabel2);
-        return tensors_mod()
-          .attr("ChargedTensor")
-          .attr("from_invariant_part")(inv_part, tensor1.attr("charged_state"));
+        return from_invariant_part_as_py(inv_part, tensor1.attr("charged_state"));
     }
     if (is_ChargedTensor(tensor2)) {
         py::object inv_part = tensor2.attr("invariant_part");
         // Note: Python has a leftover debug print here; omit it.
         if (tensor1_first_leg.cast<int64>() < tensor1.attr("num_codomain_legs").cast<int64>()) {
             // need to bend down charge leg first
-            inv_part = tensors_mod().attr("move_leg")(
-              inv_part,
-              charge_leg_label(),
-              py::arg("codomain_pos") = tensor2.attr("num_codomain_legs").cast<int64>() - 1,
-              py::arg("bend_right") = true);
+            inv_part = move_leg_as_py(inv_part,
+                                      std::string(charge_leg_label()),
+                                      tensor2.attr("num_codomain_legs").cast<int64>() - 1,
+                                      std::nullopt,
+                                      BendRight{ true });
         }
         inv_part = partial_compose_py(tensor1, inv_part, tensor1_first_leg, relabel1, relabel2);
-        inv_part = tensors_mod().attr("move_leg")(
-          inv_part, charge_leg_label(), py::arg("domain_pos") = 0, py::arg("bend_right") = true);
-        return tensors_mod()
-          .attr("ChargedTensor")
-          .attr("from_invariant_part")(inv_part, tensor2.attr("charged_state"));
+        inv_part = move_leg_as_py(
+          inv_part, std::string(charge_leg_label()), std::nullopt, 0, BendRight{ true });
+        return from_invariant_part_as_py(inv_part, tensor2.attr("charged_state"));
     }
 
     (void)same_device2(tensor1, tensor2);
@@ -1456,8 +1550,7 @@ partial_compose_py(py::object tensor1,
         new_cod_list.attr("__setitem__")(
           py::slice(static_cast<py::ssize_t>(t1_first), static_cast<py::ssize_t>(t1_last + 1), 1),
           t2_cod);
-        new_codomain = py::module_::import("cyten.symmetries.spaces")
-                         .attr("TensorProduct")(new_cod_list, tensor1.attr("symmetry"));
+        new_codomain = py::cast(tensor_product_from_py(new_cod_list, tensor1.attr("symmetry")));
         new_domain = tensor1.attr("domain");
     } else {
         int64 num_legs = tensor2.attr("num_codomain_legs").cast<int64>();
@@ -1494,8 +1587,7 @@ partial_compose_py(py::object tensor1,
                                                    static_cast<py::ssize_t>(domain_last_leg + 1),
                                                    1),
                                          t2_dom);
-        new_domain = py::module_::import("cyten.symmetries.spaces")
-                       .attr("TensorProduct")(new_dom_list, tensor1.attr("symmetry"));
+        new_domain = py::cast(tensor_product_from_py(new_dom_list, tensor1.attr("symmetry")));
     }
 
     LegLabels res_labels = codomain_labels;
@@ -1503,10 +1595,16 @@ partial_compose_py(py::object tensor1,
         res_labels.push_back(*it);
     }
     py::object res_labels_py = labels_to_py(res_labels);
-    if (py::len(py::module_::import("cyten.tools.misc")
-                  .attr("duplicate_entries")(
-                    res_labels_py, py::arg("ignore") = py::make_tuple(py::none()))) > 0) {
-        throw std::runtime_error("duplicate labels");
+    {
+        std::vector<std::string> named;
+        for (auto const& lab : res_labels) {
+            if (lab.has_value()) {
+                named.push_back(*lab);
+            }
+        }
+        if (!duplicate_entries(named).empty()) {
+            throw std::runtime_error("duplicate labels");
+        }
     }
 
     if (is_Identity(tensor1)) {
@@ -1551,17 +1649,16 @@ partial_trace_py(py::object tensor, std::vector<py::object> pairs, py::object le
     // check legs are compatible
     std::vector<std::pair<int64, int64>> parsed_pairs;
     parsed_pairs.reserve(pairs.size());
-    py::list traced_idcs_list;
+    std::vector<int64> traced_idcs;
     for (auto const& pair : pairs) {
         py::object idcs = tensor.attr("get_leg_idcs")(pair);
         int64 i1 = idcs.attr("__getitem__")(0).cast<int64>();
         int64 i2 = idcs.attr("__getitem__")(1).cast<int64>();
         parsed_pairs.emplace_back(i1, i2);
-        traced_idcs_list.append(i1);
-        traced_idcs_list.append(i2);
+        traced_idcs.push_back(i1);
+        traced_idcs.push_back(i2);
     }
-    py::object duplicates = duplicate_entries(traced_idcs_list);
-    if (py::len(duplicates) > 0) {
+    if (!duplicate_entries(traced_idcs).empty()) {
         throw std::invalid_argument("Pairs may not contain duplicates.");
     }
     {
@@ -1655,7 +1752,7 @@ partial_trace_py(py::object tensor, std::vector<py::object> pairs, py::object le
         handle_permute_legs_symmetry_error();
     }
 
-    if (num_legs == static_cast<int64>(py::len(traced_idcs_list))) {
+    if (num_legs == static_cast<int64>(traced_idcs.size())) {
         // should be a scalar — C++ backends return 0-d / single-block DataPtr
         return scalar_to_py(backend->data_item(std::move(data)));
     }
@@ -1830,7 +1927,7 @@ tdot_py(py::object tensor1,
     py::object legs2_idcs = tensor2.attr("get_leg_idcs")(legs2);
     std::vector<int64> legs1_v = legs1_idcs.cast<std::vector<int64>>();
     std::vector<int64> legs2_v = legs2_idcs.cast<std::vector<int64>>();
-    if (py::len(duplicate_entries(legs1_idcs)) > 0 || py::len(duplicate_entries(legs2_idcs)) > 0) {
+    if (!duplicate_entries(legs1_v).empty() || !duplicate_entries(legs2_v).empty()) {
         throw std::invalid_argument("Duplicate leg entries.");
     }
     int64 num_contr = static_cast<int64>(legs1_v.size());
@@ -1907,7 +2004,7 @@ tdot_py(py::object tensor1,
                                   tensor1.attr("labels").attr("__getitem__")(1 - legs1_v[0]));
             // move legs to tdot convention
             try {
-                return tensors_mod().attr("permute_legs")(res, py::arg("codomain") = legs1_idcs);
+                return permute_legs_as_py(res, leg_refs_from_py(legs1_idcs));
             } catch (...) {
                 handle_permute_legs_symmetry_error();
             }
@@ -1932,7 +2029,7 @@ tdot_py(py::object tensor1,
             if (tensor2.attr("num_legs").cast<int64>() == 2) { // scalar result
                 return res;
             }
-            return tensors_mod().attr("bend_legs")(res, py::arg("num_codomain_legs") = 0);
+            return bend_legs_as_py(res, 0);
         }
     }
     if (is_Mask(tensor2)) {
@@ -1951,8 +2048,7 @@ tdot_py(py::object tensor1,
                                   tensor2.attr("labels").attr("__getitem__")(1 - legs2_v[0]));
             // move legs to tdot convention
             try {
-                return tensors_mod().attr("permute_legs")(
-                  res, py::arg("domain") = legs2_idcs, py::arg("bend_right") = py::none());
+                return permute_legs_as_py(res, std::nullopt, leg_refs_from_py(legs2_idcs));
             } catch (...) {
                 handle_permute_legs_symmetry_error();
             }
@@ -1977,20 +2073,19 @@ tdot_py(py::object tensor1,
             if (tensor1.attr("num_legs").cast<int64>() == 2) { // scalar result
                 return res;
             }
-            return tensors_mod().attr("bend_legs")(res, py::arg("num_domain_legs") = 0);
+            return bend_legs_as_py(res, std::nullopt, 0);
         }
     }
 
     if (is_Identity(tensor1)) {
         if (num_contr == 1) {
-            py::object res = tensors_mod().attr("permute_legs")(
-              tensor2, py::arg("codomain") = legs2_idcs, py::arg("bend_right") = py::none());
+            py::object res = permute_legs_as_py(tensor2, leg_refs_from_py(legs2_idcs));
             return res.attr("set_label")(
               0, tensor1.attr("labels").attr("__getitem__")(1 - legs1_v[0]));
         }
         if (num_contr == 2) {
             py::object res = partial_trace_py(tensor2, { legs2_idcs });
-            return tensors_mod().attr("bend_legs")(res, py::arg("num_codomain_legs") = 0);
+            return bend_legs_as_py(res, 0);
         }
         tensor1 = tensor1.attr("as_DiagonalTensor")();
     }
@@ -1998,15 +2093,14 @@ tdot_py(py::object tensor1,
     if (is_Identity(tensor2)) {
         if (num_contr == 1) {
             // Match Python (computes res then ignores it):
-            (void)tensors_mod().attr("permute_legs")(
-              tensor1, py::arg("domain") = legs1_idcs, py::arg("bend_right") = py::none());
+            (void)permute_legs_as_py(tensor1, std::nullopt, leg_refs_from_py(legs1_idcs));
             return tensor1.attr("copy")(py::arg("deep") = false)
               .attr("set_label")(legs1_v[0],
                                  tensor2.attr("labels").attr("__getitem__")(1 - legs2_v[0]));
         }
         if (num_contr == 2) {
             py::object res = partial_trace_py(tensor1, { legs1_idcs });
-            return tensors_mod().attr("bend_legs")(res, py::arg("num_domain_legs") = 0);
+            return bend_legs_as_py(res, std::nullopt, 0);
         }
         tensor2 = tensor2.attr("as_DiagonalTensor")();
     }
@@ -2021,7 +2115,7 @@ tdot_py(py::object tensor1,
             res.attr("set_label")(legs2_v[0],
                                   tensor1.attr("labels").attr("__getitem__")(1 - legs1_v[0]));
             try {
-                return tensors_mod().attr("permute_legs")(res, py::arg("codomain") = legs1_idcs);
+                return permute_legs_as_py(res, leg_refs_from_py(legs1_idcs));
             } catch (...) {
                 handle_permute_legs_symmetry_error();
             }
@@ -2031,7 +2125,7 @@ tdot_py(py::object tensor1,
             if (tensor2.attr("num_legs").cast<int64>() == 2) { // scalar result
                 return res;
             }
-            return tensors_mod().attr("bend_legs")(res, py::arg("num_codomain_legs") = 0);
+            return bend_legs_as_py(res, 0);
         }
     }
     if (is_DiagonalTensor(tensor2)) {
@@ -2042,7 +2136,7 @@ tdot_py(py::object tensor1,
             res.attr("set_label")(legs1_v[0],
                                   tensor2.attr("labels").attr("__getitem__")(1 - legs2_v[0]));
             try {
-                return tensors_mod().attr("permute_legs")(res, py::arg("domain") = legs1_idcs);
+                return permute_legs_as_py(res, std::nullopt, leg_refs_from_py(legs1_idcs));
             } catch (...) {
                 handle_permute_legs_symmetry_error();
             }
@@ -2052,7 +2146,7 @@ tdot_py(py::object tensor1,
             if (tensor1.attr("num_legs").cast<int64>() == 2) { // scalar result
                 return res;
             }
-            return tensors_mod().attr("bend_legs")(res, py::arg("num_domain_legs") = 0);
+            return bend_legs_as_py(res, std::nullopt, 0);
         }
     }
 
@@ -2086,28 +2180,20 @@ tdot_py(py::object tensor1,
                                       legs2_idcs,
                                       std::map<std::string, std::string>{ { c, c1 } },
                                       std::map<std::string, std::string>{ { c, c2 } });
-        inv_part = tensors_mod().attr("move_leg")(inv_part, c1, py::arg("domain_pos") = 0);
-        return tensors_mod()
-          .attr("ChargedTensor")
-          .attr("from_two_charge_legs")(inv_part,
-                                        py::arg("state1") = tensor1.attr("charged_state"),
-                                        py::arg("state2") = tensor2.attr("charged_state"));
+        inv_part = move_leg_as_py(inv_part, c1, std::nullopt, 0);
+        return from_two_charge_legs_as_py(
+          inv_part, tensor1.attr("charged_state"), tensor2.attr("charged_state"));
     }
     if (is_ChargedTensor(tensor1)) {
         py::object inv_part =
           tdot_py(tensor1.attr("invariant_part"), tensor2, legs1_idcs, legs2_idcs);
-        inv_part =
-          tensors_mod().attr("move_leg")(inv_part, charge_leg_label(), py::arg("domain_pos") = 0);
-        return tensors_mod()
-          .attr("ChargedTensor")
-          .attr("from_invariant_part")(inv_part, tensor1.attr("charged_state"));
+        inv_part = move_leg_as_py(inv_part, std::string(charge_leg_label()), std::nullopt, 0);
+        return from_invariant_part_as_py(inv_part, tensor1.attr("charged_state"));
     }
     if (is_ChargedTensor(tensor2)) {
         py::object inv_part =
           tdot_py(tensor1, tensor2.attr("invariant_part"), legs1_idcs, legs2_idcs);
-        return tensors_mod()
-          .attr("ChargedTensor")
-          .attr("from_invariant_part")(inv_part, tensor2.attr("charged_state"));
+        return from_invariant_part_as_py(inv_part, tensor2.attr("charged_state"));
     }
 
     // Remaining case: both are SymmetricTensor (including HiddenLegTensor)
@@ -2120,10 +2206,11 @@ tdot_py(py::object tensor1,
         py::object bend = (is_HiddenLegTensor(tensor1) || is_HiddenLegTensor(tensor2))
                             ? py::object(py::bool_(true))
                             : py::none();
-        tensor1 = tensors_mod().attr("permute_legs")(
-          tensor1, py::arg("domain") = legs1_idcs, py::arg("bend_right") = bend);
-        tensor2 = tensors_mod().attr("permute_legs")(
-          tensor2, py::arg("codomain") = legs2_idcs, py::arg("bend_right") = bend);
+        auto bend_opt = bend_right_from_py(bend);
+        tensor1 =
+          permute_legs_as_py(tensor1, std::nullopt, leg_refs_from_py(legs1_idcs), bend_opt);
+        tensor2 =
+          permute_legs_as_py(tensor2, leg_refs_from_py(legs2_idcs), std::nullopt, bend_opt);
     } catch (...) {
         handle_permute_legs_symmetry_error();
     }
@@ -2217,10 +2304,15 @@ transpose_py(py::object tensor)
         }
         std::vector<bool> bend_right(static_cast<std::size_t>(n_cod), false);
         bend_right.insert(bend_right.end(), static_cast<std::size_t>(n_dom), true);
-        return tensors_mod().attr("permute_legs")(tensor,
-                                                  py::cast(codomain),
-                                                  py::cast(domain),
-                                                  py::arg("bend_right") = py::cast(bend_right));
+        std::vector<std::optional<bool>> bend_opts;
+        bend_opts.reserve(bend_right.size());
+        for (bool b : bend_right) {
+            bend_opts.push_back(b);
+        }
+        return permute_legs_as_py(tensor,
+                                  leg_refs_from_ints(codomain),
+                                  leg_refs_from_ints(domain),
+                                  BendRight{ std::move(bend_opts) });
     }
     if (is_ChargedTensor(tensor)) {
         if (!tensor.attr("symmetry").attr("has_trivial_braid").cast<bool>()) {
@@ -2231,8 +2323,7 @@ transpose_py(py::object tensor)
               "Use permute_legs instead");
         }
         py::object inv_part = transpose_py(tensor.attr("invariant_part"));
-        inv_part =
-          tensors_mod().attr("move_leg")(inv_part, charge_leg_label(), py::arg("domain_pos") = 0);
+        inv_part = move_leg_as_py(inv_part, std::string(charge_leg_label()), std::nullopt, 0);
         return make_python_charged_tensor(inv_part, tensor.attr("charged_state"));
     }
     throw py::type_error("Invalid type for tensor.");

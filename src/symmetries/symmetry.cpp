@@ -235,10 +235,10 @@ Symmetry::is_equivalent_to(Symmetry const& other, bool strict_ordering) const
     return true;
 }
 
-py::object
+Symmetry::Ptr
 Symmetry::as_Symmetry()
 {
-    return py::cast(std::static_pointer_cast<Symmetry>(shared_from_this()));
+    return std::static_pointer_cast<Symmetry>(shared_from_this());
 }
 
 bool

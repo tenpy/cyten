@@ -29,46 +29,34 @@ namespace cyten {
 
 namespace {
 
-py::object
-tensors_mod()
-{
-    return py::module_::import("cyten.tensors._tensors");
-}
-
-bool
-is_python_instance(py::object obj, char const* class_name)
-{
-    return py::isinstance(obj, tensors_mod().attr(class_name));
-}
-
 bool
 is_Mask(py::object obj)
 {
-    return is_python_instance(obj, "Mask") || py::isinstance<Mask>(obj);
+    return py::isinstance<Mask>(obj);
 }
 
 bool
 is_DiagonalTensor(py::object obj)
 {
-    return is_python_instance(obj, "DiagonalTensor") || py::isinstance<DiagonalTensor>(obj);
+    return py::isinstance<DiagonalTensor>(obj);
 }
 
 bool
 is_Identity(py::object obj)
 {
-    return is_python_instance(obj, "Identity") || py::isinstance<Identity>(obj);
+    return py::isinstance<Identity>(obj);
 }
 
 bool
 is_SymmetricTensor(py::object obj)
 {
-    return is_python_instance(obj, "SymmetricTensor") || py::isinstance<SymmetricTensor>(obj);
+    return py::isinstance<SymmetricTensor>(obj);
 }
 
 bool
 is_ChargedTensor(py::object obj)
 {
-    return is_python_instance(obj, "ChargedTensor") || py::isinstance<ChargedTensor>(obj);
+    return py::isinstance<ChargedTensor>(obj);
 }
 
 bool
@@ -81,11 +69,13 @@ py_eq(py::object a, py::object b)
     return eq.cast<bool>();
 }
 
-py::object
-data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& /*backend*/)
+[[nodiscard]] Space::Ptr
+as_space_leg(py::object leg)
 {
-    // C++ SymmetricTensor/Mask/DiagonalTensor ctors take DataPtr (including NoSymmetry BlockData).
-    return py::cast(std::move(data));
+    if (py::isinstance<LegPipe>(leg)) {
+        throw std::invalid_argument("DiagonalTensor / Mask is not defined on LegPipes.");
+    }
+    return leg.cast<Space::Ptr>();
 }
 
 py::object
@@ -95,11 +85,9 @@ make_python_symmetric_tensor(TensorBackend::DataPtr data,
                              TensorBackend::Ptr backend,
                              py::object labels)
 {
-    return tensors_mod().attr("SymmetricTensor")(data_as_python(std::move(data), backend),
-                                                 codomain,
-                                                 domain,
-                                                 py::arg("backend") = py::cast(backend),
-                                                 py::arg("labels") = labels);
+    auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+    return py::cast(std::make_shared<SymmetricTensor>(
+      std::move(data), init.codomain, init.domain, init.backend, init.symmetry, init.labels));
 }
 
 py::object
@@ -108,10 +96,10 @@ make_python_diagonal_tensor(TensorBackend::DataPtr data,
                             TensorBackend::Ptr backend,
                             py::object labels)
 {
-    return tensors_mod().attr("DiagonalTensor")(data_as_python(std::move(data), backend),
-                                                leg,
-                                                py::arg("backend") = py::cast(backend),
-                                                py::arg("labels") = labels);
+    auto init = parse_tensor_init(
+      py::make_tuple(leg), py::make_tuple(leg), std::move(backend), labels, true);
+    return py::cast(std::make_shared<DiagonalTensor>(
+      std::move(data), as_space_leg(leg), init.backend, init.symmetry, init.labels));
 }
 
 py::object
@@ -122,18 +110,24 @@ make_python_mask(TensorBackend::DataPtr data,
                  TensorBackend::Ptr backend,
                  py::object labels)
 {
-    return tensors_mod().attr("Mask")(data_as_python(std::move(data), backend),
-                                      space_in,
-                                      space_out,
-                                      py::arg("is_projection") = is_projection,
-                                      py::arg("backend") = py::cast(backend),
-                                      py::arg("labels") = labels);
+    auto init = parse_tensor_init(
+      py::make_tuple(space_out), py::make_tuple(space_in), std::move(backend), labels);
+    auto device_s = init.backend->get_device_from_data(data);
+    return py::cast(std::make_shared<Mask>(std::move(data),
+                                           as_space_leg(space_in),
+                                           as_space_leg(space_out),
+                                           is_projection,
+                                           init.backend,
+                                           init.symmetry,
+                                           init.labels,
+                                           std::move(device_s)));
 }
 
 py::object
 make_python_charged_tensor(py::object invariant_part, py::object charged_state)
 {
-    return tensors_mod().attr("ChargedTensor")(invariant_part, charged_state);
+    return py::cast(std::make_shared<ChargedTensor>(invariant_part.cast<SymmetricTensor::Ptr>(),
+                                                    charged_state.cast<BlockBackend::BlockPtr>()));
 }
 
 py::object
@@ -381,9 +375,22 @@ apply_mask_DiagonalTensor_py(py::object tensor, py::object mask)
     }
     auto backend = get_same_backend({ tensor, mask });
     if (is_Identity(tensor)) {
-        return tensors_mod().attr("Identity")(mask.attr("small_leg"),
-                                              py::arg("backend") = py::cast(backend),
-                                              py::arg("labels") = tensor.attr("labels"));
+        auto init = parse_tensor_init(py::make_tuple(mask.attr("small_leg")),
+                                      py::make_tuple(mask.attr("small_leg")),
+                                      backend,
+                                      tensor.attr("labels"),
+                                      true);
+        auto dt = SymmetricTensor::_parse_default_dtype(std::nullopt, init.symmetry);
+        if (!dt.has_value()) {
+            dt = Dtype::Float64;
+        }
+        std::string device_s = init.backend->block_backend->default_device;
+        return py::cast(std::make_shared<Identity>(as_space_leg(mask.attr("small_leg")),
+                                                   init.backend,
+                                                   init.symmetry,
+                                                   init.labels,
+                                                   *dt,
+                                                   std::move(device_s)));
     }
     auto data = backend->apply_mask_to_DiagonalTensor(tensor.cast<DiagonalTensorCPtr>(),
                                                       mask.cast<MaskCPtr>());
@@ -438,16 +445,19 @@ eigh_py(py::object tensor, py::object new_labels, bool new_leg_dual, py::object 
         throw NotImplemented("eigh for ChargedTensor");
     }
     if (is_DiagonalTensor(tensor)) {
-        py::object V =
-          tensors_mod()
-            .attr("SymmetricTensor")
-            .attr("from_eye")(
-              py_list(tensor.attr("leg")),
-              py::arg("backend") = tensor.attr("backend"),
-              py::arg("labels") =
-                py_list(tensor.attr("codomain_labels").attr("__getitem__")(0), leg_label_to_py(a)),
-              py::arg("dtype") = tensor.attr("dtype"),
-              py::arg("device") = tensor.attr("device"));
+        LegLabel cod_lab =
+          tensor.attr("codomain_labels").attr("__getitem__")(0).is_none()
+            ? std::nullopt
+            : std::optional(
+                tensor.attr("codomain_labels").attr("__getitem__")(0).cast<std::string>());
+        auto leg_sp = as_space_leg(tensor.attr("leg"));
+        auto V =
+          py::cast(SymmetricTensor::from_eye(std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{
+                                               std::dynamic_pointer_cast<Leg>(leg_sp) }),
+                                             tensor.attr("backend").cast<TensorBackend::Ptr>(),
+                                             LegLabels{ cod_lab, a },
+                                             tensor.attr("dtype").cast<Dtype>(),
+                                             tensor.attr("device").cast<std::string>()));
         py::object W = tensor.attr("as_DiagonalTensor")(py::arg("guarantee_copy") = true)
                          .attr("set_labels")(py_list(leg_label_to_py(b), leg_label_to_py(c)));
         return { W, V };
@@ -544,16 +554,19 @@ eig_py(py::object tensor, py::object new_labels, bool new_leg_dual, py::object s
         throw std::invalid_argument("eig requires matching domain and codomain");
     }
     if (is_DiagonalTensor(tensor)) {
-        py::object V =
-          tensors_mod()
-            .attr("SymmetricTensor")
-            .attr("from_eye")(
-              py_list(tensor.attr("leg")),
-              py::arg("backend") = tensor.attr("backend"),
-              py::arg("labels") =
-                py_list(tensor.attr("codomain_labels").attr("__getitem__")(0), leg_label_to_py(a)),
-              py::arg("dtype") = tensor.attr("dtype"),
-              py::arg("device") = tensor.attr("device"));
+        LegLabel cod_lab =
+          tensor.attr("codomain_labels").attr("__getitem__")(0).is_none()
+            ? std::nullopt
+            : std::optional(
+                tensor.attr("codomain_labels").attr("__getitem__")(0).cast<std::string>());
+        auto leg_sp = as_space_leg(tensor.attr("leg"));
+        auto V =
+          py::cast(SymmetricTensor::from_eye(std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{
+                                               std::dynamic_pointer_cast<Leg>(leg_sp) }),
+                                             tensor.attr("backend").cast<TensorBackend::Ptr>(),
+                                             LegLabels{ cod_lab, a },
+                                             tensor.attr("dtype").cast<Dtype>(),
+                                             tensor.attr("device").cast<std::string>()));
         py::object W = tensor.attr("as_DiagonalTensor")(py::arg("guarantee_copy") = true)
                          .attr("set_labels")(py_list(leg_label_to_py(b), leg_label_to_py(c)));
         return { W, V };

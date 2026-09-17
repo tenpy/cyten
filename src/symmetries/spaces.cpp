@@ -39,24 +39,6 @@ arange(std::size_t n)
     return out;
 }
 
-[[nodiscard]] std::vector<int64>
-inverse_permutation(std::vector<int64> const& perm)
-{
-    std::vector<int64> inv(perm.size(), int64{ -1 });
-    for (std::size_t i = 0; i < perm.size(); ++i) {
-        auto const idx = perm[i];
-        if (idx < 0 || static_cast<std::size_t>(idx) >= perm.size() ||
-            inv[static_cast<std::size_t>(idx)] != -1) {
-            throw std::invalid_argument(
-              std::format("basis_perm must be a permutation of 0..{}, got invalid index {}",
-                          perm.size() - 1,
-                          idx));
-        }
-        inv[static_cast<std::size_t>(idx)] = static_cast<int64>(i);
-    }
-    return inv;
-}
-
 /// ``repr`` of a bool, using the Python spelling.
 [[nodiscard]] char const*
 bool_repr(bool value)
@@ -137,14 +119,14 @@ Leg::test_sanity() const
     }
 }
 
-py::object
+ElementarySpace::Ptr
 Leg::as_ElementarySpace(bool is_dual_)
 {
     // --- hints from Python Leg.as_ElementarySpace ---
     // can be overridden for performance
     // ---
     // can be overridden for performance
-    return as_Space().attr("as_ElementarySpace")(py::arg("is_dual") = is_dual_);
+    return as_space_obj()->as_ElementarySpace(is_dual_);
 }
 
 std::vector<int64>
@@ -574,7 +556,7 @@ Space::is_subspace_of(Space const& other) const
     return true;
 }
 
-py::object
+ElementarySpace::Ptr
 Space::as_ElementarySpace(bool is_dual_)
 {
     SectorArray defining_sectors;
@@ -595,7 +577,7 @@ Space::as_ElementarySpace(bool is_dual_)
         es = ElementarySpace::from_defining_sectors(
           symmetry, defining_sectors, multiplicities, is_dual_, std::nullopt, true);
     }
-    return py::cast(es);
+    return es;
 }
 
 Space::Ptr
@@ -662,20 +644,12 @@ combined_basis_perm(std::vector<Leg::Ptr> const& legs, bool combine_cstyle)
     if (!any_custom) {
         return std::nullopt;
     }
-    auto misc = py::module_::import("cyten.tools.misc");
-    py::list perms;
+    std::vector<std::vector<int64>> perms;
+    perms.reserve(legs.size());
     for (auto const& leg : legs) {
-        perms.append(vector_to_array(leg->basis_perm()));
+        perms.push_back(leg->basis_perm());
     }
-    py::array combined =
-      misc.attr("combine_permutations")(perms, py::arg("cstyle") = combine_cstyle);
-    auto casted = py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(combined);
-    auto r = casted.unchecked<1>();
-    std::vector<int64> out(static_cast<std::size_t>(r.shape(0)));
-    for (py::ssize_t i = 0; i < r.shape(0); ++i) {
-        out[static_cast<std::size_t>(i)] = r(i);
-    }
-    return out;
+    return combine_permutations(perms, combine_cstyle);
 }
 
 } // namespace
@@ -712,15 +686,12 @@ LegPipe::test_sanity() const
     Leg::test_sanity();
 }
 
-py::object
-LegPipe::as_Space()
+Space::Ptr
+LegPipe::as_space_obj()
 {
-    auto TensorProduct = py::module_::import("cyten.symmetries.spaces").attr("TensorProduct");
-    py::list spaces;
-    for (auto const& leg : legs) {
-        spaces.append(leg->as_Space());
-    }
-    return TensorProduct(spaces, py::arg("symmetry") = symmetry);
+    // Factors stay as Legs (ElementarySpace / nested LegPipe). Nested pipes must not be
+    // converted to TensorProduct here — TensorProduct factors are Leg::Ptr only.
+    return std::make_shared<TensorProduct>(legs, symmetry);
 }
 
 Leg::Ptr
@@ -967,20 +938,6 @@ slice_boundaries(std::vector<int64> const& values)
     return out;
 }
 
-/// ``cyten.tools.misc.rank_data``, i.e. ``argsort(argsort(a))`` with stable sorting.
-[[nodiscard]] std::vector<int64>
-rank_data(std::vector<int64> const& a)
-{
-    std::vector<std::size_t> order(a.size());
-    std::iota(order.begin(), order.end(), std::size_t{ 0 });
-    std::ranges::stable_sort(order, [&a](std::size_t i, std::size_t j) { return a[i] < a[j]; });
-    std::vector<int64> ranks(a.size());
-    for (std::size_t i = 0; i < order.size(); ++i) {
-        ranks[order[i]] = static_cast<int64>(i);
-    }
-    return ranks;
-}
-
 /// ``symmetry.batch_sector_dim(sectors) * multiplicities``, the number of states per sector.
 [[nodiscard]] std::vector<int64>
 num_states_per_sector(Symmetry const& symmetry,
@@ -1209,7 +1166,7 @@ ElementarySpace::from_largest_common_subspace(std::vector<Space::Ptr> const& spa
         throw std::invalid_argument("Need at least one space");
     }
     if (spaces.size() == 1) {
-        return spaces[0]->as_ElementarySpace(is_dual).cast<Ptr>();
+        return spaces[0]->as_ElementarySpace(is_dual);
     }
     if (spaces.size() > 2) {
         // OPTIMIZE directly implement for many
@@ -1604,13 +1561,13 @@ ElementarySpace::equals_es(ElementarySpace const& other) const
     return true;
 }
 
-py::object
+ElementarySpace::Ptr
 ElementarySpace::as_ElementarySpace(bool is_dual_)
 {
     if (is_dual_ == is_dual) {
-        return py::cast(shared_es());
+        return shared_es();
     }
-    return py::cast(with_opposite_duality());
+    return with_opposite_duality();
 }
 
 ElementarySpace::Ptr
@@ -1631,15 +1588,15 @@ ElementarySpace::as_bra_space()
     return with_opposite_duality();
 }
 
-py::object
+Space::Ptr
 ElementarySpace::change_symmetry(Symmetry::Ptr symmetry, SectorMapFn sector_map, bool injective)
 {
-    return py::cast(from_defining_sectors(std::move(symmetry),
-                                          sector_map(defining_sectors),
-                                          multiplicities,
-                                          is_dual,
-                                          _basis_perm,
-                                          injective));
+    return from_defining_sectors(std::move(symmetry),
+                                 sector_map(defining_sectors),
+                                 multiplicities,
+                                 is_dual,
+                                 _basis_perm,
+                                 injective);
 }
 
 ElementarySpace::Ptr
@@ -1655,14 +1612,14 @@ ElementarySpace::direct_sum(std::vector<Ptr> const& others) const
     return DirectSumSpace::from_spaces(std::move(all), is_dual);
 }
 
-py::object
+Space::Ptr
 ElementarySpace::drop_symmetry(std::optional<std::vector<int64>> which)
 {
     auto const [which_factors, remaining_symmetry] =
       parse_inputs_drop_symmetry(which, *Space::symmetry);
     if (!which_factors) {
-        return py::cast(from_trivial_sector(
-          static_cast<int64>(Space::dim), remaining_symmetry, is_dual, _basis_perm));
+        return from_trivial_sector(
+          static_cast<int64>(Space::dim), remaining_symmetry, is_dual, _basis_perm);
     }
     // the sector components that are kept
     std::vector<bool> mask(Space::symmetry->sector_ind_len, true);
@@ -1859,10 +1816,10 @@ ElementarySpace::with_is_dual(bool is_dual_) const
     return with_opposite_duality();
 }
 
-py::object
-ElementarySpace::as_Space()
+Space::Ptr
+ElementarySpace::as_space_obj()
 {
-    return py::cast(shared_es());
+    return shared_es();
 }
 
 bool
@@ -2108,16 +2065,16 @@ DirectSumSpace::as_plain_ElementarySpace() const
                                                   /*unique_sectors=*/true);
 }
 
-py::object
-DirectSumSpace::as_Space()
+Space::Ptr
+DirectSumSpace::as_space_obj()
 {
-    return py::cast(shared_dss());
+    return shared_dss();
 }
 
-py::object
+ElementarySpace::Ptr
 DirectSumSpace::as_ElementarySpace(bool is_dual_)
 {
-    return py::cast(with_is_dual(is_dual_));
+    return with_is_dual(is_dual_);
 }
 
 Space::Ptr
@@ -2138,27 +2095,27 @@ DirectSumSpace::dual_dss() const
     return std::dynamic_pointer_cast<DirectSumSpace>(with_opposite_duality());
 }
 
-py::object
+Space::Ptr
 DirectSumSpace::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
 {
     std::vector<ElementarySpace::Ptr> new_spaces;
     new_spaces.reserve(spaces.size());
     for (auto const& s : spaces) {
-        new_spaces.push_back(
-          s->change_symmetry(symmetry_, sector_map, injective).cast<ElementarySpace::Ptr>());
+        new_spaces.push_back(std::dynamic_pointer_cast<ElementarySpace>(
+          s->change_symmetry(symmetry_, sector_map, injective)));
     }
-    return py::cast(from_spaces(std::move(new_spaces), is_dual));
+    return from_spaces(std::move(new_spaces), is_dual);
 }
 
-py::object
+Space::Ptr
 DirectSumSpace::drop_symmetry(std::optional<std::vector<int64>> which)
 {
     std::vector<ElementarySpace::Ptr> new_spaces;
     new_spaces.reserve(spaces.size());
     for (auto const& s : spaces) {
-        new_spaces.push_back(s->drop_symmetry(which).cast<ElementarySpace::Ptr>());
+        new_spaces.push_back(std::dynamic_pointer_cast<ElementarySpace>(s->drop_symmetry(which)));
     }
-    return py::cast(from_spaces(std::move(new_spaces), is_dual));
+    return from_spaces(std::move(new_spaces), is_dual);
 }
 
 ElementarySpace::Ptr
@@ -2320,7 +2277,13 @@ factor_change_symmetry(Leg::Ptr const& factor,
                        bool injective)
 {
     if (auto space = std::dynamic_pointer_cast<Space>(factor)) {
-        return space->change_symmetry(symmetry, sector_map, injective).cast<Leg::Ptr>();
+        auto changed = space->change_symmetry(symmetry, sector_map, injective);
+        auto leg = std::dynamic_pointer_cast<Leg>(changed);
+        if (!leg) {
+            throw std::invalid_argument(
+              "change_symmetry on a TensorProduct factor must yield a Leg");
+        }
+        return leg;
     }
     auto pipe = std::dynamic_pointer_cast<LegPipe>(factor);
     if (!pipe) {
@@ -2338,7 +2301,13 @@ factor_change_symmetry(Leg::Ptr const& factor,
 factor_drop_symmetry(Leg::Ptr const& factor, std::optional<std::vector<int64>> const& which)
 {
     if (auto space = std::dynamic_pointer_cast<Space>(factor)) {
-        return space->drop_symmetry(which).cast<Leg::Ptr>();
+        auto changed = space->drop_symmetry(which);
+        auto leg = std::dynamic_pointer_cast<Leg>(changed);
+        if (!leg) {
+            throw std::invalid_argument(
+              "drop_symmetry on a TensorProduct factor must yield a Leg");
+        }
+        return leg;
     }
     auto pipe = std::dynamic_pointer_cast<LegPipe>(factor);
     if (!pipe) {
@@ -2514,7 +2483,7 @@ as_space(Leg::Ptr const& leg)
     if (auto space = std::dynamic_pointer_cast<Space>(leg)) {
         return space;
     }
-    return leg->as_Space().cast<Space::Ptr>();
+    return leg->as_space_obj();
 }
 
 TensorProduct::Prepared
@@ -2631,7 +2600,7 @@ TensorProduct::block_size(std::variant<int64, Sector> coupled) const
     return sector_multiplicity(std::get<Sector>(coupled));
 }
 
-py::object
+Space::Ptr
 TensorProduct::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
 {
     auto sectors = sector_map(sector_decomposition);
@@ -2649,11 +2618,11 @@ TensorProduct::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, 
     }
     // note: unlike the Python version, which passes ``self.symmetry``, we pass the *new*
     // symmetry here. Otherwise the constructor rejects the new factors.
-    return py::cast(std::make_shared<TensorProduct>(
-      std::move(new_factors), std::move(symmetry_), std::move(sectors), std::move(mults)));
+    return std::make_shared<TensorProduct>(
+      std::move(new_factors), std::move(symmetry_), std::move(sectors), std::move(mults));
 }
 
-py::object
+Space::Ptr
 TensorProduct::drop_symmetry(std::optional<std::vector<int64>> which)
 {
     auto const [which_factors, remaining_symmetry] = parse_inputs_drop_symmetry(which, *symmetry);
@@ -2696,8 +2665,8 @@ TensorProduct::drop_symmetry(std::optional<std::vector<int64>> which)
     for (auto const& factor : factors) {
         new_factors.push_back(factor_drop_symmetry(factor, which_factors));
     }
-    return py::cast(std::make_shared<TensorProduct>(
-      std::move(new_factors), remaining_symmetry, std::move(sectors), std::move(mults)));
+    return std::make_shared<TensorProduct>(
+      std::move(new_factors), remaining_symmetry, std::move(sectors), std::move(mults));
 }
 
 bool
@@ -3191,27 +3160,6 @@ TensorProduct::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string co
 
 namespace {
 
-/// ``cyten.tools.misc.make_stride``: the strides of a C- (or F-) style array of the given shape.
-[[nodiscard]] std::vector<int64>
-make_stride(std::vector<int64> const& shape, bool cstyle)
-{
-    auto const L = shape.size();
-    std::vector<int64> res(L, 1);
-    int64 stride = 1;
-    if (cstyle) {
-        for (std::size_t a = L; a-- > 1;) {
-            stride *= shape[a];
-            res[a - 1] = stride;
-        }
-    } else {
-        for (std::size_t a = 0; a + 1 < L; ++a) {
-            stride *= shape[a];
-            res[a + 1] = stride;
-        }
-    }
-    return res;
-}
-
 /// Entry ``n`` of row ``m`` of ``cyten.tools.misc.make_grid(shape, cstyle)``.
 ///
 /// `strides` must be ``make_stride(shape, cstyle)``. Since the grid enumerates all multi-indices
@@ -3589,16 +3537,16 @@ AbelianLegPipe::test_sanity() const
     ElementarySpace::test_sanity();
 }
 
-py::object
-AbelianLegPipe::as_Space()
+Space::Ptr
+AbelianLegPipe::as_space_obj()
 {
-    return py::cast(shared_es());
+    return shared_es();
 }
 
-py::object
+ElementarySpace::Ptr
 AbelianLegPipe::as_ElementarySpace(bool is_dual_)
 {
-    return py::cast(with_is_dual(is_dual_));
+    return with_is_dual(is_dual_);
 }
 
 Space::Ptr
@@ -3721,20 +3669,19 @@ AbelianLegPipe::from_trivial_sector(int64 /*dim*/,
     throw py::type_error("from_trivial_sector is not supported for AbelianLegPipe");
 }
 
-py::object
+Space::Ptr
 AbelianLegPipe::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
 {
     std::vector<ElementarySpace::Ptr> new_legs;
     new_legs.reserve(legs.size());
     for (auto const& leg : es_legs()) {
-        new_legs.push_back(
-          leg->change_symmetry(symmetry_, sector_map, injective).cast<ElementarySpace::Ptr>());
+        new_legs.push_back(std::dynamic_pointer_cast<ElementarySpace>(
+          leg->change_symmetry(symmetry_, sector_map, injective)));
     }
-    return py::cast(
-      std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle));
+    return std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle);
 }
 
-py::object
+Space::Ptr
 AbelianLegPipe::drop_symmetry(std::optional<std::vector<int64>> which)
 {
     // --- hints from Python AbelianLegPipe.drop_symmetry ---
@@ -3744,10 +3691,9 @@ AbelianLegPipe::drop_symmetry(std::optional<std::vector<int64>> which)
     std::vector<ElementarySpace::Ptr> new_legs;
     new_legs.reserve(legs.size());
     for (auto const& leg : es_legs()) {
-        new_legs.push_back(leg->drop_symmetry(which).cast<ElementarySpace::Ptr>());
+        new_legs.push_back(std::dynamic_pointer_cast<ElementarySpace>(leg->drop_symmetry(which)));
     }
-    return py::cast(
-      std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle));
+    return std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle);
 }
 
 void

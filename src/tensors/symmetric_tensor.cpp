@@ -1,6 +1,7 @@
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/helpers.h>
 #include <cyten/tensors/hidden_leg_tensor.h>
+#include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
 #include <cyten/backends/abelian.h>
@@ -73,9 +74,7 @@ SymmetricTensor::test_sanity() const
     bool is_diagonal = dynamic_cast<DiagonalTensor const*>(this) != nullptr;
     if (!is_diagonal && Py_IsInitialized()) {
         try {
-            is_diagonal =
-              py::isinstance(py::cast(shared_from_this()),
-                             py::module_::import("cyten.tensors._tensors").attr("DiagonalTensor"));
+            is_diagonal = py::isinstance<DiagonalTensor>(py::cast(shared_from_this()));
         } catch (py::error_already_set& e) {
             e.restore();
             PyErr_Clear();
@@ -695,31 +694,33 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
         // This means we dont have to deal with the permutation induced by pipes in the AB backend
         // or with the special AbelianLegPipe type
         // OPTIMIZE do it directly if no abelian backend is involved?
-        auto tensors_mod = py::module_::import("cyten.tensors._tensors");
-        std::vector<py::object> combine;
+        std::vector<std::vector<LegRef>> which_legs;
         std::vector<bool> pipe_dualities;
         int64 flat_leg_counter = 0;
         for (auto const& leg : legs()) {
             if (auto pipe = std::dynamic_pointer_cast<LegPipe>(leg)) {
                 auto num = pipe->num_legs;
-                py::list group;
+                std::vector<LegRef> group;
+                group.reserve(static_cast<std::size_t>(num));
                 for (int64 i = flat_leg_counter; i < flat_leg_counter + num; ++i) {
-                    group.append(i);
+                    group.emplace_back(i);
                 }
-                combine.push_back(group);
+                which_legs.push_back(std::move(group));
                 pipe_dualities.push_back(leg->is_dual);
                 flat_leg_counter += num;
             } else {
                 flat_leg_counter += 1;
             }
         }
-        py::object flat = tensors_mod.attr("split_legs")(py::cast(shared_from_this()));
-        py::object res_flat =
-          flat.attr("to_backend")(py::cast(new_backend), py::cast(dt), py::cast(device_s));
-        py::object res = tensors_mod.attr("combine_legs")(
-          res_flat, *py::tuple(py::cast(combine)), py::arg("pipe_dualities") = pipe_dualities);
+        auto flat = split_legs(shared_from_this());
+        auto res_flat = flat->to_backend(new_backend, dt, device_s);
+        auto res = combine_legs(res_flat, std::move(which_legs), PipeDualities{ pipe_dualities });
         // Do not cast res.attr("data") to DataPtr: NoSymmetry exposes the raw Block.
-        return res.cast<SymmetricTensor::Ptr>();
+        auto out = std::dynamic_pointer_cast<SymmetricTensor>(res);
+        if (!out) {
+            throw std::runtime_error("to_backend: expected SymmetricTensor after combine_legs");
+        }
+        return out;
     }
 
     TensorBackend::DataPtr new_data;

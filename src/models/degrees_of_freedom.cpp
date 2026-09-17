@@ -49,33 +49,16 @@ numpy()
     return py::module_::import("numpy");
 }
 
-py::module_
-tensors_mod()
-{
-    return py::module_::import("cyten.tensors");
-}
-
-bool
-is_python_tensor(py::object const& obj, char const* class_name)
-{
-    try {
-        return py::isinstance(obj, tensors_mod().attr(class_name));
-    } catch (py::error_already_set&) {
-        return false;
-    }
-}
-
 bool
 is_symmetric_tensor(py::object const& op)
 {
-    return py::isinstance<SymmetricTensor>(op) || is_python_tensor(op, "SymmetricTensor");
+    return py::isinstance<SymmetricTensor>(op);
 }
 
 bool
 is_diagonal_tensor(py::object const& op)
 {
-    return py::isinstance<DiagonalTensor>(op) || py::isinstance<Identity>(op) ||
-           is_python_tensor(op, "DiagonalTensor") || is_python_tensor(op, "Identity");
+    return py::isinstance<DiagonalTensor>(op) || py::isinstance<Identity>(op);
 }
 
 SymmetricTensorPtr

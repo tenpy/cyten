@@ -4,6 +4,7 @@
 #include <cyten/backends/backend_factory.h>
 #include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/symmetries/exceptions.h>
+#include <cyten/tensors/ops_algebra.h>
 #include <cyten/tools.h>
 #include <cyten/tools/warn.h>
 
@@ -500,9 +501,13 @@ Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
         // OPTIMIZE how hard is it to deal with inclusions in the backend?
         auto proj = std::static_pointer_cast<Mask>(dagger());
         auto sym = proj->as_SymmetricTensor(false, std::nullopt, out_dtype);
-        return py::module_::import("cyten.tensors._tensors")
-          .attr("dagger")(py::cast(sym))
-          .cast<SymmetricTensorPtr>();
+        auto dag = cyten::dagger(sym);
+        auto out = std::dynamic_pointer_cast<SymmetricTensor>(dag);
+        if (!out) {
+            throw std::runtime_error(
+              "Mask::as_SymmetricTensor: expected SymmetricTensor after dagger");
+        }
+        return out;
     }
     auto new_data = backend->full_data_from_mask(
       std::static_pointer_cast<Mask const>(shared_from_this()), out_dtype);
