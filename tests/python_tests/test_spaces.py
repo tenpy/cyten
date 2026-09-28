@@ -572,7 +572,14 @@ def test_DirectSumSpace(is_dual, make_any_space, max_mult=3, max_sectors=3):
     assert dual.is_dual == (not is_dual)
     assert len(dual.spaces) == 3
     dual.test_sanity()
-    assert dual.with_opposite_duality() == d
+    assert dual.dual == d
+    # must agree with the dual of the equivalent plain ElementarySpace
+    assert dual.as_plain_ElementarySpace() == d.as_plain_ElementarySpace().dual
+    opp = d.with_opposite_duality()
+    assert isinstance(opp, spaces.DirectSumSpace)
+    assert opp.is_dual == (not is_dual)
+    opp.test_sanity()
+    assert opp.with_opposite_duality() == d
 
     # take_slice collapses
     if d.symmetry.can_be_dropped and d.dim > 0:
