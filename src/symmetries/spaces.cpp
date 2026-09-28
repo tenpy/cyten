@@ -2135,7 +2135,14 @@ DirectSumSpace::dual_leg() const
 DirectSumSpace::Ptr
 DirectSumSpace::dual_dss() const
 {
-    return std::dynamic_pointer_cast<DirectSumSpace>(with_opposite_duality());
+    // NB: not with_opposite_duality(), which gives an isomorphic space (same sectors) with
+    // opposite is_dual, rather than the dual space.
+    std::vector<ElementarySpace::Ptr> new_spaces;
+    new_spaces.reserve(spaces.size());
+    for (auto const& s : spaces) {
+        new_spaces.push_back(s->dual_es());
+    }
+    return from_spaces(std::move(new_spaces), !is_dual);
 }
 
 py::object
