@@ -1,4 +1,5 @@
 #pragma once
+#define _USE_MATH_DEFINES
 
 // global definitions and includes for cyten
 
