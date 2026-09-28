@@ -3784,6 +3784,8 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
     levels = np_random.permutation(T.num_legs)
 
     res1 = tensors.tensor_from_grid(grid)
+    assert isinstance(res1, SymmetricTensor)
+    assert not isinstance(res1, HiddenLegTensor)
     if row > 1:
         assert isinstance(res1.codomain[0], DirectSumSpace)
         assert len(res1.codomain[0].spaces) == row
@@ -3812,6 +3814,17 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
     assert res1.backend.almost_equal(res1, res2, rtol=1e-12, atol=1e-12)
     if T.symmetry.can_be_dropped:
         npt.assert_almost_equal(res1.to_numpy(understood_braiding=True), res2.to_numpy(understood_braiding=True))
+
+
+def test_tensor_from_grid_hidden_labels(make_compatible_tensor, np_random):
+    T = make_compatible_tensor([None], [None], cls=SymmetricTensor, use_pipes=False)
+    labels = np_random.choice([['row', '!column'], ['!row', 'column'], ['!row', '!column']])
+
+    result = tensors.tensor_from_grid([[T]], labels=labels)
+
+    assert isinstance(result, HiddenLegTensor)
+    assert all(result.labels == labels)
+    assert result.hidden_leg_idcs() == [i for i, l in enumerate(labels) if l.startswith('!')]
 
 
 @pytest.mark.parametrize(
