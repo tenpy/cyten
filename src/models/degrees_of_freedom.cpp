@@ -211,8 +211,8 @@ infer_clock_q(py::array const& X, py::array const& Z)
     for (int64 q = 2; q <= dim; ++q) {
         auto Xq = np.attr("linalg").attr("matrix_power")(X, q);
         auto Zq = np.attr("linalg").attr("matrix_power")(Z, q);
-        auto phase = np.attr("exp")(
-          py::cast(std::complex<double>{ 0., 2. * M_PI / static_cast<double>(q) }));
+        auto phase =
+          np.attr("exp")(py::cast(std::complex<double>{ 0., 2. * M_PI / static_cast<double>(q) }));
         auto XZ = np.attr("matmul")(X, Z);
         auto ZX = np.attr("matmul")(Z, X);
         if (np_allclose(Xq, I) && np_allclose(Zq, I) &&
@@ -686,8 +686,8 @@ ClockDOF::test_sanity()
     int64 q = infer_clock_q(X, Z);
     py::array Xhc = np.attr("conj")(X.attr("T"));
     py::array Zhc = np.attr("conj")(Z.attr("T"));
-    auto phase = np.attr("exp")(
-      py::cast(std::complex<double>{ 0., 2. * M_PI / static_cast<double>(q) }));
+    auto phase =
+      np.attr("exp")(py::cast(std::complex<double>{ 0., 2. * M_PI / static_cast<double>(q) }));
     assert(np_allclose(np.attr("matmul")(X, Z), py::object(phase) * np.attr("matmul")(Z, X)));
     auto identity = np.attr("eye")(X.attr("shape").attr("__getitem__")(0));
     assert(np_allclose(np.attr("linalg").attr("matrix_power")(X, q), identity));

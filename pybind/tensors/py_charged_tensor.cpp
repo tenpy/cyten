@@ -214,8 +214,7 @@ bind_tensors_charged_tensor(py::module_& m)
       [](py::object invariant_part, py::object state1, py::object state2) {
           auto inv = invariant_part.cast<SymmetricTensor::Ptr>();
           if (state1.is_none() || state2.is_none()) {
-              throw std::invalid_argument(
-                "from_two_charge_legs requires both state1 and state2");
+              throw std::invalid_argument("from_two_charge_legs requires both state1 and state2");
           }
           auto s1 = py_optional_block(state1, inv->backend, inv->dtype, inv->device);
           auto s2 = py_optional_block(state2, inv->backend, inv->dtype, inv->device);

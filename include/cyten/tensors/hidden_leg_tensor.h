@@ -43,16 +43,16 @@ class HiddenLegTensor : public SymmetricTensor
     ~HiddenLegTensor() override = default;
 
     /// Construct by hiding `which_legs` on an existing tensor (prefixes ``!`` to their labels).
-    [[nodiscard]] static Ptr from_tensor(
-      Tensor::Ptr tensor,
-      std::vector<std::variant<int64, std::string>> which_legs);
+    [[nodiscard]] static Ptr from_tensor(Tensor::Ptr tensor,
+                                         std::vector<std::variant<int64, std::string>> which_legs);
 
     void test_sanity() const override;
 
     [[nodiscard]] std::string ascii_diagram_type_name() const override;
     [[nodiscard]] std::string class_name() const override;
 
-    /// True for ChargedTensor charge markers and short-lived compose temps (``!``, ``!1``, ``!A``).
+    /// True for ChargedTensor charge markers and short-lived compose temps (``!``, ``!1``,
+    /// ``!A``).
     [[nodiscard]] static bool is_charge_temp_label(LegLabel const& label);
 
     /// True if `label` is a user-facing hidden leg label (``!`` prefix, not a charge temp).

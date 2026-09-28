@@ -179,12 +179,8 @@ ChargedTensor::from_block_func(BlockFactoryFn func,
       },
       codomain_tp,
       inv_domain);
-    auto inv = std::make_shared<SymmetricTensor>(data,
-                                                 codomain_tp,
-                                                 inv_domain,
-                                                 backend_tp,
-                                                 symmetry,
-                                                 std::move(inv_labels));
+    auto inv = std::make_shared<SymmetricTensor>(
+      data, codomain_tp, inv_domain, backend_tp, symmetry, std::move(inv_labels));
     inv->allow_charge_leg_label = true;
     inv->test_sanity();
     return std::make_shared<ChargedTensor>(inv, charged_state);
@@ -277,9 +273,8 @@ ChargedTensor::from_invariant_part(SymmetricTensor::Ptr inv, BlockBackend::Block
         throw std::invalid_argument("invariant_part must be specified");
     }
     if (!charged_state) {
-        throw std::invalid_argument(
-          "ChargedTensor.from_invariant_part requires a charged_state. "
-          "Use HiddenLegTensor to hide legs without a state.");
+        throw std::invalid_argument("ChargedTensor.from_invariant_part requires a charged_state. "
+                                    "Use HiddenLegTensor to hide legs without a state.");
     }
     if (inv->num_legs == 1) {
         // OPTIMIZE ?
@@ -311,9 +306,8 @@ ChargedTensor::from_two_charge_legs(SymmetricTensor::Ptr invariant_part,
                       _CHARGE_LEG_LABEL));
     }
     if (!state1 || !state2) {
-        throw std::invalid_argument(
-          "from_two_charge_legs requires both charged states. "
-          "Use HiddenLegTensor to hide legs without a state.");
+        throw std::invalid_argument("from_two_charge_legs requires both charged states. "
+                                    "Use HiddenLegTensor to hide legs without a state.");
     }
     invariant_part->allow_charge_leg_label = true;
     auto inv_part = tensors_mod().attr("combine_legs")(inv_obj, py::make_tuple(-2, -1));

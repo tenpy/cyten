@@ -56,8 +56,7 @@ SU2_kAnyonCategory::SU2_kAnyonCategory(int k_, std::string handedness_)
                    std::nullopt)
   , k(k_)
   , handedness(std::move(handedness_))
-  , _q(
-      std::exp(complex128{ 0.0, 2.0 * M_PI / static_cast<float64>(k + 2) }))
+  , _q(std::exp(complex128{ 0.0, 2.0 * M_PI / static_cast<float64>(k + 2) }))
 {
     if (k < 1) {
         throw std::invalid_argument("SU2_kAnyonCategory requires k >= 1");
@@ -324,9 +323,7 @@ float64
 SU2_kAnyonCategory::qdim(Sector a) const
 {
     auto const denom = std::sin(M_PI / static_cast<float64>(k + 2));
-    return std::sin(static_cast<float64>(a.q[0] + 1) * M_PI /
-                    static_cast<float64>(k + 2)) /
-           denom;
+    return std::sin(static_cast<float64>(a.q[0] + 1) * M_PI / static_cast<float64>(k + 2)) / denom;
 }
 
 std::vector<float64>

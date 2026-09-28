@@ -16,9 +16,8 @@ namespace {
 complex128
 make_phase(int n, int N)
 {
-    return std::exp(complex128{ 0.0,
-                                2.0 * M_PI * static_cast<float64>(n) /
-                                  static_cast<float64>(N) });
+    return std::exp(
+      complex128{ 0.0, 2.0 * M_PI * static_cast<float64>(n) / static_cast<float64>(N) });
 }
 
 complex128
