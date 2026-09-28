@@ -5,7 +5,6 @@
 
 #include <cassert>
 #include <cstdint>
-#include <stdfloat>
 #include <utility>
 
 #include <cyten/check.h>
