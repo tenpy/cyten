@@ -26,7 +26,7 @@ no Windows support yet, use WSL):
   system ``g++``. Python already loads conda's ``libstdc++``; objects compiled
   with a newer GCC fail at ``import cyten`` with missing ``GLIBCXX_*`` symbols.
 - CMake, make
-- Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed in `environment.yml`
+- Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed in ``environment.yml``
 - **PyTorch** (``torch`` / conda-forge ``pytorch``): required at build and runtime.
   CMake finds libtorch via ``torch.utils.cmake_prefix_path`` and links ``cyten._core`` against
   the same shared libraries as ``import torch``, so PyTorch must be installed in the build
@@ -38,9 +38,9 @@ no Windows support yet, use WSL):
   ``pip install torch --index-url https://download.pytorch.org/whl/cpu``.
 - scikit-build
 
-The easiest way to install all of those is to create a conda environment from the `environment.yml`
+The easiest way to install all of those is to create a conda environment from the ``environment.yml``
 (which includes PyTorch) and then pip-install the package
-(use `docs/environment.yml` if you plan to build the documentation as well)::
+(use ``docs/environment.yml`` if you plan to build the documentation as well)::
 
     conda env create -f environment.yml -n cyten
     conda activate cyten
@@ -50,7 +50,7 @@ The easiest way to install all of those is to create a conda environment from th
 Use ``--no-build-isolation`` so the build sees the conda-installed PyTorch (and other build
 deps) instead of resolving them in an isolated pip environment.
 
-If needed, you can add defines for the CMake build as options to pip, e.g. `pip install -v -C cmake.define.=ON .`.
+If needed, you can add defines for the CMake build as options to pip, e.g. ``pip install -v -C cmake.define.=ON .``.
 
 
 For a debug build, you can even enable automatic rebuild upon python import::
@@ -64,8 +64,8 @@ Sequoia Version 15.7.7.
 
 In addition to the above instructions, do the following:
 
-- Make sure you have an installation of ninja, e.g. via `brew install ninja`.
-- After creating the conda env, also install `conda install -c conda-forge gxx gcc llvm-openmp` before building
+- Make sure you have an installation of ninja, e.g. via ``brew install ninja``.
+- After creating the conda env, also install ``conda install -c conda-forge gxx gcc llvm-openmp`` before building
 - The compile only went through with Clang, e.g. when the log shows
   ``The CXX compiler identification is Clang 21.1.8``.
   On Ubuntu, this would show GNU. For me, this did not need any extra steps.
