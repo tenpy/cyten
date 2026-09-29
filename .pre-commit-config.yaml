@@ -86,3 +86,10 @@ repos:
         args: [--generate]
         pass_filenames: false
         always_run: true
+      - id: reexport-all-parity
+        name: check re-export __all__ lists
+        language: unsupported_script
+        entry: scripts/generate_reexport_all.py
+        args: [--check]
+        pass_filenames: false
+        always_run: true

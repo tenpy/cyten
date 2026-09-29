@@ -29,6 +29,7 @@ docs/build_docs
 src/version.h
 cyten/_version.py
 cyten/_core.py
+cyten/_core.pyi
 .cursor/plans
 .cursor/rules
 

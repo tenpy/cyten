@@ -160,6 +160,11 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
     assert not tens2.has_label('foo')
     assert not tens2.has_label('a', 'b', '42')
 
+    print('check labels_are')
+    assert tens2.labels_are('a', 'c', 'b', 'e*', 'd*')
+    assert tens2.labels_are('c', 'e*', 'd*', 'a', 'b', planar=True)
+    assert not tens2.labels_are('a', 'c', 'b', 'e*', 'd*', planar=True)
+
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)], ids=['1->1', '1->2', '0->3', '3->0'])
 @pytest.mark.parametrize('use_pipes', [True, 0.3])
@@ -518,6 +523,54 @@ def test_DiagonalTensor(make_compatible_tensor):
     T: DiagonalTensor = make_compatible_tensor(cls=DiagonalTensor)
     T.test_sanity()
 
+    print('checking sector_argmin')
+    # --------------------------------------------------------------------------------------------
+    sector_real_T = tensors.real(T)
+    sector_real_T.labels = ['a', 'b']
+    mask, minimum = sector_real_T.sector_argmin()
+
+    mask.test_sanity()
+    assert mask.labels == ['a', 'a*']
+    assert mask.is_projection
+    assert mask.small_leg.num_sectors == 1
+    # mask must select the `minimum` value
+    assert tensors.almost_equal(
+        tensors.apply_mask_DiagonalTensor(sector_real_T, mask),
+        minimum * DiagonalTensor.from_eye(mask.small_leg, backend=sector_real_T.backend),
+    )
+    # minimum must be the actual minimum
+    npt.assert_almost_equal(minimum.as_float64(), sector_real_T.min().as_float64())
+
+    for sector in sector_real_T.leg.sector_decomposition:
+        sector_mask, sector_minimum = sector_real_T.sector_argmin(sector)
+        sector_mask.test_sanity()
+        assert sector_mask.small_leg.num_sectors == 1
+        assert np.sum(sector_mask.small_leg.multiplicities) == 1
+        # mask must select the `minimum` value
+        assert tensors.almost_equal(
+            tensors.apply_mask_DiagonalTensor(sector_real_T, sector_mask),
+            sector_minimum * DiagonalTensor.from_eye(sector_mask.small_leg, backend=sector_real_T.backend),
+        )
+        # mask must select within the correct sector
+        assert sector_mask.small_leg.sector_decomposition[0] == sector
+        assert sector_minimum.dtype == sector_real_T.dtype
+        # must the minimum within that sector
+        sector_selector = DiagonalTensor.from_sector_block_func(
+            lambda shape, coupled: np.full(shape, coupled == sector, dtype=bool),
+            leg=sector_real_T.leg,
+            backend=sector_real_T.backend,
+            dtype=Dtype.bool,
+        )
+        sector_values = tensors.apply_mask_DiagonalTensor(sector_real_T, Mask.from_DiagonalTensor(sector_selector))
+        npt.assert_almost_equal(sector_minimum.as_float64(), sector_values.min().as_float64())
+
+    if sector_real_T.symmetry.can_be_dropped:
+        sector_real_T_np = sector_real_T.diagonal_as_numpy()
+        selected = np.flatnonzero(mask.as_numpy_mask())
+        assert selected.size == mask.small_leg.dim
+        npt.assert_almost_equal(sector_real_T_np[selected], minimum.as_float64())
+
+    # --------------------------------------------------------------------------------------------
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
@@ -3784,6 +3837,8 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
     levels = np_random.permutation(T.num_legs)
 
     res1 = tensors.tensor_from_grid(grid)
+    assert isinstance(res1, SymmetricTensor)
+    assert not isinstance(res1, HiddenLegTensor)
     if row > 1:
         assert isinstance(res1.codomain[0], DirectSumSpace)
         assert len(res1.codomain[0].spaces) == row
@@ -3812,6 +3867,17 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
     assert res1.backend.almost_equal(res1, res2, rtol=1e-12, atol=1e-12)
     if T.symmetry.can_be_dropped:
         npt.assert_almost_equal(res1.to_numpy(understood_braiding=True), res2.to_numpy(understood_braiding=True))
+
+
+def test_tensor_from_grid_hidden_labels(make_compatible_tensor, np_random):
+    T = make_compatible_tensor([None], [None], cls=SymmetricTensor, use_pipes=False)
+    labels = np_random.choice([['row', '!column'], ['!row', 'column'], ['!row', '!column']])
+
+    result = tensors.tensor_from_grid([[T]], labels=labels)
+
+    assert isinstance(result, HiddenLegTensor)
+    assert all(result.labels == labels)
+    assert result.hidden_leg_idcs() == [i for i, l in enumerate(labels) if l.startswith('!')]
 
 
 @pytest.mark.parametrize(

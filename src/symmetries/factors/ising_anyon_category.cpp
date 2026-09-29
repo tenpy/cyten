@@ -70,7 +70,7 @@ FusionSymbol
 make_r_table(int nu, std::array<int64, 3> const& frobenius)
 {
     auto const fs1 = static_cast<float64>(frobenius[1]);
-    auto const pi = std::numbers::pi_v<float64>;
+    auto const pi = M_PI;
     std::vector<complex128> vals{
         std::pow(complex128{ 0.0, -1.0 }, nu),
         complex128{ -1.0, 0.0 },

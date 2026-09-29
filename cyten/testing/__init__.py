@@ -12,3 +12,18 @@ from .random_generation import (
     random_tensor,
     randomly_drop_blocks,
 )
+
+
+# auto-maintained by scripts/generate_reexport_all.py; do not edit by hand
+__all__ = [
+    'assert_equivalent_legs',
+    'assert_tensors_almost_equal',
+    'random_ElementarySpace',
+    'random_LegPipe',
+    'random_block',
+    'random_generation',
+    'random_leg',
+    'random_symmetry_sectors',
+    'random_tensor',
+    'randomly_drop_blocks',
+]

@@ -58,7 +58,7 @@ make_f_table(float64 phi)
 FusionSymbol
 make_r_table(std::string const& handedness)
 {
-    auto const pi = std::numbers::pi_v<float64>;
+    auto const pi = M_PI;
     std::vector<complex128> vals{ std::exp(complex128{ 0.0, -4.0 * pi / 5.0 }),
                                   std::exp(complex128{ 0.0, 3.0 * pi / 5.0 }) };
     auto arr =
