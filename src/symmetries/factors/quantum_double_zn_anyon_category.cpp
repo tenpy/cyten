@@ -16,8 +16,7 @@ namespace {
 complex128
 make_unit_phase(int N)
 {
-    return std::exp(
-      complex128{ 0.0, 2.0 * std::numbers::pi_v<float64> / static_cast<float64>(N) });
+    return std::exp(complex128{ 0.0, 2.0 * M_PI / static_cast<float64>(N) });
 }
 
 complex128
