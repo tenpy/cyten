@@ -1,4 +1,5 @@
 #include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/mask.h>
 
 #include <cyten/backends/abelian.h>
 #include <cyten/backends/backend_factory.h>
@@ -663,6 +664,87 @@ DiagonalTensor::min() const
             .attr("min")(py::cast(xs))
             .cast<BlockBackend::Scalar>();
       });
+}
+
+std::pair<std::shared_ptr<Mask>, BlockBackend::Scalar>
+DiagonalTensor::sector_argmin(std::optional<Sector> s) const
+{
+    if (!dtype::is_real(dtype)) {
+        throw std::invalid_argument(
+          std::format("sector_argmin is not defined for dtype {}", dtype::repr(dtype)));
+    }
+
+    auto space = leg();
+    bool abelian_backend = static_cast<bool>(std::dynamic_pointer_cast<AbelianBackend>(backend));
+    auto const& sectors =
+      abelian_backend ? space->sector_decomposition : codomain->sector_decomposition;
+    std::optional<std::size_t> restricted_sector;
+    if (s) {
+        auto sector_idx = abelian_backend ? space->sector_decomposition_where(*s)
+                                          : codomain->sector_decomposition_where(*s);
+        if (!sector_idx) {
+            throw std::invalid_argument("Sector is not in the leg of the DiagonalTensor");
+        }
+        restricted_sector = static_cast<std::size_t>(*sector_idx);
+    }
+
+    auto bb = backend->block_backend;
+    std::vector<int64> local_argmins;
+    std::optional<std::size_t> winning_sector;
+    int64 winning_local_argmin = -1;
+    auto minimum = backend->reduce_DiagonalTensor(
+      std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
+      [bb, &local_argmins](BlockBackend::BlockPtr const& block) {
+          auto idcs = bb->argmin(block);
+          assert(idcs.size() == 1);
+          local_argmins.push_back(idcs[0]);
+          return bb->min(block);
+      },
+      [restricted_sector, &winning_sector, &winning_local_argmin, &local_argmins](
+        std::vector<BlockBackend::Scalar> const& numbers) {
+          std::optional<std::size_t> best;
+          for (std::size_t i = 0; i < numbers.size(); ++i) {
+              if (restricted_sector && i != *restricted_sector) {
+                  continue;
+              }
+              if (!best || (numbers[i] < numbers[*best]).as_bool()) {
+                  best = i;
+              }
+          }
+          if (!best) {
+              throw std::invalid_argument("Cannot compute sector_argmin of an empty leg");
+          }
+          assert(local_argmins.size() == numbers.size());
+          winning_sector = best;
+          winning_local_argmin = local_argmins[*best];
+          return numbers[*best];
+      });
+
+    if (!winning_sector && local_argmins.size() == 1) {
+        winning_sector = 0;
+        winning_local_argmin = local_argmins[0];
+    }
+    assert(winning_sector);
+    auto selected_sector = sectors[*winning_sector];
+    auto selected_local_argmin = winning_local_argmin;
+    auto np = py::module_::import("numpy");
+    auto device_s = device;
+    // TODO Consider optimizing this, by not going via numpy
+    auto diagonal = from_sector_block_func(
+      [bb, np, selected_sector, selected_local_argmin, device_s](std::vector<int64> const& shape,
+                                                                 Sector const& coupled) {
+          py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
+          if (coupled == selected_sector) {
+              block.attr("__setitem__")(selected_local_argmin, true);
+          }
+          return bb->as_block(block, Dtype::Bool, device_s);
+      },
+      space,
+      backend,
+      std::nullopt,
+      Dtype::Bool,
+      device);
+    return { Mask::from_DiagonalTensor(diagonal), minimum };
 }
 
 int64

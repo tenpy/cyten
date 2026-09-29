@@ -503,6 +503,10 @@ bind_tensors_diagonal_tensor(py::module_& m)
     cls.def("any", &DiagonalTensor::any, DOC(cyten, DiagonalTensor, any));
     cls.def("max", &DiagonalTensor::max);
     cls.def("min", &DiagonalTensor::min);
+    cls.def("sector_argmin",
+            &DiagonalTensor::sector_argmin,
+            py::arg("s") = py::none(),
+            DOC(cyten, DiagonalTensor, sector_argmin));
     cls.def("argmin",
             &DiagonalTensor::argmin,
             py::arg("s") = py::none(),

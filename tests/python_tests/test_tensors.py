@@ -518,6 +518,52 @@ def test_DiagonalTensor(make_compatible_tensor):
     T: DiagonalTensor = make_compatible_tensor(cls=DiagonalTensor)
     T.test_sanity()
 
+    print('checking sector_argmin')
+    # --------------------------------------------------------------------------------------------
+    sector_real_T = tensors.real(T)
+    mask, minimum = sector_real_T.sector_argmin()
+
+    mask.test_sanity()
+    assert mask.is_projection
+    assert mask.small_leg.num_sectors == 1
+    # mask must select the `minimum` value
+    assert tensors.almost_equal(
+        tensors.apply_mask_DiagonalTensor(sector_real_T, mask),
+        minimum * DiagonalTensor.from_eye(mask.small_leg, backend=sector_real_T.backend),
+    )
+    # minimum must be the actual minimum
+    npt.assert_almost_equal(minimum.as_float64(), sector_real_T.min().as_float64())
+
+    for sector in sector_real_T.leg.sector_decomposition:
+        sector_mask, sector_minimum = sector_real_T.sector_argmin(sector)
+        sector_mask.test_sanity()
+        assert sector_mask.small_leg.num_sectors == 1
+        assert np.sum(sector_mask.small_leg.multiplicities) == 1
+        # mask must select the `minimum` value
+        assert tensors.almost_equal(
+            tensors.apply_mask_DiagonalTensor(sector_real_T, sector_mask),
+            sector_minimum * DiagonalTensor.from_eye(sector_mask.small_leg, backend=sector_real_T.backend),
+        )
+        # mask must select within the correct sector
+        assert sector_mask.small_leg.sector_decomposition[0] == sector
+        assert sector_minimum.dtype == sector_real_T.dtype
+        # must the minimum within that sector
+        sector_selector = DiagonalTensor.from_sector_block_func(
+            lambda shape, coupled: np.full(shape, coupled == sector, dtype=bool),
+            leg=sector_real_T.leg,
+            backend=sector_real_T.backend,
+            dtype=Dtype.bool,
+        )
+        sector_values = tensors.apply_mask_DiagonalTensor(sector_real_T, Mask.from_DiagonalTensor(sector_selector))
+        npt.assert_almost_equal(sector_minimum.as_float64(), sector_values.min().as_float64())
+
+    if sector_real_T.symmetry.can_be_dropped:
+        sector_real_T_np = sector_real_T.diagonal_as_numpy()
+        selected = np.flatnonzero(mask.as_numpy_mask())
+        assert selected.size == mask.small_leg.dim
+        npt.assert_almost_equal(sector_real_T_np[selected], minimum.as_float64())
+
+    # --------------------------------------------------------------------------------------------
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
