@@ -521,9 +521,11 @@ def test_DiagonalTensor(make_compatible_tensor):
     print('checking sector_argmin')
     # --------------------------------------------------------------------------------------------
     sector_real_T = tensors.real(T)
+    sector_real_T.labels = ['a', 'b']
     mask, minimum = sector_real_T.sector_argmin()
 
     mask.test_sanity()
+    assert mask.labels == ['a', 'a*']
     assert mask.is_projection
     assert mask.small_leg.num_sectors == 1
     # mask must select the `minimum` value
