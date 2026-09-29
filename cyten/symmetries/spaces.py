@@ -19,3 +19,16 @@ from .._core import (  # noqa: F401
     swap_gate,
     twist_gate,
 )
+
+# auto-maintained by scripts/generate_reexport_all.py; do not edit by hand
+__all__ = [
+    'AbelianLegPipe',
+    'DirectSumSpace',
+    'ElementarySpace',
+    'Leg',
+    'LegPipe',
+    'Space',
+    'TensorProduct',
+    'swap_gate',
+    'twist_gate',
+]

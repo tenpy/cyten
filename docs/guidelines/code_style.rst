@@ -82,6 +82,13 @@ configuration
 - Parity of the generated ``cyten._core`` autodoc stub against the compiled extension
   (``scripts/check_core_stub_parity.py --generate``). Skips if ``cyten._core`` is not importable.
 
+- Freshness of the ``__all__`` lists in cyten's re-export hub modules (``cyten/__init__.py``,
+  ``cyten/tensors/__init__.py``, etc.), checked via ``scripts/generate_reexport_all.py --check``.
+  These lists mark names as explicitly re-exported, which ``py.typed`` packages require for
+  IDEs (Pylance/Pyright) to offer autocomplete on re-exported names. If you add or remove a
+  bare ``from .x import y`` in one of these hubs, re-run ``scripts/generate_reexport_all.py``
+  to update its ``__all__``.
+
 - Check that text files do not contain the specific strings ``FIXME`` and ``DONTSHIP``.
   You may use them in your workflow as reminders to do something before committing/pushing.
 
