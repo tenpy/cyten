@@ -300,18 +300,32 @@ LabelledLegs::has_label(std::vector<std::string> const& more) const
 }
 
 bool
-LabelledLegs::labels_are(std::vector<std::string> const& want) const
+LabelledLegs::labels_are(std::vector<std::string> const& want, bool planar) const
 {
-    // --- hints from Python LabelledLegs.labels_are ---
-    // have checked same length, so comparing the unique labels via set is enough.
-    // ---
     if (!is_fully_labelled()) {
         return false;
     }
     if (static_cast<int64>(want.size()) != num_legs) {
         return false;
     }
-    // have checked same length, so comparing the unique labels via set is enough.
+    if (planar) {
+        if (want.empty()) {
+            return true;
+        }
+        auto const start = _labelmap.find(want.front());
+        if (start == _labelmap.end()) {
+            return false;
+        }
+        for (std::size_t i = 1; i < want.size(); ++i) {
+            auto const idx = (static_cast<std::size_t>(start->second) + i) % want.size();
+            if (*_labels[idx] != want[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Equal-length lists with unique labels can be compared as sets.
     std::set<std::string> a(want.begin(), want.end());
     std::set<std::string> b;
     for (auto const& l : _labels) {

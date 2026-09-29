@@ -160,6 +160,11 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
     assert not tens2.has_label('foo')
     assert not tens2.has_label('a', 'b', '42')
 
+    print('check labels_are')
+    assert tens2.labels_are('a', 'c', 'b', 'e*', 'd*')
+    assert tens2.labels_are('c', 'e*', 'd*', 'a', 'b', planar=True)
+    assert not tens2.labels_are('a', 'c', 'b', 'e*', 'd*', planar=True)
+
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)], ids=['1->1', '1->2', '0->3', '3->0'])
 @pytest.mark.parametrize('use_pipes', [True, 0.3])

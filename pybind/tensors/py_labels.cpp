@@ -165,9 +165,11 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
         DOC(cyten, LabelledLegs, has_label))
       .def(
         "labels_are",
-        [](LabelledLegs const& self, py::args args) {
-            return self.labels_are(args_as_strings(args));
+        [](LabelledLegs const& self, py::args args, bool planar) {
+            return self.labels_are(args_as_strings(args), planar);
         },
+        py::kw_only(),
+        py::arg("planar") = false,
         DOC(cyten, LabelledLegs, labels_are))
       .def(
         "relabel",
