@@ -730,6 +730,9 @@ DiagonalTensor::sector_argmin(std::optional<Sector> s) const
     auto np = py::module_::import("numpy");
     auto device_s = device;
     // TODO Consider optimizing this, by not going via numpy
+    auto mask_labels = labels();
+    mask_labels.resize(1);
+    mask_labels.push_back(_dual_leg_label(mask_labels[0]));
     auto diagonal = from_sector_block_func(
       [bb, np, selected_sector, selected_local_argmin, device_s](std::vector<int64> const& shape,
                                                                  Sector const& coupled) {
@@ -741,7 +744,7 @@ DiagonalTensor::sector_argmin(std::optional<Sector> s) const
       },
       space,
       backend,
-      std::nullopt,
+      mask_labels,
       Dtype::Bool,
       device);
     return { Mask::from_DiagonalTensor(diagonal), minimum };
