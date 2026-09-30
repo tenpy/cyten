@@ -341,17 +341,34 @@ svd_apply_mask(TensorCPtr U, DiagonalTensorCPtr S, TensorCPtr Vh, MaskCPtr mask)
 
 /// Truncated version of `svd`.
 ///
+/// Given a normalized SVD `tensor = norm(tensor) * X @ Y @ Z`, we keep only some of the singular
+/// values ``Y_k`` and discard ``Y_d`` such that ``Y = [[Y_k 0] [0 Y_d]]``.
+/// The resulting closes approximation is `T_a = norm(tensor) * X_k @ Y_k @ Z_k`.
+/// The relative approximation error is `err = norm(tensor - T_a) / norm(tensor) = norm(Y_d)`.
+/// The norm of the approximation is `norm(T_a) = norm(tensor) * sqrt(1 - err ** 2) <=
+/// norm(tensor)`` and is in particular reduced compared to the original tensor. It can therefore
+/// be of interest to rescale the result.
+///
 /// @param tensor,new_labels,new_leg_dual,charge_leg_top,algorithm Same as for the non-truncated
 ///     `svd`.
-/// @param normalize_to If `nullopt` (default), the resulting singular values are not renormalized,
-///     so the approximation `U, S, Vh` has smaller norm than `tensor`. If set, singular values are
-///     scaled such that `norm(S) == normalize_to`.
+/// @param normalize_to If `nullopt` (default), the resulting truncated singular values are not
+///     renormalized, and we get ``norm(S) = norm(T) sqrt(1 - err ** 2) <= norm(T)``.
+///     If set, we get ``norm(S) == normalize_to``.
 /// @param chi_max,chi_min,degeneracy_tol,trunc_cut,svd_min Truncation options; see
 ///     `truncate_singular_values`.
-/// @returns `(U, S, Vh, err, renormalize)` such that `tdot(U, tdot(S, Vh, 1, 0), -1, 0)` is
-///     *approximately* equal to `tensor`. `err` is the relative 2-norm truncation error
-///     `norm(tensor - U_S_Vh) / norm(tensor)`. `renormalize` is `norm(S) / norm(tensor)`, such
-///     that `U @ S @ Vh / renormalize` has the same norm as `tensor`.
+/// @returns `(U, S, Vh, err, renormalize)` such that
+///     `U` are the kept columns `X_k` of the left isometry
+///     `S` are the kept singular values,
+///         either unscaled `S = norm(tensor) * Y_k` if `normalize_to = nullopt`
+///         or scaled `S = normalize_to / norm(Y_k) * Y_k` to target norm otherwise.
+///     `Vh` are the kept rows `Y_k` of the right isometry
+///     `err` is the *relative* two-norm approximation error `err = norm(tensor - T_a) /
+///     norm(tensor)`.
+///         it corresponds to the discarded weight `err = norm(Y_d)` of normalized singular values.
+///     `renormalize` is the factor such that `T_a = renormalize * U @ S @ Vh` is the closest
+///     approximation
+///         if `normalize_to = nullopt` we have `renormalize = 1`
+///         otherwise `renormalize = norm(tensor) / normalize_to * norm(Y_k)
 ///
 /// See also: `svd`.
 [[nodiscard]] std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr, float64, float64> truncated_svd(

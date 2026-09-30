@@ -932,9 +932,9 @@ truncated_svd_py(py::object tensor,
     std::tie(U, S, Vh) = svd_apply_mask_py(U, S, Vh, mask);
     float64 renormalize = 1.;
     if (normalize_to.has_value()) {
-        // norm(S[mask]) == S_norm * new_norm
-        renormalize = *normalize_to / S_norm / new_norm;
-        S = S.attr("__mul__")(renormalize);
+        // Scale the returned S to normalize_to; renormalize restores the original scale.
+        renormalize = S_norm * new_norm / *normalize_to;
+        S = S.attr("__mul__")(*normalize_to / S_norm / new_norm);
     }
     return { U, S, Vh, err, renormalize };
 }
