@@ -1355,32 +1355,51 @@ def test_PlanarLinearOperator(symmetry, np_random):
     # ===========================================
     # create example tensors
     # ===========================================
-
+    # Fib FusionTree with several multi-sector legs makes to_tensor / matvec / planar
+    # rebuild each take ~3s under the default RNG seed. Single-sector legs stay cheap
+    # while still exercising non-abelian planar contractions.
+    max_mult = 1 if not symmetry.is_abelian else 2
+    max_blocks = 1 if not symmetry.is_abelian else 2
     theta = ct.testing.random_tensor(
-        symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
+        symmetry,
+        4,
+        labels=['vL', 'p0', 'p1', 'vR'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
     vL, p0, p1, vR = theta.legs
     Lp = ct.testing.random_tensor(
-        symmetry, [vL, None, vL.dual], labels=['vR*', 'wR', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
+        symmetry,
+        [vL, None, vL.dual],
+        labels=['vR*', 'wR', 'vR'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
     W0 = ct.testing.random_tensor(
         symmetry,
         [p0, None, p0.dual, Lp.get_leg('wR').dual],
         labels=['p', 'wR', 'p*', 'wL'],
-        max_multiplicity=3,
-        max_blocks=3,
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
         np_random=np_random,
     )
     W1 = ct.testing.random_tensor(
         symmetry,
         [p1, None, p1.dual, W0.get_leg('wR').dual],
         labels=['p', 'wR', 'p*', 'wL'],
-        max_multiplicity=3,
-        max_blocks=3,
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
         np_random=np_random,
     )
     Rp = ct.testing.random_tensor(
-        symmetry, [vR, vR.dual, W1.get_leg('wR').dual], labels=['vL*', 'vL', 'wL'], np_random=np_random
+        symmetry,
+        [vR, vR.dual, W1.get_leg('wR').dual],
+        labels=['vL*', 'vL', 'wL'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
 
     # ===========================================

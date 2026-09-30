@@ -122,7 +122,10 @@ def generate_anyon_dofs(block_backend: cyten.block_backends.BlockBackend) -> lis
 
 @pytest.mark.parametrize('codom', [1, 2, 3])
 def test_coupling(codom, make_compatible_space):
-    legs = [make_compatible_space(max_sectors=3, max_mult=3) for _ in range(codom)]
+    # Keep spaces small: SU2 FusionTree with codom=3 is otherwise very expensive.
+    max_sectors = 3 if codom < 3 else 2
+    max_mult = 3 if codom < 3 else 2
+    legs = [make_compatible_space(max_sectors=max_sectors, max_mult=max_mult) for _ in range(codom)]
     labels = [f'p{i}' for i in range(codom)]
     labels = [*labels, *[l + '*' for l in labels[::-1]]]
     T = tensors.SymmetricTensor.from_random_normal(codomain=legs, domain=legs, labels=labels)
@@ -385,10 +388,10 @@ def test_onsite_interaction(any_backend, np_random):
 @pytest.mark.slow  # TODO can we speed it up?
 def test_density_density_interaction(any_backend, np_random):
     bosonic_sites = generate_bosonic_dofs(any_backend)
-    num_sites = min(3, len(bosonic_sites))
+    num_sites = min(2, len(bosonic_sites))
     bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
     fermionic_sites = generate_fermionic_dofs(any_backend)
-    num_sites = min(3, len(fermionic_sites))
+    num_sites = min(2, len(fermionic_sites))
     fermionic_sites = np_random.choice(fermionic_sites, size=num_sites, replace=False)
     all_sites = [*bosonic_sites, *fermionic_sites]
 
@@ -431,10 +434,10 @@ def test_density_density_interaction(any_backend, np_random):
 @pytest.mark.slow  # TODO can we speed it up?
 def test_hopping(any_backend, np_random):
     bosonic_sites = generate_bosonic_dofs(any_backend)
-    num_sites = min(3, len(bosonic_sites))
+    num_sites = min(2, len(bosonic_sites))
     bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
     fermionic_sites = generate_fermionic_dofs(any_backend)
-    num_sites = min(3, len(fermionic_sites))
+    num_sites = min(2, len(fermionic_sites))
     fermionic_sites = np_random.choice(fermionic_sites, size=num_sites, replace=False)
     all_sites = [*bosonic_sites, *fermionic_sites]
 

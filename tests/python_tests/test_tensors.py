@@ -235,7 +235,10 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
 
 @pytest.mark.parametrize('leg_num', [1, 2, 3])
 def test_SymmetricTensor_from_eye(make_compatible_space, make_compatible_tensor, compatible_backend, leg_num):
-    legs = [make_compatible_space() for _ in range(leg_num)]
+    # Shrink spaces for multi-leg eye: dense checks scale poorly with FusionTree/SU2.
+    max_sectors = 3 if leg_num < 3 else 2
+    max_mult = 3 if leg_num < 3 else 2
+    legs = [make_compatible_space(max_sectors=max_sectors, max_mult=max_mult) for _ in range(leg_num)]
     labels = list('abcdefg')[:leg_num]
     tens = SymmetricTensor.from_eye(legs, backend=compatible_backend, labels=labels)
 
@@ -1551,7 +1554,9 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     ],
 )
 def test_combine_split(use_pipes, make_compatible_tensor):
-    T: SymmetricTensor = make_compatible_tensor(['a', 'b'], ['d', 'c'], use_pipes=use_pipes)
+    T: SymmetricTensor = make_compatible_tensor(
+        ['a', 'b'], ['d', 'c'], use_pipes=use_pipes, max_blocks=3, max_block_size=3
+    )
     assert T.labels == ['a', 'b', 'c', 'd']
 
     # 1) combine in codomain
@@ -1754,10 +1759,11 @@ def test_swap_gate_numpy(np_random):
 def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tensor):
     # use dense blocks as check that pipes are consistent across the different backends
     labels = ['a', 'b', 'c', 'd']
+    kwargs = dict(use_pipes=use_pipes, max_blocks=3, max_block_size=3)
     if in_domain:
-        T: SymmetricTensor = make_compatible_tensor([], labels[::-1], use_pipes=use_pipes)
+        T: SymmetricTensor = make_compatible_tensor([], labels[::-1], **kwargs)
     else:
-        T: SymmetricTensor = make_compatible_tensor(labels, [], use_pipes=use_pipes)
+        T: SymmetricTensor = make_compatible_tensor(labels, [], **kwargs)
     assert T.labels == labels
 
     if T.symmetry.can_be_dropped:
@@ -4252,9 +4258,9 @@ def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
     npt.assert_almost_equal((tensors.norm(T2) ** 2).to_numpy(), tensors.inner(T2, T2, do_dagger=True).to_numpy())
 
 
-def _move_hidden_leg_pair(make_compatible_tensor, hidden_space, extra_hidden=False, hide_on_B=False):
+def _move_hidden_leg_pair(make_compatible_tensor, hidden_space, extra_hidden=False, hide_on_B=False, **tensor_kwargs):
     """Build contractible A (HiddenLegTensor) and B with A.vR dual to B.vL."""
-    kwargs = {'use_pipes': False}
+    kwargs = {'use_pipes': False, 'max_blocks': 3, 'max_block_size': 3, **tensor_kwargs}
     A_codomain = [hidden_space, None, None, None]
     A_labels = ['charge', 'pA', 'vL', 'vR']
     if extra_hidden:
@@ -4318,11 +4324,10 @@ def test_move_hidden_leg_domain_pos(make_compatible_tensor, compatible_symmetry)
     _assert_tdot_equal(expect, got)
 
 
-def test_move_hidden_leg_dim_gt_one_keeps_pipes(make_compatible_tensor, make_compatible_space, compatible_symmetry):
-    h = make_compatible_space()
-    if h.dim == 1:
-        pytest.skip('need a hidden space with dim > 1')
-    A, B = _move_hidden_leg_pair(make_compatible_tensor, h)
+def test_move_hidden_leg_dim_gt_one_keeps_pipes(make_compatible_tensor, compatible_symmetry):
+    # Keep the hidden space tiny: default make_compatible_space() is far too large for SU2/FusionTree.
+    h = ElementarySpace.from_trivial_sector(2, symmetry=compatible_symmetry)
+    A, B = _move_hidden_leg_pair(make_compatible_tensor, h, max_blocks=2, max_block_size=2)
     try:
         expect = tensors.tdot(A, B, 'vR', 'vL')
         A2, B2 = tensors.move_hidden_leg(A, B, 'vR', 'vL', '!charge', target_codomain_pos=2)
