@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <stdexcept>
 #include <unordered_set>
@@ -22,7 +24,7 @@ is_dual_pair(std::string const& a, std::string const& b)
     return dual_a && *dual_a == b;
 }
 
-[[nodiscard]] void
+void
 check_public_labels_no_bang(LegLabels const& labs)
 {
     for (auto const& lab : labs) {
@@ -370,21 +372,23 @@ HiddenLegTensor::maybe_wrap(SymmetricTensor::Ptr tensor)
 }
 
 void
-HiddenLegTensor::save_hdf5(py::object hdf5_saver,
-                           py::object h5gr,
+HiddenLegTensor::save_hdf5(cyten::hdf5::Saver& saver,
+                           HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
     // Store as SymmetricTensor data + flag
-    SymmetricTensor::save_hdf5(hdf5_saver, h5gr, subpath);
-    h5gr.attr("attrs")["is_hidden_leg_tensor"] = true;
+    SymmetricTensor::save_hdf5(saver, h5gr, subpath);
+    cyten::hdf5::py_set_group_attr("is_hidden_leg_tensor", py::cast(true));
 }
 
 HiddenLegTensor::Ptr
-HiddenLegTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+HiddenLegTensor::from_hdf5(cyten::hdf5::Loader& loader,
+                           HighFive::Group& h5gr,
+                           std::string const& subpath)
 {
-    auto sym = SymmetricTensor::from_hdf5(hdf5_loader, h5gr, subpath);
+    auto sym = SymmetricTensor::from_hdf5(loader, h5gr, subpath);
     auto obj = std::make_shared<HiddenLegTensor>(std::move(sym));
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

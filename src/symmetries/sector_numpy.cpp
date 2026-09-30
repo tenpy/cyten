@@ -1,6 +1,8 @@
 #include <cyten/symmetries/sector_numpy.h>
 
 #include <array>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <limits>
 #include <stdexcept>
 
@@ -159,30 +161,36 @@ sector_array_from_numpy(py::handle src)
 }
 
 void
-Sector::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string const& subpath) const
+Sector::save_hdf5(cyten::hdf5::Saver& saver,
+                  HighFive::Group& /*h5gr*/,
+                  std::string const& subpath) const
 {
-    // ``subpath`` is the group already created by ``hdf5_saver``; store charges under ``values``.
-    hdf5_saver.attr("save")(sector_to_numpy(*this), subpath + "values");
+    // ``subpath`` is the group already created by ``saver``; store charges under ``values``.
+    cyten::hdf5::py_save(subpath + "values", sector_to_numpy(*this));
 }
 
 Sector
-Sector::from_hdf5(py::object hdf5_loader, py::object /*h5gr*/, std::string const& subpath)
+Sector::from_hdf5(cyten::hdf5::Loader& loader,
+                  HighFive::Group& /*h5gr*/,
+                  std::string const& subpath)
 {
-    return sector_from_numpy(hdf5_loader.attr("load")(subpath + "values"));
+    return sector_from_numpy(cyten::hdf5::py_load(subpath + "values"));
 }
 
 void
-SectorArray::save_hdf5(py::object hdf5_saver,
-                       py::object /*h5gr*/,
+SectorArray::save_hdf5(cyten::hdf5::Saver& saver,
+                       HighFive::Group& /*h5gr*/,
                        std::string const& subpath) const
 {
-    hdf5_saver.attr("save")(sector_array_to_numpy(*this), subpath + "values");
+    cyten::hdf5::py_save(subpath + "values", sector_array_to_numpy(*this));
 }
 
 SectorArray
-SectorArray::from_hdf5(py::object hdf5_loader, py::object /*h5gr*/, std::string const& subpath)
+SectorArray::from_hdf5(cyten::hdf5::Loader& loader,
+                       HighFive::Group& /*h5gr*/,
+                       std::string const& subpath)
 {
-    return sector_array_from_numpy(hdf5_loader.attr("load")(subpath + "values"));
+    return sector_array_from_numpy(cyten::hdf5::py_load(subpath + "values"));
 }
 
 } // namespace cyten

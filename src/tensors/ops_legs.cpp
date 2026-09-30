@@ -20,6 +20,7 @@
 #include <cassert>
 #include <format>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -32,58 +33,54 @@ namespace cyten {
 
 namespace {
 
-py::object
-tensors_mod()
+TensorProduct::Ptr
+tensor_product_from_py(py::object factors_obj,
+                       py::object symmetry_obj,
+                       py::object sector_decomposition = py::none(),
+                       py::object multiplicities = py::none())
 {
-    return py::module_::import("cyten.tensors._tensors");
-}
-
-py::object
-spaces_mod()
-{
-    return py::module_::import("cyten.symmetries.spaces");
-}
-
-py::object
-misc_mod()
-{
-    return py::module_::import("cyten.tools.misc");
-}
-
-bool
-is_python_instance(py::object obj, char const* class_name)
-{
-    return py::isinstance(obj, tensors_mod().attr(class_name));
+    auto factors = factors_obj.cast<std::vector<Leg::Ptr>>();
+    auto symmetry = symmetry_obj.cast<Symmetry::Ptr>();
+    std::optional<SectorArray> sectors;
+    std::optional<std::vector<int64>> mults;
+    if (!sector_decomposition.is_none()) {
+        sectors = sector_decomposition.cast<SectorArray>();
+    }
+    if (!multiplicities.is_none()) {
+        mults = multiplicities.cast<std::vector<int64>>();
+    }
+    return std::make_shared<TensorProduct>(
+      std::move(factors), std::move(symmetry), std::move(sectors), std::move(mults));
 }
 
 bool
 is_Mask(py::object obj)
 {
-    return is_python_instance(obj, "Mask") || py::isinstance<Mask>(obj);
+    return py::isinstance<Mask>(obj);
 }
 
 bool
 is_DiagonalTensor(py::object obj)
 {
-    return is_python_instance(obj, "DiagonalTensor") || py::isinstance<DiagonalTensor>(obj);
+    return py::isinstance<DiagonalTensor>(obj);
 }
 
 bool
 is_SymmetricTensor(py::object obj)
 {
-    return is_python_instance(obj, "SymmetricTensor") || py::isinstance<SymmetricTensor>(obj);
+    return py::isinstance<SymmetricTensor>(obj);
 }
 
 bool
 is_ChargedTensor(py::object obj)
 {
-    return is_python_instance(obj, "ChargedTensor") || py::isinstance<ChargedTensor>(obj);
+    return py::isinstance<ChargedTensor>(obj);
 }
 
 bool
 is_HiddenLegTensor(py::object obj)
 {
-    return is_python_instance(obj, "HiddenLegTensor") || py::isinstance<HiddenLegTensor>(obj);
+    return py::isinstance<HiddenLegTensor>(obj);
 }
 
 /// Cast a TensorCPtr to a Python object of the most-derived bound type.
@@ -118,7 +115,7 @@ tensor_as_py(TensorCPtr const& tensor)
 bool
 is_LegPipe(py::object obj)
 {
-    return py::isinstance(obj, spaces_mod().attr("LegPipe")) || py::isinstance<LegPipe>(obj);
+    return py::isinstance<LegPipe>(obj);
 }
 
 bool
@@ -131,11 +128,13 @@ py_eq(py::object a, py::object b)
     return eq.cast<bool>();
 }
 
-py::object
-data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& /*backend*/)
+[[nodiscard]] Space::Ptr
+as_space_leg(py::object leg)
 {
-    // C++ SymmetricTensor/Mask/DiagonalTensor ctors take DataPtr (including NoSymmetry BlockData).
-    return py::cast(std::move(data));
+    if (py::isinstance<LegPipe>(leg)) {
+        throw std::invalid_argument("DiagonalTensor / Mask is not defined on LegPipes.");
+    }
+    return leg.cast<Space::Ptr>();
 }
 
 py::object
@@ -145,17 +144,16 @@ make_python_symmetric_tensor(TensorBackend::DataPtr data,
                              TensorBackend::Ptr backend,
                              py::object labels)
 {
-    return tensors_mod().attr("SymmetricTensor")(data_as_python(std::move(data), backend),
-                                                 codomain,
-                                                 domain,
-                                                 py::arg("backend") = py::cast(backend),
-                                                 py::arg("labels") = labels);
+    auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+    return py::cast(std::make_shared<SymmetricTensor>(
+      std::move(data), init.codomain, init.domain, init.backend, init.symmetry, init.labels));
 }
 
 py::object
 make_python_charged_tensor(py::object invariant_part, py::object charged_state)
 {
-    return tensors_mod().attr("ChargedTensor")(invariant_part, charged_state);
+    return py::cast(std::make_shared<ChargedTensor>(invariant_part.cast<SymmetricTensor::Ptr>(),
+                                                    charged_state.cast<BlockBackend::BlockPtr>()));
 }
 
 LegLabels
@@ -212,21 +210,6 @@ bool
 contains_int(std::vector<int64> const& v, int64 x)
 {
     return std::find(v.begin(), v.end(), x) != v.end();
-}
-
-std::vector<int64>
-inverse_permutation_local(std::vector<int64> const& perm)
-{
-    std::vector<int64> inv(perm.size());
-    for (std::size_t i = 0; i < perm.size(); ++i) {
-        auto const idx = perm[i];
-        if (idx < 0 || static_cast<std::size_t>(idx) >= perm.size()) {
-            throw std::invalid_argument(
-              std::format("permutation index {} is out of range for length {}", idx, perm.size()));
-        }
-        inv[static_cast<std::size_t>(idx)] = static_cast<int64>(i);
-    }
-    return inv;
 }
 
 std::vector<Leg::Ptr>
@@ -425,8 +408,8 @@ permute_legs_py(py::object tensor,
         codomain_v = get_leg_idcs_py(tensor, codomain);
         std::vector<int64> specified_legs = domain_v;
         specified_legs.insert(specified_legs.end(), codomain_v.begin(), codomain_v.end());
-        py::object duplicates = misc_mod().attr("duplicate_entries")(py::cast(specified_legs));
-        if (py::len(duplicates) > 0) {
+        auto duplicates = duplicate_entries(specified_legs);
+        if (!duplicates.empty()) {
             std::string joined;
             bool first = true;
             for (auto d : duplicates) {
@@ -434,7 +417,7 @@ permute_legs_py(py::object tensor,
                     joined += ", ";
                 }
                 first = false;
-                joined += std::to_string(d.cast<int64>());
+                joined += std::to_string(d);
             }
             throw std::invalid_argument(
               std::format("Duplicate entries. By leg index: {}", joined));
@@ -722,12 +705,8 @@ permute_legs_py(py::object tensor,
         for (auto i : domain_v) {
             dom_spaces.append(tensor.attr("_as_domain_leg")(i));
         }
-        new_codomain = spaces_mod()
-                         .attr("TensorProduct")(cod_spaces, tensor.attr("symmetry"))
-                         .cast<TensorProduct::Ptr>();
-        new_domain = spaces_mod()
-                       .attr("TensorProduct")(dom_spaces, tensor.attr("symmetry"))
-                       .cast<TensorProduct::Ptr>();
+        new_codomain = tensor_product_from_py(cod_spaces, tensor.attr("symmetry"));
+        new_domain = tensor_product_from_py(dom_spaces, tensor.attr("symmetry"));
     } else {
         // (co)domain has the same factor as before, only permuted -> can re-use sectors!
         new_codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>()->permuted(codomain_v);
@@ -908,7 +887,7 @@ combine_legs_py(py::object tensor,
     for (auto const& group : which_legs_v) {
         to_combine.insert(to_combine.end(), group.begin(), group.end());
     }
-    if (py::len(misc_mod().attr("duplicate_entries")(py::cast(to_combine))) > 0) {
+    if (!duplicate_entries(to_combine).empty()) {
         throw std::invalid_argument("Groups may not contain duplicates.");
     }
 
@@ -948,7 +927,7 @@ combine_legs_py(py::object tensor,
     // leg positions have changed, so we need to update the following lists/dicts:
     std::vector<int64> full_perm = codomain_idcs;
     full_perm.insert(full_perm.end(), domain_idcs_reversed.begin(), domain_idcs_reversed.end());
-    auto inv_perm = inverse_permutation_local(full_perm);
+    auto inv_perm = inverse_permutation(full_perm);
     for (auto& group : which_legs_v) {
         for (auto& l : group) {
             l = inv_perm[static_cast<std::size_t>(l)];
@@ -1075,9 +1054,13 @@ combine_legs_py(py::object tensor,
     for (auto it = domain_spaces_reversed.rbegin(); it != domain_spaces_reversed.rend(); ++it) {
         domain_spaces.append(*it);
     }
+    py::list codomain_spaces_list;
+    for (auto const& o : codomain_spaces) {
+        codomain_spaces_list.append(o);
+    }
     py::object codomain =
-      spaces_mod().attr("TensorProduct")(py::cast(codomain_spaces), tensor.attr("symmetry"));
-    py::object domain = spaces_mod().attr("TensorProduct")(domain_spaces, tensor.attr("symmetry"));
+      py::cast(tensor_product_from_py(codomain_spaces_list, tensor.attr("symmetry")));
+    py::object domain = py::cast(tensor_product_from_py(domain_spaces, tensor.attr("symmetry")));
 
     // 4) Build the data / finish up
     std::sort(which_legs_v.begin(), which_legs_v.end());
@@ -1244,16 +1227,16 @@ split_legs_py(py::object tensor, py::object legs)
     }
 
     // we only split, i.e. remove parentheses in tensor products, so sectors dont change
-    py::object codomain = spaces_mod().attr("TensorProduct")(
-      codomain_spaces,
-      tensor.attr("symmetry"),
-      py::arg("_sector_decomposition") = tensor.attr("codomain").attr("sector_decomposition"),
-      py::arg("_multiplicities") = tensor.attr("codomain").attr("multiplicities"));
-    py::object domain = spaces_mod().attr("TensorProduct")(
-      domain_spaces,
-      tensor.attr("symmetry"),
-      py::arg("_sector_decomposition") = tensor.attr("domain").attr("sector_decomposition"),
-      py::arg("_multiplicities") = tensor.attr("domain").attr("multiplicities"));
+    py::object codomain =
+      py::cast(tensor_product_from_py(codomain_spaces,
+                                      tensor.attr("symmetry"),
+                                      tensor.attr("codomain").attr("sector_decomposition"),
+                                      tensor.attr("codomain").attr("multiplicities")));
+    py::object domain =
+      py::cast(tensor_product_from_py(domain_spaces,
+                                      tensor.attr("symmetry"),
+                                      tensor.attr("domain").attr("sector_decomposition"),
+                                      tensor.attr("domain").attr("multiplicities")));
 
     // build labels
     LegLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
@@ -1293,8 +1276,8 @@ squeeze_legs_py(py::object tensor, py::object legs)
     std::vector<int64> legs_v;
     if (legs.is_none()) {
         int64 n = 0;
-        for (auto l : tensors_mod().attr("conventional_leg_order")(tensor)) {
-            if (py::reinterpret_borrow<py::object>(l).attr("is_trivial").cast<bool>()) {
+        for (auto l : conventional_leg_order(tensor.cast<TensorCPtr>())) {
+            if (l->is_trivial()) {
                 legs_v.push_back(n);
             }
             ++n;
@@ -1348,16 +1331,16 @@ squeeze_legs_py(py::object tensor, py::object legs)
             dom_spaces.append(tensor.attr("domain").attr("__getitem__")(n));
         }
     }
-    py::object codomain = spaces_mod().attr("TensorProduct")(
-      cod_spaces,
-      tensor.attr("symmetry"),
-      py::arg("_sector_decomposition") = tensor.attr("codomain").attr("sector_decomposition"),
-      py::arg("_multiplicities") = tensor.attr("codomain").attr("multiplicities"));
-    py::object domain = spaces_mod().attr("TensorProduct")(
-      dom_spaces,
-      tensor.attr("symmetry"),
-      py::arg("_sector_decomposition") = tensor.attr("domain").attr("sector_decomposition"),
-      py::arg("_multiplicities") = tensor.attr("domain").attr("multiplicities"));
+    py::object codomain =
+      py::cast(tensor_product_from_py(cod_spaces,
+                                      tensor.attr("symmetry"),
+                                      tensor.attr("codomain").attr("sector_decomposition"),
+                                      tensor.attr("codomain").attr("multiplicities")));
+    py::object domain =
+      py::cast(tensor_product_from_py(dom_spaces,
+                                      tensor.attr("symmetry"),
+                                      tensor.attr("domain").attr("sector_decomposition"),
+                                      tensor.attr("domain").attr("multiplicities")));
 
     LegLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
     LegLabels labels;
@@ -1624,7 +1607,7 @@ flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
     if (!pipe) {
         return tensor;
     }
-    auto es = pipe->as_ElementarySpace(pipe->is_dual).cast<ElementarySpace::Ptr>();
+    auto es = pipe->as_ElementarySpace(pipe->is_dual);
     if (std::dynamic_pointer_cast<LegPipe>(es)) {
         // AbelianLegPipe is both a pipe and an ElementarySpace; drop the pipe
         // metadata so the bond is a plain charge-shifted ElementarySpace.

@@ -27,6 +27,9 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v6
+      with:
+        # external/hdf5_io: CMake (CYTEN_WITH_HDF5) and the Python hdf5_io package
+        submodules: true
 
     - name: Set up micromamba
       uses: mamba-org/setup-micromamba@v3
@@ -36,7 +39,9 @@ jobs:
 
     - name: Build and install
       # build deps (pybind11, scikit-build-core, cmake, ...) come from environment.yml
+      # hdf5_io is not on PyPI yet; install the git submodule (needed for cyten.tools.hdf5_io)
       run: |
+        pip install --no-build-isolation -e ./external/hdf5_io
         pip install --no-build-isolation -e .
 
     - name: Run pytest

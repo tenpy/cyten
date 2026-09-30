@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/zn.h>
 
+#include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
@@ -20,8 +21,11 @@ bind_zn(py::module_& m)
            py::arg("descriptive_name") = py::none(),
            py::arg("trivial_shift") = true)
       .def_readonly("N", &ZN::N)
-      .def_static(
-        "from_hdf5", &ZN::from_hdf5, py::arg("hdf5_loader"), py::arg("h5gr"), py::arg("subpath"));
+      .def_static("from_hdf5",
+                  cyten::hdf5::wrap_from_hdf5<ZN>(),
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 }
 
 } // namespace cyten

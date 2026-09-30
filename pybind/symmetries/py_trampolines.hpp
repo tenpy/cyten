@@ -48,9 +48,9 @@ class PyBaseSymmetry
     {
         PYBIND11_OVERRIDE_PURE(FusionSymbol, BaseSymmetry, _r_symbol, a, b, c);
     }
-    py::object as_Symmetry() override
+    std::shared_ptr<Symmetry> as_Symmetry() override
     {
-        PYBIND11_OVERRIDE_PURE(py::object, BaseSymmetry, as_Symmetry);
+        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Symmetry>, BaseSymmetry, as_Symmetry);
     }
     bool is_valid_sector(Sector a) const override
     {
@@ -186,9 +186,9 @@ class PySymmetryFactor
     {
         PYBIND11_OVERRIDE_PURE(FusionSymbol, SymmetryFactor, _r_symbol, a, b, c);
     }
-    py::object as_Symmetry() override
+    std::shared_ptr<Symmetry> as_Symmetry() override
     {
-        PYBIND11_OVERRIDE(py::object, SymmetryFactor, as_Symmetry);
+        PYBIND11_OVERRIDE(std::shared_ptr<Symmetry>, SymmetryFactor, as_Symmetry);
     }
     bool is_valid_sector(Sector a) const override
     {
@@ -334,7 +334,10 @@ class PyGroup
     {
         PYBIND11_OVERRIDE_PURE(FusionSymbol, Group, _r_symbol, a, b, c);
     }
-    py::object as_Symmetry() override { PYBIND11_OVERRIDE(py::object, Group, as_Symmetry); }
+    std::shared_ptr<Symmetry> as_Symmetry() override
+    {
+        PYBIND11_OVERRIDE(std::shared_ptr<Symmetry>, Group, as_Symmetry);
+    }
     bool is_valid_sector(Sector a) const override
     {
         PYBIND11_OVERRIDE_PURE(bool, Group, is_valid_sector, a);
@@ -457,7 +460,10 @@ class PyAbelianGroup
     {
         PYBIND11_OVERRIDE_PURE(Sector, AbelianGroup, dual_sector, a);
     }
-    py::object as_Symmetry() override { PYBIND11_OVERRIDE(py::object, AbelianGroup, as_Symmetry); }
+    std::shared_ptr<Symmetry> as_Symmetry() override
+    {
+        PYBIND11_OVERRIDE(std::shared_ptr<Symmetry>, AbelianGroup, as_Symmetry);
+    }
     bool is_valid_sector(Sector a) const override
     {
         PYBIND11_OVERRIDE_PURE(bool, AbelianGroup, is_valid_sector, a);
@@ -602,11 +608,14 @@ class PyLeg
 
     void test_sanity() const override { PYBIND11_OVERRIDE(void, Leg, test_sanity); }
 
-    py::object as_Space() override { PYBIND11_OVERRIDE_PURE(py::object, Leg, as_Space); }
-
-    py::object as_ElementarySpace(bool is_dual) override
+    std::shared_ptr<Space> as_space_obj() override
     {
-        PYBIND11_OVERRIDE(py::object, Leg, as_ElementarySpace, is_dual);
+        PYBIND11_OVERRIDE_PURE_NAME(std::shared_ptr<Space>, Leg, "as_Space", as_space_obj);
+    }
+
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, Leg, as_ElementarySpace, is_dual);
     }
 
     Ptr dual_leg() const override { PYBIND11_OVERRIDE_PURE_NAME(Ptr, Leg, "dual", dual_leg); }
@@ -654,22 +663,22 @@ class PySpace
         PYBIND11_OVERRIDE_NAME(bool, Space, "__eq__", operator==, other);
     }
 
-    py::object as_ElementarySpace(bool is_dual) override
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual) override
     {
-        PYBIND11_OVERRIDE(py::object, Space, as_ElementarySpace, is_dual);
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, Space, as_ElementarySpace, is_dual);
     }
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective) override
     {
         PYBIND11_OVERRIDE_PURE(
-          py::object, Space, change_symmetry, symmetry, sector_map, injective);
+          Space::Ptr, Space, change_symmetry, symmetry, sector_map, injective);
     }
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which) override
     {
-        PYBIND11_OVERRIDE_PURE(py::object, Space, drop_symmetry, which);
+        PYBIND11_OVERRIDE_PURE(Space::Ptr, Space, drop_symmetry, which);
     }
 };
 
@@ -683,7 +692,10 @@ class PyLegPipe
 
     void test_sanity() const override { PYBIND11_OVERRIDE(void, LegPipe, test_sanity); }
 
-    py::object as_Space() override { PYBIND11_OVERRIDE(py::object, LegPipe, as_Space); }
+    std::shared_ptr<Space> as_space_obj() override
+    {
+        PYBIND11_OVERRIDE_NAME(std::shared_ptr<Space>, LegPipe, "as_Space", as_space_obj);
+    }
 
     std::vector<int64> _flat_leg_permutation(int64 offset) const override
     {
@@ -726,24 +738,27 @@ class PyElementarySpace
 
     void test_sanity() const override { PYBIND11_OVERRIDE(void, ElementarySpace, test_sanity); }
 
-    py::object as_Space() override { PYBIND11_OVERRIDE(py::object, ElementarySpace, as_Space); }
-
-    py::object as_ElementarySpace(bool is_dual) override
+    std::shared_ptr<Space> as_space_obj() override
     {
-        PYBIND11_OVERRIDE(py::object, ElementarySpace, as_ElementarySpace, is_dual);
+        PYBIND11_OVERRIDE_NAME(std::shared_ptr<Space>, ElementarySpace, "as_Space", as_space_obj);
     }
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, ElementarySpace, as_ElementarySpace, is_dual);
+    }
+
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective) override
     {
         PYBIND11_OVERRIDE(
-          py::object, ElementarySpace, change_symmetry, symmetry, sector_map, injective);
+          Space::Ptr, ElementarySpace, change_symmetry, symmetry, sector_map, injective);
     }
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which) override
     {
-        PYBIND11_OVERRIDE(py::object, ElementarySpace, drop_symmetry, which);
+        PYBIND11_OVERRIDE(Space::Ptr, ElementarySpace, drop_symmetry, which);
     }
 
     std::vector<int64> _flat_leg_permutation(int64 offset) const override
@@ -788,24 +803,27 @@ class PyAbelianLegPipe
 
     void test_sanity() const override { PYBIND11_OVERRIDE(void, AbelianLegPipe, test_sanity); }
 
-    py::object as_Space() override { PYBIND11_OVERRIDE(py::object, AbelianLegPipe, as_Space); }
-
-    py::object as_ElementarySpace(bool is_dual) override
+    std::shared_ptr<Space> as_space_obj() override
     {
-        PYBIND11_OVERRIDE(py::object, AbelianLegPipe, as_ElementarySpace, is_dual);
+        PYBIND11_OVERRIDE_NAME(std::shared_ptr<Space>, AbelianLegPipe, "as_Space", as_space_obj);
     }
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, AbelianLegPipe, as_ElementarySpace, is_dual);
+    }
+
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective) override
     {
         PYBIND11_OVERRIDE(
-          py::object, AbelianLegPipe, change_symmetry, symmetry, sector_map, injective);
+          Space::Ptr, AbelianLegPipe, change_symmetry, symmetry, sector_map, injective);
     }
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which) override
     {
-        PYBIND11_OVERRIDE(py::object, AbelianLegPipe, drop_symmetry, which);
+        PYBIND11_OVERRIDE(Space::Ptr, AbelianLegPipe, drop_symmetry, which);
     }
 
     std::vector<int64> _flat_leg_permutation(int64 offset) const override
@@ -849,24 +867,27 @@ class PyDirectSumSpace
 
     void test_sanity() const override { PYBIND11_OVERRIDE(void, DirectSumSpace, test_sanity); }
 
-    py::object as_Space() override { PYBIND11_OVERRIDE(py::object, DirectSumSpace, as_Space); }
-
-    py::object as_ElementarySpace(bool is_dual) override
+    std::shared_ptr<Space> as_space_obj() override
     {
-        PYBIND11_OVERRIDE(py::object, DirectSumSpace, as_ElementarySpace, is_dual);
+        PYBIND11_OVERRIDE_NAME(std::shared_ptr<Space>, DirectSumSpace, "as_Space", as_space_obj);
     }
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, DirectSumSpace, as_ElementarySpace, is_dual);
+    }
+
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective) override
     {
         PYBIND11_OVERRIDE(
-          py::object, DirectSumSpace, change_symmetry, symmetry, sector_map, injective);
+          Space::Ptr, DirectSumSpace, change_symmetry, symmetry, sector_map, injective);
     }
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which) override
     {
-        PYBIND11_OVERRIDE(py::object, DirectSumSpace, drop_symmetry, which);
+        PYBIND11_OVERRIDE(Space::Ptr, DirectSumSpace, drop_symmetry, which);
     }
 
     ElementarySpace::Ptr take_slice(py::array blockmask) const override
@@ -904,22 +925,22 @@ class PyTensorProduct
 
     void test_sanity() const override { PYBIND11_OVERRIDE(void, TensorProduct, test_sanity); }
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective) override
     {
         PYBIND11_OVERRIDE(
-          py::object, TensorProduct, change_symmetry, symmetry, sector_map, injective);
+          Space::Ptr, TensorProduct, change_symmetry, symmetry, sector_map, injective);
     }
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which) override
     {
-        PYBIND11_OVERRIDE(py::object, TensorProduct, drop_symmetry, which);
+        PYBIND11_OVERRIDE(Space::Ptr, TensorProduct, drop_symmetry, which);
     }
 
-    py::object as_ElementarySpace(bool is_dual) override
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual) override
     {
-        PYBIND11_OVERRIDE(py::object, TensorProduct, as_ElementarySpace, is_dual);
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, TensorProduct, as_ElementarySpace, is_dual);
     }
 
     bool operator==(Space const& other) const override

@@ -3,6 +3,8 @@
 #include <cyten/backends/block_inds_numpy.h>
 
 #include <algorithm>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <numeric>
 #include <stdexcept>
 #include <string>
@@ -657,15 +659,19 @@ BlockInds::iter_common_noncommon_sorted(
 }
 
 void
-BlockInds::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string const& subpath) const
+BlockInds::save_hdf5(cyten::hdf5::Saver& saver,
+                     HighFive::Group& /*h5gr*/,
+                     std::string const& subpath) const
 {
-    hdf5_saver.attr("save")(block_inds_to_numpy(*this), subpath + "values");
+    cyten::hdf5::py_save(subpath + "values", block_inds_to_numpy(*this));
 }
 
 BlockInds
-BlockInds::from_hdf5(py::object hdf5_loader, py::object /*h5gr*/, std::string const& subpath)
+BlockInds::from_hdf5(cyten::hdf5::Loader& loader,
+                     HighFive::Group& /*h5gr*/,
+                     std::string const& subpath)
 {
-    return block_inds_from_numpy(hdf5_loader.attr("load")(subpath + "values"));
+    return block_inds_from_numpy(cyten::hdf5::py_load(subpath + "values"));
 }
 
 } // namespace cyten

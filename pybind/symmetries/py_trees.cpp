@@ -92,6 +92,10 @@ symmetry_from_python(py::object symmetry_obj)
     if (py::isinstance<Symmetry>(symmetry_obj)) {
         return symmetry_obj.cast<Symmetry::Ptr>();
     }
+    if (py::isinstance<SymmetryFactor>(symmetry_obj)) {
+        auto ptr = symmetry_obj.cast<SymmetryFactor::Ptr>();
+        return std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ ptr });
+    }
     return symmetry_obj.attr("as_Symmetry")().cast<Symmetry::Ptr>();
 }
 

@@ -2,6 +2,7 @@
 
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -101,12 +102,14 @@ class HiddenLegTensor : public SymmetricTensor
     Tensor& set_labels(LegLabels labels) override;
 
     /// Import from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Export to hdf5
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     /// Wrap `tensor` as `HiddenLegTensor` if it has hidden labels; otherwise return `tensor`.
     [[nodiscard]] static TensorPtr maybe_wrap(SymmetricTensor::Ptr tensor);

@@ -16,6 +16,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <array>
 #include <cmath>
 #include <optional>
@@ -31,6 +32,10 @@ symmetry_from_python(py::object symmetry_obj)
 {
     if (py::isinstance<Symmetry>(symmetry_obj)) {
         return symmetry_obj.cast<Symmetry::Ptr>();
+    }
+    if (py::isinstance<SymmetryFactor>(symmetry_obj)) {
+        auto ptr = symmetry_obj.cast<SymmetryFactor::Ptr>();
+        return std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ ptr });
     }
     return symmetry_obj.attr("as_Symmetry")().cast<Symmetry::Ptr>();
 }
@@ -302,7 +307,7 @@ bind_spaces(py::module_& m)
       .def_property_readonly("ascii_arrow", &Leg::ascii_arrow, DOC(cyten, Leg, ascii_arrow));
 
     cls.def("test_sanity", &Leg::test_sanity, DOC(cyten, Leg, test_sanity))
-      .def("as_Space", &Leg::as_Space, DOC(cyten, Leg, as_Space))
+      .def("as_Space", &Leg::as_space_obj, DOC(cyten, Leg, as_space))
       .def("as_ElementarySpace",
            &Leg::as_ElementarySpace,
            py::arg("is_dual") = false,
@@ -651,7 +656,7 @@ bind_elementary_space(py::module_& m)
                }
                return py::cast(self.equals_es(other.cast<ElementarySpace const&>()));
            })
-      .def("as_Space", &ElementarySpace::as_Space, DOC(cyten, ElementarySpace, as_Space))
+      .def("as_Space", &ElementarySpace::as_space_obj, DOC(cyten, ElementarySpace, as_space_obj))
       .def("as_ElementarySpace",
            &ElementarySpace::as_ElementarySpace,
            py::arg("is_dual") = false,
@@ -715,12 +720,12 @@ bind_elementary_space(py::module_& m)
            py::arg("is_dual"),
            DOC(cyten, ElementarySpace, with_is_dual))
       .def("save_hdf5",
-           &ElementarySpace::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<ElementarySpace>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &ElementarySpace::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<ElementarySpace>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"))
@@ -767,7 +772,7 @@ bind_direct_sum_space(py::module_& m)
            &DirectSumSpace::as_plain_ElementarySpace,
            DOC(cyten, DirectSumSpace, as_plain_ElementarySpace))
       .def("test_sanity", &DirectSumSpace::test_sanity)
-      .def("as_Space", &DirectSumSpace::as_Space, DOC(cyten, DirectSumSpace, as_Space))
+      .def("as_Space", &DirectSumSpace::as_space_obj, DOC(cyten, DirectSumSpace, as_space_obj))
       .def("as_ElementarySpace",
            &DirectSumSpace::as_ElementarySpace,
            py::arg("is_dual") = false,
@@ -855,12 +860,12 @@ bind_direct_sum_space(py::module_& m)
                         "from_trivial_sector is not supported for DirectSumSpace");
                   })
       .def("save_hdf5",
-           &DirectSumSpace::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<DirectSumSpace>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &DirectSumSpace::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<DirectSumSpace>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -1097,12 +1102,12 @@ bind_tensor_product(py::module_& m)
       .def(
         "repr", &TensorProduct::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
       .def("save_hdf5",
-           &TensorProduct::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<TensorProduct>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &TensorProduct::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<TensorProduct>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -1193,7 +1198,7 @@ bind_abelian_leg_pipe(py::module_& m)
         DOC(cyten, AbelianLegPipe, from_trivial_sector));
 
     cls.def("test_sanity", &AbelianLegPipe::test_sanity, DOC(cyten, AbelianLegPipe, test_sanity))
-      .def("as_Space", &AbelianLegPipe::as_Space, DOC(cyten, Leg, as_Space))
+      .def("as_Space", &AbelianLegPipe::as_space_obj, DOC(cyten, Leg, as_space))
       .def("as_ElementarySpace",
            &AbelianLegPipe::as_ElementarySpace,
            py::arg("is_dual") = false,
@@ -1255,12 +1260,12 @@ bind_abelian_leg_pipe(py::module_& m)
            py::arg("show_symmetry") = true,
            py::arg("one_line") = false)
       .def("save_hdf5",
-           &AbelianLegPipe::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<AbelianLegPipe>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &AbelianLegPipe::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<AbelianLegPipe>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

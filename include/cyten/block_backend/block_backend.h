@@ -2,6 +2,7 @@
 
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/cyten.h>
+#include <cyten/tools/hdf5.h>
 #include <iosfwd>
 #include <memory>
 #include <optional>
@@ -156,13 +157,13 @@ class BlockBackend
         virtual int64 _item_as_int64() const = 0;
 
         /// Save block state to HDF5 (subclass implements payload).
-        virtual void save_hdf5(py::object hdf5_saver,
-                               py::object h5gr,
-                               const std::string& subpath) = 0;
+        virtual void save_hdf5(cyten::hdf5::Saver& saver,
+                               HighFive::Group& h5gr,
+                               std::string const& subpath) = 0;
         /// Load block from HDF5. Subclasses must override; base throws NotImplemented.
-        static std::shared_ptr<Block> from_hdf5(py::object hdf5_loader,
-                                                py::object h5gr,
-                                                const std::string& subpath);
+        static std::shared_ptr<Block> from_hdf5(cyten::hdf5::Loader& loader,
+                                                HighFive::Group& h5gr,
+                                                std::string const& subpath);
     };
 
     /// Holds a single scalar value with a Dtype as a 0-d Block.
@@ -243,11 +244,13 @@ class BlockBackend
         std::shared_ptr<const Block> _block() const;
 
         /// Save scalar (via underlying 0-d block) to HDF5.
-        void save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath);
+        void save_hdf5(cyten::hdf5::Saver& saver,
+                       HighFive::Group& h5gr,
+                       std::string const& subpath);
         /// Load scalar from HDF5.
-        static Scalar from_hdf5(py::object hdf5_loader,
-                                py::object h5gr,
-                                const std::string& subpath);
+        static Scalar from_hdf5(cyten::hdf5::Loader& loader,
+                                HighFive::Group& h5gr,
+                                std::string const& subpath);
 
       private:
         std::shared_ptr<Block> block_;
@@ -653,11 +656,11 @@ class BlockBackend
                            std::optional<std::string> device = std::nullopt) = 0;
 
     /// Save backend state to HDF5.
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath);
+    void save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath);
     /// Load backend from HDF5.
-    static std::shared_ptr<BlockBackend> from_hdf5(py::object hdf5_loader,
-                                                   py::object h5gr,
-                                                   const std::string& subpath);
+    static std::shared_ptr<BlockBackend> from_hdf5(cyten::hdf5::Loader& loader,
+                                                   HighFive::Group& h5gr,
+                                                   std::string const& subpath);
 
   protected:
     /// Return true if block is of the backend's block type. Used by test_block_sanity.

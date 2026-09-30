@@ -7,6 +7,7 @@
 
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <string>
 #include <variant>
 #include <vector>
@@ -92,13 +93,13 @@ bind_tensors_hidden_leg_tensor(py::module_& m)
       DOC(cyten, HiddenLegTensor, as_SymmetricTensor));
 
     cls.def_static("from_hdf5",
-                   &HiddenLegTensor::from_hdf5,
+                   cyten::hdf5::wrap_from_hdf5<HiddenLegTensor>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
                    DOC(cyten, HiddenLegTensor, from_hdf5));
     cls.def("save_hdf5",
-            &HiddenLegTensor::save_hdf5,
+            cyten::hdf5::wrap_save_hdf5_const<HiddenLegTensor>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),

@@ -65,6 +65,8 @@ target_sources(cyten
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp
+  tools/misc.cpp
+  tools/hdf5_py_bridge.cpp
   models/degrees_of_freedom.cpp
   models/sites.cpp
   models/couplings.cpp

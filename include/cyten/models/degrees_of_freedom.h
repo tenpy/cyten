@@ -10,6 +10,7 @@
 #include <cyten/tensors/forward_declare.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include <cyten/tools/hdf5.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -130,10 +131,12 @@ class Site : public virtual std::enable_shared_from_this<Site>
     [[nodiscard]] std::string repr() const;
 
     /// Export `self` into a HDF5 file.
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
     static py::object from_hdf5(py::object cls,
-                                py::object hdf5_loader,
-                                py::object h5gr,
+                                cyten::hdf5::Loader& loader,
+                                HighFive::Group& h5gr,
                                 std::string const& subpath);
 
   protected:

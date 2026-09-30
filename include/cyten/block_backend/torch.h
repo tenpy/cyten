@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cyten/block_backend/block_backend.h>
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -70,12 +71,12 @@ class TorchBlockBackend : public BlockBackend
         BlockPtr pow(const BlockBackend::Scalar& exponent) const override;
         BlockPtr pow(const BlockBackend::Block& exponent) const override;
 
-        void save_hdf5(py::object hdf5_saver,
-                       py::object h5gr,
-                       const std::string& subpath) override;
-        static std::shared_ptr<Block> from_hdf5(py::object hdf5_loader,
-                                                py::object h5gr,
-                                                const std::string& subpath);
+        void save_hdf5(cyten::hdf5::Saver& saver,
+                       HighFive::Group& h5gr,
+                       std::string const& subpath) override;
+        static std::shared_ptr<Block> from_hdf5(cyten::hdf5::Loader& loader,
+                                                HighFive::Group& h5gr,
+                                                std::string const& subpath);
 
       protected:
         torch::Tensor tensor_;
@@ -114,9 +115,9 @@ class TorchBlockBackend : public BlockBackend
     explicit TorchBlockBackend(const std::string& default_device);
 
   public:
-    static std::shared_ptr<TorchBlockBackend> from_hdf5(py::object hdf5_loader,
-                                                        py::object h5gr,
-                                                        const std::string& subpath);
+    static std::shared_ptr<TorchBlockBackend> from_hdf5(cyten::hdf5::Loader& loader,
+                                                        HighFive::Group& h5gr,
+                                                        std::string const& subpath);
 
     std::string get_backend_name() const override;
 

@@ -11,6 +11,7 @@
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include "tools/hdf5_bind.h"
 #include <memory>
 #include <optional>
 #include <string>
@@ -83,12 +84,12 @@ bind_fusion_tree_data(py::module_& m)
         py::arg("eps"),
         DOC(cyten, FusionTreeData, discard_zero_blocks))
       .def("save_hdf5",
-           &FusionTreeData::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<FusionTreeData>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &FusionTreeData::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<FusionTreeData>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

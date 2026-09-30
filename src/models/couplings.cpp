@@ -72,19 +72,6 @@ legs_equal(Leg::Ptr const& a, Leg::Ptr const& b)
     return a && b && a->operator==(*b);
 }
 
-bool
-is_permutation(std::vector<int64> const& permutation)
-{
-    std::vector<int64> sorted = permutation;
-    std::sort(sorted.begin(), sorted.end());
-    for (std::size_t i = 0; i < sorted.size(); ++i) {
-        if (sorted[i] != static_cast<int64>(i)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 Leg::Ptr
 as_leg(ElementarySpace::Ptr space)
 {
@@ -223,7 +210,7 @@ fibonacci_symmetry()
 {
     static Symmetry::Ptr sym = [] {
         auto cat = std::make_shared<FibonacciAnyonCategory>();
-        return py::cast<Symmetry::Ptr>(cat->as_Symmetry());
+        return cat->as_Symmetry();
     }();
     return sym;
 }

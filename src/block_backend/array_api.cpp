@@ -5,6 +5,8 @@
 #include <cmath>
 #include <complex>
 #include <cstdint>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
@@ -356,16 +358,16 @@ ArrayApiBlockBackend::Block::pow(const BlockBackend::Block& exponent) const
 }
 
 void
-ArrayApiBlockBackend::Block::save_hdf5(py::object hdf5_saver,
-                                       py::object /*h5gr*/,
+ArrayApiBlockBackend::Block::save_hdf5(cyten::hdf5::Saver& saver,
+                                       HighFive::Group& /*h5gr*/,
                                        const std::string& subpath)
 {
-    hdf5_saver.attr("save")(to_numpy(), subpath + std::string("arr"));
+    cyten::hdf5::py_save(subpath + std::string("arr"), to_numpy());
 }
 
 std::shared_ptr<ArrayApiBlockBackend::Block>
-ArrayApiBlockBackend::Block::from_hdf5(py::object /*hdf5_loader*/,
-                                       py::object /*h5gr*/,
+ArrayApiBlockBackend::Block::from_hdf5(cyten::hdf5::Loader& /*loader*/,
+                                       HighFive::Group& /*h5gr*/,
                                        const std::string& /*subpath*/)
 {
     throw NotImplemented("ArrayApiBlockBackend::Block::from_hdf5 needs the Array API namespace; "
@@ -527,8 +529,8 @@ ArrayApiBlockBackend::ArrayApiBlockBackend(py::object api_namespace,
 }
 
 std::shared_ptr<ArrayApiBlockBackend>
-ArrayApiBlockBackend::from_hdf5(py::object /*hdf5_loader*/,
-                                py::object /*h5gr*/,
+ArrayApiBlockBackend::from_hdf5(cyten::hdf5::Loader& /*loader*/,
+                                HighFive::Group& /*h5gr*/,
                                 const std::string& /*subpath*/)
 {
     throw NotImplemented(

@@ -4,6 +4,7 @@
 
 #include "symmetries/casters.hpp"
 
+#include "tools/hdf5_bind.h"
 #include <cyten/symmetries/factors/ising_anyon_category.h>
 
 namespace cyten {
@@ -15,7 +16,7 @@ bind_ising_anyon_category(py::module_& m)
       m, "IsingAnyonCategory", DOC(cyten, IsingAnyonCategory));
     cls.def(py::init<int>(), py::arg("nu") = 1)
       .def_static("from_hdf5",
-                  &IsingAnyonCategory::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<IsingAnyonCategory>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

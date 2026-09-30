@@ -3,6 +3,7 @@
 #include "../block_backend/dtypes.h"
 #include "base_symmetry.h"
 
+#include <cyten/tools/hdf5.h>
 #include <optional>
 #include <string>
 
@@ -94,26 +95,29 @@ class SymmetryFactor : public BaseSymmetry
 
     /// Convert any `SymmetryFactor` to a `Symmetry` with that single factor.
     ///
-    /// Convert to a product `Symmetry` with this single factor (via Python until
-    /// converted).
-    py::object as_Symmetry() override;
+    /// Convert to a product `Symmetry` with this single factor.
+    SymmetryPtr as_Symmetry() override;
 
     std::string str() const;
 
-    /// Product with another factor or product symmetry → Python ``Symmetry``.
-    py::object mul(py::object other);
+    /// Product with another factor → new product `Symmetry`.
+    SymmetryPtr mul(Ptr other);
+    /// Product with a product symmetry → new product `Symmetry`.
+    SymmetryPtr mul(Symmetry const& other);
 
     bool equals(SymmetryFactor const& other) const;
 
-    virtual void save_hdf5(py::object hdf5_saver,
-                           py::object h5gr,
+    virtual void save_hdf5(cyten::hdf5::Saver& saver,
+                           HighFive::Group& h5gr,
                            std::string const& subpath) const;
     /// Reconstruct into an existing instance (used by concrete from_hdf5).
-    void load_hdf5_common(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    void load_hdf5_common(cyten::hdf5::Loader& loader,
+                          HighFive::Group& h5gr,
+                          std::string const& subpath);
 };
 
 /// Helpers for concrete ``from_hdf5`` implementations.
-std::optional<std::string> descriptive_name_from_hdf5_attrs(py::object h5gr);
-bool trivial_shift_from_hdf5(py::object hdf5_loader, std::string const& subpath);
+std::optional<std::string> descriptive_name_from_hdf5_attrs(HighFive::Group& h5gr);
+bool trivial_shift_from_hdf5(cyten::hdf5::Loader& loader, std::string const& subpath);
 
 } // namespace cyten

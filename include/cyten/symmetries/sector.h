@@ -6,6 +6,7 @@
 #include <cassert>
 #include <compare>
 #include <cstdint>
+#include <cyten/tools/hdf5.h>
 #include <functional>
 #include <optional>
 #include <span>
@@ -143,10 +144,14 @@ class Sector
         return a.len_ <=> b.len_;
     }
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     /// A batch of sectors with shape ``(num_sectors, sector_ind_len)``.
-    static Sector from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Sector from_hdf5(cyten::hdf5::Loader& loader,
+                            HighFive::Group& h5gr,
+                            std::string const& subpath);
 
   private:
     std::uint8_t len_ = 0;
@@ -225,10 +230,12 @@ class SectorArray : public std::vector<Sector>
                static_cast<Base const&>(a) == static_cast<Base const&>(b);
     }
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static SectorArray from_hdf5(py::object hdf5_loader,
-                                 py::object h5gr,
+    static SectorArray from_hdf5(cyten::hdf5::Loader& loader,
+                                 HighFive::Group& h5gr,
                                  std::string const& subpath);
 
   private:

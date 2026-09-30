@@ -3,6 +3,7 @@
 #include "../symmetry_factor.h"
 
 #include <complex>
+#include <cyten/tools/hdf5.h>
 #include <map>
 #include <optional>
 #include <string>
@@ -49,10 +50,12 @@ class SU2_kAnyonCategory : public SymmetryFactor
     FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const override;
     SectorArray all_sectors() const override;
 
-    void save_hdf5(py::object hdf5_saver,
-                   py::object h5gr,
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
                    std::string const& subpath) const override;
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
   private:
     using RKey = std::tuple<int, int, int>;

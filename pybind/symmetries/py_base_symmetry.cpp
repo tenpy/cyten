@@ -82,7 +82,7 @@ bind_base_symmetry(py::module_& m)
            py::arg("b"),
            py::arg("c"),
            DOC(cyten, BaseSymmetry, _r_symbol))
-      .def("as_Symmetry", &BaseSymmetry::as_Symmetry)
+      .def("as_Symmetry", &BaseSymmetry::as_Symmetry, DOC(cyten, BaseSymmetry, as_Symmetry))
       .def(
         "is_valid_sector",
         [](BaseSymmetry const& self, py::object a) {

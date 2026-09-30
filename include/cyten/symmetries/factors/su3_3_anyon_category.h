@@ -2,6 +2,7 @@
 
 #include "../symmetry_factor.h"
 
+#include <cyten/tools/hdf5.h>
 #include <map>
 #include <optional>
 #include <string>
@@ -49,7 +50,9 @@ class SU3_3AnyonCategory : public SymmetryFactor
       const override;
     SectorArray all_sectors() const override;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
   private:
     using FSymKey = std::tuple<int, int, int, int, int, int>;

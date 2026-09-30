@@ -13,6 +13,7 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <format>
 #include <optional>
 #include <stdexcept>
@@ -405,7 +406,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       DOC(cyten, DiagonalTensor, from_zero));
 
     cls.def_static("from_hdf5",
-                   &DiagonalTensor::from_hdf5,
+                   cyten::hdf5::wrap_from_hdf5<DiagonalTensor>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
@@ -534,7 +535,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("understood_braiding") = false,
       DOC(cyten, DiagonalTensor, to_dense_block));
     cls.def("save_hdf5",
-            &DiagonalTensor::save_hdf5,
+            cyten::hdf5::wrap_save_hdf5_const<DiagonalTensor>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
@@ -650,7 +651,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       DOC(cyten, Identity, from_eye));
 
     id_cls.def_static("from_hdf5",
-                      &Identity::from_hdf5,
+                      cyten::hdf5::wrap_from_hdf5<Identity>(),
                       py::arg("hdf5_loader"),
                       py::arg("h5gr"),
                       py::arg("subpath"),
