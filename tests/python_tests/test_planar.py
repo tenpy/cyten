@@ -748,11 +748,6 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
     assert ct.almost_equal(S, S2)
     assert ct.planar.planar_almost_equal(Vh, Vh2)
 
-    if isinstance(T.backend, ct.backends.FusionTreeBackend) and T.has_pipes:
-        with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
-            _ = ct.truncated_svd(T)
-        pytest.xfail('_mask_contract does not support pipes yet')
-
     print('Truncated SVD')
     for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
         U, S, Vh, err, renormalize = ct.planar.planar_truncated_svd(

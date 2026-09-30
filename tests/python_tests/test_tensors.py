@@ -1451,10 +1451,6 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor, co
     num_legs = codomain + domain
     labels = list('abcdefghijkl')[:num_legs]
 
-    kwargs = {}
-    if isinstance(compatible_backend, backends.FusionTreeBackend):
-        # TODO instead of disabling, can we generate pipes on the *other* legs, not to be masked?
-        kwargs['use_pipes'] = False
     M: Mask = make_compatible_tensor(cls=Mask)
     num_legs = domain + codomain
     which_leg = to_valid_idx(which_leg, num_legs)
@@ -1467,9 +1463,9 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor, co
 
     if cls is Mask and which_leg == 0:
         with pytest.raises(NotImplementedError, match='Mask generation broken'):
-            _ = make_compatible_tensor(codomain=codomain, domain=domain, labels=labels, cls=cls, **kwargs)
+            _ = make_compatible_tensor(codomain=codomain, domain=domain, labels=labels, cls=cls)
         pytest.xfail(reason='Mask generation broken')
-    T: tensors.Tensor = make_compatible_tensor(codomain=codomain, domain=domain, labels=labels, cls=cls, **kwargs)
+    T: tensors.Tensor = make_compatible_tensor(codomain=codomain, domain=domain, labels=labels, cls=cls)
 
     if cls is Mask:
         with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
@@ -1516,6 +1512,32 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
     mask_np = mask.as_numpy_mask()
     expect = diag[mask_np]
     npt.assert_almost_equal(res.diagonal_as_numpy(), expect)
+
+
+@pytest.mark.parametrize('in_domain', [False, True], ids=['codom', 'dom'])
+def test_mask_and_scale_axis_with_pipes_on_other_legs(in_domain, make_compatible_tensor):
+    # acting on a leg ``x`` that has two pipes in front of it (in the flat leg order), e.g. like
+    # masking the new leg in ``truncated_svd`` of a tensor with pipes
+    M: Mask = make_compatible_tensor(cls=Mask)
+    D: DiagonalTensor = make_compatible_tensor(codomain=[M.large_leg], cls=DiagonalTensor)
+    if in_domain:
+        codomain, domain = [None], [None, None, None, None, M.large_leg.dual]
+        labels = ['y', 'x', 'd', 'c', 'b', 'a']
+        groups = [['d', 'c'], ['b', 'a']]
+    else:
+        codomain, domain = [None, None, None, None, M.large_leg], [None]
+        labels = ['a', 'b', 'c', 'd', 'x', 'y']
+        groups = [['a', 'b'], ['c', 'd']]
+    T = make_compatible_tensor(codomain, domain, labels=labels, max_block_size=2, use_pipes=False)
+    T_piped = tensors.combine_legs(T, *groups)
+
+    res = tensors.apply_mask(T_piped, M, 'x')
+    res.test_sanity()
+    assert_tensors_almost_equal(res, tensors.combine_legs(tensors.apply_mask(T, M, 'x'), *groups))
+
+    res = tensors.scale_axis(T_piped, D, 'x')
+    res.test_sanity()
+    assert_tensors_almost_equal(res, tensors.combine_legs(tensors.scale_axis(T, D, 'x'), *groups))
 
 
 @pytest.mark.parametrize(
@@ -2309,11 +2331,7 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
         with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
             _ = tensors.enlarge_leg(T, M, which_leg)
         pytest.xfail('apply_mask(Mask, Mask) not yet supported')
-    if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes:
-        with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
-            _ = tensors.enlarge_leg(T, M, which_leg)
-        pytest.xfail('FTB mask application with pipes is not supported yet.')
-    elif cls is DiagonalTensor:
+    if cls is DiagonalTensor:
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
         catch_warnings = nullcontext()
@@ -2913,10 +2931,6 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
 
     B: Tensor = make_compatible_tensor(codomain=codom_B, domain=dom_B, labels=labels_B, cls=cls_B)
 
-    if isinstance(A.backend, backends.FusionTreeBackend) and A.has_pipes and cls_B is Mask:
-        with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
-            _ = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
-        pytest.xfail('_mask_contract does not support pipes yet')
     if isinstance(A, ChargedTensor) and isinstance(B, ChargedTensor):
         with pytest.raises(NotImplementedError, match='state_tensor_product not implemented'):
             _ = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
@@ -3510,11 +3524,6 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         U_iso = tensors.move_leg(U.invariant_part, U._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
         assert tensors.almost_equal(U_iso.hc @ U_iso, eye, allow_different_types=True)
         assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
-
-    if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes:
-        with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
-            _ = tensors.truncated_svd(T)
-        pytest.xfail('_mask_contract does not support pipes yet')
 
     print('Truncated SVD')
     for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
