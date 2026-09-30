@@ -24,7 +24,7 @@ is_dual_pair(std::string const& a, std::string const& b)
     return dual_a && *dual_a == b;
 }
 
-[[nodiscard]] void
+void
 check_public_labels_no_bang(LegLabels const& labs)
 {
     for (auto const& lab : labs) {
