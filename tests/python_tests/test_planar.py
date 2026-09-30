@@ -629,6 +629,63 @@ def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_rando
         assert ct.almost_equal(permuted_back2, T)
 
 
+planar_permute_legs_hidden_cases = {
+    # h sits between b and c, which stay neighbors in the codomain -> h is forced in between.
+    # Planar only if h is hidden, since a public h would have to end up in the codomain too.
+    'inner-gap': (3, 2, list('abhcd'), ['b', 'c'], ['a', 'd'], ['b', 'h', 'c'], ['a', 'd'], True),
+    # h sits at the (left) boundary between new domain and codomain -> could go on either side.
+    # It stays in the codomain, where it is originally, while a public h would be bent.
+    'boundary-gap-codomain': (3, 2, list('abhcd'), ['c', 'd'], None, ['h', 'c', 'd'], ['b', 'a'], False),
+    # same, but h is originally in the domain and stays there
+    'boundary-gap-domain': (2, 3, list('abhcd'), ['c', 'd'], None, ['c', 'd'], ['h', 'b', 'a'], False),
+    # all public legs end up in the codomain, h stays alone in the domain
+    'wrap-gap-empty-domain': (2, 2, list('abch'), ['a', 'b', 'c'], [], ['a', 'b', 'c'], ['h'], False),
+}
+
+
+@pytest.mark.parametrize(
+    'J, K, labels, codomain, domain, expect_codomain, expect_domain, needs_hiding',
+    planar_permute_legs_hidden_cases.values(),
+    ids=planar_permute_legs_hidden_cases.keys(),
+)
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_planar_permute_legs_hidden(
+    J, K, labels, codomain, domain, expect_codomain, expect_domain, needs_hiding, symmetry, backend, np_random
+):
+    # For a HiddenLegTensor, only the public legs need to be permuted planarly. Hidden legs stay in
+    # the gap between their public neighbors (never braid) and are only bent if necessary.
+    backend = ct.get_backend(backend, 'numpy')
+    T_sym = ct.testing.random_tensor(symmetry, J, K, labels=labels, backend=backend, np_random=np_random)
+    T = ct.HiddenLegTensor(T_sym, ['h'])
+
+    if needs_hiding:
+        with pytest.raises(ValueError):
+            _ = ct.planar.planar_permute_legs(T_sym, codomain=codomain, domain=domain)
+        with pytest.raises(ValueError, match='non-planar'):
+            _ = ct.planar.planar_permute_legs(T_sym, codomain=codomain)
+
+    res = ct.planar.planar_permute_legs(T, codomain=codomain, domain=domain)
+    res.test_sanity()
+    assert isinstance(res, ct.HiddenLegTensor)
+    hide = {'h': '!h'}
+    assert res.codomain_labels == [hide.get(l, l) for l in expect_codomain]
+    assert res.domain_labels == [hide.get(l, l) for l in expect_domain]
+
+    # the same as a planar permutation that specifies the hidden leg explicitly
+    expect = ct.planar.planar_permute_legs(T_sym, codomain=expect_codomain, domain=expect_domain)
+    assert ct.almost_equal(res.as_SymmetricTensor(), expect)
+    assert ct.planar.planar_almost_equal(res.as_SymmetricTensor(), T_sym)
+
+
 @pytest.mark.parametrize(
     'cls, dom, cod, dom_cut, cod_cut, new_leg_dual',
     [
