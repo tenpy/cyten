@@ -754,7 +754,15 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
         pytest.xfail('_mask_contract does not support pipes yet')
 
     print('Truncated SVD')
-    for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
+    # chi_max=1 forces non-trivial truncation, which is needed to catch bugs in the
+    # reported `err` (e.g. confusing it with the squared error).
+    for svd_min, normalize_to, chi_max in [
+        (1e-14, None, None),
+        (1e-4, None, None),
+        (1e-4, 2.7, None),
+        (0.0, None, 1),
+        (0.0, 2.7, 1),
+    ]:
         U, S, Vh, err, renormalize = ct.planar.planar_truncated_svd(
             T,
             codomain_cut=cod_cut,
@@ -763,6 +771,7 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
             new_leg_dual=new_leg_dual,
             normalize_to=normalize_to,
             svd_min=svd_min,
+            chi_max=chi_max,
         )
         U.test_sanity()
         S.test_sanity()
@@ -775,15 +784,13 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
         assert Vh.num_domain_legs == dom - dom_cut
         assert Vh.labels == ['d', *T.labels[cod_cut : T.num_legs - dom_cut]]
 
-        # check that U @ S @ Vd recovers the original tensor up to the error incurred
-        T_approx = ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd') / renormalize
-        npt.assert_almost_equal(
-            err,
-            ct.norm(
-                T.as_SymmetricTensor()
-                - ct.planar_permute_legs(T_approx, codomain=T.codomain_labels, domain=T.domain_labels)
-            ).to_numpy(),
-        )
+        norm_T = ct.norm(T).to_numpy()
+        lambda_kept = S / norm_T if normalize_to is None else (renormalize / norm_T) * S
+        npt.assert_almost_equal(err**2, 1 - ct.norm(lambda_kept).to_numpy() ** 2)
+        T_approx = renormalize * ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd')
+        T_approx = ct.planar_permute_legs(T_approx, codomain=T.codomain_labels, domain=T.domain_labels)
+        distance = ct.norm(T.as_SymmetricTensor() - T_approx).to_numpy()
+        npt.assert_almost_equal(err, distance / norm_T)
 
         # check isometric properties
         eye = ct.SymmetricTensor.from_eye(S.domain, backend=T.backend, labels=['a*', 'a'])
@@ -795,7 +802,12 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
 
         # compare to non-planar result
         U2, S2, Vh2, _, _ = ct.truncated_svd(
-            T2, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min
+            T2,
+            new_labels=['a', 'b', 'c', 'd'],
+            new_leg_dual=new_leg_dual,
+            normalize_to=normalize_to,
+            svd_min=svd_min,
+            chi_max=chi_max,
         )
         U2.test_sanity()
         S2.test_sanity()

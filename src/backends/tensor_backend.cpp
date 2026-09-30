@@ -4,6 +4,7 @@
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
+#include <cmath>
 #include <sstream>
 #include <stdexcept>
 
@@ -228,12 +229,13 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
     } else {
         cut = nonzero.attr("__getitem__")(-1).cast<int64>(); // largest cut
     }
-    float64 err =
+    // marginal_errs holds *squared* contributions (d[i] * S[i] ** 2); take sqrt to get the norm.
+    float64 err = std::sqrt(
       np.attr("sum")(marginal_errs.attr("__getitem__")(py::slice(std::nullopt, cut, std::nullopt)))
-        .cast<float64>();
-    float64 new_norm =
+        .cast<float64>());
+    float64 new_norm = std::sqrt(
       np.attr("sum")(marginal_errs.attr("__getitem__")(py::slice(cut, std::nullopt, std::nullopt)))
-        .cast<float64>();
+        .cast<float64>());
     // build mask in the original order, before sorting
     py::array mask = np.attr("zeros")(n, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
     np.attr("put")(

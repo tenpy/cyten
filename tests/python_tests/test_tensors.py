@@ -3516,21 +3516,44 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
             _ = tensors.truncated_svd(T)
         pytest.xfail('_mask_contract does not support pipes yet')
 
+    S_full = S
+    did_any_nontrivial_trunction = False
     print('Truncated SVD')
-    for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
+    for svd_min, normalize_to, chi_max in [
+        (1e-14, None, None),
+        (0.1, None, None),
+        (0.3, None, None),
+        (0.999, None, None),
+        (0.4, 2.7, None),
+        (0.0, None, 1),
+        (0.0, 2.7, 1),
+    ]:
+        norm_T = tensors.norm(T).to_numpy()
+        if svd_min >= S_full.max() / norm_T:
+            with pytest.warns(UserWarning, match="truncation: can't satisfy constraint for svd_min"):
+                U, S, Vh, err, renormalize = tensors.truncated_svd(T, svd_min=svd_min, chi_max=chi_max)
+            return
+
         U, S, Vh, err, renormalize = tensors.truncated_svd(
-            T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min
+            T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min, chi_max=chi_max
         )
+        min_chi_needed = int(tensors.trace(S_full > 1e-14).to_numpy())
+        if S.leg.dim < min_chi_needed:
+            assert err > 0  # make sure we did a non-trivial truncation
+            did_any_nontrivial_trunction = True
         U.test_sanity()
         S.test_sanity()
         Vh.test_sanity()
-        # check that U @ S @ Vd recovers the original tensor up to the error incurred
-        T_approx = U @ S @ Vh / renormalize
-        if isinstance(T, ChargedTensor):
-            npt.assert_almost_equal(err, tensors.norm(T - T_approx).to_numpy())
+        lambda_kept = S / norm_T if normalize_to is None else (renormalize / norm_T) * S
+
+        # 1) Check that T = T_approx + T_ortho = renormalize * U @ S @ Vh + T_ortho
+        #   -> Uh @ T @ V = renormalize * S
+        if not isinstance(T, ChargedTensor):
+            assert tensors.almost_equal(U.hc @ T @ Vh.hc, (1.0 + 0.0j) * renormalize * S, allow_different_types=True)
         else:
-            npt.assert_almost_equal(err, tensors.norm(T.as_SymmetricTensor() - T_approx).to_numpy())
-        # check isometric properties
+            pass  # projection is not defined here for charged tensors or non-trivial braidings
+
+        # 2) Check isometric property of U and Vh
         eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
         assert tensors.almost_equal(U.hc @ U, eye, allow_different_types=True)
         if isinstance(Vh, ChargedTensor):
@@ -3538,25 +3561,60 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         else:
             assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
+        # 3) Check singular value properties of S
+        if not T.symmetry.is_abelian:
+            # TODO this is probably not the intended definition of svd_min!
+            qdims = tensors.DiagonalTensor.from_sector_block_func(
+                lambda shape, c: T.symmetry.qdim(c) * np.ones(shape), leg=lambda_kept.leg, backend=T.backend
+            )
+            assert (lambda_kept * qdims >= svd_min).all()
+        else:
+            assert (lambda_kept >= svd_min).all()
+
+        # 4) Check properties of err / renormalize
+        assert err**2 == pytest.approx(1 - tensors.norm(lambda_kept).to_numpy() ** 2)
+        if normalize_to is not None:
+            assert err**2 == pytest.approx(1 - (normalize_to * renormalize / norm_T) ** 2)
+        T_approx = renormalize * (U @ S @ Vh)
+        if isinstance(T, ChargedTensor):
+            distance = tensors.norm(T - T_approx).to_numpy()
+        else:
+            distance = tensors.norm(T.as_SymmetricTensor() - T_approx).to_numpy()
+        assert err == pytest.approx(distance / norm_T)
+
+        # 5) Check definition of renor
+
+        # check that U @ S @ Vd recovers the original tensor up to the error incurred
+        T_approx = U @ S @ Vh / renormalize
+        # check isometric properties
+
         if isinstance(T, ChargedTensor):
             assert isinstance(Vh, ChargedTensor)
             assert isinstance(U, SymmetricTensor)
 
             # for charge_leg_top = True above; for charge_leg_top = False below
             U, S, Vh, err, renormalize = tensors.truncated_svd(
-                T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min, charge_leg_top=False
+                T,
+                new_leg_dual=new_leg_dual,
+                normalize_to=normalize_to,
+                svd_min=svd_min,
+                chi_max=chi_max,
+                charge_leg_top=False,
             )
             U.test_sanity()
             S.test_sanity()
             Vh.test_sanity()
             assert isinstance(U, ChargedTensor)
             assert isinstance(Vh, SymmetricTensor)
-            T_approx = U @ S @ Vh / renormalize
-            npt.assert_almost_equal(err, tensors.norm(T - T_approx).to_numpy())
+            T_approx = renormalize * (U @ S @ Vh)
+            distance = tensors.norm(T - T_approx).to_numpy()
+            assert err == pytest.approx(distance / norm_T)
             eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
             U_iso = tensors.move_leg(U.invariant_part, U._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
             assert tensors.almost_equal(U_iso.hc @ U_iso, eye, allow_different_types=True)
             assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
+
+    assert did_any_nontrivial_trunction or isinstance(T, tensors.Mask)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(
