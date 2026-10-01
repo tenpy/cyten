@@ -2819,6 +2819,11 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
                                                      py::cast(a->symmetry).cast<Symmetry::Ptr>());
     }
 
+    // `leg_idx` counts the factors of the (co)domain, but the fusion trees run over the flat legs
+    // (pipes are transparent). Index of the contracted leg among the flat legs of `iter_space`:
+    int64 flat_leg_idx = 0;
+    for (int64 i = 0; i < leg_idx; ++i)
+        flat_leg_idx += iter_space->factors[static_cast<std::size_t>(i)]->num_flat_legs();
     py::list new_block_inds_rows;
     std::vector<BlockBackend::BlockPtr> new_blocks;
     // Python builds a cache keyed by ``vertex_labels``, but the key expression is a generator
@@ -2842,25 +2847,25 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
 
         SectorArray coupled_arr = SectorArray::repeat(coupled, 1);
         for (auto const& tb : iter_space->iter_tree_blocks(coupled_arr)) {
-            Sector b_coupled = tb.tree.uncoupled[static_cast<std::size_t>(leg_idx)];
+            Sector b_coupled = tb.tree.uncoupled[static_cast<std::size_t>(flat_leg_idx)];
             auto b_block_ind = b_data->block_ind_from_coupled(
               b_coupled, py::cast(b->domain).cast<TensorProduct::Ptr>());
             if (!b_block_ind.has_value())
                 throw std::runtime_error("partial_compose: missing b block");
             std::vector<int64> dm = tb.multiplicities;
             int64 dm0 = prod_int(
-              std::vector<int64>(dm.begin(), dm.begin() + static_cast<std::size_t>(leg_idx)));
+              std::vector<int64>(dm.begin(), dm.begin() + static_cast<std::size_t>(flat_leg_idx)));
             int64 dm2 = prod_int(
-              std::vector<int64>(dm.begin() + static_cast<std::size_t>(leg_idx) + 1, dm.end()));
+              std::vector<int64>(dm.begin() + static_cast<std::size_t>(flat_leg_idx) + 1, dm.end()));
             std::vector<int64> dummy_mults = { dm0, 1, dm2 };
 
             auto b_cod = py::cast(b->codomain).cast<TensorProduct::Ptr>();
             auto b_dom = py::cast(b->domain).cast<TensorProduct::Ptr>();
             SectorArray b_coupled_arr = SectorArray::repeat(b_coupled, 1);
             for (auto const& xb : b_cod->iter_tree_blocks(b_coupled_arr)) {
-                FusionTreeLinearCombination X_b_trafo = tb.tree.insert_at(leg_idx, xb.tree);
+                FusionTreeLinearCombination X_b_trafo = tb.tree.insert_at(flat_leg_idx, xb.tree);
                 for (auto const& yb : b_dom->iter_tree_blocks(b_coupled_arr)) {
-                    FusionTreeLinearCombination Y_b_trafo = tb.tree.insert_at(leg_idx, yb.tree);
+                    FusionTreeLinearCombination Y_b_trafo = tb.tree.insert_at(flat_leg_idx, yb.tree);
                     auto b_tree_block =
                       b_get(b_data->blocks[static_cast<std::size_t>(*b_block_ind)],
                             py::make_tuple(slice_from_index_slice(xb.slice),

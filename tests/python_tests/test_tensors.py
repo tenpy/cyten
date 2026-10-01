@@ -3002,6 +3002,29 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
     assert tensors.almost_equal(res, expect)
 
 
+@pytest.mark.parametrize('in_domain', [False, True])
+def test_partial_compose_after_pipe(in_domain, make_compatible_tensor, make_compatible_space):
+    # A pipe *before* the contracted leg: leg indices count the pipe once, but the FusionTreeBackend
+    # has trees over its components. Compare with contracting before combining the legs.
+    X0, X1, Y, D, W = [make_compatible_space(max_sectors=3, max_mult=2) for _ in range(5)]
+    if in_domain:
+        A0 = make_compatible_tensor([D], [X0, X1, Y], labels=['d', 'y', 'x1', 'x0'], use_pipes=False)
+        B = make_compatible_tensor([Y], [W], labels=['y', 'z'], use_pipes=False)
+        pipe_legs = ['x1', 'x0']
+    else:
+        A0 = make_compatible_tensor([X0, X1, Y], [D], labels=['x0', 'x1', 'y', 'd'], use_pipes=False)
+        B = make_compatible_tensor([W], [Y], labels=['z', 'y'], use_pipes=False)
+        pipe_legs = ['x0', 'x1']
+    A = tensors.combine_legs(A0, pipe_legs)
+    expect = tensors.combine_legs(tensors.partial_compose(A0, B, 'y'), pipe_legs)
+    pipe_factors = A.domain.factors if in_domain else A.codomain.factors
+    assert isinstance(pipe_factors[0], LegPipe)  # the pipe comes before 'y'
+    res = tensors.partial_compose(A, B, 'y')
+    res.test_sanity()
+    assert res.labels == expect.labels
+    assert tensors.almost_equal(res, expect)
+
+
 @pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codom, dom',
@@ -4451,6 +4474,55 @@ def test_HiddenLegTensor_permute_leaves_hidden_in_place(make_compatible_tensor):
     assert res.labels[2] == '!h'
 
 
+@pytest.mark.parametrize('hidden_in_domain', [True, False])
+def test_HiddenLegTensor_decompositions_keep_hidden(hidden_in_domain, make_compatible_tensor):
+    if hidden_in_domain:
+        T = make_compatible_tensor(codomain=2, domain=2, labels=['vL', 'p', 'vR', 'h'], use_pipes=False)
+    else:
+        T = make_compatible_tensor(codomain=3, domain=1, labels=['h', 'vL', 'p', 'vR'], use_pipes=False)
+    H = HiddenLegTensor(T, ['h'])
+
+    def check(left, right):
+        hidden, public = (right, left) if hidden_in_domain else (left, right)
+        for X in [left, right]:
+            X.test_sanity()
+        assert isinstance(hidden, HiddenLegTensor) and '!h' in hidden.labels
+        assert not isinstance(public, HiddenLegTensor) and '!h' not in public.labels
+        res = tensors.compose(left, right)
+        assert isinstance(res, HiddenLegTensor)
+        assert res.labels == H.labels
+        assert tensors.almost_equal(res, H)
+
+    check(*tensors.qr(H, new_labels=['vR', 'vL']))
+    check(*tensors.lq(H, new_labels=['vR', 'vL']))
+    U, S, Vh = tensors.svd(H, new_labels=['vR', 'vL'])
+    check(tensors.compose(U, S), Vh)
+    U, S, Vh, _, _ = tensors.truncated_svd(H, new_labels=['vR', 'vL'])
+    check(U, tensors.compose(S, Vh))
+    # partial_compose keeps the hidden leg of tensor1
+    vL = H.codomain.factors[1] if not hidden_in_domain else H.codomain.factors[0]
+    X = make_compatible_tensor(codomain=[vL], domain=[vL], labels=['vL', 'x'], use_pipes=False)
+    res = tensors.partial_compose(H, X, 'vL')
+    res.test_sanity()
+    assert isinstance(res, HiddenLegTensor)
+    assert res.labels == H.labels
+    expect = tensors.partial_compose(H.unhide_legs(), X, 'vL')
+    assert tensors.almost_equal(res.unhide_legs(), expect)
+
+
+def test_HiddenLegTensor_to_numpy_public_leg_order(make_compatible_tensor):
+    T = make_compatible_tensor(codomain=2, domain=2, labels=['a', 'h', 'b', 'c'], use_pipes=False)
+    if not T.symmetry.can_be_dropped:
+        pytest.skip('no dense representation')
+    H = HiddenLegTensor(T, ['h'])
+    full = H.to_numpy(understood_braiding=True)
+    # hidden legs need not be named; they are the last legs of the result
+    res = H.to_numpy(['c', 'a', 'b'], understood_braiding=True)
+    npt.assert_array_equal(res, np.transpose(full, [3, 0, 2, 1]))
+    res = H.to_numpy(['c', 'a', 'b', '!h'], understood_braiding=True)
+    npt.assert_array_equal(res, np.transpose(full, [3, 0, 2, 1]))
+
+
 @pytest.mark.parametrize('do_dagger', [True, False])
 def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
     labels = ['a', 'b', 'c', 'h']
@@ -4630,3 +4702,81 @@ def test_move_hidden_leg_errors(make_compatible_tensor, compatible_symmetry):
     )
     with pytest.raises(ValueError, match='dual hidden'):
         tensors.move_hidden_leg(A, B_dual, 'vR', 'vL', '!charge', 1)
+
+
+@pytest.mark.parametrize('dual_pipes', [False, True])
+def test_flatten_pipe_leg(dual_pipes, make_compatible_tensor, make_compatible_space):
+    # combine two bonds like for an MPS: vL pipe in the codomain, the dual vR pipe in the domain.
+    # For `dual_pipes`, the pipe *factors* in the codomain and domain are dual pipes instead.
+    V0 = make_compatible_space()
+    V1 = make_compatible_space()
+    labels = ['vL0', 'vL1', 'vR1', 'vR0']
+    A0 = make_compatible_tensor([V0, V1], [V0, V1], labels=labels, use_pipes=False)
+    B0 = make_compatible_tensor([V0, V1], [V0, V1], labels=labels, use_pipes=False)
+
+    def combine(T):
+        dualities = [True, False] if dual_pipes else [False, True]
+        T = tensors.combine_legs(T, ['vL0', 'vL1'], ['vR1', 'vR0'], pipe_dualities=dualities)
+        return T.relabel({'(vL0.vL1)': 'vL', '(vR1.vR0)': 'vR'})
+
+    A, B = [combine(T) for T in [A0, B0]]
+    assert A.codomain == A.domain
+    assert A.codomain.factors[0].is_dual == dual_pipes
+    expect = tensors.compose(A, B)
+
+    A2, B2, expect2 = [tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(T, 'vL'), 'vR') for T in [A, B, expect]]
+    for T, T2 in [(A, A2), (B, B2), (expect, expect2)]:
+        T2.test_sanity()
+        assert T2.labels == T.labels
+        for label in ['vL', 'vR']:
+            leg, leg2 = T.get_leg(label), T2.get_leg(label)
+            assert isinstance(leg, LegPipe)
+            assert isinstance(leg2, ElementarySpace) and not isinstance(leg2, LegPipe)
+            assert leg2.is_dual == leg.is_dual
+            leg_flat = leg.as_ElementarySpace(leg.is_dual)
+            npt.assert_array_equal(leg2.sector_decomposition, leg_flat.sector_decomposition)
+            npt.assert_array_equal(leg2.multiplicities, leg_flat.multiplicities)
+        npt.assert_almost_equal(tensors.norm(T2).to_numpy(), tensors.norm(T).to_numpy())
+    assert A2.codomain == A2.domain
+    # the flattened legs are consistent, such that contractions give the same data
+    assert tensors.almost_equal(tensors.compose(A2, B2), expect2)
+    # ... also the same as contracting the separate legs, i.e. the flattened legs keep their meaning
+    expect0 = combine(tensors.compose(A0, B0))
+    expect0 = tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(expect0, 'vL'), 'vR')
+    assert tensors.almost_equal(tensors.compose(A2, B2), expect0)
+    # flattening commutes with (planar) permutations of the other legs, here the pipe is not the
+    # first factor of the domain
+    W = make_compatible_space()
+    C = make_compatible_tensor([V0, V1], [W, V0, V1], labels=labels + ['w'], use_pipes=False)
+    C = combine(C)
+    assert C.domain_labels == ['w', 'vR']
+    C2 = tensors.flatten_pipe_leg(C, 'vR')
+    C3 = tensors.planar_permute_legs(C, domain=['vR'])
+    C3 = tensors.flatten_pipe_leg(C3, 'vR')
+    C3 = tensors.planar_permute_legs(C3, codomain=C.codomain_labels, domain=C.domain_labels)
+    assert C2.labels == C.labels
+    assert tensors.almost_equal(C2, C3)
+    # flattening a leg bent to the other side (i.e. the dual pipe factor) is consistent with
+    # flattening it in place
+    B3 = tensors.planar_permute_legs(B, codomain=['vR', 'vL'], domain=[])
+    assert B3.codomain.factors[0].is_dual != B.domain.factors[0].is_dual
+    B3 = tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(B3, 'vL'), 'vR')
+    B3 = tensors.planar_permute_legs(B3, codomain=B.codomain_labels, domain=B.domain_labels)
+    assert tensors.almost_equal(B3, B2)
+    # two pipes on the same side: flattening commutes, also if another pipe precedes the flattened one
+    D = make_compatible_tensor([V0, V1, V0, V1], [W], labels=['a0', 'a1', 'b0', 'b1', 'w'], use_pipes=False)
+    D = tensors.combine_legs(D, ['a0', 'a1'], ['b0', 'b1'])
+    D_ab = tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(D, '(a0.a1)'), '(b0.b1)')
+    D_ba = tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(D, '(b0.b1)'), '(a0.a1)')
+    assert tensors.almost_equal(D_ab, D_ba)
+    # flattening a leg which is not a pipe does nothing
+    assert tensors.almost_equal(tensors.flatten_pipe_leg(A2, 0), A2)
+    # also works with a pipe in the codomain of a HiddenLegTensor
+    H = HiddenLegTensor(
+        tensors.add_trivial_leg(A, codomain_pos=0, label='h'),
+        ['h'],
+    )
+    H2 = tensors.flatten_pipe_leg(H, 'vL')
+    assert isinstance(H2, HiddenLegTensor)
+    assert H2.labels == H.labels
+    assert not isinstance(H2.get_leg('vL'), LegPipe)

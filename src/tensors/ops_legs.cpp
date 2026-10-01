@@ -1,10 +1,12 @@
 #include <cyten/tensors/ops_legs.h>
 
+#include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/backends/tensor_backend.h>
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/spaces.h>
+#include <cyten/symmetries/trees.h>
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/constructors.h>
 #include <cyten/tensors/diagonal_tensor.h>
@@ -21,6 +23,7 @@
 #include <format>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -1592,10 +1595,235 @@ move_onto_target_side(TensorPtr tensor, LegRef moving, LegRef target, bool after
       tensor, std::move(moving), std::nullopt, insert, std::move(levels), BendRight{ true });
 }
 
-[[nodiscard]] TensorPtr
-flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
+/// Permutation of the block rows (codomain) / columns (domain) of a `FusionTreeBackend` tensor,
+/// if the pipe ``old_prod.factors[0]`` is replaced by the `ElementarySpace` ``new_prod.factors[0]``.
+///
+/// The `FusionTreeBackend` treats pipes as transparent, i.e. the blocks are indexed by the
+/// uncoupled sectors of the *flat* legs (the pipe components), the fusion trees and the
+/// multiplicities. Since the pipe is the first factor, the first vertices of each fusion tree
+/// fuse the pipe components to a sector ``e`` (the "pipe tree"), and the remaining tree fuses
+/// ``e`` with the other legs. For the flat leg, the pipe tree and the multiplicities of the
+/// components instead enumerate the multiplicity of ``e``, in the order of the rows of the block
+/// ``e`` of `pipe_prod`, the `TensorProduct` of the pipe components, which defines
+/// `LegPipe::as_ElementarySpace`. No F-moves are required, so this is a pure permutation.
+///
+/// @returns `perm` such that ``new_block[i] = old_block[perm[i]]``.
+[[nodiscard]] std::vector<int64>
+flatten_pipe_block_perm(TensorProduct const& old_prod,
+                        TensorProduct const& new_prod,
+                        TensorProduct const& pipe_prod,
+                        Sector const& coupled)
 {
-    auto sym = std::dynamic_pointer_cast<SymmetricTensor>(tensor);
+    auto const& symmetry = old_prod.symmetry;
+    auto const ind_len = symmetry->sector_ind_len;
+    auto const n_pipe = static_cast<std::size_t>(pipe_prod.num_flat_legs());
+    std::vector<int64> perm(static_cast<std::size_t>(old_prod.block_size(coupled)), -1);
+    int64 old_start = 0;
+    for (auto const& item : old_prod.iter_uncoupled()) {
+        auto const old_trees = fusion_trees(symmetry, item.uncoupled, coupled).all_trees();
+        if (old_trees.empty()) {
+            continue;
+        }
+        auto const n_flat = item.uncoupled.size();
+        SectorArray pipe_uncoupled(n_pipe, ind_len);
+        SectorArray rest_uncoupled(n_flat - n_pipe + 1, ind_len);
+        for (std::size_t k = 0; k < n_flat; ++k) {
+            (k < n_pipe ? pipe_uncoupled[k] : rest_uncoupled[k - n_pipe + 1]) = item.uncoupled[k];
+        }
+        int64 pipe_size = 1; // multiplicities of the pipe components
+        int64 rest_size = 1; // multiplicities of the other flat legs
+        for (std::size_t k = 0; k < n_flat; ++k) {
+            (k < n_pipe ? pipe_size : rest_size) *= item.multiplicities[k];
+        }
+        for (std::size_t alpha = 0; alpha < old_trees.size(); ++alpha) {
+            auto const& tree = old_trees[alpha];
+            // split into the pipe tree (vertices 0 .. n_pipe - 2) and the rest tree
+            Sector const e = n_pipe == n_flat ? coupled
+                             : n_pipe == 1    ? item.uncoupled[0]
+                                              : tree.inner_sectors[n_pipe - 2];
+            rest_uncoupled[0] = e;
+            SectorArray pipe_inner(n_pipe >= 2 ? n_pipe - 2 : 0, ind_len);
+            std::vector<int64> pipe_mults;
+            for (std::size_t k = 0; k + 2 < n_pipe; ++k) {
+                pipe_inner[k] = tree.inner_sectors[k];
+            }
+            SectorArray rest_inner(n_flat >= n_pipe + 1 ? n_flat - n_pipe - 1 : 0, ind_len);
+            for (std::size_t k = 0; k < rest_inner.size(); ++k) {
+                rest_inner[k] = tree.inner_sectors[n_pipe - 1 + k];
+            }
+            std::vector<int64> rest_mults;
+            for (std::size_t k = 0; k < tree.multiplicities.size(); ++k) {
+                (k + 1 < n_pipe ? pipe_mults : rest_mults).push_back(tree.multiplicities[k]);
+            }
+            int64 alpha_pipe = 0;
+            if (n_pipe >= 2) {
+                FusionTree pipe_tree(symmetry,
+                                     pipe_uncoupled,
+                                     e,
+                                     std::vector<std::uint8_t>(n_pipe, 0),
+                                     pipe_inner,
+                                     tree.multiplicities.empty()
+                                       ? std::nullopt
+                                       : std::optional(pipe_mults));
+                alpha_pipe = static_cast<int64>(
+                  fusion_trees(symmetry, pipe_uncoupled, e).index(pipe_tree));
+            }
+            int64 beta = 0;
+            if (rest_uncoupled.size() >= 2) {
+                FusionTree rest_tree(symmetry,
+                                     rest_uncoupled,
+                                     coupled,
+                                     std::vector<std::uint8_t>(rest_uncoupled.size(), 0),
+                                     rest_inner,
+                                     tree.multiplicities.empty()
+                                       ? std::nullopt
+                                       : std::optional(rest_mults));
+                beta = static_cast<int64>(
+                  fusion_trees(symmetry, rest_uncoupled, coupled).index(rest_tree));
+            }
+            // multiplicity index on the flat leg, i.e. the row in the block `e` of `pipe_prod`
+            int64 const e_offset =
+              pipe_prod.forest_block_slice(pipe_uncoupled, e).start + alpha_pipe * pipe_size;
+            int64 const e_mult = pipe_prod.block_size(e);
+            int64 const new_start = new_prod.forest_block_slice(rest_uncoupled, coupled).start +
+                                    beta * e_mult * rest_size;
+            int64 const old_tree_start = old_start + static_cast<int64>(alpha) * pipe_size * rest_size;
+            for (int64 mp = 0; mp < pipe_size; ++mp) {
+                for (int64 mr = 0; mr < rest_size; ++mr) {
+                    perm[static_cast<std::size_t>(new_start + (e_offset + mp) * rest_size + mr)] =
+                      old_tree_start + mp * rest_size + mr;
+                }
+            }
+        }
+        old_start += static_cast<int64>(old_trees.size()) * pipe_size * rest_size;
+    }
+    return perm;
+}
+
+/// Data of a `FusionTreeBackend` tensor, where the pipe ``old_prod.factors[0]`` in the codomain
+/// (or domain, if `in_domain`) is replaced by the `ElementarySpace` ``new_prod.factors[0]``.
+[[nodiscard]] TensorBackend::DataPtr
+flatten_first_pipe_data_fusion_tree(SymmetricTensor const& tensor,
+                                    bool in_domain,
+                                    TensorProduct const& old_prod,
+                                    TensorProduct const& new_prod,
+                                    LegPipe& pipe)
+{
+    if (pipe.is_dual) {
+        // dual pipes are bent to the other side first, see `flatten_pipe_leg_at`
+        throw std::logic_error("flatten_first_pipe_data_fusion_tree requires a non-dual pipe");
+    }
+    auto const pipe_legs = pipe.flat_legs();
+    if (static_cast<int64>(pipe_legs.size()) != pipe.num_legs) {
+        throw NotImplemented("flatten_pipe_leg for nested pipes with the FusionTreeBackend");
+    }
+    TensorProduct pipe_prod(pipe_legs, tensor.symmetry);
+    auto const flat = as_space(new_prod.factors[0]);
+    if (pipe_prod.sector_decomposition != flat->sector_decomposition ||
+        pipe_prod.multiplicities != flat->multiplicities) {
+        throw NotImplemented("flatten_pipe_leg: the pipe components do not match the flat leg");
+    }
+    auto const data = FusionTreeBackend::unwrap(tensor.data);
+    auto const& other_prod = in_domain ? *tensor.codomain : *tensor.domain;
+    auto& block_backend = *tensor.backend->block_backend;
+    std::vector<BlockBackend::BlockPtr> blocks;
+    blocks.reserve(data->blocks.size());
+    for (std::size_t i = 0; i < data->blocks.size(); ++i) {
+        auto const coupled = old_prod.sector_decomposition[static_cast<std::size_t>(
+          data->block_inds(i, in_domain ? 1 : 0))];
+        auto perm = flatten_pipe_block_perm(old_prod, new_prod, pipe_prod, coupled);
+        std::vector<int64> other(static_cast<std::size_t>(other_prod.block_size(coupled)));
+        std::iota(other.begin(), other.end(), int64{ 0 });
+        std::vector<py::array_t<int64>> perms{ py::array_t<int64>(py::cast(perm)),
+                                               py::array_t<int64>(py::cast(other)) };
+        if (in_domain) {
+            std::swap(perms[0], perms[1]);
+        }
+        blocks.push_back(block_backend.apply_leg_permutations(data->blocks[i], perms));
+    }
+    return FusionTreeBackend::wrap(std::make_shared<FusionTreeData>(
+      data->block_inds, std::move(blocks), data->dtype, data->device, true));
+}
+
+/// The unitary ``U: pipe -> flat`` used by `flatten_pipe_leg` for the `FusionTreeBackend`, as a
+/// tensor with codomain ``[flat]`` and domain ``[pipe]``.
+///
+/// For a non-dual pipe, all blocks of ``U`` are identities, i.e. ``U`` uses the same order of
+/// the states as `flatten_pipe_block_perm`. A dual pipe is ``P.dual_leg()`` for a non-dual pipe
+/// ``P``, i.e. the pipe as seen from the other side of a bond. To be consistent with flattening
+/// ``P`` on the other side, we use ``(U_P^dagger)^T``. This bends only the small tensor ``U_P``.
+[[nodiscard]] TensorPtr
+flatten_pipe_unitary(LegPipe::Ptr const& pipe, Leg::Ptr const& flat, SymmetricTensor const& like)
+{
+    auto const& symmetry = like.symmetry;
+    if (pipe->is_dual) {
+        auto P = std::dynamic_pointer_cast<LegPipe>(pipe->dual_leg());
+        Leg::Ptr flat_P = P->as_ElementarySpace(false);
+        auto U = transpose(dagger(flatten_pipe_unitary(P, flat_P, like)));
+        auto U_sym = std::dynamic_pointer_cast<SymmetricTensor>(U);
+        if (!U_sym || !(*U_sym->domain->factors.at(0) == *pipe)) {
+            throw std::logic_error("flatten_pipe_leg: the dual unitary does not match the dual pipe");
+        }
+        // The flat leg is ``flat_P.dual``. It has the same sectors as `flat`, but may differ in
+        // the `basis_perm`; it is the one consistent with flattening ``P`` on the other side.
+        return U;
+    }
+    std::vector<Leg::Ptr> pipe_factors{ pipe };
+    auto pipe_prod = std::make_shared<TensorProduct>(std::move(pipe_factors), symmetry);
+    std::vector<Leg::Ptr> flat_factors{ flat };
+    auto flat_prod = std::make_shared<TensorProduct>(
+      std::move(flat_factors), symmetry, pipe_prod->sector_decomposition, pipe_prod->multiplicities);
+    auto data = like.backend->eye_data(pipe_prod, like.dtype, like.device);
+    return std::make_shared<SymmetricTensor>(std::move(data),
+                                             std::move(flat_prod),
+                                             std::move(pipe_prod),
+                                             like.backend,
+                                             symmetry,
+                                             LegLabels{ "?flat", "?pipe" });
+}
+
+/// `flatten_pipe_leg` for the `FusionTreeBackend` by contracting the pipe at ``legs_idx`` with
+/// the unitary `flatten_pipe_unitary`. In contrast to permuting the pipe to the first position,
+/// this does not bend any legs of `tensor`, but only requires (one-sided) F-moves.
+[[nodiscard]] TensorPtr
+flatten_pipe_leg_by_unitary(SymmetricTensorCPtr const& tensor,
+                            int64 legs_idx,
+                            bool in_domain,
+                            TensorProduct const& product,
+                            LegPipe::Ptr const& pipe,
+                            Leg::Ptr const& flat)
+{
+    // act on the unhidden tensor, such that the leg indices include hidden legs
+    TensorPtr plain = std::const_pointer_cast<SymmetricTensor>(tensor)->as_SymmetricTensor();
+    auto const label = plain->labels().at(static_cast<std::size_t>(legs_idx));
+    auto U = flatten_pipe_unitary(pipe, flat, *tensor); // [flat] <- [pipe]
+    if (in_domain) {
+        U = dagger(U); // [pipe] <- [flat]
+    }
+    // the label of the contracted leg of U replaces the pipe label
+    U->set_labels(in_domain ? LegLabels{ "?pipe", label } : LegLabels{ label, "?pipe" });
+    TensorPtr res;
+    if (product.num_factors == 1) {
+        // partial_compose requires a remaining leg; contract the full (co)domain instead
+        res = std::get<TensorPtr>(in_domain ? compose(plain, U) : compose(U, plain));
+    } else {
+        res = partial_compose(plain, U, LegRef{ legs_idx }, std::nullopt, std::nullopt);
+    }
+    auto res_sym = std::dynamic_pointer_cast<SymmetricTensor>(res);
+    // restore the original labels, including the ``!`` of hidden legs
+    return HiddenLegTensor::maybe_wrap(std::make_shared<SymmetricTensor>(res_sym->data,
+                                                                         res_sym->codomain,
+                                                                         res_sym->domain,
+                                                                         res_sym->backend,
+                                                                         res_sym->symmetry,
+                                                                         tensor->labels(),
+                                                                         false));
+}
+
+[[nodiscard]] TensorPtr
+flatten_pipe_leg_at(TensorCPtr tensor, int64 legs_idx)
+{
+    auto sym = std::dynamic_pointer_cast<const SymmetricTensor>(tensor);
     if (!sym) {
         throw std::invalid_argument("flatten_pipe_leg expects a SymmetricTensor");
     }
@@ -1605,8 +1833,10 @@ flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
     auto factor = product->factors.at(static_cast<std::size_t>(co_idx));
     auto pipe = std::dynamic_pointer_cast<LegPipe>(factor);
     if (!pipe) {
-        return tensor;
+        return std::const_pointer_cast<Tensor>(tensor);
     }
+    bool const fusion_tree = static_cast<bool>(
+      std::dynamic_pointer_cast<FusionTreeBackend const>(tensor->backend));
     auto es = pipe->as_ElementarySpace(pipe->is_dual);
     if (std::dynamic_pointer_cast<LegPipe>(es)) {
         // AbelianLegPipe is both a pipe and an ElementarySpace; drop the pipe
@@ -1620,6 +1850,12 @@ flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
         es = std::make_shared<ElementarySpace>(
           sp.symmetry, es->defining_sectors, sp.multiplicities, lg.is_dual, std::move(bperm));
     }
+    if (fusion_tree && (co_idx != 0 || pipe->is_dual)) {
+        // The data can only be permuted for a non-dual pipe as the first factor of the
+        // (co)domain. Otherwise, contract the pipe with a unitary ``pipe -> flat leg``, which
+        // requires only one-sided F-moves (no bending of `tensor`).
+        return flatten_pipe_leg_by_unitary(sym, legs_idx, in_domain, *product, pipe, es);
+    }
     auto new_factors = product->factors;
     new_factors.at(static_cast<std::size_t>(co_idx)) = es;
     auto new_product = std::make_shared<TensorProduct>(std::move(new_factors),
@@ -1628,7 +1864,10 @@ flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
                                                        product->multiplicities);
     auto new_cod = in_domain ? tensor->codomain : new_product;
     auto new_dom = in_domain ? new_product : tensor->domain;
-    auto out = std::make_shared<SymmetricTensor>(sym->data,
+    auto data = fusion_tree
+                  ? flatten_first_pipe_data_fusion_tree(*sym, in_domain, *product, *new_product, *pipe)
+                  : sym->data;
+    auto out = std::make_shared<SymmetricTensor>(std::move(data),
                                                  std::move(new_cod),
                                                  std::move(new_dom),
                                                  tensor->backend,
@@ -1710,6 +1949,13 @@ rehide_labels(TensorPtr tensor, std::vector<std::string> const& stripped)
 }
 
 } // namespace
+
+TensorPtr
+flatten_pipe_leg(TensorCPtr tensor, LegRef which_leg)
+{
+    int64 idx = leg_idx(tensor, which_leg);
+    return flatten_pipe_leg_at(std::move(tensor), idx);
+}
 
 std::pair<TensorPtr, HiddenLegTensorPtr>
 move_hidden_leg(HiddenLegTensorCPtr A,
@@ -1885,7 +2131,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
     B_ext->set_label(pipe_B_idx, original_axis_B_label);
     if (flatten_1d) {
         A_work = std::dynamic_pointer_cast<SymmetricTensor>(
-          flatten_pipe_leg(A_work, A_work->get_leg_idcs(*original_axis_A_label).at(0)));
+          flatten_pipe_leg_at(A_work, A_work->get_leg_idcs(*original_axis_A_label).at(0)));
         if (!A_work) {
             throw std::runtime_error(
               "move_hidden_leg: expected SymmetricTensor after flattening A");

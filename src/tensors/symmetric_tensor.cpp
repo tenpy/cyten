@@ -11,6 +11,7 @@
 #include <cyten/tools.h>
 #include <cyten/tools/warn.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cyten/tools/hdf5.h>
 #include <cyten/tools/hdf5_py_bridge.h>
@@ -813,6 +814,18 @@ SymmetricTensor::to_dense_block(
     }
     if (leg_order.has_value()) {
         auto idcs = get_leg_idcs(*leg_order);
+        auto const labs = labels();
+        std::vector<int64> hidden;
+        for (int64 i = 0; i < num_legs; ++i) {
+            if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(i)])) {
+                hidden.push_back(i);
+            }
+        }
+        if (static_cast<int64>(idcs.size() + hidden.size()) == num_legs &&
+            std::ranges::none_of(idcs, [&](int64 i) { return std::ranges::contains(hidden, i); })) {
+            // `leg_order` specifies only the public legs of a HiddenLegTensor: hidden legs last
+            idcs.insert(idcs.end(), hidden.begin(), hidden.end());
+        }
         block = backend->block_backend->permute_axes(block, idcs);
     }
     return block;

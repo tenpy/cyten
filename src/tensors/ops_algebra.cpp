@@ -882,32 +882,39 @@ compose_py(py::object tensor1,
       apply_relabel(leg_labels_from_py(tensor2.attr("domain_labels")), relabel2);
     py::object res_labels = nested_labels_to_py(codomain_labels, domain_labels);
 
+    // the result keeps the open labels (including hidden `!` labels) -> wrap as HiddenLegTensor
     if (is_Mask(tensor1)) {
-        return py::cast(
-                 _compose_with_Mask(tensor2.cast<TensorCPtr>(), tensor1.cast<MaskCPtr>(), 0))
-          .attr("set_label")(0, tensor1.attr("labels").attr("__getitem__")(0));
+        return maybe_wrap_hidden(
+          py::cast(_compose_with_Mask(tensor2.cast<TensorCPtr>(), tensor1.cast<MaskCPtr>(), 0))
+            .attr("set_label")(0, tensor1.attr("labels").attr("__getitem__")(0)),
+          true);
     }
     if (is_Mask(tensor2)) {
-        return py::cast(
-                 _compose_with_Mask(tensor1.cast<TensorCPtr>(), tensor2.cast<MaskCPtr>(), -1))
-          .attr("set_label")(-1, tensor2.attr("labels").attr("__getitem__")(1));
+        return maybe_wrap_hidden(
+          py::cast(_compose_with_Mask(tensor1.cast<TensorCPtr>(), tensor2.cast<MaskCPtr>(), -1))
+            .attr("set_label")(-1, tensor2.attr("labels").attr("__getitem__")(1)),
+          true);
     }
 
     if (is_Identity(tensor1)) {
-        return tensor2.attr("copy")(py::arg("deep") = false).attr("set_labels")(res_labels);
+        return maybe_wrap_hidden(
+          tensor2.attr("copy")(py::arg("deep") = false).attr("set_labels")(res_labels), true);
     }
     if (is_Identity(tensor2)) {
-        return tensor1.attr("copy")(py::arg("deep") = false).attr("set_labels")(res_labels);
+        return maybe_wrap_hidden(
+          tensor1.attr("copy")(py::arg("deep") = false).attr("set_labels")(res_labels), true);
     }
 
     if (is_DiagonalTensor(tensor1)) {
-        return scale_axis_py(tensor2, tensor1, py::int_(0)).attr("set_labels")(res_labels);
+        return maybe_wrap_hidden(
+          scale_axis_py(tensor2, tensor1, py::int_(0)).attr("set_labels")(res_labels), true);
     }
     if (is_DiagonalTensor(tensor2)) {
         // --- hints from Python scale_axis ---
         // transpose if needed
         // ---
-        return scale_axis_py(tensor1, tensor2, py::int_(-1)).attr("set_labels")(res_labels);
+        return maybe_wrap_hidden(
+          scale_axis_py(tensor1, tensor2, py::int_(-1)).attr("set_labels")(res_labels), true);
     }
 
     if (is_ChargedTensor(tensor1)) {
@@ -929,10 +936,12 @@ compose_py(py::object tensor1,
           tensor2.attr("charged_state"));
     }
 
-    return py_from_compose_sym(_compose_SymmetricTensors(tensor1.cast<SymmetricTensorCPtr>(),
-                                                         tensor2.cast<SymmetricTensorCPtr>(),
-                                                         relabel1,
-                                                         relabel2));
+    return maybe_wrap_hidden(
+      py_from_compose_sym(_compose_SymmetricTensors(tensor1.cast<SymmetricTensorCPtr>(),
+                                                    tensor2.cast<SymmetricTensorCPtr>(),
+                                                    relabel1,
+                                                    relabel2)),
+      true);
 }
 
 std::string
@@ -1608,20 +1617,25 @@ partial_compose_py(py::object tensor1,
         }
     }
 
+    // the result keeps the labels (including hidden `!` labels) -> wrap as HiddenLegTensor
     if (is_Identity(tensor1)) {
-        return tensor2.attr("copy")(py::arg("deep") = false).attr("set_labels")(res_labels_py);
+        return maybe_wrap_hidden(
+          tensor2.attr("copy")(py::arg("deep") = false).attr("set_labels")(res_labels_py), true);
     }
     if (is_Identity(tensor2)) {
-        return tensor1.attr("copy")(py::arg("deep") = false).attr("set_labels")(res_labels_py);
+        return maybe_wrap_hidden(
+          tensor1.attr("copy")(py::arg("deep") = false).attr("set_labels")(res_labels_py), true);
     }
 
     // tensor1 cannot be Mask or DiagonalTensor due to num_legs constraint
     if (is_Mask(tensor2)) {
-        return py_compose_with_mask(tensor1, tensor2, t1_first).attr("set_labels")(res_labels_py);
+        return maybe_wrap_hidden(
+          py_compose_with_mask(tensor1, tensor2, t1_first).attr("set_labels")(res_labels_py), true);
     }
     if (is_DiagonalTensor(tensor2)) {
-        return scale_axis_py(tensor1, tensor2, py::int_(t1_first))
-          .attr("set_labels")(res_labels_py);
+        return maybe_wrap_hidden(
+          scale_axis_py(tensor1, tensor2, py::int_(t1_first)).attr("set_labels")(res_labels_py),
+          true);
     }
 
     auto backend = get_same_backend({ tensor1, tensor2 });
@@ -1630,8 +1644,10 @@ partial_compose_py(py::object tensor1,
                                          t1_first,
                                          new_codomain.cast<TensorProduct::Ptr>(),
                                          new_domain.cast<TensorProduct::Ptr>());
-    return make_python_symmetric_tensor(
-      std::move(data), new_codomain, new_domain, backend, res_labels_py);
+    return maybe_wrap_hidden(
+      make_python_symmetric_tensor(
+        std::move(data), new_codomain, new_domain, backend, res_labels_py),
+      true);
 }
 
 py::object

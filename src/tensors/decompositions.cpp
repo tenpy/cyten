@@ -7,6 +7,7 @@
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/helpers.h>
+#include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/labels.h>
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/ops_algebra.h>
@@ -16,6 +17,7 @@
 #include <cyten/tensors/tensor.h>
 #include <cyten/tools.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <format>
@@ -363,6 +365,52 @@ split_one_leg(py::object tensor, int64 idx)
     return py::cast(split_legs(tensor.cast<TensorCPtr>(), std::vector<LegRef>{ idx }));
 }
 
+/// Labels of the hidden legs of `tensor`, without the ``!`` prefix.
+/// Empty unless `tensor` is a `HiddenLegTensor`.
+std::vector<std::string>
+stripped_hidden_labels(py::object tensor)
+{
+    std::vector<std::string> res;
+    for (auto const& lab : leg_labels_from_py(tensor.attr("labels"))) {
+        if (HiddenLegTensor::is_hidden_leg_label(lab)) {
+            res.push_back(*HiddenLegTensor::strip_hidden_prefix(lab));
+        }
+    }
+    return res;
+}
+
+/// Hide the legs of a decomposition `factor` that were hidden on the decomposed tensor.
+///
+/// Decompositions act on the unhidden tensor (see `_decomposition_prepare`), such that the
+/// hidden legs end up as ordinary legs on one of the factors. The new leg at `new_leg_idx` is
+/// never hidden, even if its label coincides with one of the `hidden` labels.
+py::object
+rehide_factor(py::object factor, std::vector<std::string> const& hidden, int64 new_leg_idx)
+{
+    if (hidden.empty()) {
+        return factor;
+    }
+    auto labs = leg_labels_from_py(factor.attr("labels"));
+    auto num_legs = static_cast<int64>(labs.size());
+    if (new_leg_idx < 0) {
+        new_leg_idx += num_legs;
+    }
+    std::vector<std::variant<int64, std::string>> which;
+    for (int64 i = 0; i < num_legs; ++i) {
+        auto const& lab = labs[static_cast<std::size_t>(i)];
+        if (i == new_leg_idx || !lab.has_value()) {
+            continue;
+        }
+        if (std::find(hidden.begin(), hidden.end(), *lab) != hidden.end()) {
+            which.emplace_back(i);
+        }
+    }
+    if (which.empty()) {
+        return factor;
+    }
+    return py::cast(HiddenLegTensor::from_tensor(factor.cast<TensorPtr>(), std::move(which)));
+}
+
 py::object
 apply_mask_DiagonalTensor_py(py::object tensor, py::object mask)
 {
@@ -707,6 +755,7 @@ qr_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_l
     }
 
     auto [a, b] = _decomposition_labels(leg_labels_from_py(to_iterable(new_labels)));
+    auto hidden = stripped_hidden_labels(tensor);
     auto [tens, new_co_domain, combine_codomain, combine_domain] =
       _decomposition_prepare(tensor.cast<TensorCPtr>(), new_leg_dual);
     auto backend = tens->backend;
@@ -729,6 +778,8 @@ qr_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_l
     if (combine_domain) {
         R = split_one_leg(R, -1);
     }
+    Q = rehide_factor(Q, hidden, -1);
+    R = rehide_factor(R, hidden, 0);
     return { Q, R };
 }
 
@@ -751,6 +802,7 @@ lq_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_l
     }
 
     auto [a, b] = _decomposition_labels(leg_labels_from_py(to_iterable(new_labels)));
+    auto hidden = stripped_hidden_labels(tensor);
     auto [tens, new_co_domain, combine_codomain, combine_domain] =
       _decomposition_prepare(tensor.cast<TensorCPtr>(), new_leg_dual);
     auto backend = tens->backend;
@@ -773,6 +825,8 @@ lq_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_l
     if (combine_domain) {
         Q = split_one_leg(Q, -1);
     }
+    L = rehide_factor(L, hidden, -1);
+    Q = rehide_factor(Q, hidden, 0);
     return { L, Q };
 }
 
@@ -807,6 +861,7 @@ svd_py(py::object tensor,
         svd_labs = leg_labels_from_py(to_iterable(new_labels));
     }
     auto [a, b, c, d] = _svd_new_labels(svd_labs);
+    auto hidden = stripped_hidden_labels(tensor);
     auto [tens, new_co_domain, combine_codomain, combine_domain] =
       _decomposition_prepare(tensor.cast<TensorCPtr>(), new_leg_dual);
     auto backend = tens->backend;
@@ -838,6 +893,8 @@ svd_py(py::object tensor,
     if (combine_domain) {
         Vh = split_one_leg(Vh, -1);
     }
+    U = rehide_factor(U, hidden, -1);
+    Vh = rehide_factor(Vh, hidden, 0);
     return { U, S, Vh };
 }
 

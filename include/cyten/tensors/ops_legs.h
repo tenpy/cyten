@@ -203,6 +203,21 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
                                  std::optional<LevelsSpec> levels = std::nullopt,
                                  std::optional<BendRight> bend_right = std::nullopt);
 
+/// Replace a `LegPipe` leg by the equivalent `ElementarySpace`.
+///
+/// Only the leg changes: the new leg has the same sectors and multiplicities as the pipe
+/// (and its basis permutation, if any), and the numerical data is unchanged. This is useful
+/// if the internal structure of the pipe is no longer needed, e.g. for MPS bonds obtained by
+/// combining several virtual legs. If the leg is not a `LegPipe`, the tensor is returned
+/// unchanged. Hidden legs are kept, i.e. a `HiddenLegTensor` gives a `HiddenLegTensor`.
+///
+/// @param tensor The tensor to act on. Must be a `SymmetricTensor`.
+/// @param which_leg The leg to flatten.
+/// @returns A tensor with the same data, where the leg `which_leg` is an `ElementarySpace`.
+///
+/// @see combine_legs, split_legs
+[[nodiscard]] TensorPtr flatten_pipe_leg(TensorCPtr tensor, LegRef which_leg);
+
 /// Slide one hidden leg from `A` onto `B` along a contracted public pair of legs.
 ///
 /// The public contraction `tdot(A, B, axis_A, axis_B)` is preserved, including the

@@ -317,6 +317,18 @@ In Python, ``which_leg`` is ``int | str``; optional args use ``None``; ``levels`
 )pydoc"));
 
     m.def(
+      "flatten_pipe_leg",
+      [](TensorCPtr tensor, py::object which_leg) {
+          return flatten_pipe_leg(std::move(tensor), py_as_leg_ref(which_leg));
+      },
+      py::arg("tensor"),
+      py::arg("which_leg"),
+      doc_plus(DOC(cyten, flatten_pipe_leg),
+               R"pydoc(
+In Python, ``which_leg`` is ``int | str``.
+)pydoc"));
+
+    m.def(
       "move_hidden_leg",
       [](HiddenLegTensorCPtr A,
          TensorCPtr B,

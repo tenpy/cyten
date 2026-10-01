@@ -2,6 +2,7 @@
 
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/charged_tensor.h>
+#include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
@@ -238,8 +239,11 @@ _compose_with_Mask(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx)
     if (std::dynamic_pointer_cast<Mask const>(tensor)) {
         throw NotImplemented("tensors._compose_with_Mask not implemented for Mask");
     }
-    auto tens = std::const_pointer_cast<Tensor>(tensor)->as_SymmetricTensor(
-      false, std::string("Converting to SymmetricTensor."));
+    // hidden legs are restored below, so the conversion is lossless for a HiddenLegTensor
+    auto tens = std::dynamic_pointer_cast<HiddenLegTensor const>(tensor)
+                  ? std::const_pointer_cast<Tensor>(tensor)->as_SymmetricTensor()
+                  : std::const_pointer_cast<Tensor>(tensor)->as_SymmetricTensor(
+                      false, std::string("Converting to SymmetricTensor."));
 
     auto backend = get_same_backend(std::vector<TensorCPtr>{ tens, mask });
     std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> contracted;
@@ -249,12 +253,13 @@ _compose_with_Mask(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx)
         contracted = backend->mask_contract_large_leg(tens, mask, leg_idx);
     }
     auto& [data, codomain, domain] = contracted;
-    return std::make_shared<SymmetricTensor>(std::move(data),
-                                             std::move(codomain),
-                                             std::move(domain),
-                                             backend,
-                                             tens->symmetry,
-                                             tens->labels());
+    // use the labels of `tensor`, which keep the ``!`` of hidden legs -> HiddenLegTensor result
+    return HiddenLegTensor::maybe_wrap(std::make_shared<SymmetricTensor>(std::move(data),
+                                                                         std::move(codomain),
+                                                                         std::move(domain),
+                                                                         backend,
+                                                                         tens->symmetry,
+                                                                         tensor->labels()));
 }
 
 std::variant<SymmetricTensorPtr, BlockBackend::Scalar>
