@@ -6,6 +6,8 @@
 #include <cyten/tensors/ops_algebra.h>
 
 #include <optional>
+#include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -200,6 +202,56 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
                                  std::optional<int64> domain_pos = std::nullopt,
                                  std::optional<LevelsSpec> levels = std::nullopt,
                                  std::optional<BendRight> bend_right = std::nullopt);
+
+/// Slide one hidden leg from `A` onto `B` along a contracted public pair of legs.
+///
+/// The public contraction `tdot(A, B, axis_A, axis_B)` is preserved, including the
+/// open hidden leg on the result::
+///
+///     tdot(A, B, axis_A, axis_B) == tdot(A2, B2, axis_A, axis_B)
+///
+/// Example (iMPS charge gauging)::
+///
+///     A[!charge, p, vL, vR], B[p, vL, vR]
+///     A2, B2 = move_hidden_leg(A, B, 'vR', 'vL', '!charge', target_codomain_pos=2)
+///     # A2[p, vL, vR], B2[p, vL, !charge, vR]
+///
+/// `A2` is a plain `SymmetricTensor` if no hidden legs remain on `A`, otherwise a
+/// `HiddenLegTensor`. `B2` is always a `HiddenLegTensor`.
+///
+/// The hidden wire is moved by inserting an identity on the hidden space and combining
+/// it with the contracted public axes. If the hidden space is one-dimensional, the
+/// resulting bond pipes are flattened to isomorphic `ElementarySpace`s (a charge-label
+/// update). Otherwise the contracted axes remain matching `LegPipe`s that carry the
+/// hidden space through the bond.
+///
+/// Multiple hidden legs on one tensor are allowed (same-plane labels). Extra hidden-leg
+/// layers / planes for braiding several hidden legs are not implemented yet. If two
+/// tensors both use the same hidden label (e.g. two iMPS sites with ``!charge``), relabel
+/// one of them before moving.
+///
+/// @param A Tensor that currently carries the hidden leg.
+/// @param B Tensor that shares a contractible public pair with `A`. Must be a
+///     `SymmetricTensor` (including `HiddenLegTensor`). `ChargedTensor`, `DiagonalTensor`,
+///     `Identity`, and `Mask` are rejected.
+/// @param axis_A,axis_B Public legs to slide along; must be mutual duals (`A.get_leg(axis_A)`
+///     equals `B.get_leg(axis_B).dual`).
+/// @param hidden_leg_label Hidden label on `A`, including the ``!`` prefix.
+/// @param target_codomain_pos If given, place the hidden leg at that position of `B2`'s
+///     codomain (same convention as `move_leg`).
+/// @param target_domain_pos If given, place the hidden leg at that position of `B2`'s
+///     domain. Exactly one of `target_codomain_pos` and `target_domain_pos` is required.
+/// @returns `(A2, B2)` as described above.
+///
+/// @see move_leg, HiddenLegTensor
+[[nodiscard]] std::pair<TensorPtr, HiddenLegTensorPtr> move_hidden_leg(
+  HiddenLegTensorCPtr A,
+  TensorCPtr B,
+  LegRef axis_A,
+  LegRef axis_B,
+  std::string hidden_leg_label,
+  std::optional<int64> target_codomain_pos = std::nullopt,
+  std::optional<int64> target_domain_pos = std::nullopt);
 
 /// Permute the legs of a tensor by braiding legs and bending lines.
 ///

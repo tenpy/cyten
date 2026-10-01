@@ -8,6 +8,13 @@ from .._core import FusionTree, fusion_trees  # noqa: F401
 # C++ implementations via pybind11
 from ._symmetries import SectorArray
 
+# auto-maintained by scripts/generate_reexport_all.py; do not edit by hand
+__all__ = [
+    'FusionTree',
+    'SectorArray',
+    'fusion_trees',
+]
+
 
 def _concat_sector_arrays(*arrays: SectorArray) -> SectorArray:
     res = arrays[0]

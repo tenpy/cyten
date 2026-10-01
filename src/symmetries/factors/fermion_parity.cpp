@@ -2,6 +2,8 @@
 
 #include <cyten/symmetries/topo_ones.h>
 
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <utility>
 #include <vector>
 
@@ -254,12 +256,14 @@ FermionParity::repr() const
 }
 
 FermionParity::Ptr
-FermionParity::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+FermionParity::from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath)
 {
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
-    bool trivial_shift = trivial_shift_from_hdf5(hdf5_loader, subpath);
+    bool trivial_shift = trivial_shift_from_hdf5(loader, subpath);
     auto obj = std::make_shared<FermionParity>(name, trivial_shift);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

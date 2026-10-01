@@ -2,13 +2,17 @@
 
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
 namespace cyten {
+
+class Mask;
 
 /// Special case of a `SymmetricTensor` that is diagonal in the computational basis.
 ///
@@ -235,12 +239,14 @@ class DiagonalTensor : public SymmetricTensor
                                        std::optional<std::string> device = std::nullopt);
 
     /// Import DiagonalTensor from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     // --- Tensor / SymmetricTensor overrides ---
 
@@ -373,11 +379,31 @@ class DiagonalTensor : public SymmetricTensor
 
     [[nodiscard]] virtual BlockBackend::Scalar max() const;
     [[nodiscard]] virtual BlockBackend::Scalar min() const;
+    /// Identify a single sector that attains the minimum value.
+    ///
+    /// Unlike `argmin`, this works even if the symmetry cannot be dropped. The mask's small leg
+    /// has total multiplicity one. On ties between sectors, the first sector in decomposition
+    /// order is selected; within that sector, the first minimum in its block is selected.
+    ///
+    /// @param s If given, only the diagonal block of this charge sector is considered.
+    /// @returns A mask projecting onto that single sector and the minimal value.
+    ///
+    /// argmin
+    ///     Returns the index in the public computational basis instead, and requires that the
+    ///     symmetry can be dropped.
+    [[nodiscard]] virtual std::pair<std::shared_ptr<Mask>, BlockBackend::Scalar> sector_argmin(
+      std::optional<Sector> s = std::nullopt) const;
+
     /// Index ``i0`` in the public computational basis of the minimum diagonal entry.
     ///
     /// Defined for real dtypes only. On ties, the first occurrence (in public basis
-    /// order) is returned. Satisfies ``self[i0, i0] == self.min()`` when ``s`` is
-    /// omitted and the symmetry can be dropped.
+    /// order) is returned. If the minimum occurs within a sector of dimension greater than one,
+    /// the first basis state within that multiplet is selected arbitrarily. Satisfies
+    /// ``self[i0, i0] == self.min()`` when ``s`` is omitted and the symmetry can be dropped.
+    ///
+    /// sector_argmin
+    ///     Also works when the symmetry cannot be dropped, and returns a projection Mask onto one
+    ///     minimizing basis state together with the minimum value.
     ///
     /// @param s If given, only the diagonal block of this charge sector is considered. The
     /// returned index is still in the public basis of the full leg.
@@ -422,8 +448,8 @@ class Identity : public DiagonalTensor
                                       std::optional<std::string> device = std::nullopt);
 
     /// Import Identity from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Convert to a tensor of the given dtype on the same device.

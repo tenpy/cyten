@@ -18,6 +18,8 @@
 
 #include <cassert>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <functional>
 #include <numeric>
@@ -49,33 +51,16 @@ numpy()
     return py::module_::import("numpy");
 }
 
-py::module_
-tensors_mod()
-{
-    return py::module_::import("cyten.tensors");
-}
-
-bool
-is_python_tensor(py::object const& obj, char const* class_name)
-{
-    try {
-        return py::isinstance(obj, tensors_mod().attr(class_name));
-    } catch (py::error_already_set&) {
-        return false;
-    }
-}
-
 bool
 is_symmetric_tensor(py::object const& op)
 {
-    return py::isinstance<SymmetricTensor>(op) || is_python_tensor(op, "SymmetricTensor");
+    return py::isinstance<SymmetricTensor>(op);
 }
 
 bool
 is_diagonal_tensor(py::object const& op)
 {
-    return py::isinstance<DiagonalTensor>(op) || py::isinstance<Identity>(op) ||
-           is_python_tensor(op, "DiagonalTensor") || is_python_tensor(op, "Identity");
+    return py::isinstance<DiagonalTensor>(op) || py::isinstance<Identity>(op);
 }
 
 SymmetricTensorPtr
@@ -211,8 +196,8 @@ infer_clock_q(py::array const& X, py::array const& Z)
     for (int64 q = 2; q <= dim; ++q) {
         auto Xq = np.attr("linalg").attr("matrix_power")(X, q);
         auto Zq = np.attr("linalg").attr("matrix_power")(Z, q);
-        auto phase = np.attr("exp")(
-          py::cast(std::complex<double>{ 0., 2. * std::numbers::pi / static_cast<double>(q) }));
+        auto phase =
+          np.attr("exp")(py::cast(std::complex<double>{ 0., 2. * M_PI / static_cast<double>(q) }));
         auto XZ = np.attr("matmul")(X, Z);
         auto ZX = np.attr("matmul")(Z, X);
         if (np_allclose(Xq, I) && np_allclose(Zq, I) &&
@@ -570,20 +555,22 @@ Site::hdf5_init_kwargs() const
 }
 
 void
-Site::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string const& subpath) const
+Site::save_hdf5(cyten::hdf5::Saver& saver,
+                HighFive::Group& /*h5gr*/,
+                std::string const& subpath) const
 {
-    hdf5_saver.attr("save")(hdf5_init_kwargs(), subpath + "init_kwargs");
+    cyten::hdf5::py_save(subpath + "init_kwargs", hdf5_init_kwargs());
 }
 
 py::object
 Site::from_hdf5(py::object cls,
-                py::object hdf5_loader,
-                py::object h5gr,
+                cyten::hdf5::Loader& loader,
+                HighFive::Group& h5gr,
                 std::string const& subpath)
 {
-    py::dict kwargs = hdf5_loader.attr("load")(subpath + "init_kwargs").cast<py::dict>();
+    py::dict kwargs = cyten::hdf5::py_load(subpath + "init_kwargs").cast<py::dict>();
     py::object obj = cls(**kwargs);
-    hdf5_loader.attr("memorize_load")(h5gr, obj);
+    cyten::hdf5::py_memorize_load(h5gr, obj);
     return obj;
 }
 
@@ -686,8 +673,8 @@ ClockDOF::test_sanity()
     int64 q = infer_clock_q(X, Z);
     py::array Xhc = np.attr("conj")(X.attr("T"));
     py::array Zhc = np.attr("conj")(Z.attr("T"));
-    auto phase = np.attr("exp")(
-      py::cast(std::complex<double>{ 0., 2. * std::numbers::pi / static_cast<double>(q) }));
+    auto phase =
+      np.attr("exp")(py::cast(std::complex<double>{ 0., 2. * M_PI / static_cast<double>(q) }));
     assert(np_allclose(np.attr("matmul")(X, Z), py::object(phase) * np.attr("matmul")(Z, X)));
     auto identity = np.attr("eye")(X.attr("shape").attr("__getitem__")(0));
     assert(np_allclose(np.attr("linalg").attr("matrix_power")(X, q), identity));

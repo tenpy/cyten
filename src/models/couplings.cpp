@@ -72,19 +72,6 @@ legs_equal(Leg::Ptr const& a, Leg::Ptr const& b)
     return a && b && a->operator==(*b);
 }
 
-bool
-is_permutation(std::vector<int64> const& permutation)
-{
-    std::vector<int64> sorted = permutation;
-    std::sort(sorted.begin(), sorted.end());
-    for (std::size_t i = 0; i < sorted.size(); ++i) {
-        if (sorted[i] != static_cast<int64>(i)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 Leg::Ptr
 as_leg(ElementarySpace::Ptr space)
 {
@@ -223,7 +210,7 @@ fibonacci_symmetry()
 {
     static Symmetry::Ptr sym = [] {
         auto cat = std::make_shared<FibonacciAnyonCategory>();
-        return py::cast<Symmetry::Ptr>(cat->as_Symmetry());
+        return cat->as_Symmetry();
     }();
     return sym;
 }
@@ -673,6 +660,17 @@ Coupling::stretch_with_identities(std::vector<Site::Ptr> const& all_sites,
             throw std::invalid_argument("`coupling_positions` must be strictly ascending");
         }
     }
+    int64 const num_all_sites = static_cast<int64>(all_sites.size());
+    for (std::size_t i = 0; i < coupling_positions.size(); ++i) {
+        if (coupling_positions[i] < 0 || coupling_positions[i] >= num_all_sites) {
+            throw std::invalid_argument(
+              std::format("`coupling_positions[{}]` = {} is out of range for `all_sites` of "
+                          "length {}",
+                          i,
+                          coupling_positions[i],
+                          num_all_sites));
+        }
+    }
     for (std::size_t i = 0; i < sites.size(); ++i) {
         if (!legs_equal(as_leg(sites[i]->leg),
                         as_leg(all_sites[static_cast<std::size_t>(coupling_positions[i])]->leg))) {
@@ -681,6 +679,11 @@ Coupling::stretch_with_identities(std::vector<Site::Ptr> const& all_sites,
         }
     }
 
+    if (coupling_positions.empty()) {
+        throw std::invalid_argument(
+          "`coupling_positions` is empty; a `Coupling` with no factorization tensors cannot be "
+          "stretched");
+    }
     int64 const start = coupling_positions.front();
     int64 const stop = coupling_positions.back() + 1;
     std::map<int64, SymmetricTensorPtr> by_position;

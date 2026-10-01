@@ -45,6 +45,42 @@ from .sector_utils import (  # noqa: F401
     iter_common_sorted_sector_arrays,
 )
 
+# auto-maintained by scripts/generate_reexport_all.py; do not edit by hand
+__all__ = [
+    'AbelianGroup',
+    'BaseSymmetry',
+    'BraidChiralityUnspecifiedError',
+    'BraidingStyle',
+    'FermionNumber',
+    'FermionParity',
+    'FibonacciAnyonCategory',
+    'FusionStyle',
+    'Group',
+    'IsingAnyonCategory',
+    'NoSymmetry',
+    'QuantumDoubleZNAnyonCategory',
+    'SU2',
+    'SU2_kAnyonCategory',
+    'SU3_3AnyonCategory',
+    'SUN',
+    'Sector',
+    'SectorArray',
+    'Symmetry',
+    'SymmetryError',
+    'SymmetryFactor',
+    'ToricCodeCategory',
+    'U1',
+    'ZN',
+    'ZNAnyonCategory',
+    'ZNAnyonCategory2',
+    'as_sector',
+    'as_sector_array',
+    'assert_sectors_equal',
+    'double_semion_category',
+    'iter_common_sorted_sector_arrays',
+    'semion_category',
+]
+
 try:
     import h5py
 

@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/fermion_parity.h>
 
+#include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
@@ -21,7 +22,7 @@ bind_fermion_parity(py::module_& m)
            py::arg("descriptive_name") = py::none(),
            py::arg("trivial_shift") = true)
       .def_static("from_hdf5",
-                  &FermionParity::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<FermionParity>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include <cyten/cyten.h>
+#include <cyten/tools/hdf5.h>
 
 namespace cyten {
 
@@ -31,6 +32,11 @@ class CytenConfig
     int64 maxlines_tensors = 30;
     /// If the symmetry methods should check their inputs are valid
     bool check_fusion = true;
+    /// If Python may implicitly convert a `BlockBackend::Scalar` to float / complex / numpy.
+    /// Default True for interactive use; tests force this False. Explicit accessors (`as_float64`,
+    /// `to_numpy`, …) are never gated. Later this can track autograd (off when conversion would
+    /// drop the graph).
+    bool implicit_scalar_conversion = true;
     std::string default_tensor_backend = "abelian";
     std::string default_block_backend = "numpy";
     /// Threshold for discarding near-zero fusion-tree blocks after topological moves.
@@ -70,10 +76,12 @@ class CytenConfig
 
     std::string str() const;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath) const;
-    static CytenConfig from_hdf5(py::object hdf5_loader,
-                                 py::object h5gr,
-                                 const std::string& subpath);
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
+    static CytenConfig from_hdf5(cyten::hdf5::Loader& loader,
+                                 HighFive::Group& h5gr,
+                                 std::string const& subpath);
 };
 
 // NOLINTEND(readability-magic-numbers)

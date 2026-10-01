@@ -12,6 +12,8 @@
 #include <cmath>
 #include <filesystem>
 #include <format>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <limits>
 #include <optional>
 #include <span>
@@ -787,10 +789,10 @@ SUN::sanity_check_hdf5(py::object file) const
 }
 
 void
-SUN::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+SUN::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
 {
-    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
-    hdf5_saver.attr("save")(N, subpath + "N");
+    SymmetryFactor::save_hdf5(saver, h5gr, subpath);
+    cyten::hdf5::py_save(subpath + "N", N);
     // Persist paths so from_hdf5 can reopen (h5py.File is not Hdf5Exportable).
     // TODO(su_n_paths): this makes saved tensors non-portable across machines that don't share
     // the exact same absolute path. Now that SU(N) data has a standard, config-resolvable
@@ -798,22 +800,22 @@ SUN::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpat
     // hweight_from_{CG,F,R}_hdf5()) and having from_hdf5 fall back to su_n_data_file_path(N, kind,
     // hweight) when the stored absolute path no longer exists -- guarded so files saved before
     // this TODO (without the hweight keys) still load.
-    hdf5_saver.attr("save")(py::str(CGfile.attr("filename")), subpath + "CGfile");
-    hdf5_saver.attr("save")(py::str(Ffile.attr("filename")), subpath + "Ffile");
-    hdf5_saver.attr("save")(py::str(Rfile.attr("filename")), subpath + "Rfile");
+    cyten::hdf5::py_save(subpath + "CGfile", py::str(CGfile.attr("filename")));
+    cyten::hdf5::py_save(subpath + "Ffile", py::str(Ffile.attr("filename")));
+    cyten::hdf5::py_save(subpath + "Rfile", py::str(Rfile.attr("filename")));
 }
 
 SUN::Ptr
-SUN::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+SUN::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
-    int N = hdf5_loader.attr("load")(subpath + "N").cast<int>();
+    int N = cyten::hdf5::py_load(subpath + "N").cast<int>();
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
     auto h5py = py::module_::import("h5py");
-    py::object CGfile = h5py.attr("File")(hdf5_loader.attr("load")(subpath + "CGfile"), "r");
-    py::object Ffile = h5py.attr("File")(hdf5_loader.attr("load")(subpath + "Ffile"), "r");
-    py::object Rfile = h5py.attr("File")(hdf5_loader.attr("load")(subpath + "Rfile"), "r");
+    py::object CGfile = h5py.attr("File")(cyten::hdf5::py_load(subpath + "CGfile"), "r");
+    py::object Ffile = h5py.attr("File")(cyten::hdf5::py_load(subpath + "Ffile"), "r");
+    py::object Rfile = h5py.attr("File")(cyten::hdf5::py_load(subpath + "Rfile"), "r");
     auto obj = std::make_shared<SUN>(N, CGfile, Ffile, Rfile, name);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

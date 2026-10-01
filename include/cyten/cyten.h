@@ -1,10 +1,10 @@
 #pragma once
+#define _USE_MATH_DEFINES
 
 // global definitions and includes for cyten
 
 #include <cassert>
 #include <cstdint>
-#include <stdfloat>
 #include <utility>
 
 #include <cyten/check.h>

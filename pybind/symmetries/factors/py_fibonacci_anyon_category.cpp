@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/fibonacci_anyon_category.h>
 
+#include "tools/hdf5_bind.h"
 #include <string>
 
 namespace cyten {
@@ -17,7 +18,7 @@ bind_fibonacci_anyon_category(py::module_& m)
       m, "FibonacciAnyonCategory", DOC(cyten, FibonacciAnyonCategory));
     cls.def(py::init<std::string>(), py::arg("handedness") = "left")
       .def_static("from_hdf5",
-                  &FibonacciAnyonCategory::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<FibonacciAnyonCategory>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

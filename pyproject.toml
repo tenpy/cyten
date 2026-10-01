@@ -41,7 +41,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # users:
-io = ["h5py"]
+io = ["h5py", "hdf5_io"]
 # gpu was previously ["torch"]; torch is now a hard dependency (see above)
 # dev:
 test = ["pytest>=6.0", "sympy", "cyten[io]"]
@@ -54,9 +54,11 @@ docbuild = [
     "clang",
     "pybind11-mkdoc",
 ]
+# generates cyten/_core.pyi at build time for IDE type hints (optional; build warns if missing)
+stubs = ["pybind11-stubgen"]
 # bundles
-dev = ["cyten[io, test, lint, docbuild]"]
-all = ["cyten[io, test, lint, docbuild]"]
+dev = ["cyten[io, test, lint, docbuild, stubs]"]
+all = ["cyten[io, test, lint, docbuild, stubs]"]
 
 
 [project.urls]

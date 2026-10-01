@@ -54,6 +54,7 @@ endif()
 option(BUILD_DOC "Build API documentation" OFF)
 option(LINTING "Use clang-tidy for linting" OFF)
 option(BUILD_TESTING "Build ctest tests" ON)
+option(CYTEN_WITH_HDF5 "Link hdf5_io_core for native HDF5 I/O" ON)
 
 
 # #####################################################################
@@ -213,6 +214,28 @@ target_compile_options(cyten PUBLIC -fPIC)
 target_link_libraries(cyten PUBLIC pybind11::pybind11 "${TORCH_LIBRARIES}")
 
 # #####################################################################
+# ## hdf5_io_core (optional native HDF5)
+# #####################################################################
+if(CYTEN_WITH_HDF5)
+  set(_cyten_hdf5_io_default "${CMAKE_CURRENT_SOURCE_DIR}/external/hdf5_io")
+  # Prefer a sibling checkout that already has the Python-free core (Phase B).
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../tenpy_other/hdf5_io/include/hdf5_io/core_io.h")
+    set(_cyten_hdf5_io_default "${CMAKE_CURRENT_SOURCE_DIR}/../tenpy_other/hdf5_io")
+  elseif(NOT EXISTS "${_cyten_hdf5_io_default}/include/hdf5_io/core_io.h")
+    message(FATAL_ERROR
+      "CYTEN_WITH_HDF5=ON but hdf5_io core not found. "
+      "Init submodule external/hdf5_io or set CYTEN_HDF5_IO_DIR to a Phase-B hdf5_io tree.")
+  endif()
+  set(CYTEN_HDF5_IO_DIR "${_cyten_hdf5_io_default}" CACHE PATH
+    "Source tree of hdf5_io (must provide hdf5_io_core)")
+  set(HDF5_IO_BUILD_PYTHON OFF CACHE BOOL "Build hdf5_io Python module when embedded" FORCE)
+  add_subdirectory("${CYTEN_HDF5_IO_DIR}" "${CMAKE_BINARY_DIR}/_deps/hdf5_io")
+  target_link_libraries(cyten PUBLIC hdf5_io_core)
+  target_compile_definitions(cyten PUBLIC CYTEN_WITH_HDF5=1)
+  message(STATUS "CYTEN_WITH_HDF5: using ${CYTEN_HDF5_IO_DIR}")
+endif()
+
+# #####################################################################
 # ## PYTHON BINDINGS
 # #####################################################################
 
@@ -358,6 +381,33 @@ message(STATUS
   "(doxygen=${CYTEN_DOXYGEN_EXECUTABLE})")
 
 
+# #####################################################################
+# ## .pyi stub (pybind11-stubgen → cyten/_core.pyi, for IDE type hints)
+# #####################################################################
+# Written into the source tree next to _core.so (gitignored; always regenerated)
+# so IDEs/LSPs get parameter hints for the compiled extension. Optional: if
+# pybind11-stubgen is unavailable or fails, warn and skip rather than fail the build.
+find_program(CYTEN_PYBIND11_STUBGEN_EXECUTABLE NAMES pybind11-stubgen)
+set(CYTEN_CORE_PYI "${CMAKE_CURRENT_SOURCE_DIR}/cyten/_core.pyi")
+
+if(CYTEN_PYBIND11_STUBGEN_EXECUTABLE)
+  add_custom_command(
+    OUTPUT ${CYTEN_CORE_PYI}
+    COMMAND sh -c "PYTHONPATH=$<TARGET_FILE_DIR:_core> ${CYTEN_PYBIND11_STUBGEN_EXECUTABLE} _core -o ${CMAKE_CURRENT_SOURCE_DIR}/cyten \
+        || echo 'WARNING: pybind11-stubgen failed; cyten/_core.pyi not (re)generated'"
+    DEPENDS _core
+    COMMENT "Generating cyten/_core.pyi via pybind11-stubgen"
+    VERBATIM
+  )
+  add_custom_target(cyten_generate_pyi_stub ALL DEPENDS ${CYTEN_CORE_PYI})
+  add_dependencies(cyten_generate_pyi_stub _core)
+else()
+  message(WARNING
+    "pybind11-stubgen not found; skipping cyten/_core.pyi generation. "
+    "Install it (pip install pybind11-stubgen, or the 'cyten[stubs]' extra) for IDE type hints.")
+endif()
+
+
 # Resolve libtorch/c10 from the same place as Python torch._C.
 # Installed layout: site-packages/cyten/_core*.so
 #   $ORIGIN/../../..  -> env/lib (conda/micromamba shared torch libs)
@@ -380,6 +430,8 @@ set_target_properties(_core PROPERTIES
 
 # The install directory is the output (wheel) directory
 install(TARGETS _core LIBRARY DESTINATION cyten)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cyten/py.typed" DESTINATION cyten)
+install(FILES ${CYTEN_CORE_PYI} DESTINATION cyten OPTIONAL)
 
 
 # #####################################################################

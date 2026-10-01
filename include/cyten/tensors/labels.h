@@ -106,7 +106,9 @@ class LabelledLegs
     [[nodiscard]] bool has_label(std::vector<std::string> const& labels) const;
 
     /// If the given labels and `labels()` are the same, up to permutation.
-    [[nodiscard]] bool labels_are(std::vector<std::string> const& labels) const;
+    /// If `planar` is true, only cyclic permutations are accepted.
+    [[nodiscard]] bool labels_are(std::vector<std::string> const& labels,
+                                  bool planar = false) const;
 
     /// Apply mapping to labels. In-place. Returns `*this`.
     LabelledLegs& relabel(std::map<std::string, std::string> const& mapping);

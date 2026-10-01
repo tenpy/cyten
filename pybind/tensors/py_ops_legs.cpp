@@ -317,6 +317,44 @@ In Python, ``which_leg`` is ``int | str``; optional args use ``None``; ``levels`
 )pydoc"));
 
     m.def(
+      "move_hidden_leg",
+      [](HiddenLegTensorCPtr A,
+         TensorCPtr B,
+         py::object axis_A,
+         py::object axis_B,
+         std::string hidden_leg_label,
+         py::object target_codomain_pos,
+         py::object target_domain_pos) {
+          std::optional<int64> cpos;
+          std::optional<int64> dpos;
+          if (!target_codomain_pos.is_none()) {
+              cpos = target_codomain_pos.cast<int64>();
+          }
+          if (!target_domain_pos.is_none()) {
+              dpos = target_domain_pos.cast<int64>();
+          }
+          return move_hidden_leg(std::move(A),
+                                 std::move(B),
+                                 py_as_leg_ref(axis_A),
+                                 py_as_leg_ref(axis_B),
+                                 std::move(hidden_leg_label),
+                                 cpos,
+                                 dpos);
+      },
+      py::arg("A"),
+      py::arg("B"),
+      py::arg("axis_A"),
+      py::arg("axis_B"),
+      py::arg("hidden_leg_label"),
+      py::arg("target_codomain_pos") = py::none(),
+      py::kw_only(),
+      py::arg("target_domain_pos") = py::none(),
+      doc_plus(DOC(cyten, move_hidden_leg),
+               R"pydoc(
+In Python, ``axis_A`` / ``axis_B`` are ``int | str``; optional position args use ``None``.
+)pydoc"));
+
+    m.def(
       "permute_legs",
       [](TensorCPtr tensor,
          py::object codomain,

@@ -12,7 +12,7 @@
 
 namespace cyten {
 
-// class Symmetry; // product symmetry; defined later — as_Symmetry returns py::object for now
+class Symmetry; // product symmetry; defined in symmetry.h
 
 /// Common method implementations for both `SymmetryFactor` and `Symmetry`.
 ///
@@ -22,6 +22,7 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
   public:
     using Ptr = std::shared_ptr<BaseSymmetry>;
     using CPtr = std::shared_ptr<const BaseSymmetry>;
+    using SymmetryPtr = std::shared_ptr<Symmetry>;
 
     FusionStyle fusion_style;
     BraidingStyle braiding_style;
@@ -74,8 +75,7 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     /// Internal implementation of `r_symbol`. Can assume that inputs are valid.
     virtual FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const = 0;
     /// Wrap as a product `Symmetry` (identity if already a product).
-    /// Returns a Python object until `Symmetry` is converted to C++.
-    virtual py::object as_Symmetry() = 0;
+    virtual SymmetryPtr as_Symmetry() = 0;
     /// Whether `a` is a valid sector of this symmetry
     virtual bool is_valid_sector(Sector a) const = 0;
     /// Returns all outcomes for the fusion of sectors

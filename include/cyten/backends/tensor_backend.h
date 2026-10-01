@@ -8,6 +8,7 @@
 #include <cyten/symmetries/trees.h>
 #include <cyten/tensors/forward_declare.h>
 
+#include <cyten/tools/hdf5.h>
 #include <functional>
 #include <map>
 #include <memory>
@@ -837,12 +838,12 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     /// Complex numbers with small or zero imaginary part still cause a `False` return.
     virtual bool is_real(TensorCPtr a);
 
-    virtual void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string subpath);
+    virtual void save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string subpath);
 
     /// Reconstruct a concrete backend. Bound as a Python classmethod so `cls` is the saved type.
     static Ptr from_hdf5(py::object cls,
-                         py::object hdf5_loader,
-                         py::object h5gr,
+                         cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
                          std::string subpath);
 };
 

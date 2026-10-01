@@ -4,6 +4,7 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/symmetric_tensor.h>
@@ -495,12 +496,13 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
     if (!labels.has_value()) {
         labs = Tensor::_init_parse_labels(std::nullopt, codomain, domain);
     }
-    return std::make_shared<SymmetricTensor>(std::move(data),
-                                             std::move(codomain),
-                                             std::move(domain),
-                                             backend,
-                                             ref->symmetry,
-                                             std::move(labs));
+    auto result = std::make_shared<SymmetricTensor>(std::move(data),
+                                                    std::move(codomain),
+                                                    std::move(domain),
+                                                    backend,
+                                                    ref->symmetry,
+                                                    std::move(labs));
+    return HiddenLegTensor::maybe_wrap(std::move(result));
 }
 
 namespace {

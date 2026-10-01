@@ -3,6 +3,7 @@
 // NOTE: this file is #included from py_block_backend.cpp
 
 #include "py_trampolines.hpp"
+#include "tools/hdf5_bind.h"
 #include <cyten/block_backend/numpy.h>
 
 namespace cyten {
@@ -21,7 +22,7 @@ bind_block_backend_numpy(py::module_& m)
       py::return_value_policy::reference,
       "Get the backend instance for the given device (nearly-singleton per device).");
     numpy_block_backend.def_static("from_hdf5",
-                                   &NumpyBlockBackend::from_hdf5,
+                                   cyten::hdf5::wrap_from_hdf5<NumpyBlockBackend>(),
                                    py::arg("hdf5_loader"),
                                    py::arg("h5gr"),
                                    py::arg("subpath"),
@@ -38,13 +39,13 @@ bind_block_backend_numpy(py::module_& m)
            py::arg("dtype"),
            py::return_value_policy::reference_internal)
       .def("save_hdf5",
-           &NumpyBlockBackend::Block::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5<NumpyBlockBackend::Block>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Save block (numpy array) to HDF5.")
       .def_static("from_hdf5",
-                  &NumpyBlockBackend::Block::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<NumpyBlockBackend::Block>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),

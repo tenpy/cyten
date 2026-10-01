@@ -3,6 +3,8 @@
 #include <cyten/symmetries/topo_ones.h>
 
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <numbers>
 #include <stdexcept>
 #include <string>
@@ -16,8 +18,7 @@ namespace {
 complex128
 make_unit_phase(int N)
 {
-    return std::exp(
-      complex128{ 0.0, 2.0 * std::numbers::pi_v<float64> / static_cast<float64>(N) });
+    return std::exp(complex128{ 0.0, 2.0 * M_PI / static_cast<float64>(N) });
 }
 
 complex128
@@ -244,23 +245,23 @@ QuantumDoubleZNAnyonCategory::all_sectors() const
 }
 
 void
-QuantumDoubleZNAnyonCategory::save_hdf5(py::object hdf5_saver,
-                                        py::object h5gr,
+QuantumDoubleZNAnyonCategory::save_hdf5(cyten::hdf5::Saver& saver,
+                                        HighFive::Group& h5gr,
                                         std::string const& subpath) const
 {
-    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
-    hdf5_saver.attr("save")(N, subpath + "N");
+    SymmetryFactor::save_hdf5(saver, h5gr, subpath);
+    cyten::hdf5::py_save(subpath + "N", N);
 }
 
 QuantumDoubleZNAnyonCategory::Ptr
-QuantumDoubleZNAnyonCategory::from_hdf5(py::object hdf5_loader,
-                                        py::object h5gr,
+QuantumDoubleZNAnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
+                                        HighFive::Group& h5gr,
                                         std::string const& subpath)
 {
-    int N = hdf5_loader.attr("load")(subpath + "N").cast<int>();
+    int N = cyten::hdf5::py_load(subpath + "N").cast<int>();
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
     auto obj = std::make_shared<QuantumDoubleZNAnyonCategory>(N, name);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

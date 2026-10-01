@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cyten/block_backend/block_backend.h>
+#include <cyten/tools/hdf5.h>
 #include <map>
 #include <memory>
 #include <optional>
@@ -61,12 +62,12 @@ class ArrayApiBlockBackend : public BlockBackend
         BlockPtr pow(const BlockBackend::Scalar& exponent) const override;
         BlockPtr pow(const BlockBackend::Block& exponent) const override;
 
-        void save_hdf5(py::object hdf5_saver,
-                       py::object h5gr,
-                       const std::string& subpath) override;
-        static std::shared_ptr<Block> from_hdf5(py::object hdf5_loader,
-                                                py::object h5gr,
-                                                const std::string& subpath);
+        void save_hdf5(cyten::hdf5::Saver& saver,
+                       HighFive::Group& h5gr,
+                       std::string const& subpath) override;
+        static std::shared_ptr<Block> from_hdf5(cyten::hdf5::Loader& loader,
+                                                HighFive::Group& h5gr,
+                                                std::string const& subpath);
 
       protected:
         py::object arr_;
@@ -94,9 +95,9 @@ class ArrayApiBlockBackend : public BlockBackend
     explicit ArrayApiBlockBackend(py::object api_namespace,
                                   const std::string& default_device = "cpu");
 
-    static std::shared_ptr<ArrayApiBlockBackend> from_hdf5(py::object hdf5_loader,
-                                                           py::object h5gr,
-                                                           const std::string& subpath);
+    static std::shared_ptr<ArrayApiBlockBackend> from_hdf5(cyten::hdf5::Loader& loader,
+                                                           HighFive::Group& h5gr,
+                                                           std::string const& subpath);
 
     /// The Array API namespace this backend dispatches to.
     py::object api() const { return api_; }

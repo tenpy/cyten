@@ -1,4 +1,5 @@
 #include <cyten/tensors/constructors.h>
+#include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/tensor.h>
 
 #include "../doc_plus.h"
@@ -172,7 +173,7 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
           if (!labels.is_none()) {
               res->set_labels(parse_tensor_init_labels(labels, res->codomain, res->domain));
           }
-          return res;
+          return HiddenLegTensor::maybe_wrap(std::dynamic_pointer_cast<SymmetricTensor>(res));
       },
       py::arg("grid"),
       py::arg("labels") = py::none(),

@@ -18,14 +18,15 @@ Building from source
 ++++++++++++++++++++
 
 To build cyten locally on your machine, install the following requirements
-(currently only tested on standard linux distros like ubuntu - no Windows support yet, use WSL):
+(currently only tested on standard linux distros like ubuntu, MacOS specific notes see below,
+no Windows support yet, use WSL):
 
 - C++ compiler with at least C++17 standard. In a conda env this **must** be
   conda-forge ``cxx-compiler`` (included in ``environment.yml``), not a newer
   system ``g++``. Python already loads conda's ``libstdc++``; objects compiled
   with a newer GCC fail at ``import cyten`` with missing ``GLIBCXX_*`` symbols.
 - CMake, make
-- Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed in `environment.yml`
+- Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed in ``environment.yml``
 - **PyTorch** (``torch`` / conda-forge ``pytorch``): required at build and runtime.
   CMake finds libtorch via ``torch.utils.cmake_prefix_path`` and links ``cyten._core`` against
   the same shared libraries as ``import torch``, so PyTorch must be installed in the build
@@ -37,22 +38,37 @@ To build cyten locally on your machine, install the following requirements
   ``pip install torch --index-url https://download.pytorch.org/whl/cpu``.
 - scikit-build
 
-The easiest way to install all of those is to create a conda environment from the `environment.yml`
+The easiest way to install all of those is to create a conda environment from the ``environment.yml``
 (which includes PyTorch) and then pip-install the package
-(use `docs/environment.yml` if you plan to build the documentation as well)::
+(use ``docs/environment.yml`` if you plan to build the documentation as well)::
 
     conda env create -f environment.yml -n cyten
     conda activate cyten
     conda install -c conda-forge _openmp_mutex=*=*_llvm # on Linux/WSL only
-    conda install -c conda-forge llvm-openmp # on MacOS only
     pip install -v --no-build-isolation .
 
 Use ``--no-build-isolation`` so the build sees the conda-installed PyTorch (and other build
 deps) instead of resolving them in an isolated pip environment.
 
-If needed, you can add defines for the CMake build as options to pip, e.g. `pip install -v -C cmake.define.=ON .`.
+If needed, you can add defines for the CMake build as options to pip, e.g. ``pip install -v -C cmake.define.=ON .``.
 
 
 For a debug build, you can even enable automatic rebuild upon python import::
 
     pip install -v --no-build-isolation -C editable.rebuild=true -e .
+
+Building from source on MacOS
++++++++++++++++++++++++++++++
+Building on MacOS is not carefully tested yet, but Jakob got it running on an M2 MacBook running
+Sequoia Version 15.7.7.
+
+In addition to the above instructions, do the following:
+
+- Make sure you have an installation of ninja, e.g. via ``brew install ninja``.
+- After creating the conda env, also install ``conda install -c conda-forge gxx gcc llvm-openmp`` before building
+- The compile only went through with Clang, e.g. when the log shows
+  ``The CXX compiler identification is Clang 21.1.8``.
+  On Ubuntu, this would show GNU. For me, this did not need any extra steps.
+- This working setup using Clang did not support all features that the GNU/Ubuntu setup did,
+  e.g. ``std::numbers`` was not available. In this particular case, we could simply get rid of that
+  dependency, but future updates may again introduce features that are not supported by the Clang/MacOS toolchain.

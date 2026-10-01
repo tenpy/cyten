@@ -506,8 +506,13 @@ do not return a Python ``float`` / ``complex``. They return a
 :class:`~cyten.block_backends.BlockBackend.Scalar`, which can keep the value
 on the same device as the tensors (e.g. a GPU). That design will also be
 needed for automatic differentiation in a future version.
-Convert to a host number with ``.to_numpy()`` when you need a plain Python or
-numpy scalar.
+
+By default, a ``Scalar`` can be converted implicitly in Python (``float(s)``,
+``complex(s)``, ``np.asarray(s)``, ``np.array([s1, s2])``). This is controlled
+by the config option ``implicit_scalar_conversion`` (see :mod:`cyten.config`).
+Tests disable it so conversions stay explicit. Once autograd exists, the same
+flag can be turned off whenever a conversion would drop the graph.
+Explicit conversion with ``.to_numpy()`` / ``.as_float64()`` always works.
 
 TeNPy's ``npc.norm(A)`` maps to :func:`~cyten.tensors.norm`.
 

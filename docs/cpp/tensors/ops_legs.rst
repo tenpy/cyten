@@ -19,7 +19,10 @@ Free functions
    :project: cyten
 
 .. doxygenfunction:: cyten::move_leg
-   :project: cyten
+    :project: cyten
+
+.. doxygenfunction:: cyten::move_hidden_leg
+    :project: cyten
 
 .. doxygenfunction:: cyten::permute_legs
    :project: cyten

@@ -12,6 +12,7 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -381,12 +382,12 @@ bind_block_inds(py::module_& m)
                return py::cast(self.take(idx));
            })
       .def("save_hdf5",
-           &BlockInds::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<BlockInds>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &BlockInds::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<BlockInds>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

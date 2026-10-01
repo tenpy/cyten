@@ -727,7 +727,7 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
 
     assert isinstance(S, ct.DiagonalTensor)
     assert (S >= 0).all()
-    npt.assert_almost_equal(ct.norm(S), ct.norm(T))
+    npt.assert_almost_equal(ct.norm(S).to_numpy(), ct.norm(T).to_numpy())
 
     assert ct.planar.planar_almost_equal(ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd'), T)
     eye = ct.SymmetricTensor.from_eye(S.domain, backend=T.backend, labels=['a*', 'a'])
@@ -754,7 +754,15 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
         pytest.xfail('_mask_contract does not support pipes yet')
 
     print('Truncated SVD')
-    for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
+    # chi_max=1 forces non-trivial truncation, which is needed to catch bugs in the
+    # reported `err` (e.g. confusing it with the squared error).
+    for svd_min, normalize_to, chi_max in [
+        (1e-14, None, None),
+        (1e-4, None, None),
+        (1e-4, 2.7, None),
+        (0.0, None, 1),
+        (0.0, 2.7, 1),
+    ]:
         U, S, Vh, err, renormalize = ct.planar.planar_truncated_svd(
             T,
             codomain_cut=cod_cut,
@@ -763,6 +771,7 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
             new_leg_dual=new_leg_dual,
             normalize_to=normalize_to,
             svd_min=svd_min,
+            chi_max=chi_max,
         )
         U.test_sanity()
         S.test_sanity()
@@ -775,15 +784,13 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
         assert Vh.num_domain_legs == dom - dom_cut
         assert Vh.labels == ['d', *T.labels[cod_cut : T.num_legs - dom_cut]]
 
-        # check that U @ S @ Vd recovers the original tensor up to the error incurred
-        T_approx = ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd') / renormalize
-        npt.assert_almost_equal(
-            err,
-            ct.norm(
-                T.as_SymmetricTensor()
-                - ct.planar_permute_legs(T_approx, codomain=T.codomain_labels, domain=T.domain_labels)
-            ),
-        )
+        norm_T = ct.norm(T).to_numpy()
+        lambda_kept = S / norm_T if normalize_to is None else (renormalize / norm_T) * S
+        npt.assert_almost_equal(err**2, 1 - ct.norm(lambda_kept).to_numpy() ** 2)
+        T_approx = renormalize * ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd')
+        T_approx = ct.planar_permute_legs(T_approx, codomain=T.codomain_labels, domain=T.domain_labels)
+        distance = ct.norm(T.as_SymmetricTensor() - T_approx).to_numpy()
+        npt.assert_almost_equal(err, distance / norm_T)
 
         # check isometric properties
         eye = ct.SymmetricTensor.from_eye(S.domain, backend=T.backend, labels=['a*', 'a'])
@@ -795,7 +802,12 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
 
         # compare to non-planar result
         U2, S2, Vh2, _, _ = ct.truncated_svd(
-            T2, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min
+            T2,
+            new_labels=['a', 'b', 'c', 'd'],
+            new_leg_dual=new_leg_dual,
+            normalize_to=normalize_to,
+            svd_min=svd_min,
+            chi_max=chi_max,
         )
         U2.test_sanity()
         S2.test_sanity()
@@ -1355,32 +1367,51 @@ def test_PlanarLinearOperator(symmetry, np_random):
     # ===========================================
     # create example tensors
     # ===========================================
-
+    # Fib FusionTree with several multi-sector legs makes to_tensor / matvec / planar
+    # rebuild each take ~3s under the default RNG seed. Single-sector legs stay cheap
+    # while still exercising non-abelian planar contractions.
+    max_mult = 1 if not symmetry.is_abelian else 2
+    max_blocks = 1 if not symmetry.is_abelian else 2
     theta = ct.testing.random_tensor(
-        symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
+        symmetry,
+        4,
+        labels=['vL', 'p0', 'p1', 'vR'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
     vL, p0, p1, vR = theta.legs
     Lp = ct.testing.random_tensor(
-        symmetry, [vL, None, vL.dual], labels=['vR*', 'wR', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
+        symmetry,
+        [vL, None, vL.dual],
+        labels=['vR*', 'wR', 'vR'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
     W0 = ct.testing.random_tensor(
         symmetry,
         [p0, None, p0.dual, Lp.get_leg('wR').dual],
         labels=['p', 'wR', 'p*', 'wL'],
-        max_multiplicity=3,
-        max_blocks=3,
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
         np_random=np_random,
     )
     W1 = ct.testing.random_tensor(
         symmetry,
         [p1, None, p1.dual, W0.get_leg('wR').dual],
         labels=['p', 'wR', 'p*', 'wL'],
-        max_multiplicity=3,
-        max_blocks=3,
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
         np_random=np_random,
     )
     Rp = ct.testing.random_tensor(
-        symmetry, [vR, vR.dual, W1.get_leg('wR').dual], labels=['vL*', 'vL', 'wL'], np_random=np_random
+        symmetry,
+        [vR, vR.dual, W1.get_leg('wR').dual],
+        labels=['vL*', 'vL', 'wL'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
 
     # ===========================================
@@ -1604,3 +1635,341 @@ def test_PlanarDiagram_charged_flag_and_planarity():
 
     removed = added.remove_tensor(name='B', extra_definition='A:b -> b', order='definition')
     assert set(removed.open_legs) == {'a', 'b'}
+
+
+_hidden_planar_diagram_cases = [
+    (no_symmetry, 'no_symmetry'),
+    (u1_symmetry, 'abelian'),
+    (u1_symmetry, 'fusion_tree'),
+    (fermion_parity, 'fusion_tree'),
+    (fibonacci_anyon_category, 'fusion_tree'),
+]
+
+
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+    ],
+)
+def test_PlanarDiagram_hidden_implicit_no_braid(symmetry, backend, np_random):
+    # Hidden legs live on a second plane and may pass public legs. Contracting two
+    # public legs with a hidden dual pair sitting between them is planar, even though
+    # the same contraction would braid if that hidden leg were public.
+    backend = ct.get_backend(backend, 'numpy')
+    diagram = ct.PlanarDiagram(
+        tensors='A[a, b, c], B[b, c]',
+        definition='A:b @ B:b, A:c @ B:c, A:a -> a',
+        dims=dict(chi=['a', 'b', 'c']),
+    )
+    A_sym = ct.testing.random_tensor(
+        symmetry,
+        4,
+        0,
+        labels=['a', 'b', 'h', 'c'],
+        backend=backend,
+        np_random=np_random,
+    )
+    B_sym = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A_sym.get_leg('b').dual, A_sym.get_leg('c').dual],
+        domain=[A_sym.get_leg('h')],
+        labels=[['b', 'c'], ['h*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    A = ct.HiddenLegTensor(A_sym, ['h'])
+    B = ct.HiddenLegTensor(B_sym, ['h*'])
+    assert A.labels == ['a', 'b', '!h', 'c']
+
+    res = diagram(A=A, B=B)
+    res.test_sanity()
+    assert isinstance(res, ct.SymmetricTensor)
+    assert set(res.labels) == {'a'}
+    expect = ct.tdot(A, B, ['b', 'c'], ['b', 'c'])
+    assert ct.planar.planar_almost_equal(res, expect)
+
+
+@pytest.mark.parametrize('symmetry, backend', _hidden_planar_diagram_cases)
+def test_PlanarDiagram_hidden_implicit_contiguous_extras(symmetry, backend, np_random):
+    # Two extra hidden legs form a contiguous arc on the hidden circle, so they
+    # can be contracted implicitly without braiding past unmatched hidden legs.
+    backend = ct.get_backend(backend, 'numpy')
+    diagram = ct.PlanarDiagram(
+        tensors='A[a, b], B[b, c]',
+        definition='A:b @ B:b, A:a -> a, B:c -> c',
+        dims=dict(chi=['a', 'b', 'c']),
+    )
+    A_sym = ct.testing.random_tensor(
+        symmetry,
+        4,
+        0,
+        labels=['a', 'h1', 'h2', 'b'],
+        backend=backend,
+        np_random=np_random,
+    )
+    B_sym = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A_sym.get_leg('b').dual, None],
+        domain=[A_sym.get_leg('h1'), A_sym.get_leg('h2')],
+        labels=[['b', 'c'], ['h1*', 'h2*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    A = ct.HiddenLegTensor(A_sym, ['h1', 'h2'])
+    B = ct.HiddenLegTensor(B_sym, ['h1*', 'h2*'])
+
+    res = diagram(A=A, B=B)
+    res.test_sanity()
+    assert isinstance(res, ct.SymmetricTensor)
+    assert set(res.labels) == {'a', 'c'}
+    try:
+        expect = ct.tdot(A, B, ['b'], ['b'])
+    except (ct.SymmetryError, ct.BraidChiralityUnspecifiedError):  # fmt: skip
+        # Fusion-tree tdot may refuse the implicit extra permute; the diagram path
+        # itself is still planar when extras form a contiguous hidden arc.
+        return
+    assert ct.planar.planar_almost_equal(res, expect)
+
+
+@pytest.mark.parametrize('symmetry, backend', _hidden_planar_diagram_cases)
+def test_PlanarDiagram_hidden_implicit_would_braid(symmetry, backend, np_random):
+    # Public diagram A[a,b] @ B[b,c] is planar. Implicit hidden contraction is not
+    # when extras are not a contiguous arc on the hidden circle, or when extra
+    # pairing is not the clockwise reverse of the other tensor's hidden order.
+    backend = ct.get_backend(backend, 'numpy')
+    diagram = ct.PlanarDiagram(
+        tensors='A[a, b], B[b, c]',
+        definition='A:b @ B:b, A:a -> a, B:c -> c',
+        dims=dict(chi=['a', 'b', 'c']),
+    )
+
+    A_gap = ct.testing.random_tensor(
+        symmetry,
+        6,
+        0,
+        labels=['a', 'h1', 'u1', 'h2', 'u2', 'b'],
+        backend=backend,
+        np_random=np_random,
+    )
+    B_gap = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A_gap.get_leg('b').dual, None],
+        domain=[A_gap.get_leg('h2'), A_gap.get_leg('h1')],
+        labels=[['b', 'c'], ['h2*', 'h1*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    A = ct.HiddenLegTensor(A_gap, ['h1', 'u1', 'h2', 'u2'])
+    B = ct.HiddenLegTensor(B_gap, ['h1*', 'h2*'])
+    with pytest.raises(ValueError, match='hidden legs would have to be braided'):
+        _ = diagram(A=A, B=B)
+
+    A_perm = ct.testing.random_tensor(
+        symmetry,
+        6,
+        0,
+        labels=['a', 'h1', 'h2', 'h3', 'h4', 'b'],
+        backend=backend,
+        np_random=np_random,
+    )
+    B_perm = ct.testing.random_tensor(
+        symmetry,
+        codomain=[
+            A_perm.get_leg('b').dual,
+            None,
+            A_perm.get_leg('h1').dual,
+            A_perm.get_leg('h3').dual,
+            A_perm.get_leg('h2').dual,
+            A_perm.get_leg('h4').dual,
+        ],
+        labels=['b', 'c', 'h1*', 'h3*', 'h2*', 'h4*'],
+        backend=backend,
+        np_random=np_random,
+    )
+    A = ct.HiddenLegTensor(A_perm, ['h1', 'h2', 'h3', 'h4'])
+    B = ct.HiddenLegTensor(B_perm, ['h1*', 'h2*', 'h3*', 'h4*'])
+    with pytest.raises(ValueError, match='hidden legs would have to be braided'):
+        _ = diagram(A=A, B=B)
+
+
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_issue_270(symmetry, backend, np_random):
+    # this is the contraction of a right environment RP with B_ket-W-B_bra,
+    # where the B_ket-W-B_bra are already contracted and W has no wR leg
+    backend = ct.get_backend(backend, 'numpy')
+    A: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=4,
+        domain=1,
+        labels=[['vL', 'wL', 'vL*', 'vR*'], ['vR']],
+        backend=backend,
+        np_random=np_random,
+    )
+    RP: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A._as_domain_leg('vR*')],
+        domain=[A._as_codomain_leg('vR')],
+        labels=[['vL*'], ['vL']],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    # this works
+    A_ = ct.planar.planar_permute_legs(A, domain=['vR', 'vR*'])
+    RP_ = ct.planar.planar_permute_legs(RP, codomain=['vL', 'vL*'])
+    expect = ct.compose(A_, RP_)
+
+    # this does not work
+    # NOTE there are currently two distinct ValueError: "Not a planar contraction" and "Inconsistent inner sector."
+    res1 = ct.planar_contraction(A, RP, ['vR', 'vR*'], ['vL', 'vL*'])
+    assert ct.planar.planar_almost_equal(res1, expect)
+    res2 = ct.planar_contraction(RP, A, ['vL', 'vL*'], ['vR', 'vR*'])
+    assert ct.planar.planar_almost_equal(res2, expect)
+
+
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_issue_270_2(symmetry, backend, np_random):
+    backend = ct.get_backend(backend, 'numpy')
+    LP: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=1,
+        domain=1,
+        labels=[['vR*'], ['vR']],
+        backend=backend,
+        np_random=np_random,
+    )
+    RP: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[LP._as_domain_leg('vR*')],
+        domain=[LP._as_codomain_leg('vR')],
+        labels=[['vL*'], ['vL']],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    # this works
+    LP_ = ct.planar.planar_permute_legs(LP, domain=['vR', 'vR*'])
+    RP_ = ct.planar.planar_permute_legs(RP, codomain=['vL', 'vL*'])
+    expect = ct.compose(LP_, RP_).to_numpy()
+
+    # this also works
+    res1 = ct.planar_contraction(LP, RP, ['vR', 'vR*'], ['vL', 'vL*']).to_numpy()
+    npt.assert_almost_equal(res1, expect)
+    res2 = ct.planar_contraction(RP, LP, ['vL', 'vL*'], ['vR', 'vR*']).to_numpy()
+    npt.assert_almost_equal(res2, expect)
+
+    # this fails
+    res3 = ct.planar_contraction(LP_, RP_, ['vR', 'vR*'], ['vL', 'vL*']).to_numpy()
+    npt.assert_almost_equal(res3, expect)
+    res4 = ct.planar_contraction(RP_, LP_, ['vL', 'vL*'], ['vR', 'vR*']).to_numpy()
+    npt.assert_almost_equal(res4, expect)
+
+
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_issue_273(symmetry, backend, np_random):
+    diagram = ct.PlanarDiagram(
+        tensors='RP[vL*, vL], W[wL, p, p*], ket[vL, p, vR], bra[vR*, p*, vL*]',
+        definition=(
+            'RP:vL @ ket:vR, ket:p @ W:p*, RP:vL* @ bra:vR*, W:p @ bra:p*, ket:vL -> vL, bra:vL* -> vL*, W:wL -> wL'
+        ),
+        dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*'], w=['wL']),
+    )
+    backend = ct.get_backend(backend, 'numpy')
+    RP: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=1,
+        domain=1,
+        labels=[['vL*'], ['vL']],
+        backend=backend,
+        np_random=np_random,
+    )
+    ket: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=2,
+        domain=[RP._as_codomain_leg('vL')],
+        labels=[['vL', 'p'], ['vR']],
+        backend=backend,
+        np_random=np_random,
+    )
+    bra: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[RP._as_domain_leg('vL*')],
+        domain=2,
+        labels=[['vR*'], ['vL*', 'p*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    W: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[None, bra._as_domain_leg('p*')],
+        domain=[ket._as_codomain_leg('p')],
+        labels=[['wL', 'p'], ['p*']],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    new_RP = ct.planar_contraction(ket, RP, ['vR'], ['vL'])
+    new_RP = ct.planar_contraction(new_RP, W, ['p'], ['p*'])
+    new_RP = ct.planar_contraction(new_RP, bra, ['vL*', 'p'], ['vR*', 'p*'])
+
+    new_RP_diagram = diagram.evaluate(dict(RP=RP, W=W, ket=ket, bra=bra))
+    assert ct.planar.planar_almost_equal(new_RP, new_RP_diagram)
+
+    ket: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[ket._as_codomain_leg('vL'), ket._as_codomain_leg('p')],
+        domain=[None, ket._as_domain_leg('vR')],
+        labels=[['vL', 'p'], ['charge', 'vR']],
+        backend=backend,
+        np_random=np_random,
+    )
+    bra: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        # tdot/compose dual pairing: bra domain carries ket's charge space
+        # (not ChargedTensor-style ket._as_codomain_leg in the bra codomain).
+        codomain=[bra._as_codomain_leg('vR*')],
+        domain=[ket.get_leg('charge'), bra._as_domain_leg('vL*'), bra._as_domain_leg('p*')],
+        labels=[['vR*'], ['charge*', 'vL*', 'p*']],
+        backend=backend,
+        np_random=np_random,
+    )
+    ket = ct.HiddenLegTensor(ket, ['charge'])
+    bra = ct.HiddenLegTensor(bra, ['charge*'])
+
+    new_RP = ct.planar_contraction(ket, RP, ['vR'], ['vL'])
+    new_RP = ct.planar_contraction(new_RP, W, ['p'], ['p*'])
+    new_RP = ct.planar_contraction(new_RP, bra, ['vL*', 'p'], ['vR*', 'p*'])
+
+    new_RP_diagram = diagram.evaluate(dict(RP=RP, W=W, ket=ket, bra=bra))
+    assert ct.planar.planar_almost_equal(new_RP, new_RP_diagram)
