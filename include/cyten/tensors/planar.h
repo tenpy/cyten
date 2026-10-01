@@ -382,7 +382,16 @@ class PlanarDiagram
                                            std::vector<DiagramInstruction> extra_definition,
                                            std::string const& order = "definition") const;
 
+    /// Do the contractions defined by the planar diagram for given concrete `tensors`.
+    ///
+    /// @param tensors A dict mapping each tensor name (as declared in the `tensors` argument of
+    ///     the `PlanarDiagram` constructor) to the concrete `Tensor` that should take its place.
+    ///     A positional sequence (e.g. a plain `list`) of tensors is *not* accepted; the mapping
+    ///     must be keyed by name.
     [[nodiscard]] PlanarResult evaluate(std::map<std::string, TensorPtr> tensors) const;
+
+    /// Symbolic variant of `evaluate`, taking `TensorPlaceholder`s keyed by tensor name instead
+    /// of concrete `Tensor`s.
     [[nodiscard]] TensorPlaceholder evaluate(
       std::map<std::string, TensorPlaceholder> tensors) const;
 
