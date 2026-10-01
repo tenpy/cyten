@@ -3002,6 +3002,29 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
     assert tensors.almost_equal(res, expect)
 
 
+@pytest.mark.parametrize('in_domain', [False, True])
+def test_partial_compose_after_pipe(in_domain, make_compatible_tensor, make_compatible_space):
+    # A pipe *before* the contracted leg: leg indices count the pipe once, but the FusionTreeBackend
+    # has trees over its components. Compare with contracting before combining the legs.
+    X0, X1, Y, D, W = [make_compatible_space(max_sectors=3, max_mult=2) for _ in range(5)]
+    if in_domain:
+        A0 = make_compatible_tensor([D], [X0, X1, Y], labels=['d', 'y', 'x1', 'x0'], use_pipes=False)
+        B = make_compatible_tensor([Y], [W], labels=['y', 'z'], use_pipes=False)
+        pipe_legs = ['x1', 'x0']
+    else:
+        A0 = make_compatible_tensor([X0, X1, Y], [D], labels=['x0', 'x1', 'y', 'd'], use_pipes=False)
+        B = make_compatible_tensor([W], [Y], labels=['z', 'y'], use_pipes=False)
+        pipe_legs = ['x0', 'x1']
+    A = tensors.combine_legs(A0, pipe_legs)
+    expect = tensors.combine_legs(tensors.partial_compose(A0, B, 'y'), pipe_legs)
+    pipe_factors = A.domain.factors if in_domain else A.codomain.factors
+    assert isinstance(pipe_factors[0], LegPipe)  # the pipe comes before 'y'
+    res = tensors.partial_compose(A, B, 'y')
+    res.test_sanity()
+    assert res.labels == expect.labels
+    assert tensors.almost_equal(res, expect)
+
+
 @pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codom, dom',
