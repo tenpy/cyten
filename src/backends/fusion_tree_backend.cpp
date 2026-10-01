@@ -2877,8 +2877,8 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
             std::vector<int64> dm = tb.multiplicities;
             int64 dm0 = prod_int(
               std::vector<int64>(dm.begin(), dm.begin() + static_cast<std::size_t>(flat_leg_idx)));
-            int64 dm2 = prod_int(
-              std::vector<int64>(dm.begin() + static_cast<std::size_t>(flat_leg_idx) + 1, dm.end()));
+            int64 dm2 = prod_int(std::vector<int64>(
+              dm.begin() + static_cast<std::size_t>(flat_leg_idx) + 1, dm.end()));
             std::vector<int64> dummy_mults = { dm0, 1, dm2 };
 
             auto b_cod = py::cast(b->codomain).cast<TensorProduct::Ptr>();
@@ -2887,7 +2887,8 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
             for (auto const& xb : b_cod->iter_tree_blocks(b_coupled_arr)) {
                 FusionTreeLinearCombination X_b_trafo = tb.tree.insert_at(flat_leg_idx, xb.tree);
                 for (auto const& yb : b_dom->iter_tree_blocks(b_coupled_arr)) {
-                    FusionTreeLinearCombination Y_b_trafo = tb.tree.insert_at(flat_leg_idx, yb.tree);
+                    FusionTreeLinearCombination Y_b_trafo =
+                      tb.tree.insert_at(flat_leg_idx, yb.tree);
                     auto b_tree_block =
                       b_get(b_data->blocks[static_cast<std::size_t>(*b_block_ind)],
                             py::make_tuple(slice_from_index_slice(xb.slice),

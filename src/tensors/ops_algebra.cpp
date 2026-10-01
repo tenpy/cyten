@@ -1630,7 +1630,8 @@ partial_compose_py(py::object tensor1,
     // tensor1 cannot be Mask or DiagonalTensor due to num_legs constraint
     if (is_Mask(tensor2)) {
         return maybe_wrap_hidden(
-          py_compose_with_mask(tensor1, tensor2, t1_first).attr("set_labels")(res_labels_py), true);
+          py_compose_with_mask(tensor1, tensor2, t1_first).attr("set_labels")(res_labels_py),
+          true);
     }
     if (is_DiagonalTensor(tensor2)) {
         return maybe_wrap_hidden(
@@ -1644,10 +1645,9 @@ partial_compose_py(py::object tensor1,
                                          t1_first,
                                          new_codomain.cast<TensorProduct::Ptr>(),
                                          new_domain.cast<TensorProduct::Ptr>());
-    return maybe_wrap_hidden(
-      make_python_symmetric_tensor(
-        std::move(data), new_codomain, new_domain, backend, res_labels_py),
-      true);
+    return maybe_wrap_hidden(make_python_symmetric_tensor(
+                               std::move(data), new_codomain, new_domain, backend, res_labels_py),
+                             true);
 }
 
 py::object

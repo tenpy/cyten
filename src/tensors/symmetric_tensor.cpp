@@ -822,7 +822,8 @@ SymmetricTensor::to_dense_block(
             }
         }
         if (static_cast<int64>(idcs.size() + hidden.size()) == num_legs &&
-            std::ranges::none_of(idcs, [&](int64 i) { return std::ranges::contains(hidden, i); })) {
+            std::ranges::none_of(idcs,
+                                 [&](int64 i) { return std::ranges::contains(hidden, i); })) {
             // `leg_order` specifies only the public legs of a HiddenLegTensor: hidden legs last
             idcs.insert(idcs.end(), hidden.begin(), hidden.end());
         }

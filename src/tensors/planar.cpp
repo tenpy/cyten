@@ -3034,13 +3034,14 @@ _planar_permute_insert_hidden(TensorCPtr const& T,
     auto num_codomain_legs = T->num_codomain_legs();
     auto in_codomain = [num_codomain_legs](int64 i) { return i < num_codomain_legs; };
     // number of legs in `legs[start:stop]` that change sides if put in the codomain / domain
-    auto cost = [&](std::vector<int64> const& legs, std::size_t start, std::size_t stop, bool to_co) {
-        int64 res = 0;
-        for (auto n = start; n < stop; ++n) {
-            res += (in_codomain(legs[n]) != to_co) ? 1 : 0;
-        }
-        return res;
-    };
+    auto cost =
+      [&](std::vector<int64> const& legs, std::size_t start, std::size_t stop, bool to_co) {
+          int64 res = 0;
+          for (auto n = start; n < stop; ++n) {
+              res += (in_codomain(legs[n]) != to_co) ? 1 : 0;
+          }
+          return res;
+      };
     // legs in the order of `ks` with the gaps in between (but not after the last)
     auto with_inner_gaps = [&](std::vector<int64> const& ks) {
         std::vector<int64> res;
@@ -3123,7 +3124,9 @@ _planar_permute_insert_hidden(TensorCPtr const& T,
 
 /// Implementation of `planar_permute_legs` for a planar bipartition `co`, `dom` of *all* legs.
 [[nodiscard]] TensorPtr
-_planar_permute_legs_idcs(TensorCPtr T, std::vector<int64> const& co, std::vector<int64> const& dom)
+_planar_permute_legs_idcs(TensorCPtr T,
+                          std::vector<int64> const& co,
+                          std::vector<int64> const& dom)
 {
 
     // figure out if legs need to bend right or left of the tensor.
@@ -3410,11 +3413,12 @@ planar_permute_legs(TensorCPtr T,
     // (e.g. by internal callers), the permutation needs to be planar w.r.t. all legs.
     auto hidden = _hidden_leg_idcs(T);
     auto names_hidden = [&hidden](std::optional<std::vector<int64>> const& idcs) {
-        return idcs && std::ranges::any_of(*idcs, [&hidden](int64 i) { return contains(hidden, i); });
+        return idcs &&
+               std::ranges::any_of(*idcs, [&hidden](int64 i) { return contains(hidden, i); });
     };
     if (hidden.empty() || names_hidden(codomain_idcs) || names_hidden(domain_idcs)) {
-        auto [co, dom] =
-          _planar_permute_bipartition(std::move(codomain_idcs), std::move(domain_idcs), T->num_legs);
+        auto [co, dom] = _planar_permute_bipartition(
+          std::move(codomain_idcs), std::move(domain_idcs), T->num_legs);
         return _planar_permute_legs_idcs(T, co, dom);
     }
     auto public_idcs = _public_leg_idcs(T);
