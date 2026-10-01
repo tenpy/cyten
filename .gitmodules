@@ -1,3 +1,6 @@
 [submodule "external/hdf5_io"]
 	path = external/hdf5_io
 	url = https://github.com/tenpy/hdf5_io.git
+[submodule "external/SUN_symbols"]
+	path = external/SUN_symbols
+	url = git@github.com:tenpy/SUN_symbols.git

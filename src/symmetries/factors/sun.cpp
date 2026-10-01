@@ -1,16 +1,21 @@
 #include <cyten/symmetries/factors/sun.h>
 
 #include <cyten/block_backend/numpy.h>
+#include <cyten/config.h>
 #include <cyten/symmetries/fusion_symbol.h>
 #include <cyten/symmetries/sector_numpy.h>
 
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cctype>
 #include <cmath>
 #include <cyten/tools/hdf5.h>
 #include <cyten/tools/hdf5_py_bridge.h>
+#include <filesystem>
+#include <format>
 #include <limits>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <utility>
@@ -102,7 +107,48 @@ zeros_sector(int N)
     return Sector::from_span(std::span<const int16_t>(z.data(), static_cast<std::size_t>(N)));
 }
 
+/// Normalize an SU(N) data ``kind`` (``"CG"``, ``"F"`` or ``"R"``, case-insensitive) to upper
+/// case.
+std::string
+normalize_su_n_data_kind(std::string const& kind)
+{
+    std::string up = kind;
+    for (char& c : up)
+        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    if (up != "CG" && up != "F" && up != "R") {
+        throw py::value_error("SU(N) data kind must be one of 'CG', 'F', 'R'; got '" + kind + "'");
+    }
+    return up;
+}
+
 } // namespace
+
+std::string
+su_n_data_filename(int N,
+                   std::string const& kind,
+                   int64 hweight,
+                   std::optional<std::string> filename_base)
+{
+    const std::string base = filename_base.value_or(get_config().su_n_data_filename_base);
+    return std::format(
+      "{}_N{}_{}_hweight{}.hdf5", base, N, normalize_su_n_data_kind(kind), hweight);
+}
+
+std::string
+su_n_data_file_path(int N,
+                    std::string const& kind,
+                    int64 hweight,
+                    std::optional<std::string> path,
+                    std::optional<std::string> filename_base)
+{
+    std::string dir = expand_user(path.value_or(get_config().su_n_data_path));
+    const std::string name = su_n_data_filename(N, kind, hweight, std::move(filename_base));
+    if (dir.empty())
+        return name;
+    if (dir.back() != '/' && dir.back() != '\\')
+        dir += '/';
+    return dir + name;
+}
 
 SUN::SUN(int N_,
          py::object CGfile_,
@@ -241,7 +287,11 @@ SUN::can_fuse_to(Sector a, Sector b, Sector c) const
     auto grp = CGfile[py::str(key)];
     for (auto item : grp) {
         auto child = grp[item];
-        auto label = child.attr("attrs")["Irreplabel"];
+        // Same dangling-accessor hazard as `sanity_check_hdf5` above: `child.attr("attrs")` is an
+        // unnamed temporary AttributeManager; naming it and typing `label` as `py::object` (not
+        // `auto`) forces eager evaluation while it is still alive.
+        py::object attrs = child.attr("attrs");
+        py::object label = attrs["Irreplabel"];
         auto arr = py::array::ensure(label);
         Sector lab = sector_from_numpy(arr);
         if (lab == c) {
@@ -615,8 +665,14 @@ SUN::sanity_check_hdf5(py::object file) const
     // Contains all the keys up to the highest weight
     // Assert key for loop weight is non-empty
     // ---
-    auto H = file.attr("attrs")["Highest_Weight"];
-    auto Nattr = file.attr("attrs")["N"];
+    // NB: `attrs` must be a named, owning py::object (not `auto`/a chained temporary): the
+    // `["key"]` access below returns a lazy pybind11 accessor that holds a non-owning handle to
+    // its parent. If the AttributeManager from `file.attr("attrs")` is only a temporary, it can be
+    // destroyed before that accessor is evaluated, so `H`/`Nattr` must likewise be `py::object` to
+    // force eager evaluation while `attrs` is still alive.
+    py::object attrs = file.attr("attrs");
+    py::object H = attrs["Highest_Weight"];
+    py::object Nattr = attrs["N"];
     auto keys0 = py::list(file.attr("keys")());
     auto filetype = std::string(py::str(keys0[0]));
     char ft = filetype.empty() ? '?' : filetype[0];
@@ -658,8 +714,15 @@ SUN::sanity_check_hdf5(py::object file) const
             throw std::invalid_argument("Missing key for all-trivial-sector F-symbol: " +
                                         zero_key);
         }
-        auto h_key =
-          std::string("[") + std::string(py::str(H)) + ", " + std::string(py::str(H)) + ", 0]";
+        // Look for the highest-weight sector, e.g. "[H, 0]" for SU(2) or "[H, 0, 0]" for SU(3),
+        // appearing twice back to back (as it does for the F-symbol of two such irreps fusing to
+        // themselves) -- not a single bracket "[H, H, 0]", which is not a valid sector of any N.
+        std::string h_bracket = "[" + std::string(py::str(H));
+        for (int j = 0; j < commas / num_lists; ++j) {
+            h_bracket += ", 0";
+        }
+        h_bracket += "]";
+        auto h_key = h_bracket + h_bracket;
         bool found_h = false;
         for (auto key : keys) {
             if (std::string(py::str(key)).find(h_key) != std::string::npos) {
@@ -707,8 +770,14 @@ SUN::sanity_check_hdf5(py::object file) const
             throw std::invalid_argument("Missing key for all-trivial-sector R-symbol: " +
                                         zero_key);
         }
-        auto h_key =
-          std::string("[") + std::string(py::str(H)) + ", " + std::string(py::str(H)) + ", 0]";
+        // See the matching comment in the 'F' branch above: look for the highest-weight sector
+        // bracket (e.g. "[H, 0]" for SU(2), "[H, 0, 0]" for SU(3)) repeated back to back.
+        std::string h_bracket = "[" + std::string(py::str(H));
+        for (int j = 0; j < commas / num_lists; ++j) {
+            h_bracket += ", 0";
+        }
+        h_bracket += "]";
+        auto h_key = h_bracket + h_bracket;
         bool found_h = false;
         for (auto key : keys) {
             if (std::string(py::str(key)).find(h_key) != std::string::npos) {
@@ -724,12 +793,16 @@ SUN::sanity_check_hdf5(py::object file) const
         if (!file.contains(path)) {
             throw std::invalid_argument("HDF5 file does not contain " + path + " group.");
         }
-        auto keys = py::list(file[py::str(path)].attr("keys")());
+        // Same dangling-accessor hazard as `attrs` above: `parent` and `high`/`low` must be named,
+        // owning py::object's (not `auto`) so the `file[path]` Group outlives the `[key]` accessor
+        // chained off it.
+        py::object parent = file[py::str(path)];
+        auto keys = py::list(parent.attr("keys")());
         if (static_cast<int64>(py::len(keys)) != H.cast<int64>() + 1) {
             throw std::runtime_error("SUN sanity_check_hdf5: unexpected CG key count");
         }
-        auto high = file[py::str(path)][keys[py::len(keys) - 1]];
-        auto low = file[py::str(path)][keys[0]];
+        py::object high = parent[keys[py::len(keys) - 1]];
+        py::object low = parent[keys[0]];
         for (auto group : { high, low }) {
             if (py::len(group.attr("keys")()) == 0) {
                 throw std::runtime_error("SUN sanity_check_hdf5: empty weight group");
@@ -748,6 +821,12 @@ SUN::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string con
     SymmetryFactor::save_hdf5(saver, h5gr, subpath);
     cyten::hdf5::py_save(subpath + "N", N);
     // Persist paths so from_hdf5 can reopen (h5py.File is not Hdf5Exportable).
+    // TODO(su_n_paths): this makes saved tensors non-portable across machines that don't share
+    // the exact same absolute path. Now that SU(N) data has a standard, config-resolvable
+    // location (su_n_data_file_path), consider also saving the three hweights (available via
+    // hweight_from_{CG,F,R}_hdf5()) and having from_hdf5 fall back to su_n_data_file_path(N, kind,
+    // hweight) when the stored absolute path no longer exists -- guarded so files saved before
+    // this TODO (without the hweight keys) still load.
     cyten::hdf5::py_save(subpath + "CGfile", py::str(CGfile.attr("filename")));
     cyten::hdf5::py_save(subpath + "Ffile", py::str(Ffile.attr("filename")));
     cyten::hdf5::py_save(subpath + "Rfile", py::str(Rfile.attr("filename")));
@@ -765,6 +844,81 @@ SUN::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string c
     auto obj = std::make_shared<SUN>(N, CGfile, Ffile, Rfile, name);
     cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
+}
+
+namespace {
+
+/// Open one SU(N) data file at ``full_path``, raising a ``FileNotFoundError`` naming the expected
+/// path and every way to override it if it does not exist, and cross-checking
+/// ``attrs['Highest_Weight']`` against the ``hweight`` the file name claims.
+py::object
+open_su_n_data_file(std::string const& full_path, char const* kind, int N, int64 hweight)
+{
+    if (!std::filesystem::exists(std::filesystem::path(full_path))) {
+        std::string msg = std::format(
+          "SU(N) {} data file for N={}, hweight={} not found:\n"
+          "    {}\n"
+          "Generate it with the clebsch_gordan_coefficients package, or tell cyten where your "
+          "files are:\n"
+          "    cyten.set_options(su_n_data_path='/path/to/dir')\n"
+          "    cyten.set_options(su_n_data_filename_base='my_base')\n"
+          "or set the environment variables CYTEN_SU_N_DATA_PATH / "
+          "CYTEN_SU_N_DATA_FILENAME_BASE, or add the keys to ~/.cytenconfig.yaml.\n"
+          "The default location is the literal POSIX path "
+          "'/home/<login-name>/.tenpy/su_n_symmetry_data' on all platforms.",
+          kind,
+          N,
+          hweight,
+          full_path);
+        PyErr_SetString(PyExc_FileNotFoundError, msg.c_str());
+        throw py::error_already_set();
+    }
+    py::object file = py::module_::import("h5py").attr("File")(full_path, "r");
+    auto stored = file.attr("attrs")["Highest_Weight"].cast<int64>();
+    if (stored != hweight) {
+        throw py::value_error(std::format(
+          "SU(N) {} data file '{}' is named for hweight {} but has attrs['Highest_Weight'] = {}.",
+          kind,
+          full_path,
+          hweight,
+          stored));
+    }
+    return file;
+}
+
+} // namespace
+
+SUN::Ptr
+SUN::from_config(int N,
+                 int64 hweight,
+                 std::optional<int64> cg_hweight,
+                 std::optional<int64> f_hweight,
+                 std::optional<int64> r_hweight,
+                 std::optional<std::string> path,
+                 std::optional<std::string> filename_base,
+                 std::optional<std::string> descriptive_name)
+{
+    const int64 h_cg = cg_hweight.value_or(hweight);
+    const int64 h_f = f_hweight.value_or(hweight);
+    const int64 h_r = r_hweight.value_or(hweight);
+    for (auto [h, what] : { std::pair{ h_cg, "cg_hweight" },
+                            std::pair{ h_f, "f_hweight" },
+                            std::pair{ h_r, "r_hweight" } }) {
+        if (h < 0) {
+            throw py::value_error(std::string("SUN: ") + what + " must be >= 0");
+        }
+    }
+    if (h_cg < h_f || h_cg < h_r) {
+        throw py::value_error(std::format(
+          "SUN: the CG hweight ({}) must be >= the F ({}) and R ({}) hweights.", h_cg, h_f, h_r));
+    }
+    py::object CGfile = open_su_n_data_file(
+      su_n_data_file_path(N, "CG", h_cg, path, filename_base), "Clebsch-Gordan", N, h_cg);
+    py::object Ffile = open_su_n_data_file(
+      su_n_data_file_path(N, "F", h_f, path, filename_base), "F-symbol", N, h_f);
+    py::object Rfile = open_su_n_data_file(
+      su_n_data_file_path(N, "R", h_r, path, filename_base), "R-symbol", N, h_r);
+    return std::make_shared<SUN>(N, CGfile, Ffile, Rfile, std::move(descriptive_name));
 }
 
 } // namespace cyten
