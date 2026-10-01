@@ -195,7 +195,8 @@ class Tensor
     /// `NumpyBlockBackend` or a torch Tensor if the backend is a `TorchBlockBackend`.
     ///
     /// @param leg_order If given, the leg of the resulting block are permuted to match this leg
-    /// order.
+    /// order. For a `HiddenLegTensor`, it may contain only the public legs; the hidden legs are
+    /// then the last legs of the block, in their original order.
     /// @param dtype If given, the result is converted to this dtype. Per default it has the
     /// `dtype` of the tensor.
     /// @param understood_braiding For symmetries with non-trivial (but symmetric) braiding, e.g.
