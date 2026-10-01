@@ -119,7 +119,7 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 120
 target-version = "py314"
-exclude = ["scripts/"]
+exclude = ["scripts/", "**/*.ipynb"]
 
 
 [tool.ruff.lint.isort]
@@ -178,6 +178,10 @@ ignore = [
 "toycodes/*.py" = [
     "INP001",  # is part of an implicit namespace package
     "D102",  # missing docstrings
+]
+"benchmark/*.py" = [
+    "INP001",  # is part of an implicit namespace package
+    "D",  # pydocstyle
 ]
 
 [tool.ruff.format]
