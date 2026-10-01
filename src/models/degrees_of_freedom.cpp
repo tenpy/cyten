@@ -84,14 +84,14 @@ product_of_legs(std::vector<Leg::Ptr> factors)
     return std::make_shared<TensorProduct>(std::move(factors));
 }
 
-LegLabels
+OptionalLabels
 pp_labels()
 {
-    return LegLabels{ "p", "p*" };
+    return OptionalLabels{ "p", "p*" };
 }
 
 bool
-leg_labels_are_p_pstar(LegLabels const& labels)
+leg_labels_are_p_pstar(OptionalLabels const& labels)
 {
     return labels.size() == 2 && labels[0] == "p" && labels[1] == "p*";
 }
@@ -483,7 +483,7 @@ SymmetricTensorPtr
 Site::identity_tensor(ElementarySpace::Ptr w, bool overbraid)
 {
     auto co_domain = product_of_legs(std::vector<Leg::Ptr>{ leg, std::move(w) });
-    auto tensor = SymmetricTensor::from_eye(co_domain, backend, LegLabels{ "p", "w" });
+    auto tensor = SymmetricTensor::from_eye(co_domain, backend, OptionalLabels{ "p", "w" });
     auto permuted = permute_legs(tensor,
                                  std::vector<LegRef>{ "w", "p" },
                                  std::vector<LegRef>{ "p*", "w*" },

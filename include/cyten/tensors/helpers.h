@@ -129,13 +129,14 @@ _decomposition_prepare(TensorCPtr tensor, bool new_leg_dual);
 ///
 /// @param new_labels Label sequence for the two new legs.
 /// @returns Pair of leg labels for the decomposition factors.
-[[nodiscard]] std::pair<LegLabel, LegLabel> _decomposition_labels(LegLabels const& new_labels);
+[[nodiscard]] std::pair<OptionalLabel, OptionalLabel> _decomposition_labels(
+  OptionalLabels const& new_labels);
 
 /// Parse labels for `svd`. `nullopt` means all-unlabelled.
 ///
 /// @param new_labels Optional label sequence; `nullopt` means all unlabeled.
 /// @returns Four leg labels for the SVD factors.
-[[nodiscard]] std::tuple<LegLabel, LegLabel, LegLabel, LegLabel> _svd_new_labels(
-  std::optional<LegLabels> new_labels);
+[[nodiscard]] std::tuple<OptionalLabel, OptionalLabel, OptionalLabel, OptionalLabel>
+_svd_new_labels(std::optional<OptionalLabels> new_labels);
 
 } // namespace cyten

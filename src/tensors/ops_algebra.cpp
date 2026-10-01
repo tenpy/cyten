@@ -119,8 +119,8 @@ tensor_as_py(TensorCPtr const& tensor)
     return py::cast(tensor);
 }
 
-bool is_Number_or_Scalar(py::object obj);     // defined below
-LegLabels leg_labels_from_py(py::object seq); // defined below
+bool is_Number_or_Scalar(py::object obj);          // defined below
+OptionalLabels leg_labels_from_py(py::object seq); // defined below
 
 /// Raise if any of `leg_idcs` refers to a hidden leg on `tensor`.
 void
@@ -173,7 +173,7 @@ implicit_hidden_contraction_pairs(py::object tensor1, py::object tensor2)
     }
     std::vector<bool> used2(hidden2.size(), false);
     for (auto const& [i1, lab1] : hidden1) {
-        auto dual1 = _dual_leg_label(LegLabel{ lab1 });
+        auto dual1 = _dual_leg_label(OptionalLabel{ lab1 });
         for (std::size_t j = 0; j < hidden2.size(); ++j) {
             if (used2[j]) {
                 continue;
@@ -487,10 +487,10 @@ bend_legs_as_py(py::object tensor,
     return tensor_as_py(bend_legs(tensor.cast<TensorCPtr>(), num_codomain_legs, num_domain_legs));
 }
 
-LegLabels
+OptionalLabels
 leg_labels_from_py(py::object seq)
 {
-    LegLabels out;
+    OptionalLabels out;
     for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
         if (item.is_none()) {
             out.push_back(std::nullopt);
@@ -501,8 +501,8 @@ leg_labels_from_py(py::object seq)
     return out;
 }
 
-LegLabel
-relabel_one(LegLabel lab, std::optional<std::map<std::string, std::string>> const& relabel)
+OptionalLabel
+relabel_one(OptionalLabel lab, std::optional<std::map<std::string, std::string>> const& relabel)
 {
     if (!lab.has_value() || !relabel.has_value()) {
         return lab;
@@ -514,8 +514,9 @@ relabel_one(LegLabel lab, std::optional<std::map<std::string, std::string>> cons
     return lab;
 }
 
-LegLabels
-apply_relabel(LegLabels labels, std::optional<std::map<std::string, std::string>> const& relabel)
+OptionalLabels
+apply_relabel(OptionalLabels labels,
+              std::optional<std::map<std::string, std::string>> const& relabel)
 {
     if (!relabel.has_value()) {
         return labels;
@@ -527,13 +528,13 @@ apply_relabel(LegLabels labels, std::optional<std::map<std::string, std::string>
 }
 
 py::object
-labels_to_py(LegLabels const& labels)
+labels_to_py(OptionalLabels const& labels)
 {
     return py::cast(labels);
 }
 
 py::object
-nested_labels_to_py(LegLabels const& codomain_labels, LegLabels const& domain_labels)
+nested_labels_to_py(OptionalLabels const& codomain_labels, OptionalLabels const& domain_labels)
 {
     py::list out;
     out.append(labels_to_py(codomain_labels));
@@ -803,8 +804,8 @@ dagger_py(py::object tensor)
     if (is_Mask(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
         auto data = backend->mask_dagger(tensor.cast<MaskCPtr>());
-        LegLabels labs = leg_labels_from_py(tensor.attr("_labels"));
-        LegLabels dual_labs;
+        OptionalLabels labs = leg_labels_from_py(tensor.attr("_labels"));
+        OptionalLabels dual_labs;
         for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
             dual_labs.push_back(_dual_leg_label(*it));
         }
@@ -819,8 +820,8 @@ dagger_py(py::object tensor)
         return tensor;
     }
     if (is_DiagonalTensor(tensor)) {
-        LegLabels dual_labs;
-        LegLabels labs = leg_labels_from_py(tensor.attr("_labels"));
+        OptionalLabels dual_labs;
+        OptionalLabels labs = leg_labels_from_py(tensor.attr("_labels"));
         for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
             dual_labs.push_back(_dual_leg_label(*it));
         }
@@ -839,8 +840,8 @@ dagger_py(py::object tensor)
     if (is_SymmetricTensor(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
         auto data = backend->dagger(tensor.cast<TensorCPtr>());
-        LegLabels dual_labs;
-        LegLabels labs = leg_labels_from_py(tensor.attr("_labels"));
+        OptionalLabels dual_labs;
+        OptionalLabels labs = leg_labels_from_py(tensor.attr("_labels"));
         for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
             dual_labs.push_back(_dual_leg_label(*it));
         }
@@ -875,9 +876,9 @@ compose_py(py::object tensor1,
     (void)same_device2(tensor1, tensor2);
     check_spaces({ tensor1.attr("domain") }, { tensor2.attr("codomain") });
 
-    LegLabels codomain_labels =
+    OptionalLabels codomain_labels =
       apply_relabel(leg_labels_from_py(tensor1.attr("codomain_labels")), relabel1);
-    LegLabels domain_labels =
+    OptionalLabels domain_labels =
       apply_relabel(leg_labels_from_py(tensor2.attr("domain_labels")), relabel2);
     py::object res_labels = nested_labels_to_py(codomain_labels, domain_labels);
 
@@ -1283,8 +1284,8 @@ linear_combination_py(py::object a, py::object v, py::object b, py::object w)
     auto b_sc = b.cast<BlockBackend::Scalar>();
     auto data =
       backend->linear_combination(a_sc, v.cast<TensorCPtr>(), b_sc, w.cast<TensorCPtr>());
-    LegLabels labels = _get_matching_labels(leg_labels_from_py(v.attr("_labels")),
-                                            leg_labels_from_py(w.attr("_labels")));
+    OptionalLabels labels = _get_matching_labels(leg_labels_from_py(v.attr("_labels")),
+                                                 leg_labels_from_py(w.attr("_labels")));
     return make_python_symmetric_tensor(
       std::move(data), v.attr("codomain"), v.attr("domain"), backend, labels_to_py(labels));
 }
@@ -1426,8 +1427,8 @@ outer_py(py::object tensor1,
       TensorProduct::from_partial_products({ tensor1.attr("domain").cast<TensorProduct::Ptr>(),
                                              tensor2.attr("domain").cast<TensorProduct::Ptr>() });
     // construct new labels
-    LegLabels codomain_labels;
-    LegLabels domain_labels;
+    OptionalLabels codomain_labels;
+    OptionalLabels domain_labels;
     {
         auto c1 = apply_relabel(leg_labels_from_py(tensor1.attr("codomain_labels")), relabel1);
         auto d1 = apply_relabel(leg_labels_from_py(tensor1.attr("domain_labels")), relabel1);
@@ -1506,9 +1507,9 @@ partial_compose_py(py::object tensor1,
     int64 t1_first =
       tensor1.attr("get_leg_idcs")(tensor1_first_leg).attr("__getitem__")(0).cast<int64>();
 
-    LegLabels codomain_labels =
+    OptionalLabels codomain_labels =
       apply_relabel(leg_labels_from_py(tensor1.attr("codomain_labels")), relabel1);
-    LegLabels domain_labels =
+    OptionalLabels domain_labels =
       apply_relabel(leg_labels_from_py(tensor1.attr("domain_labels")), relabel1);
 
     char const* leg_msg = "Not all legs to be contracted are in the (co)domain";
@@ -1538,7 +1539,7 @@ partial_compose_py(py::object tensor1,
             .attr("__getitem__")(py::slice(
               static_cast<py::ssize_t>(t1_first), static_cast<py::ssize_t>(t1_last + 1), 1));
         check_leg_seq(factors1, tensor2.attr("domain").attr("factors"));
-        LegLabels tensor2_labels =
+        OptionalLabels tensor2_labels =
           apply_relabel(leg_labels_from_py(tensor2.attr("codomain_labels")), relabel2);
         codomain_labels.erase(codomain_labels.begin() + t1_first,
                               codomain_labels.begin() + t1_last + 1);
@@ -1573,7 +1574,7 @@ partial_compose_py(py::object tensor1,
                     static_cast<py::ssize_t>(domain_last_leg + 1),
                     1));
         check_leg_seq(factors1, tensor2.attr("codomain").attr("factors"));
-        LegLabels tensor2_labels =
+        OptionalLabels tensor2_labels =
           apply_relabel(leg_labels_from_py(tensor2.attr("domain_labels")), relabel2);
         domain_labels.erase(domain_labels.begin() + domain_first_leg,
                             domain_labels.begin() + domain_last_leg + 1);
@@ -1590,7 +1591,7 @@ partial_compose_py(py::object tensor1,
         new_domain = py::cast(tensor_product_from_py(new_dom_list, tensor1.attr("symmetry")));
     }
 
-    LegLabels res_labels = codomain_labels;
+    OptionalLabels res_labels = codomain_labels;
     for (auto it = domain_labels.rbegin(); it != domain_labels.rend(); ++it) {
         res_labels.push_back(*it);
     }
@@ -1761,8 +1762,8 @@ partial_trace_py(py::object tensor, std::vector<py::object> pairs, py::object le
         traced_set.insert(i1);
         traced_set.insert(i2);
     }
-    LegLabels labels;
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
+    OptionalLabels labels;
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
     for (std::size_t n = 0; n < all_labels.size(); ++n) {
         if (!traced_set.contains(static_cast<int64>(n))) {
             labels.push_back(all_labels[n]);
@@ -1963,15 +1964,15 @@ tdot_py(py::object tensor1,
             skip1.insert(i1);
             skip2.insert(i2);
         }
-        LegLabels codomain_labels;
-        LegLabels all1 = leg_labels_from_py(tensor1.attr("_labels"));
+        OptionalLabels codomain_labels;
+        OptionalLabels all1 = leg_labels_from_py(tensor1.attr("_labels"));
         for (std::size_t n = 0; n < all1.size(); ++n) {
             if (!skip1.contains(static_cast<int64>(n))) {
                 codomain_labels.push_back(relabel_one(all1[n], relabel1));
             }
         }
-        LegLabels domain_labels;
-        LegLabels all2 = leg_labels_from_py(tensor2.attr("_labels"));
+        OptionalLabels domain_labels;
+        OptionalLabels all2 = leg_labels_from_py(tensor2.attr("_labels"));
         for (std::size_t n = 0; n < all2.size(); ++n) {
             if (!skip2.contains(static_cast<int64>(n))) {
                 domain_labels.push_back(relabel_one(all2[n], relabel2));
@@ -1981,7 +1982,7 @@ tdot_py(py::object tensor1,
         if (is_Number_or_Scalar(res)) {
             return res;
         }
-        LegLabels flat = codomain_labels;
+        OptionalLabels flat = codomain_labels;
         flat.insert(flat.end(), domain_labels.begin(), domain_labels.end());
         res.attr("set_labels")(labels_to_py(flat));
         return res;
@@ -2261,9 +2262,9 @@ trace_py(py::object tensor)
 py::object
 transpose_py(py::object tensor)
 {
-    LegLabels domain_labels = leg_labels_from_py(tensor.attr("domain_labels"));
-    LegLabels codomain_labels = leg_labels_from_py(tensor.attr("codomain_labels"));
-    LegLabels labels;
+    OptionalLabels domain_labels = leg_labels_from_py(tensor.attr("domain_labels"));
+    OptionalLabels codomain_labels = leg_labels_from_py(tensor.attr("codomain_labels"));
+    OptionalLabels labels;
     for (auto it = domain_labels.rbegin(); it != domain_labels.rend(); ++it) {
         labels.push_back(*it);
     }

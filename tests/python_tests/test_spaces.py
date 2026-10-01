@@ -518,7 +518,9 @@ def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
     a = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
     b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
     c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
-    assert a == spaces.ElementarySpace.direct_sum(a)
+    single = spaces.ElementarySpace.direct_sum(a)
+    assert isinstance(single, spaces.DirectSumSpace)
+    assert single.spaces == [a]
     d = spaces.ElementarySpace.direct_sum(a, b, c)
     d.test_sanity()
     assert isinstance(d, spaces.DirectSumSpace)
@@ -593,6 +595,58 @@ def test_DirectSumSpace(is_dual, make_any_space, max_mult=3, max_sectors=3):
             assert any('direct-sum structure' in str(x.message) for x in w)
         assert isinstance(sliced, spaces.ElementarySpace)
         assert not isinstance(sliced, spaces.DirectSumSpace)
+
+
+def test_DirectSumSpace_summand_labels(make_any_space, max_mult=3, max_sectors=3):
+    a = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=False)
+    b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=False)
+    c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=False)
+
+    # unlabeled by default
+    d = spaces.DirectSumSpace([a, b, c])
+    d.test_sanity()
+    assert d.summand_labels == [None, None, None]
+
+    d = spaces.DirectSumSpace([a, b, c], summand_labels=['IdL', None, 'IdR'])
+    d.test_sanity()
+    assert d.summand_labels == ['IdL', None, 'IdR']
+    assert d.has_summand_label('IdL')
+    assert not d.has_summand_label('other')
+    assert d.get_summand_idx('IdL') == 0
+    assert d.get_summand_idx('IdR') == 2
+    assert d.get_summand_idx(1) == 1
+    assert d.get_summand_idx(-1) == 2
+
+    with pytest.raises(ValueError):
+        d.get_summand_idx('missing')
+
+    # duplicate labels are rejected
+    with pytest.raises(ValueError):
+        spaces.DirectSumSpace([a, b, c], summand_labels=['x', 'x', None])
+
+    # length mismatch is rejected
+    with pytest.raises(ValueError):
+        spaces.DirectSumSpace([a, b, c], summand_labels=['x', None])
+
+    # structural equality ignores labels
+    unlabeled = spaces.DirectSumSpace([a, b, c])
+    assert d == unlabeled
+
+    # labels are preserved through structure-preserving ops
+    dual = d.dual
+    assert dual.summand_labels == ['IdL', None, 'IdR']
+    opp = d.with_opposite_duality()
+    assert opp.summand_labels == ['IdL', None, 'IdR']
+
+    # nested DirectSumSpace summands propagate their own labels
+    nested_inner = spaces.DirectSumSpace([b, c], summand_labels=['x', 'y'])
+    nested = spaces.DirectSumSpace([a, nested_inner], summand_labels=['IdL', None])
+    assert nested.spaces == [a, b, c]
+    assert nested.summand_labels == ['IdL', 'x', 'y']
+
+    # an explicit label for a nested-DirectSumSpace slot is ambiguous
+    with pytest.raises(ValueError):
+        spaces.DirectSumSpace([a, nested_inner], summand_labels=['IdL', 'not-allowed'])
 
 
 def test_DirectSumSpace_inclusion_unit_vector(compatible_symmetry, compatible_backend):

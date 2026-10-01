@@ -12,7 +12,7 @@ namespace cyten {
 
 namespace {
 
-LegLabel
+OptionalLabel
 as_leg_label(py::handle obj)
 {
     if (obj.is_none()) {
@@ -77,7 +77,7 @@ bind_tensors_labels(py::module_& m)
           if (!py::isinstance<py::str>(label)) {
               return false;
           }
-          return is_valid_leg_label(LegLabel{ label.cast<std::string>() });
+          return is_valid_leg_label(OptionalLabel{ label.cast<std::string>() });
       },
       py::arg("label"),
       DOC(cyten, is_valid_leg_label));
@@ -111,7 +111,7 @@ bind_tensors_labels(py::module_& m)
 
     m.def(
       "_get_matching_labels",
-      [](LegLabels const& labels1, LegLabels const& labels2, int64 /*stacklevel*/) {
+      [](OptionalLabels const& labels1, OptionalLabels const& labels2, int64 /*stacklevel*/) {
           return _get_matching_labels(labels1, labels2);
       },
       py::arg("labels1"),
@@ -126,7 +126,7 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
     py::class_<LabelledLegs, py::smart_holder> labelled_legs(m, "LabelledLegs");
     labelled_legs.doc() = DOC(cyten, LabelledLegs);
 
-    labelled_legs.def(py::init<LegLabels>(), py::arg("labels"))
+    labelled_legs.def(py::init<OptionalLabels>(), py::arg("labels"))
       .def_readwrite("num_legs", &LabelledLegs::num_legs)
       .def_property_readonly("is_fully_labelled",
                              &LabelledLegs::is_fully_labelled,
@@ -134,13 +134,13 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
       .def_property(
         "labels",
         &LabelledLegs::labels,
-        [](LabelledLegs& self, LegLabels labels) { self.set_labels(std::move(labels)); },
+        [](LabelledLegs& self, OptionalLabels labels) { self.set_labels(std::move(labels)); },
         DOC(cyten, LabelledLegs, labels))
       // Python free functions often access ``_labels``; keep as alias until those are converted.
       .def_property(
         "_labels",
         &LabelledLegs::labels,
-        [](LabelledLegs& self, LegLabels labels) { self.set_labels(std::move(labels)); })
+        [](LabelledLegs& self, OptionalLabels labels) { self.set_labels(std::move(labels)); })
       .def_property_readonly("_labelmap",
                              [](LabelledLegs const& self) {
                                  // Expose the C++ label→index map to Python (used by free
@@ -189,7 +189,7 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
         DOC(cyten, LabelledLegs, set_label))
       .def(
         "set_labels",
-        [](LabelledLegs& self, LegLabels labels) -> LabelledLegs& {
+        [](LabelledLegs& self, OptionalLabels labels) -> LabelledLegs& {
             return self.set_labels(std::move(labels));
         },
         py::arg("labels"),

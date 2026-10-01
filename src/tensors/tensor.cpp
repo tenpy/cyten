@@ -50,7 +50,7 @@ factor_dim(py::handle factor)
     return factor.attr("dim").cast<float64>();
 }
 
-LegLabel
+OptionalLabel
 as_leg_label(py::handle obj)
 {
     if (obj.is_none()) {
@@ -59,10 +59,10 @@ as_leg_label(py::handle obj)
     return obj.cast<std::string>();
 }
 
-LegLabels
+OptionalLabels
 sequence_as_leg_labels(py::handle seq)
 {
-    LegLabels out;
+    OptionalLabels out;
     for (auto item : seq) {
         out.push_back(as_leg_label(item));
     }
@@ -158,10 +158,10 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
                TensorProduct::Ptr domain_,
                TensorBackend::Ptr backend_,
                Symmetry::Ptr symmetry_,
-               LegLabels labels,
+               OptionalLabels labels,
                Dtype dtype_,
                std::string device_)
-  : LabelledLegs(LegLabels{})
+  : LabelledLegs(OptionalLabels{})
   , codomain(std::move(codomain_))
   , domain(std::move(domain_))
   , backend(std::move(backend_))
@@ -269,8 +269,8 @@ Tensor::_init_parse_args(TensorProduct::Ptr codomain,
     return { std::move(codomain), std::move(domain), std::move(backend), std::move(symmetry) };
 }
 
-LegLabels
-Tensor::_init_parse_labels(std::optional<LegLabels> labels,
+OptionalLabels
+Tensor::_init_parse_labels(std::optional<OptionalLabels> labels,
                            TensorProduct::Ptr const& codomain,
                            TensorProduct::Ptr const& domain,
                            bool is_endomorphism)
@@ -281,7 +281,7 @@ Tensor::_init_parse_labels(std::optional<LegLabels> labels,
           "endomorphism requires the same number of domain and codomain legs");
     }
     if (!labels.has_value()) {
-        return LegLabels(static_cast<std::size_t>(num_legs), std::nullopt);
+        return OptionalLabels(static_cast<std::size_t>(num_legs), std::nullopt);
     }
     if (labels->empty()) {
         if (num_legs != 0) {
@@ -290,7 +290,7 @@ Tensor::_init_parse_labels(std::optional<LegLabels> labels,
         return {};
     }
     if (is_endomorphism && static_cast<int64>(labels->size()) == codomain->num_factors) {
-        LegLabels out = *labels;
+        OptionalLabels out = *labels;
         for (auto it = labels->rbegin(); it != labels->rend(); ++it) {
             out.push_back(_dual_leg_label(*it));
         }
@@ -346,7 +346,7 @@ parse_tensor_init_args(py::object codomain, py::object domain, TensorBackend::Pt
       std::move(codomain_tp), std::move(domain_tp), std::move(backend));
 }
 
-LegLabels
+OptionalLabels
 parse_tensor_init_labels(py::object labels,
                          TensorProduct::Ptr const& codomain,
                          TensorProduct::Ptr const& domain,
@@ -371,7 +371,7 @@ parse_tensor_init_labels(py::object labels,
 
     py::sequence seq = labels.cast<py::sequence>();
     if (py::len(seq) == 0) {
-        return Tensor::_init_parse_labels(LegLabels{}, codomain, domain, is_endomorphism);
+        return Tensor::_init_parse_labels(OptionalLabels{}, codomain, domain, is_endomorphism);
     }
 
     py::object first = seq[py::int_(0)];
@@ -381,8 +381,8 @@ parse_tensor_init_labels(py::object labels,
         }
         py::object codomain_labels_obj = seq[py::int_(0)];
         py::object domain_labels_obj = seq[py::int_(1)];
-        LegLabels codomain_labels;
-        LegLabels domain_labels;
+        OptionalLabels codomain_labels;
+        OptionalLabels domain_labels;
         if (codomain_labels_obj.is_none()) {
             if (is_endomorphism && !domain_labels_obj.is_none()) {
                 for (auto item : domain_labels_obj) {
@@ -390,7 +390,7 @@ parse_tensor_init_labels(py::object labels,
                 }
             } else {
                 codomain_labels =
-                  LegLabels(static_cast<std::size_t>(codomain->num_factors), std::nullopt);
+                  OptionalLabels(static_cast<std::size_t>(codomain->num_factors), std::nullopt);
             }
         } else {
             codomain_labels = sequence_as_leg_labels(codomain_labels_obj);
@@ -408,7 +408,7 @@ parse_tensor_init_labels(py::object labels,
                 }
             } else {
                 domain_labels =
-                  LegLabels(static_cast<std::size_t>(domain->num_factors), std::nullopt);
+                  OptionalLabels(static_cast<std::size_t>(domain->num_factors), std::nullopt);
             }
         } else {
             domain_labels = sequence_as_leg_labels(domain_labels_obj);
@@ -418,14 +418,14 @@ parse_tensor_init_labels(py::object labels,
               "expected {} domain labels, got {}", domain->num_factors, domain_labels.size()));
         }
 
-        LegLabels out = codomain_labels;
+        OptionalLabels out = codomain_labels;
         for (auto it = domain_labels.rbegin(); it != domain_labels.rend(); ++it) {
             out.push_back(*it);
         }
         return out;
     }
 
-    LegLabels flat = sequence_as_leg_labels(seq);
+    OptionalLabels flat = sequence_as_leg_labels(seq);
     return Tensor::_init_parse_labels(std::move(flat), codomain, domain, is_endomorphism);
 }
 
@@ -622,10 +622,10 @@ Tensor::ascii_diagram() const
     return out.str();
 }
 
-LegLabels
+OptionalLabels
 Tensor::codomain_labels() const
 {
-    return LegLabels(_labels.begin(), _labels.begin() + num_codomain_legs());
+    return OptionalLabels(_labels.begin(), _labels.begin() + num_codomain_legs());
 }
 
 Tensor::Ptr
@@ -634,10 +634,10 @@ Tensor::dagger() const
     throw NotImplemented("Tensor::dagger (free function dagger not yet converted)");
 }
 
-LegLabels
+OptionalLabels
 Tensor::domain_labels() const
 {
-    LegLabels out(_labels.begin() + num_codomain_legs(), _labels.end());
+    OptionalLabels out(_labels.begin() + num_codomain_legs(), _labels.end());
     std::reverse(out.begin(), out.end());
     return out;
 }
@@ -784,7 +784,7 @@ Tensor::_repr_header_lines(std::string const& indent, bool use_symm_str) const
     // TODO should we put some info still ...?
     // ---
     std::string labels_str;
-    if (std::ranges::all_of(_labels, [](LegLabel const& l) { return !l; })) {
+    if (std::ranges::all_of(_labels, [](OptionalLabel const& l) { return !l; })) {
         labels_str = "None";
     } else {
         // Match Python f'{self._labels}   ;   {self.codomain_labels} <- {self.domain_labels}'
@@ -892,7 +892,7 @@ Tensor::get_leg_co_domain(std::vector<std::variant<int64, std::string>> const& w
 }
 
 Tensor&
-Tensor::set_labels(LegLabels labels)
+Tensor::set_labels(OptionalLabels labels)
 {
     LabelledLegs::set_labels(std::move(labels));
     return *this;

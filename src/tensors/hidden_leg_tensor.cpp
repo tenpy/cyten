@@ -20,12 +20,12 @@ namespace {
 [[nodiscard]] bool
 is_dual_pair(std::string const& a, std::string const& b)
 {
-    auto dual_a = _dual_leg_label(LegLabel{ a });
+    auto dual_a = _dual_leg_label(OptionalLabel{ a });
     return dual_a && *dual_a == b;
 }
 
 void
-check_public_labels_no_bang(LegLabels const& labs)
+check_public_labels_no_bang(OptionalLabels const& labs)
 {
     for (auto const& lab : labs) {
         if (lab && !HiddenLegTensor::is_hidden_leg_label(lab) && label_contains_exclamation(lab)) {
@@ -38,13 +38,13 @@ check_public_labels_no_bang(LegLabels const& labs)
 } // namespace
 
 bool
-label_contains_exclamation(LegLabel const& label)
+label_contains_exclamation(OptionalLabel const& label)
 {
     return label && label->find(HiddenLegTensor::HIDDEN_PREFIX) != std::string::npos;
 }
 
 void
-reject_exclamation_in_labels(LegLabels const& labels, std::string const& context)
+reject_exclamation_in_labels(OptionalLabels const& labels, std::string const& context)
 {
     for (auto const& lab : labels) {
         if (label_contains_exclamation(lab)) {
@@ -59,7 +59,7 @@ reject_exclamation_in_labels(LegLabels const& labels, std::string const& context
 }
 
 bool
-HiddenLegTensor::is_charge_temp_label(LegLabel const& label)
+HiddenLegTensor::is_charge_temp_label(OptionalLabel const& label)
 {
     // ChargedTensor invariant-part markers and short-lived labels during compose/inner:
     // "!", "!1"/"!2", "!A"/"!B", and their duals "!A*"/"!B*".
@@ -85,7 +85,7 @@ HiddenLegTensor::is_charge_temp_label(LegLabel const& label)
 }
 
 bool
-HiddenLegTensor::is_hidden_leg_label(LegLabel const& label)
+HiddenLegTensor::is_hidden_leg_label(OptionalLabel const& label)
 {
     // Hidden labels are '!' plus a nonempty name (e.g. '!p', '!charge*', '!(p.q)').
     if (!label || label->size() <= 1 || (*label)[0] != HIDDEN_PREFIX) {
@@ -95,13 +95,13 @@ HiddenLegTensor::is_hidden_leg_label(LegLabel const& label)
 }
 
 bool
-HiddenLegTensor::has_hidden_leg_labels(LegLabels const& labels)
+HiddenLegTensor::has_hidden_leg_labels(OptionalLabels const& labels)
 {
     return std::ranges::any_of(labels, [](auto const& l) { return is_hidden_leg_label(l); });
 }
 
-LegLabel
-HiddenLegTensor::strip_hidden_prefix(LegLabel const& label)
+OptionalLabel
+HiddenLegTensor::strip_hidden_prefix(OptionalLabel const& label)
 {
     if (!is_hidden_leg_label(label)) {
         return label;
@@ -127,7 +127,7 @@ HiddenLegTensor::add_hidden_prefix(std::string const& label)
 }
 
 void
-HiddenLegTensor::validate_no_dual_hidden_pair(LegLabels const& labels)
+HiddenLegTensor::validate_no_dual_hidden_pair(OptionalLabels const& labels)
 {
     std::vector<std::string> hidden;
     for (auto const& lab : labels) {
@@ -299,7 +299,7 @@ HiddenLegTensor::dagger() const
 {
     auto self = std::dynamic_pointer_cast<Tensor const>(shared_from_this());
     auto new_data = backend->dagger(self);
-    LegLabels dual_labs;
+    OptionalLabels dual_labs;
     auto labs = labels();
     dual_labs.reserve(labs.size());
     for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
@@ -327,7 +327,7 @@ HiddenLegTensor::to_backend(TensorBackend::Ptr new_backend,
 }
 
 LabelledLegs&
-HiddenLegTensor::set_label(int64 pos, LegLabel label)
+HiddenLegTensor::set_label(int64 pos, OptionalLabel label)
 {
     pos = to_valid_idx(pos, num_legs);
     if (label && !is_hidden_leg_label(label) && label_contains_exclamation(label)) {
@@ -344,7 +344,7 @@ HiddenLegTensor::set_label(int64 pos, LegLabel label)
 }
 
 Tensor&
-HiddenLegTensor::set_labels(LegLabels labels_in)
+HiddenLegTensor::set_labels(OptionalLabels labels_in)
 {
     if (!has_hidden_leg_labels(labels_in)) {
         throw std::invalid_argument(

@@ -56,7 +56,7 @@ DiagonalTensor::DiagonalTensor(TensorBackend::DataPtr data_in,
                                Space::Ptr leg_in,
                                TensorBackend::Ptr backend_in,
                                Symmetry::Ptr symmetry_in,
-                               LegLabels labels_in)
+                               OptionalLabels labels_in)
   : SymmetricTensor(std::move(data_in),
                     std::make_shared<TensorProduct>(
                       std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(leg_in) }),
@@ -117,7 +117,7 @@ DiagonalTensor::Ptr
 DiagonalTensor::from_block_func(BlockFactoryFn func,
                                 Space::Ptr leg,
                                 TensorBackend::Ptr backend,
-                                std::optional<LegLabels> labels,
+                                std::optional<OptionalLabels> labels,
                                 std::optional<Dtype> dtype,
                                 std::optional<std::string> device)
 {
@@ -152,7 +152,7 @@ DiagonalTensor::Ptr
 DiagonalTensor::from_dense_block(BlockBackend::BlockPtr block,
                                  Space::Ptr leg,
                                  TensorBackend::Ptr backend,
-                                 std::optional<LegLabels> labels,
+                                 std::optional<OptionalLabels> labels,
                                  std::optional<Dtype> dtype,
                                  float64 tol,
                                  std::optional<std::string> device,
@@ -183,7 +183,7 @@ DiagonalTensor::Ptr
 DiagonalTensor::from_diag_block(BlockBackend::BlockPtr diag,
                                 Space::Ptr leg,
                                 TensorBackend::Ptr backend,
-                                std::optional<LegLabels> labels,
+                                std::optional<OptionalLabels> labels,
                                 std::optional<Dtype> dtype,
                                 std::optional<std::string> device,
                                 float64 tol)
@@ -208,7 +208,7 @@ DiagonalTensor::from_diag_block(BlockBackend::BlockPtr diag,
 DiagonalTensor::Ptr
 DiagonalTensor::from_eye(Space::Ptr leg,
                          TensorBackend::Ptr backend,
-                         std::optional<LegLabels> labels,
+                         std::optional<OptionalLabels> labels,
                          Dtype dtype,
                          std::optional<std::string> device)
 {
@@ -232,7 +232,7 @@ DiagonalTensor::from_random_normal(Space::Ptr leg,
                                    TensorCPtr mean,
                                    float64 sigma,
                                    TensorBackend::Ptr backend,
-                                   std::optional<LegLabels> labels,
+                                   std::optional<OptionalLabels> labels,
                                    Dtype dtype,
                                    std::optional<std::string> device)
 {
@@ -303,7 +303,7 @@ DiagonalTensor::from_random_normal(Space::Ptr leg,
 DiagonalTensor::Ptr
 DiagonalTensor::from_random_uniform(Space::Ptr leg,
                                     TensorBackend::Ptr backend,
-                                    std::optional<LegLabels> labels,
+                                    std::optional<OptionalLabels> labels,
                                     Dtype dtype,
                                     std::optional<std::string> device)
 {
@@ -326,7 +326,7 @@ DiagonalTensor::Ptr
 DiagonalTensor::from_sector_block_func(SectorBlockFactoryFn func,
                                        Space::Ptr leg,
                                        TensorBackend::Ptr backend,
-                                       std::optional<LegLabels> labels,
+                                       std::optional<OptionalLabels> labels,
                                        std::optional<Dtype> dtype,
                                        std::optional<std::string> device)
 {
@@ -368,7 +368,7 @@ DiagonalTensor::from_tensor(SymmetricTensorCPtr tens, std::optional<float64> tol
 DiagonalTensor::Ptr
 DiagonalTensor::from_zero(Space::Ptr leg,
                           TensorBackend::Ptr backend,
-                          std::optional<LegLabels> labels,
+                          std::optional<OptionalLabels> labels,
                           Dtype dtype,
                           std::optional<std::string> device)
 {
@@ -909,7 +909,7 @@ DiagonalTensor::from_hdf5(cyten::hdf5::Loader& loader,
     auto data = cyten::hdf5::py_load(subpath + "data").cast<TensorBackend::DataPtr>();
     (void)cyten::hdf5::py_load(subpath + "device"); // device follows loaded blocks / fallback
     auto dt = dtype::from_numpy_dtype(cyten::hdf5::py_load(subpath + "dtype"));
-    auto labels = cyten::hdf5::py_get_attr(h5gr, "labels").cast<LegLabels>();
+    auto labels = cyten::hdf5::py_get_attr(h5gr, "labels").cast<OptionalLabels>();
     int64 nlegs = codomain->num_factors + domain->num_factors;
     if (labels.empty() && nlegs > 0) {
         labels.assign(static_cast<std::size_t>(nlegs), std::nullopt);
@@ -946,7 +946,7 @@ Identity::unsupported_factory(char const* name)
 Identity::Identity(Space::Ptr leg_in,
                    TensorBackend::Ptr backend_in,
                    Symmetry::Ptr symmetry_in,
-                   LegLabels labels_in,
+                   OptionalLabels labels_in,
                    Dtype dtype_in,
                    std::string device_in)
   : DiagonalTensor(
@@ -979,7 +979,7 @@ Identity::class_name() const
 Identity::Ptr
 Identity::from_eye(Space::Ptr leg,
                    TensorBackend::Ptr backend,
-                   std::optional<LegLabels> labels,
+                   std::optional<OptionalLabels> labels,
                    Dtype dtype,
                    std::optional<std::string> device)
 {
@@ -1010,7 +1010,7 @@ Identity::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::str
     (void)cyten::hdf5::py_load(subpath + "data");
     auto device = cyten::hdf5::py_load(subpath + "device").cast<std::string>();
     auto dt = dtype::from_numpy_dtype(cyten::hdf5::py_load(subpath + "dtype"));
-    auto labels = cyten::hdf5::py_get_attr(h5gr, "labels").cast<LegLabels>();
+    auto labels = cyten::hdf5::py_get_attr(h5gr, "labels").cast<OptionalLabels>();
     if (labels.empty()) {
         labels.assign(2, std::nullopt);
     }

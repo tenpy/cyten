@@ -156,7 +156,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
          Leg::Ptr space,
          TensorBackend::Ptr backend,
          std::optional<std::string> device,
-         LegLabel label) {
+         OptionalLabel label) {
           if (!backend) {
               backend = get_backend(space->symmetry);
           }
@@ -206,7 +206,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
           auto mean_t = py_optional_tensor(mean);
           TensorProduct::Ptr c;
           TensorProduct::Ptr d;
-          std::optional<LegLabels> labs;
+          std::optional<OptionalLabels> labs;
           if (!codomain.is_none()) {
               auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
               c = init.codomain;

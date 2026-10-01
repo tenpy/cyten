@@ -313,7 +313,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
          std::optional<std::string> device) {
           auto mean_t = py_optional_tensor(mean);
           Space::Ptr sp;
-          std::optional<LegLabels> labs;
+          std::optional<OptionalLabels> labs;
           if (!leg.is_none()) {
               auto init = py_parse_diag(leg, std::move(backend), labels);
               sp = py_as_space_leg(leg);

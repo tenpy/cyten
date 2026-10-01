@@ -1602,16 +1602,14 @@ ElementarySpace::change_symmetry(Symmetry::Ptr symmetry, SectorMapFn sector_map,
 }
 
 ElementarySpace::Ptr
-ElementarySpace::direct_sum(std::vector<Ptr> const& others) const
+ElementarySpace::direct_sum(std::vector<Ptr> const& others,
+                            std::optional<OptionalLabels> summand_labels) const
 {
-    if (others.empty()) {
-        return shared_es();
-    }
     std::vector<Ptr> all;
     all.reserve(1 + others.size());
     all.push_back(shared_es());
     all.insert(all.end(), others.begin(), others.end());
-    return DirectSumSpace::from_spaces(std::move(all), is_dual);
+    return DirectSumSpace::from_spaces(std::move(all), is_dual, std::move(summand_labels));
 }
 
 Space::Ptr
@@ -1896,12 +1894,17 @@ dss_cumsum_with_leading_zero(std::vector<int64> const& mults)
     return out;
 }
 
-[[nodiscard]] std::vector<ElementarySpace::Ptr>
-flatten_direct_sum_spaces(std::vector<ElementarySpace::Ptr> const& spaces)
+[[nodiscard]] std::pair<std::vector<ElementarySpace::Ptr>, OptionalLabels>
+flatten_direct_sum_spaces(std::vector<ElementarySpace::Ptr> const& spaces,
+                          OptionalLabels const& labels)
 {
     std::vector<ElementarySpace::Ptr> flat;
+    OptionalLabels flat_labels;
     flat.reserve(spaces.size());
-    for (auto const& s : spaces) {
+    flat_labels.reserve(spaces.size());
+    for (std::size_t i = 0; i < spaces.size(); ++i) {
+        auto const& s = spaces[i];
+        auto const& label = labels[i];
         if (!s) {
             throw std::invalid_argument("DirectSumSpace summands must be non-null");
         }
@@ -1910,24 +1913,58 @@ flatten_direct_sum_spaces(std::vector<ElementarySpace::Ptr> const& spaces)
               "DirectSumSpace summands must be plain ElementarySpaces (not pipes)");
         }
         if (auto dss = std::dynamic_pointer_cast<DirectSumSpace>(s)) {
-            auto nested = flatten_direct_sum_spaces(dss->spaces);
-            flat.insert(flat.end(), nested.begin(), nested.end());
+            if (label) {
+                throw std::invalid_argument(
+                  "Can not attach an explicit summand label to a nested DirectSumSpace summand; "
+                  "its own summand_labels are propagated to the flattened slots instead.");
+            }
+            auto [nested_spaces, nested_labels] =
+              flatten_direct_sum_spaces(dss->spaces, dss->summand_labels);
+            flat.insert(flat.end(), nested_spaces.begin(), nested_spaces.end());
+            flat_labels.insert(flat_labels.end(), nested_labels.begin(), nested_labels.end());
         } else {
             flat.push_back(s);
+            flat_labels.push_back(label);
         }
     }
-    return flat;
+    return { std::move(flat), std::move(flat_labels) };
+}
+
+/// Duplicate entries (ignoring unset labels) and invalid-syntax labels raise.
+void
+validate_summand_labels(OptionalLabels const& labels)
+{
+    std::unordered_set<std::string> seen;
+    for (auto const& l : labels) {
+        if (!l) {
+            continue;
+        }
+        if (!is_valid_leg_label(l)) {
+            throw std::invalid_argument(std::format("Invalid summand label: {}", *l));
+        }
+        if (!seen.insert(*l).second) {
+            throw std::invalid_argument(std::format("Duplicate summand label: {}", *l));
+        }
+    }
 }
 
 } // namespace
 
 DirectSumSpace::Prepared
-DirectSumSpace::prepare(std::vector<ElementarySpace::Ptr> spaces_in, bool is_dual_)
+DirectSumSpace::prepare(std::vector<ElementarySpace::Ptr> spaces_in,
+                        bool is_dual_,
+                        std::optional<OptionalLabels> summand_labels_in)
 {
-    auto flat = flatten_direct_sum_spaces(spaces_in);
+    OptionalLabels labels_in =
+      summand_labels_in.value_or(OptionalLabels(spaces_in.size(), std::nullopt));
+    if (labels_in.size() != spaces_in.size()) {
+        throw std::invalid_argument("summand_labels must have the same length as spaces");
+    }
+    auto [flat, flat_labels] = flatten_direct_sum_spaces(spaces_in, labels_in);
     if (flat.empty()) {
         throw std::invalid_argument("DirectSumSpace requires at least one summand");
     }
+    validate_summand_labels(flat_labels);
     auto const& sym = flat[0]->Space::symmetry;
     if (!std::ranges::all_of(
           flat, [&](ElementarySpace::Ptr const& o) { return o->Space::symmetry->equals(*sym); })) {
@@ -1971,6 +2008,7 @@ DirectSumSpace::prepare(std::vector<ElementarySpace::Ptr> spaces_in, bool is_dua
     if (sym->can_be_dropped()) {
         prepared.basis_perm = fused->basis_perm();
     }
+    prepared.summand_labels = std::move(flat_labels);
     return prepared;
 }
 
@@ -1981,18 +2019,68 @@ DirectSumSpace::DirectSumSpace(Prepared prepared, bool is_dual_)
                     is_dual_,
                     prepared.basis_perm)
   , spaces(std::move(prepared.spaces))
+  , summand_labels(std::move(prepared.summand_labels))
 {
+    for (std::size_t i = 0; i < summand_labels.size(); ++i) {
+        if (summand_labels[i]) {
+            _summand_labelmap[*summand_labels[i]] = static_cast<int64>(i);
+        }
+    }
 }
 
-DirectSumSpace::DirectSumSpace(std::vector<ElementarySpace::Ptr> spaces_, bool is_dual_)
-  : DirectSumSpace(prepare(std::move(spaces_), is_dual_), is_dual_)
+DirectSumSpace::DirectSumSpace(std::vector<ElementarySpace::Ptr> spaces_,
+                               bool is_dual_,
+                               std::optional<OptionalLabels> summand_labels_)
+  : DirectSumSpace(prepare(std::move(spaces_), is_dual_, std::move(summand_labels_)), is_dual_)
 {
 }
 
 DirectSumSpace::Ptr
-DirectSumSpace::from_spaces(std::vector<ElementarySpace::Ptr> spaces_, bool is_dual_)
+DirectSumSpace::from_spaces(std::vector<ElementarySpace::Ptr> spaces_,
+                            bool is_dual_,
+                            std::optional<OptionalLabels> summand_labels_)
 {
-    return std::make_shared<DirectSumSpace>(std::move(spaces_), is_dual_);
+    return std::make_shared<DirectSumSpace>(
+      std::move(spaces_), is_dual_, std::move(summand_labels_));
+}
+
+int64
+DirectSumSpace::get_summand_idx(SummandRef which) const
+{
+    if (std::holds_alternative<std::string>(which)) {
+        auto const& label = std::get<std::string>(which);
+        auto it = _summand_labelmap.find(label);
+        if (it == _summand_labelmap.end()) {
+            std::string available;
+            for (std::size_t i = 0; i < summand_labels.size(); ++i) {
+                if (i > 0) {
+                    available += ", ";
+                }
+                available += summand_labels[i] ? *summand_labels[i] : std::string("None");
+            }
+            throw std::invalid_argument(
+              std::format("No summand with label {}. Labels are [{}]", label, available));
+        }
+        return it->second;
+    }
+    auto i = std::get<int64>(which);
+    auto const n = static_cast<int64>(spaces.size());
+    if (i < 0) {
+        i += n;
+    }
+    if (i < 0 || i >= n) {
+        throw std::invalid_argument(
+          std::format("summand index {} out of range for DirectSumSpace with {} summands",
+                      std::get<int64>(which),
+                      n));
+    }
+    return i;
+}
+
+bool
+DirectSumSpace::has_summand_label(std::string const& label) const
+{
+    return _summand_labelmap.contains(label);
 }
 
 DirectSumSpace::Ptr
@@ -2007,6 +2095,10 @@ DirectSumSpace::test_sanity() const
     if (spaces.empty()) {
         throw std::logic_error("DirectSumSpace::test_sanity: empty spaces");
     }
+    if (summand_labels.size() != spaces.size()) {
+        throw std::logic_error("DirectSumSpace::test_sanity: summand_labels length mismatch");
+    }
+    validate_summand_labels(summand_labels);
     for (auto const& s : spaces) {
         if (!s) {
             throw std::logic_error("DirectSumSpace::test_sanity: null summand");
@@ -2104,7 +2196,7 @@ DirectSumSpace::dual_dss() const
     for (auto const& s : spaces) {
         new_spaces.push_back(s->dual_es());
     }
-    return from_spaces(std::move(new_spaces), !is_dual);
+    return from_spaces(std::move(new_spaces), !is_dual, summand_labels);
 }
 
 Space::Ptr
@@ -2116,7 +2208,7 @@ DirectSumSpace::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map,
         new_spaces.push_back(std::dynamic_pointer_cast<ElementarySpace>(
           s->change_symmetry(symmetry_, sector_map, injective)));
     }
-    return from_spaces(std::move(new_spaces), is_dual);
+    return from_spaces(std::move(new_spaces), is_dual, summand_labels);
 }
 
 Space::Ptr
@@ -2127,7 +2219,7 @@ DirectSumSpace::drop_symmetry(std::optional<std::vector<int64>> which)
     for (auto const& s : spaces) {
         new_spaces.push_back(std::dynamic_pointer_cast<ElementarySpace>(s->drop_symmetry(which)));
     }
-    return from_spaces(std::move(new_spaces), is_dual);
+    return from_spaces(std::move(new_spaces), is_dual, summand_labels);
 }
 
 ElementarySpace::Ptr
@@ -2159,7 +2251,7 @@ DirectSumSpace::with_opposite_duality() const
     for (auto const& s : spaces) {
         new_spaces.push_back(s->with_opposite_duality());
     }
-    return from_spaces(std::move(new_spaces), !is_dual);
+    return from_spaces(std::move(new_spaces), !is_dual, summand_labels);
 }
 
 bool
@@ -2268,6 +2360,12 @@ DirectSumSpace::save_hdf5(cyten::hdf5::Saver& saver,
     }
     cyten::hdf5::py_save(subpath + "spaces", spaces_list);
     cyten::hdf5::py_set_group_attr("is_direct_sum_space", py::cast(true));
+    // All-None labels are stored as [] (matches Tensor's hdf5 label convention).
+    if (std::ranges::all_of(summand_labels, [](OptionalLabel const& l) { return !l; })) {
+        cyten::hdf5::py_set_group_attr("summand_labels", py::list());
+    } else {
+        cyten::hdf5::py_set_group_attr("summand_labels", py::cast(summand_labels));
+    }
 }
 
 DirectSumSpace::Ptr
@@ -2281,7 +2379,16 @@ DirectSumSpace::from_hdf5(cyten::hdf5::Loader& loader,
         spaces_.push_back(item.cast<ElementarySpace::Ptr>());
     }
     auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
-    auto obj = from_spaces(std::move(spaces_), is_dual);
+    std::optional<OptionalLabels> summand_labels_;
+    try {
+        auto labs = cyten::hdf5::py_get_attr(h5gr, "summand_labels").cast<OptionalLabels>();
+        summand_labels_ = labs.empty() && !spaces_.empty()
+                            ? OptionalLabels(spaces_.size(), std::nullopt)
+                            : std::move(labs);
+    } catch (py::error_already_set const&) {
+        // Older files predate `summand_labels`; leave unlabeled.
+    }
+    auto obj = from_spaces(std::move(spaces_), is_dual, std::move(summand_labels_));
     py::object py_obj = py::cast(obj);
     cyten::hdf5::py_memorize_load(h5gr, py_obj);
     return obj;

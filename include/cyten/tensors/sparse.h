@@ -16,7 +16,7 @@
 
 namespace cyten {
 
-using VectorLabels = std::optional<LegLabels>;
+using VectorLabels = std::optional<OptionalLabels>;
 inline constexpr float64 kGramSchmidtDefaultRcond = 1.0e-14;
 
 bool same_legs(std::vector<Leg::Ptr> const& legs1, std::vector<Leg::Ptr> const& legs2);

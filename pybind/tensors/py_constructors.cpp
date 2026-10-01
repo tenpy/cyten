@@ -70,7 +70,7 @@ bind_tensors_constructors(py::module_& m)
               if (!domain.is_none()) {
                   dom = tensor_product_from_python(domain, t->symmetry);
               }
-              std::optional<LegLabels> labs;
+              std::optional<OptionalLabels> labs;
               if (!labels.is_none()) {
                   labs = parse_tensor_init_labels(labels, t->codomain, t->domain);
               }
@@ -118,7 +118,7 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
           std::optional<int64> legs_pos_opt;
           std::optional<int64> codomain_pos_opt;
           std::optional<int64> domain_pos_opt;
-          LegLabel label_opt = std::nullopt;
+          OptionalLabel label_opt = std::nullopt;
           if (!legs_pos.is_none()) {
               legs_pos_opt = legs_pos.cast<int64>();
           }
@@ -155,7 +155,11 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
 
     m.def(
       "tensor_from_grid",
-      [](py::object grid, py::object labels, py::object dtype) {
+      [](py::object grid,
+         py::object labels,
+         py::object dtype,
+         std::optional<OptionalLabels> row_labels,
+         std::optional<OptionalLabels> col_labels) {
           std::optional<Dtype> dtype_opt;
           if (!dtype.is_none()) {
               dtype_opt = dtype.cast<Dtype>();
@@ -169,7 +173,8 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
               }
               g.push_back(std::move(row));
           }
-          auto res = tensor_from_grid(std::move(g), std::nullopt, dtype_opt);
+          auto res = tensor_from_grid(
+            std::move(g), std::nullopt, dtype_opt, std::move(row_labels), std::move(col_labels));
           if (!labels.is_none()) {
               res->set_labels(parse_tensor_init_labels(labels, res->codomain, res->domain));
           }
@@ -178,15 +183,28 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
       py::arg("grid"),
       py::arg("labels") = py::none(),
       py::arg("dtype") = py::none(),
+      py::kw_only(),
+      py::arg("row_labels") = py::none(),
+      py::arg("col_labels") = py::none(),
       doc_plus(DOC(cyten, tensor_from_grid),
                R"pydoc(
 In Python, ``grid`` is ``list[list[SymmetricTensor | None]]`` (``None`` = zero cell);
-``labels`` / ``dtype`` use ``None`` for C++ ``nullopt``.
+``labels`` / ``dtype`` / ``row_labels`` / ``col_labels`` use ``None`` for C++ ``nullopt``.
 )pydoc"));
 
     m.def(
       "tensor_grid_cell",
-      [](py::object tensor, int64 row, int64 col, py::object row_leg, py::object col_leg) {
+      [](py::object tensor,
+         py::object row,
+         py::object col,
+         py::object row_leg,
+         py::object col_leg) {
+          auto as_summand_ref = [](py::object obj) -> DirectSumSpace::SummandRef {
+              if (py::isinstance<py::str>(obj)) {
+                  return obj.cast<std::string>();
+              }
+              return obj.cast<int64>();
+          };
           LegRef row_ref = int64{ 0 };
           LegRef col_ref = int64{ -1 };
           if (!row_leg.is_none()) {
@@ -203,14 +221,19 @@ In Python, ``grid`` is ``list[list[SymmetricTensor | None]]`` (``None`` = zero c
                   col_ref = col_leg.cast<int64>();
               }
           }
-          return tensor_grid_cell(tensor.cast<TensorCPtr>(), row, col, row_ref, col_ref);
+          return tensor_grid_cell(
+            tensor.cast<TensorCPtr>(), as_summand_ref(row), as_summand_ref(col), row_ref, col_ref);
       },
       py::arg("tensor"),
       py::arg("row"),
       py::arg("col"),
       py::arg("row_leg") = py::none(),
       py::arg("col_leg") = py::none(),
-      DOC(cyten, tensor_grid_cell));
+      doc_plus(DOC(cyten, tensor_grid_cell),
+               R"pydoc(
+In Python, ``row`` / ``col`` accept ``int | str`` (a summand label, resolved via
+``DirectSumSpace.get_summand_idx``).
+)pydoc"));
 }
 
 } // namespace cyten

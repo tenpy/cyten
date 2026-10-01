@@ -45,7 +45,7 @@ _assert_valid_planar_placeholder_labels(std::vector<std::string> const& labels,
 }
 
 [[nodiscard]] bool
-_is_hidden_planar_label(LegLabel const& label)
+_is_hidden_planar_label(OptionalLabel const& label)
 {
     if (!label) {
         return false;
@@ -60,7 +60,7 @@ _is_hidden_planar_label(LegLabel const& label)
     if (pos == std::string::npos) {
         return false;
     }
-    LegLabel tail{ s.substr(pos + 1) };
+    OptionalLabel tail{ s.substr(pos + 1) };
     return HiddenLegTensor::is_hidden_leg_label(tail) ||
            HiddenLegTensor::is_charge_temp_label(tail);
 }
@@ -68,11 +68,11 @@ _is_hidden_planar_label(LegLabel const& label)
 [[nodiscard]] bool
 _is_hidden_planar_label(std::string const& label)
 {
-    return _is_hidden_planar_label(LegLabel{ label });
+    return _is_hidden_planar_label(OptionalLabel{ label });
 }
 
 [[nodiscard]] std::vector<std::string>
-as_strings(LegLabels const& labels)
+as_strings(OptionalLabels const& labels)
 {
     std::vector<std::string> out;
     out.reserve(labels.size());
@@ -267,10 +267,10 @@ strip_ws(std::string s)
     return s.substr(a, b - a + 1);
 }
 
-[[nodiscard]] LegLabels
+[[nodiscard]] OptionalLabels
 labels_from_strings(std::vector<std::string> const& labels)
 {
-    LegLabels out;
+    OptionalLabels out;
     out.reserve(labels.size());
     for (auto const& l : labels) {
         out.emplace_back(l);
@@ -330,7 +330,7 @@ planar_decomposition(TensorCPtr tensor,
                      int64 codomain_cut,
                      int64 domain_cut,
                      PlanarDecompWhich which,
-                     std::optional<LegLabels> new_labels,
+                     std::optional<OptionalLabels> new_labels,
                      bool new_leg_dual,
                      std::optional<std::string> sort = std::nullopt,
                      std::optional<std::string> algorithm = std::nullopt,
@@ -378,15 +378,16 @@ planar_decomposition(TensorCPtr tensor,
         B = std::move(q);
     } else if (which == PlanarDecompWhich::eigh) {
         // eigh returns W, V, where V is the unitary -> permute legs as, e.g., Q in QR
-        auto [W, V] = eigh(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
+        auto [W, V] =
+          eigh(to_decompose, new_labels.value_or(OptionalLabels{}), new_leg_dual, sort);
         B = std::move(W);
         A = std::move(V);
     } else if (which == PlanarDecompWhich::eig) {
-        auto [W, V] = eig(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
+        auto [W, V] = eig(to_decompose, new_labels.value_or(OptionalLabels{}), new_leg_dual, sort);
         B = std::move(W);
         A = std::move(V);
     } else if (which == PlanarDecompWhich::eigvals) {
-        auto W = eigvals(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
+        auto W = eigvals(to_decompose, new_labels.value_or(OptionalLabels{}), new_leg_dual, sort);
         B = std::move(W);
     } else if (which == PlanarDecompWhich::svd) {
         auto [u, s, vh] = svd(to_decompose, new_labels, new_leg_dual, true, algorithm);
@@ -446,7 +447,7 @@ std::string
 _as_valid_name(std::string name)
 {
     name = strip_ws(std::move(name));
-    if (!is_valid_leg_label(LegLabel{ name })) {
+    if (!is_valid_leg_label(OptionalLabel{ name })) {
         throw std::invalid_argument(std::format("Invalid name or leg label: {}", name));
     }
     return name;
@@ -1379,7 +1380,8 @@ PlanarDiagram::verify_diagram()
         check(tensors.at(t1).has_label(l1), std::format("Tensor {} has no leg {}", t1, l1));
         num_legs += 1;
         if (!t2) {
-            check(is_valid_leg_label(LegLabel{ l2 }), std::format("Invalid leg label {}", l2));
+            check(is_valid_leg_label(OptionalLabel{ l2 }),
+                  std::format("Invalid leg label {}", l2));
         } else {
             check(tensors.contains(*t2), std::format("No tensor with name {}", *t2));
             check(tensors.at(*t2).has_label(l2), std::format("Tensor {} has no leg {}", *t2, l2));
@@ -1758,7 +1760,7 @@ std::tuple<TensorPtr, TensorPtr>
 horizontal_factorization(TensorCPtr tensor,
                          int64 codomain_cut,
                          int64 domain_cut,
-                         std::optional<LegLabels> new_labels,
+                         std::optional<OptionalLabels> new_labels,
                          std::optional<float64> cutoff_singular_values)
 {
     if (!cutoff_singular_values) {
@@ -1786,7 +1788,7 @@ planar_almost_equal(TensorCPtr tensor_1, TensorCPtr tensor_2, float64 rtol, floa
 {
     auto labs1 = tensor_1->labels();
     auto labs2 = tensor_2->labels();
-    if (contains(labs1, LegLabel{}) || contains(labs2, LegLabel{})) {
+    if (contains(labs1, OptionalLabel{}) || contains(labs2, OptionalLabel{})) {
         throw std::invalid_argument("Can only compare tensors for which each leg has a label");
     }
     std::set<std::string> s1;
@@ -1981,7 +1983,7 @@ _hidden_dual_label_pairs(TensorCPtr tensor1, TensorCPtr tensor2)
     std::vector<bool> used2(hidden2.size(), false);
     for (auto const& [i1, lab1] : hidden1) {
         (void)i1;
-        auto dual1 = _dual_leg_label(LegLabel{ lab1 });
+        auto dual1 = _dual_leg_label(OptionalLabel{ lab1 });
         for (std::size_t j = 0; j < hidden2.size(); ++j) {
             if (used2[j]) {
                 continue;
@@ -2569,7 +2571,7 @@ std::tuple<DiagonalTensorPtr, TensorPtr>
 planar_eigh(TensorCPtr tensor,
             int64 codomain_cut,
             int64 domain_cut,
-            std::optional<LegLabels> new_labels,
+            std::optional<OptionalLabels> new_labels,
             bool new_leg_dual,
             std::optional<std::string> sort)
 {
@@ -2591,7 +2593,7 @@ std::tuple<DiagonalTensorPtr, TensorPtr>
 planar_eig(TensorCPtr tensor,
            int64 codomain_cut,
            int64 domain_cut,
-           std::optional<LegLabels> new_labels,
+           std::optional<OptionalLabels> new_labels,
            bool new_leg_dual,
            std::optional<std::string> sort)
 {
@@ -2613,7 +2615,7 @@ DiagonalTensorPtr
 planar_eigvals(TensorCPtr tensor,
                int64 codomain_cut,
                int64 domain_cut,
-               std::optional<LegLabels> new_labels,
+               std::optional<OptionalLabels> new_labels,
                bool new_leg_dual,
                std::optional<std::string> sort)
 {
@@ -2635,7 +2637,7 @@ std::tuple<TensorPtr, TensorPtr>
 planar_lq(TensorCPtr tensor,
           int64 codomain_cut,
           int64 domain_cut,
-          std::optional<LegLabels> new_labels,
+          std::optional<OptionalLabels> new_labels,
           bool new_leg_dual)
 {
     auto r = planar_decomposition(tensor,
@@ -3280,7 +3282,7 @@ std::tuple<TensorPtr, TensorPtr>
 planar_qr(TensorCPtr tensor,
           int64 codomain_cut,
           int64 domain_cut,
-          std::optional<LegLabels> new_labels,
+          std::optional<OptionalLabels> new_labels,
           bool new_leg_dual)
 {
     auto r = planar_decomposition(tensor,
@@ -3296,7 +3298,7 @@ std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr>
 planar_svd(TensorCPtr tensor,
            int64 codomain_cut,
            int64 domain_cut,
-           std::optional<LegLabels> new_labels,
+           std::optional<OptionalLabels> new_labels,
            bool new_leg_dual,
            std::optional<std::string> algorithm)
 {
@@ -3315,7 +3317,7 @@ std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr, float64, float64>
 planar_truncated_svd(TensorCPtr tensor,
                      int64 codomain_cut,
                      int64 domain_cut,
-                     std::optional<LegLabels> new_labels,
+                     std::optional<OptionalLabels> new_labels,
                      bool new_leg_dual,
                      std::optional<std::string> algorithm,
                      std::optional<float64> normalize_to,

@@ -21,20 +21,6 @@ namespace cyten {
 
 namespace {
 
-std::vector<int64>
-cumsum_with_leading_zero(std::vector<int64> const& mults)
-{
-    std::vector<int64> out;
-    out.reserve(mults.size() + 1);
-    out.push_back(0);
-    int64 running = 0;
-    for (auto m : mults) {
-        running += m;
-        out.push_back(running);
-    }
-    return out;
-}
-
 bool
 legs_equal(Leg::Ptr const& a, Leg::Ptr const& b)
 {
@@ -83,7 +69,7 @@ factor_slices_equal(std::vector<Leg::Ptr> const& a, std::vector<Leg::Ptr> const&
 TensorPtr
 eye(Space::Ptr leg,
     TensorBackend::Ptr backend,
-    std::optional<LegLabels> labels,
+    std::optional<OptionalLabels> labels,
     Dtype dtype,
     std::optional<std::string> device,
     bool diagonal)
@@ -101,7 +87,7 @@ tensor(TensorCPtr obj,
        TensorProduct::Ptr codomain,
        TensorProduct::Ptr domain,
        TensorBackend::Ptr backend,
-       std::optional<LegLabels> labels,
+       std::optional<OptionalLabels> labels,
        std::optional<Dtype> dtype,
        std::optional<std::string> device)
 {
@@ -135,7 +121,7 @@ tensor(BlockBackend::BlockPtr obj,
        TensorProduct::Ptr codomain,
        TensorProduct::Ptr domain,
        TensorBackend::Ptr backend,
-       std::optional<LegLabels> labels,
+       std::optional<OptionalLabels> labels,
        std::optional<Dtype> dtype,
        std::optional<std::string> device,
        bool understood_braiding)
@@ -156,7 +142,7 @@ add_trivial_leg(TensorCPtr tens,
                 std::optional<int64> legs_pos_opt,
                 std::optional<int64> codomain_pos_opt,
                 std::optional<int64> domain_pos_opt,
-                LegLabel label,
+                OptionalLabel label,
                 bool is_dual)
 {
     // --- hints from Python add_trivial_leg ---
@@ -260,8 +246,8 @@ add_trivial_leg(TensorCPtr tens,
     auto data =
       backend->add_trivial_leg(tens, legs_pos, add_to_domain, co_domain_pos, codomain, domain);
 
-    LegLabels labels = tens->labels();
-    LegLabels new_labels;
+    OptionalLabels labels = tens->labels();
+    OptionalLabels new_labels;
     new_labels.reserve(labels.size() + 1);
     new_labels.insert(new_labels.end(), labels.begin(), labels.begin() + legs_pos);
     new_labels.push_back(label);
@@ -308,8 +294,10 @@ zero_like(TensorCPtr tensor)
 
 TensorPtr
 tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
-                 std::optional<LegLabels> labels,
-                 std::optional<Dtype> dtype_opt)
+                 std::optional<OptionalLabels> labels,
+                 std::optional<Dtype> dtype_opt,
+                 std::optional<OptionalLabels> row_labels,
+                 std::optional<OptionalLabels> col_labels)
 {
     // --- hints from Python tensor_from_grid ---
     // check input
@@ -380,6 +368,12 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
             throw std::invalid_argument("grid rows must have equal length");
         }
     }
+    if (row_labels.has_value() && static_cast<int64>(row_labels->size()) != n_rows) {
+        throw std::invalid_argument("row_labels must have one entry per grid row");
+    }
+    if (col_labels.has_value() && static_cast<int64>(col_labels->size()) != n_cols) {
+        throw std::invalid_argument("col_labels must have one entry per grid column");
+    }
 
     std::vector<TensorPtr> right_ops(static_cast<std::size_t>(n_cols));
     if (n_rows > 0) {
@@ -439,32 +433,17 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
 
     std::vector<ElementarySpace::Ptr> left_rest(left_spaces.begin() + 1, left_spaces.end());
     std::vector<ElementarySpace::Ptr> right_rest(right_spaces.begin() + 1, right_spaces.end());
-    auto left_space = left_spaces[0]->direct_sum(left_rest);
-    auto right_space = right_spaces[0]->direct_sum(right_rest);
+    auto left_space = left_spaces[0]->direct_sum(left_rest, row_labels);
+    auto right_space = right_spaces[0]->direct_sum(right_rest, col_labels);
 
-    std::vector<std::vector<int64>> left_mult_slices;
-    std::vector<std::vector<int64>> right_mult_slices;
-    if (auto dss = std::dynamic_pointer_cast<DirectSumSpace>(left_space)) {
-        left_mult_slices = dss->mult_slices();
-    } else {
-        // Single summand (n_rows == 1): one slice covering the full multiplicity.
-        for (auto const& sector : left_space->sector_decomposition) {
-            auto idx = left_space->sector_decomposition_where(sector);
-            int64 m = idx.has_value() ? left_space->multiplicities[static_cast<std::size_t>(*idx)]
-                                      : int64{ 0 };
-            left_mult_slices.push_back(cumsum_with_leading_zero(std::vector<int64>{ m }));
-        }
+    // direct_sum always wraps in a DirectSumSpace, even for a single row/col.
+    auto left_dss = std::dynamic_pointer_cast<DirectSumSpace>(left_space);
+    auto right_dss = std::dynamic_pointer_cast<DirectSumSpace>(right_space);
+    if (!left_dss || !right_dss) {
+        throw std::runtime_error("tensor_from_grid: direct_sum did not return a DirectSumSpace");
     }
-    if (auto dss = std::dynamic_pointer_cast<DirectSumSpace>(right_space)) {
-        right_mult_slices = dss->mult_slices();
-    } else {
-        for (auto const& sector : right_space->sector_decomposition) {
-            auto idx = right_space->sector_decomposition_where(sector);
-            int64 m = idx.has_value() ? right_space->multiplicities[static_cast<std::size_t>(*idx)]
-                                      : int64{ 0 };
-            right_mult_slices.push_back(cumsum_with_leading_zero(std::vector<int64>{ m }));
-        }
-    }
+    auto left_mult_slices = left_dss->mult_slices();
+    auto right_mult_slices = right_dss->mult_slices();
 
     std::vector<Leg::Ptr> cod_legs;
     cod_legs.push_back(left_space);
@@ -494,7 +473,7 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
                                    std::move(right_mult_slices),
                                    dtype,
                                    device);
-    LegLabels labs = labels.value_or(LegLabels{});
+    OptionalLabels labs = labels.value_or(OptionalLabels{});
     if (!labels.has_value()) {
         labs = Tensor::_init_parse_labels(std::nullopt, codomain, domain);
     }
@@ -553,7 +532,7 @@ resolve_backend_for_space(TensorBackend::Ptr backend, Space::Ptr const& space)
 MaskPtr
 DirectSumSpace::projection_onto_summands(std::vector<int64> indices,
                                          std::shared_ptr<TensorBackend> backend,
-                                         std::optional<LegLabels> labels,
+                                         std::optional<OptionalLabels> labels,
                                          std::optional<std::string> device) const
 {
     auto kept = normalize_summand_indices(*this, std::move(indices));
@@ -596,7 +575,7 @@ DirectSumSpace::projection_onto_summands(std::vector<int64> indices,
 MaskPtr
 DirectSumSpace::inclusion_of_summands(std::vector<int64> indices,
                                       std::shared_ptr<TensorBackend> backend,
-                                      std::optional<LegLabels> labels,
+                                      std::optional<OptionalLabels> labels,
                                       std::optional<std::string> device) const
 {
     auto proj = projection_onto_summands(
@@ -611,7 +590,7 @@ DirectSumSpace::inclusion_of_summands(std::vector<int64> indices,
 MaskPtr
 DirectSumSpace::projection_onto_summand(int64 i,
                                         std::shared_ptr<TensorBackend> backend,
-                                        std::optional<LegLabels> labels,
+                                        std::optional<OptionalLabels> labels,
                                         std::optional<std::string> device) const
 {
     return projection_onto_summands(
@@ -621,7 +600,7 @@ DirectSumSpace::projection_onto_summand(int64 i,
 MaskPtr
 DirectSumSpace::inclusion_of_summand(int64 i,
                                      std::shared_ptr<TensorBackend> backend,
-                                     std::optional<LegLabels> labels,
+                                     std::optional<OptionalLabels> labels,
                                      std::optional<std::string> device) const
 {
     return inclusion_of_summands(
@@ -631,7 +610,7 @@ DirectSumSpace::inclusion_of_summand(int64 i,
 SymmetricTensorPtr
 DirectSumSpace::unit_vector_of_summand(int64 i,
                                        std::shared_ptr<TensorBackend> backend,
-                                       std::optional<LegLabels> labels,
+                                       std::optional<OptionalLabels> labels,
                                        std::optional<Dtype> dtype,
                                        std::optional<std::string> device) const
 {
@@ -667,7 +646,11 @@ DirectSumSpace::unit_vector_of_summand(int64 i,
 }
 
 TensorPtr
-tensor_grid_cell(TensorCPtr tensor, int64 row, int64 col, LegRef row_leg, LegRef col_leg)
+tensor_grid_cell(TensorCPtr tensor,
+                 DirectSumSpace::SummandRef row,
+                 DirectSumSpace::SummandRef col,
+                 LegRef row_leg,
+                 LegRef col_leg)
 {
     if (!tensor) {
         throw std::invalid_argument("tensor_grid_cell: tensor must be non-null");
@@ -682,16 +665,23 @@ tensor_grid_cell(TensorCPtr tensor, int64 row, int64 col, LegRef row_leg, LegRef
 
     TensorPtr cell = std::const_pointer_cast<Tensor>(tensor);
     if (row_dss) {
-        auto proj = row_dss->projection_onto_summand(row, tensor->backend);
+        auto proj =
+          row_dss->projection_onto_summand(row_dss->get_summand_idx(row), tensor->backend);
         cell = apply_mask(cell, proj, row_leg);
-    } else if (row != 0 && row != -1) {
+    } else if (std::holds_alternative<std::string>(row)) {
+        throw std::invalid_argument(
+          "tensor_grid_cell: row stacking leg is not a DirectSumSpace; labels are not available");
+    } else if (auto const i = std::get<int64>(row); i != 0 && i != -1) {
         throw std::invalid_argument(
           "tensor_grid_cell: row stacking leg is not a DirectSumSpace; only row 0/-1 is valid");
     }
     if (col_dss) {
-        auto proj = col_dss->projection_onto_summand(col, cell->backend);
+        auto proj = col_dss->projection_onto_summand(col_dss->get_summand_idx(col), cell->backend);
         cell = apply_mask(cell, proj, col_leg);
-    } else if (col != 0 && col != -1) {
+    } else if (std::holds_alternative<std::string>(col)) {
+        throw std::invalid_argument("tensor_grid_cell: column stacking leg is not a "
+                                    "DirectSumSpace; labels are not available");
+    } else if (auto const i = std::get<int64>(col); i != 0 && i != -1) {
         throw std::invalid_argument(
           "tensor_grid_cell: column stacking leg is not a DirectSumSpace; only col 0/-1 is valid");
     }

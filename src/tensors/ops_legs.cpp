@@ -156,10 +156,10 @@ make_python_charged_tensor(py::object invariant_part, py::object charged_state)
                                                     charged_state.cast<BlockBackend::BlockPtr>()));
 }
 
-LegLabels
+OptionalLabels
 leg_labels_from_py(py::object seq)
 {
-    LegLabels out;
+    OptionalLabels out;
     for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
         if (item.is_none()) {
             out.push_back(std::nullopt);
@@ -171,7 +171,7 @@ leg_labels_from_py(py::object seq)
 }
 
 py::object
-labels_to_py(LegLabels const& labels)
+labels_to_py(OptionalLabels const& labels)
 {
     py::list out;
     for (auto const& lab : labels) {
@@ -185,7 +185,7 @@ labels_to_py(LegLabels const& labels)
 }
 
 py::object
-nested_leg_labels_to_py(LegLabels const& codomain_labels, LegLabels const& domain_labels)
+nested_leg_labels_to_py(OptionalLabels const& codomain_labels, OptionalLabels const& domain_labels)
 {
     return py::make_tuple(labels_to_py(codomain_labels), labels_to_py(domain_labels));
 }
@@ -728,9 +728,9 @@ permute_legs_py(py::object tensor,
                                       levels_v,
                                       bend_right_v);
 
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
-    LegLabels cod_labels;
-    LegLabels dom_labels;
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
+    OptionalLabels cod_labels;
+    OptionalLabels dom_labels;
     for (auto n : codomain_v) {
         cod_labels.push_back(all_labels[static_cast<std::size_t>(n)]);
     }
@@ -975,12 +975,12 @@ combine_legs_py(py::object tensor,
 
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
     std::vector<py::object> codomain_spaces;
-    std::vector<LegLabel> codomain_labels;
-    std::vector<LegLabel> domain_labels_reversed;
+    std::vector<OptionalLabel> codomain_labels;
+    std::vector<OptionalLabel> domain_labels_reversed;
     std::vector<py::object> domain_spaces_reversed;
     std::size_t i = 0; // have already used pipes[:i]
     int64 label_offset = 0;
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
 
     for (int64 n = 0; n < N; ++n) {
         if (codomain_groups.contains(n)) {
@@ -998,8 +998,8 @@ combine_legs_py(py::object tensor,
               legs_from_sequence(spaces_to_combine), pipe_dualities_v[i], pipe_arg);
             pipes_list[static_cast<py::ssize_t>(i)] = py::cast(combined);
             codomain_spaces.push_back(py::cast(combined));
-            LegLabels group_labels(all_labels.begin() + group.front(),
-                                   all_labels.begin() + group.back() + 1);
+            OptionalLabels group_labels(all_labels.begin() + group.front(),
+                                        all_labels.begin() + group.back() + 1);
             codomain_labels.push_back(_combine_leg_labels(group_labels, label_offset));
             ++i;
             int64 none_count = 0;
@@ -1027,8 +1027,8 @@ combine_legs_py(py::object tensor,
               legs_from_sequence(spaces_to_combine), !pipe_dualities_v[i], pipe_arg);
             pipes_list[static_cast<py::ssize_t>(i)] = py::cast(combined);
             domain_spaces_reversed.push_back(py::cast(combined));
-            LegLabels group_labels(all_labels.begin() + group.front(),
-                                   all_labels.begin() + group.back() + 1);
+            OptionalLabels group_labels(all_labels.begin() + group.front(),
+                                        all_labels.begin() + group.back() + 1);
             domain_labels_reversed.push_back(_combine_leg_labels(group_labels, label_offset));
             ++i;
             int64 none_count = 0;
@@ -1075,7 +1075,7 @@ combine_legs_py(py::object tensor,
                                       codomain.cast<TensorProduct::Ptr>(),
                                       domain.cast<TensorProduct::Ptr>());
 
-    LegLabels res_labels = codomain_labels;
+    OptionalLabels res_labels = codomain_labels;
     // domain_labels_reversed is already in legs order for the domain part of tensor.legs
     // (right-to-left build), matching Python [*codomain_labels, *domain_labels_reversed]
     res_labels.insert(
@@ -1239,8 +1239,8 @@ split_legs_py(py::object tensor, py::object legs)
                                       tensor.attr("domain").attr("multiplicities")));
 
     // build labels
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
-    LegLabels labels;
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
+    OptionalLabels labels;
     std::unordered_set<int64> leg_idcs_set(leg_idcs.begin(), leg_idcs.end());
     for (int64 idx = 0; idx < static_cast<int64>(all_labels.size()); ++idx) {
         if (leg_idcs_set.contains(idx)) {
@@ -1342,8 +1342,8 @@ squeeze_legs_py(py::object tensor, py::object legs)
                                       tensor.attr("domain").attr("sector_decomposition"),
                                       tensor.attr("domain").attr("multiplicities")));
 
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
-    LegLabels labels;
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
+    OptionalLabels labels;
     for (auto n : remaining) {
         labels.push_back(all_labels[static_cast<std::size_t>(n)]);
     }
@@ -1740,7 +1740,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
         throw std::invalid_argument(
           "move_hidden_leg: specify exactly one of target_codomain_pos and target_domain_pos.");
     }
-    if (!HiddenLegTensor::is_hidden_leg_label(LegLabel{ hidden_leg_label })) {
+    if (!HiddenLegTensor::is_hidden_leg_label(OptionalLabel{ hidden_leg_label })) {
         throw std::invalid_argument(std::format(
           "move_hidden_leg: hidden_leg_label '{}' must be a hidden label (including '!').",
           hidden_leg_label));
@@ -1782,7 +1782,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
           "move_hidden_leg: B already has label '{}'. Relabel one of the hidden legs first.",
           hidden_leg_label));
     }
-    auto dual_hidden = _dual_leg_label(LegLabel{ hidden_leg_label });
+    auto dual_hidden = _dual_leg_label(OptionalLabel{ hidden_leg_label });
     if (dual_hidden && B->has_label(*dual_hidden)) {
         throw std::invalid_argument(std::format(
           "move_hidden_leg: B already has dual hidden label '{}'. Dual hidden pairs on one "
@@ -1790,7 +1790,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
           *dual_hidden));
     }
 
-    auto stripped_h = HiddenLegTensor::strip_hidden_prefix(LegLabel{ hidden_leg_label });
+    auto stripped_h = HiddenLegTensor::strip_hidden_prefix(OptionalLabel{ hidden_leg_label });
     if (!stripped_h) {
         throw std::invalid_argument("move_hidden_leg: hidden_leg_label has no name after '!'.");
     }
@@ -1846,7 +1846,8 @@ move_hidden_leg(HiddenLegTensorCPtr A,
     if (!A_work) {
         throw std::runtime_error("move_hidden_leg: expected SymmetricTensor after combining A");
     }
-    auto pipe_A_label = _combine_leg_labels({ LegLabel{ *stripped_h }, original_axis_A_label });
+    auto pipe_A_label =
+      _combine_leg_labels({ OptionalLabel{ *stripped_h }, original_axis_A_label });
     int64 pipe_A_idx = A_work->get_leg_idcs(pipe_A_label).at(0);
     A_work->set_label(pipe_A_idx, original_axis_A_label);
     auto pipe_A = A_work->get_leg(A_work->get_leg_idcs(*original_axis_A_label).at(0));
@@ -1860,7 +1861,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
     }
     auto I = eye(h_space,
                  A->backend,
-                 LegLabels{ LegLabel{ open_lab }, LegLabel{ int_lab } },
+                 OptionalLabels{ OptionalLabel{ open_lab }, OptionalLabel{ int_lab } },
                  A->dtype,
                  A->device,
                  /*diagonal=*/false);
@@ -1879,7 +1880,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
       PipeDualities{ desired_B_legs->is_dual },
       b_pipes,
       levels_with_hidden(B_ext, int_idx));
-    auto pipe_B_label = _combine_leg_labels({ original_axis_B_label, LegLabel{ int_lab } });
+    auto pipe_B_label = _combine_leg_labels({ original_axis_B_label, OptionalLabel{ int_lab } });
     int64 pipe_B_idx = B_ext->get_leg_idcs(pipe_B_label).at(0);
     B_ext->set_label(pipe_B_idx, original_axis_B_label);
     if (flatten_1d) {
