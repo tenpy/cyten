@@ -79,6 +79,8 @@ __all__ = [
     'double_semion_category',
     'iter_common_sorted_sector_arrays',
     'semion_category',
+    'su_n_data_file_path',
+    'su_n_data_filename',
 ]
 
 try:

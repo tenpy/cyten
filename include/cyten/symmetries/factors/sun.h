@@ -12,17 +12,24 @@ namespace cyten {
 /// Standard file name for SU(N) symmetry data, per the SU(N) data convention:
 /// ``"<base>_N{N}_{kind}_hweight{hweight}.hdf5"``.
 ///
+/// \param N  Rank of the group, ``SU(N)``.
 /// \param kind  One of ``"CG"``, ``"F"``, ``"R"`` (case-insensitive on input, normalized to upper
 ///              case in the result).
+/// \param hweight  Highest weight stored in the file.
 /// \param filename_base  Defaults to the ``su_n_data_filename_base`` config option.
 std::string su_n_data_filename(int N,
                                std::string const& kind,
                                int64 hweight,
                                std::optional<std::string> filename_base = std::nullopt);
 
-/// Full path to a standard SU(N) data file: ``<path>/<su_n_data_filename(...)>``.
+/// Full path to a standard SU(N) data file: ``{path}`` joined with ``su_n_data_filename(...)``.
 ///
+/// \param N  Rank of the group, ``SU(N)``.
+/// \param kind  One of ``"CG"``, ``"F"``, ``"R"`` (case-insensitive on input, normalized to upper
+///              case in the result).
+/// \param hweight  Highest weight stored in the file.
 /// \param path  Defaults to the ``su_n_data_path`` config option. A leading ``~`` is expanded.
+/// \param filename_base  Defaults to the ``su_n_data_filename_base`` config option.
 std::string su_n_data_file_path(int N,
                                 std::string const& kind,
                                 int64 hweight,

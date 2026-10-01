@@ -92,6 +92,8 @@ __all__ = [
     'fusion_trees',
     'iter_common_sorted_sector_arrays',
     'semion_category',
+    'su_n_data_file_path',
+    'su_n_data_filename',
     'swap_gate',
     'twist_gate',
 ]
