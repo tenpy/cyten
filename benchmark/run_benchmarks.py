@@ -6,12 +6,13 @@ Examples
 Run from the repository root (cyten must be importable)::
 
     python -m benchmark.run_benchmarks \\
-        --ops tdot,svd \\
+        --ops tdot,svd,eigh,combine_legs,split_legs \\
         --cases nosym,u1,su2 \\
         --symmetry-backends no_symmetry,abelian,fusion_tree \\
         --block-backends numpy,torch \\
         --devices cpu \\
         --dims 16,32,64,128 \\
+        --numpy-ref \\
         --output benchmark/results/run.json
 
 Or equivalently::
@@ -31,6 +32,9 @@ if __package__ is None:  # pragma: no cover - script entry
     sys.path.insert(0, str(_REPO_ROOT))
     __package__ = 'benchmark'
 
+from benchmark.bench_combine import run_combine_legs_benchmark  # noqa: E402
+from benchmark.bench_eigh import run_eigh_benchmark  # noqa: E402
+from benchmark.bench_split import run_split_legs_benchmark  # noqa: E402
 from benchmark.bench_svd import run_svd_benchmark  # noqa: E402
 from benchmark.bench_tdot import run_tdot_benchmark  # noqa: E402
 from benchmark.cases import CASES, case_compatible  # noqa: E402
@@ -49,9 +53,12 @@ from benchmark.common import (  # noqa: E402
 OP_RUNNERS = {
     'tdot': run_tdot_benchmark,
     'svd': run_svd_benchmark,
+    'eigh': run_eigh_benchmark,
+    'combine_legs': run_combine_legs_benchmark,
+    'split_legs': run_split_legs_benchmark,
 }
 
-DEFAULT_OPS = 'tdot,svd'
+DEFAULT_OPS = 'tdot,svd,eigh,combine_legs,split_legs'
 DEFAULT_CASES = 'nosym,u1,su2'
 DEFAULT_SYMMETRY_BACKENDS = 'no_symmetry,abelian,fusion_tree'
 DEFAULT_BLOCK_BACKENDS = 'numpy,torch'
@@ -61,7 +68,7 @@ DEFAULT_DIMS = '16,32,64,128,256'
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description='Benchmark cyten contraction / SVD across backends and devices.',
+        description='Benchmark cyten ops across backends and devices (optional dense NumPy refs).',
     )
     p.add_argument(
         '--ops',
@@ -98,6 +105,11 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument('--repeats', type=int, default=5, help='Timed iterations (default: 5).')
     p.add_argument('--seed', type=int, default=0, help='Reserved seed for reproducibility.')
     p.add_argument(
+        '--numpy-ref',
+        action='store_true',
+        help='Also time dense NumPy analogues once per (op, case, dim, dtype).',
+    )
+    p.add_argument(
         '--output',
         default='benchmark/results/run.json',
         help='JSON output path (default: benchmark/results/run.json).',
@@ -110,7 +122,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _iter_configs(args) -> list[dict]:
+def _iter_configs(args) -> tuple[list[dict], list[str]]:
     ops = parse_csv_list(args.ops)
     cases = parse_csv_list(args.cases)
     symmetry_backends = parse_csv_list(args.symmetry_backends)
@@ -183,16 +195,21 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f'Running {len(configs)} benchmark configurations...')
     records: list[BenchmarkRecord] = []
+    numpy_done: set[tuple] = set()
     for i, cfg in enumerate(configs, start=1):
         runner = OP_RUNNERS[cfg['op']]
+        numpy_key = (cfg['op'], cfg['case'], cfg['dim'], args.dtype)
+        want_numpy = bool(args.numpy_ref) and numpy_key not in numpy_done
         label = (
             f'{cfg["op"]} case={cfg["case"]} sym={cfg["symmetry_backend"]} '
             f'block={normalize_block_backend(cfg["block_backend"])} '
             f'device={cfg["device"]} dim={cfg["dim"]}'
         )
+        if want_numpy:
+            label += ' +numpy-ref'
         print(f'[{i}/{len(configs)}] {label} ...', flush=True)
         try:
-            record = runner(
+            out = runner(
                 case=cfg['case'],
                 dim=cfg['dim'],
                 symmetry_backend=cfg['symmetry_backend'],
@@ -202,24 +219,29 @@ def main(argv: list[str] | None = None) -> int:
                 warmup=args.warmup,
                 repeats=args.repeats,
                 seed=args.seed,
+                numpy_ref=want_numpy,
             )
         except Exception as exc:  # noqa: BLE001 - keep suite running
             print(f'  FAILED: {exc}', file=sys.stderr)
             continue
-        if record is None:
+        if not out:
             print('  skipped (runtime filter)')
             continue
-        print(
-            f'  mean={record.mean:.4e}s  median={record.median:.4e}s  '
-            f'actual_dim={record.actual_dim}  blocks={record.num_blocks}'
-        )
-        records.append(record)
+        for record in out:
+            tag = 'numpy' if record.impl == 'numpy' else 'cyten'
+            print(
+                f'  [{tag}] mean={record.mean:.4e}s  median={record.median:.4e}s  '
+                f'actual_dim={record.actual_dim}  blocks={record.num_blocks}'
+            )
+            records.append(record)
+            if record.impl == 'numpy':
+                numpy_done.add(numpy_key)
 
-    out = Path(args.output)
-    if not out.is_absolute():
-        out = _REPO_ROOT / out
-    save_results(out, records)
-    print(f'Wrote {len(records)} records to {out}')
+    out_path = Path(args.output)
+    if not out_path.is_absolute():
+        out_path = _REPO_ROOT / out_path
+    save_results(out_path, records)
+    print(f'Wrote {len(records)} records to {out_path}')
     return 0 if records else 1
 
 

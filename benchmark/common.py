@@ -55,6 +55,7 @@ class BenchmarkRecord:
     stdev: float
     repeats: int
     warmup: int
+    impl: str = 'cyten'
     extra: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -232,6 +233,7 @@ def make_record(
     num_blocks: int | None,
     dtype: str,
     timing: TimingResult,
+    impl: str = 'cyten',
     extra: dict[str, Any] | None = None,
 ) -> BenchmarkRecord:
     """Build a ``BenchmarkRecord`` from timing + metadata."""
@@ -252,5 +254,54 @@ def make_record(
         stdev=timing.stdev,
         repeats=timing.repeats,
         warmup=timing.warmup,
+        impl=impl,
         extra=extra,
     )
+
+
+def make_numpy_record(
+    *,
+    op: str,
+    case: str,
+    symmetry: str,
+    dim: int,
+    actual_dim: int,
+    num_blocks: int | None,
+    dtype: str,
+    timing: TimingResult,
+    extra: dict[str, Any] | None = None,
+) -> BenchmarkRecord:
+    """Build a dense NumPy reference record (always host CPU)."""
+    return make_record(
+        op=op,
+        case=case,
+        symmetry=symmetry,
+        symmetry_backend='dense',
+        block_backend='numpy',
+        device='cpu',
+        dim=dim,
+        actual_dim=actual_dim,
+        num_blocks=num_blocks,
+        dtype=dtype,
+        timing=timing,
+        impl='numpy',
+        extra=extra,
+    )
+
+
+def config_ok(
+    case: str,
+    symmetry_backend: str,
+    block_backend: str,
+    device: str,
+    *,
+    case_compatible_fn,
+) -> bool:
+    """Shared filter for runners: case/backend/device compatibility."""
+    if not case_compatible_fn(case, symmetry_backend):
+        return False
+    if not device_compatible(block_backend, device):
+        return False
+    if not device_available(device):
+        return False
+    return True

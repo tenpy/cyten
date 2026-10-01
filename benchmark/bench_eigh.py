@@ -1,4 +1,4 @@
-"""Contraction (tdot / compose) benchmarks."""
+"""Hermitian eigendecomposition (eigh) benchmarks."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import numpy as np
 
 import cyten as ct
 
-from .cases import CASES, case_compatible, make_matrix_pair
+from .cases import CASES, case_compatible, make_hermitian_map
 from .common import (
     BenchmarkRecord,
     config_ok,
@@ -17,10 +17,10 @@ from .common import (
     resolve_dtype,
     time_call,
 )
-from .dense_numpy import to_numpy
+from .dense_numpy import as_matrix
 
 
-def run_tdot_benchmark(
+def run_eigh_benchmark(
     *,
     case: str,
     dim: int,
@@ -33,14 +33,14 @@ def run_tdot_benchmark(
     seed: int = 0,
     numpy_ref: bool = False,
 ) -> list[BenchmarkRecord]:
-    """Time ``tdot``; optionally also time dense ``numpy.tensordot``."""
+    """Time ``cyten.eigh``; optionally also time dense ``numpy.linalg.eigh``."""
     if case not in CASES:
         raise ValueError(f'Unknown case {case!r}')
     if not config_ok(case, symmetry_backend, block_backend, device, case_compatible_fn=case_compatible):
         return []
 
     ct_dtype = resolve_dtype(dtype)
-    A, B, actual_dim = make_matrix_pair(
+    H, actual_dim = make_hermitian_map(
         case,
         dim,
         symmetry_backend=symmetry_backend,
@@ -51,12 +51,12 @@ def run_tdot_benchmark(
     )
 
     def _cyten():
-        return ct.tdot(A, B, 'j', 'i')
+        return ct.eigh(H, new_labels=['e'], new_leg_dual=False)
 
     timing = time_call(_cyten, warmup=warmup, repeats=repeats, device=device)
     records = [
         make_record(
-            op='tdot',
+            op='eigh',
             case=case,
             symmetry=CASES[case].symmetry_name,
             symmetry_backend=symmetry_backend,
@@ -64,30 +64,27 @@ def run_tdot_benchmark(
             device=device,
             dim=dim,
             actual_dim=actual_dim,
-            num_blocks=num_blocks_of(A),
+            num_blocks=num_blocks_of(H),
             dtype=dtype,
             timing=timing,
         )
     ]
 
     if numpy_ref:
-        a_np = to_numpy(A)
-        b_np = to_numpy(B)
-        # A legs [i, j], B legs [i, j]; contract A's j (axis 1) with B's i (axis 0).
-        axes = ([1], [0])
+        mat = as_matrix(H)
 
         def _numpy():
-            return np.tensordot(a_np, b_np, axes)
+            return np.linalg.eigh(mat)
 
         np_timing = time_call(_numpy, warmup=warmup, repeats=repeats, device='cpu')
         records.append(
             make_numpy_record(
-                op='tdot',
+                op='eigh',
                 case=case,
                 symmetry=CASES[case].symmetry_name,
                 dim=dim,
                 actual_dim=actual_dim,
-                num_blocks=num_blocks_of(A),
+                num_blocks=num_blocks_of(H),
                 dtype=dtype,
                 timing=np_timing,
             )

@@ -157,3 +157,57 @@ def make_svd_tensor(
         device=device,
     )
     return T, actual_dim
+
+
+def make_hermitian_map(
+    case: str,
+    dim: int,
+    *,
+    symmetry_backend: str,
+    block_backend: str,
+    device: str,
+    dtype,
+    seed: int = 0,
+):
+    """Hermitian square map ``A + A.hc`` for eigh. Returns ``(H, actual_dim)``."""
+    A, actual_dim = make_svd_tensor(
+        case,
+        dim,
+        symmetry_backend=symmetry_backend,
+        block_backend=block_backend,
+        device=device,
+        dtype=dtype,
+        seed=seed,
+    )
+    return A + A.hc, actual_dim
+
+
+def make_rank4_tensor(
+    case: str,
+    dim: int,
+    *,
+    symmetry_backend: str,
+    block_backend: str,
+    device: str,
+    dtype,
+    seed: int = 0,
+):
+    """Rank-4 map with two identical legs per (co)domain. Returns ``(T, actual_dim)``.
+
+    Labels are ``['a', 'b', 'c', 'd']`` with ``codomain=[leg, leg]``, ``domain=[leg, leg]``.
+    """
+    if not case_compatible(case, symmetry_backend):
+        raise ValueError(f'case {case!r} incompatible with symmetry backend {symmetry_backend!r}')
+    leg = make_leg(case, dim)
+    actual_dim = int(leg.dim)
+    backend = get_tensor_backend(symmetry_backend, block_backend)
+    _ = seed
+    T = ct.SymmetricTensor.from_random_uniform(
+        codomain=[leg, leg],
+        domain=[leg, leg],
+        backend=backend,
+        labels=['a', 'b', 'c', 'd'],
+        dtype=dtype,
+        device=device,
+    )
+    return T, actual_dim
