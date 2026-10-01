@@ -6,10 +6,12 @@
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/hidden_leg_tensor.h>
 #include <cyten/tensors/mask.h>
+#include <cyten/tensors/ops_algebra.h>
 #include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
+#include <algorithm>
 #include <format>
 #include <stdexcept>
 #include <utility>
@@ -521,6 +523,22 @@ normalize_summand_index(DirectSumSpace const& space, int64 i)
     return i;
 }
 
+[[nodiscard]] std::vector<int64>
+normalize_summand_indices(DirectSumSpace const& space, std::vector<int64> indices)
+{
+    if (indices.empty()) {
+        throw std::invalid_argument("projection_onto_summands requires at least one index");
+    }
+    std::vector<int64> normalized;
+    normalized.reserve(indices.size());
+    for (auto i : indices) {
+        normalized.push_back(normalize_summand_index(space, i));
+    }
+    std::sort(normalized.begin(), normalized.end());
+    normalized.erase(std::unique(normalized.begin(), normalized.end()), normalized.end());
+    return normalized;
+}
+
 [[nodiscard]] TensorBackend::Ptr
 resolve_backend_for_space(TensorBackend::Ptr backend, Space::Ptr const& space)
 {
@@ -533,37 +551,39 @@ resolve_backend_for_space(TensorBackend::Ptr backend, Space::Ptr const& space)
 } // namespace
 
 MaskPtr
-DirectSumSpace::projection_onto_summand(int64 i,
-                                        std::shared_ptr<TensorBackend> backend,
-                                        std::optional<LegLabels> labels,
-                                        std::optional<std::string> device) const
+DirectSumSpace::projection_onto_summands(std::vector<int64> indices,
+                                         std::shared_ptr<TensorBackend> backend,
+                                         std::optional<LegLabels> labels,
+                                         std::optional<std::string> device) const
 {
-    i = normalize_summand_index(*this, i);
+    auto kept = normalize_summand_indices(*this, std::move(indices));
     backend = resolve_backend_for_space(std::move(backend), shared_es());
 
     auto const slices = mult_slices();
     auto space_cap = shared_dss();
-    auto i_cap = i;
+    auto kept_cap = kept;
     auto np = py::module_::import("numpy");
     auto bb = backend->block_backend;
 
-    SectorBlockFactoryFn func = [space_cap, slices, i_cap, np, bb, device](
+    SectorBlockFactoryFn func = [space_cap, slices, kept_cap, np, bb, device](
                                   std::vector<int64> const& shape, Sector const& coupled) {
         auto sector_idx = space_cap->sector_decomposition_where(coupled);
         if (!sector_idx.has_value()) {
             throw std::runtime_error(
-              "DirectSumSpace::projection_onto_summand: sector missing from DirectSumSpace");
+              "DirectSumSpace::projection_onto_summands: sector missing from DirectSumSpace");
         }
         auto const& slc = slices[static_cast<std::size_t>(*sector_idx)];
-        int64 const start = slc[static_cast<std::size_t>(i_cap)];
-        int64 const stop = slc[static_cast<std::size_t>(i_cap) + 1];
         if (shape.empty() || shape[0] != slc.back()) {
             throw std::runtime_error(
-              "DirectSumSpace::projection_onto_summand: unexpected diagonal block shape");
+              "DirectSumSpace::projection_onto_summands: unexpected diagonal block shape");
         }
         py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
-        if (stop > start) {
-            block.attr("__setitem__")(py::slice(start, stop, 1), true);
+        for (auto i_cap : kept_cap) {
+            int64 const start = slc[static_cast<std::size_t>(i_cap)];
+            int64 const stop = slc[static_cast<std::size_t>(i_cap) + 1];
+            if (stop > start) {
+                block.attr("__setitem__")(py::slice(start, stop, 1), true);
+            }
         }
         return bb->as_block(block, Dtype::Bool, device);
     };
@@ -574,18 +594,38 @@ DirectSumSpace::projection_onto_summand(int64 i,
 }
 
 MaskPtr
-DirectSumSpace::inclusion_of_summand(int64 i,
-                                     std::shared_ptr<TensorBackend> backend,
-                                     std::optional<LegLabels> labels,
-                                     std::optional<std::string> device) const
+DirectSumSpace::inclusion_of_summands(std::vector<int64> indices,
+                                      std::shared_ptr<TensorBackend> backend,
+                                      std::optional<LegLabels> labels,
+                                      std::optional<std::string> device) const
 {
-    auto proj =
-      projection_onto_summand(i, std::move(backend), std::move(labels), std::move(device));
+    auto proj = projection_onto_summands(
+      std::move(indices), std::move(backend), std::move(labels), std::move(device));
     auto incl = std::dynamic_pointer_cast<Mask>(proj->dagger());
     if (!incl) {
         throw std::runtime_error("Mask::dagger did not return a Mask");
     }
     return incl;
+}
+
+MaskPtr
+DirectSumSpace::projection_onto_summand(int64 i,
+                                        std::shared_ptr<TensorBackend> backend,
+                                        std::optional<LegLabels> labels,
+                                        std::optional<std::string> device) const
+{
+    return projection_onto_summands(
+      std::vector<int64>{ i }, std::move(backend), std::move(labels), std::move(device));
+}
+
+MaskPtr
+DirectSumSpace::inclusion_of_summand(int64 i,
+                                     std::shared_ptr<TensorBackend> backend,
+                                     std::optional<LegLabels> labels,
+                                     std::optional<std::string> device) const
+{
+    return inclusion_of_summands(
+      std::vector<int64>{ i }, std::move(backend), std::move(labels), std::move(device));
 }
 
 SymmetricTensorPtr
@@ -624,6 +664,38 @@ DirectSumSpace::unit_vector_of_summand(int64 i,
         out->set_labels(*labels);
     }
     return out;
+}
+
+TensorPtr
+tensor_grid_cell(TensorCPtr tensor, int64 row, int64 col, LegRef row_leg, LegRef col_leg)
+{
+    if (!tensor) {
+        throw std::invalid_argument("tensor_grid_cell: tensor must be non-null");
+    }
+
+    // Use get_leg (not get_leg_co_domain): Mask.large_leg must match the
+    // codomain-side view of the stacking leg so apply_mask works for domain legs.
+    auto row_space = tensor->get_leg(row_leg);
+    auto col_space = tensor->get_leg(col_leg);
+    auto row_dss = std::dynamic_pointer_cast<DirectSumSpace>(row_space);
+    auto col_dss = std::dynamic_pointer_cast<DirectSumSpace>(col_space);
+
+    TensorPtr cell = std::const_pointer_cast<Tensor>(tensor);
+    if (row_dss) {
+        auto proj = row_dss->projection_onto_summand(row, tensor->backend);
+        cell = apply_mask(cell, proj, row_leg);
+    } else if (row != 0 && row != -1) {
+        throw std::invalid_argument(
+          "tensor_grid_cell: row stacking leg is not a DirectSumSpace; only row 0/-1 is valid");
+    }
+    if (col_dss) {
+        auto proj = col_dss->projection_onto_summand(col, cell->backend);
+        cell = apply_mask(cell, proj, col_leg);
+    } else if (col != 0 && col != -1) {
+        throw std::invalid_argument(
+          "tensor_grid_cell: column stacking leg is not a DirectSumSpace; only col 0/-1 is valid");
+    }
+    return cell;
 }
 
 } // namespace cyten

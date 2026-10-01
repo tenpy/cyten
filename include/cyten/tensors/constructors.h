@@ -6,6 +6,7 @@
 #include <cyten/symmetries/spaces.h>
 #include <cyten/tensors/forward_declare.h>
 #include <cyten/tensors/labels.h>
+#include <cyten/tensors/ops_algebra.h>
 
 #include <optional>
 #include <string>
@@ -137,5 +138,27 @@ namespace cyten {
 [[nodiscard]] TensorPtr tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
                                          std::optional<LegLabels> labels = std::nullopt,
                                          std::optional<Dtype> dtype = std::nullopt);
+
+/// Extract cell ``(row, col)`` from a tensor stacked by `tensor_from_grid`.
+///
+/// Inverts the direct-sum stacking
+/// @f$\mathrm{res} = \sum_{m,n} i_m \circ \mathrm{grid}[m][n] \circ p_n@f$
+/// via @f$\mathrm{grid}[m][n] = p_m \circ \mathrm{res} \circ i_n@f$, implemented as
+/// `apply_mask` with `DirectSumSpace::projection_onto_summand` on the stacking legs.
+///
+/// If a stacking leg is a plain `ElementarySpace` (1-row or 1-column grid), that side is
+/// treated as the identity. Recovered cell spaces are isomorphic to the original grid
+/// cells' stacking legs (same sectors/multiplicities), but need not be the same objects.
+/// Labels of `tensor` are preserved.
+///
+/// @param tensor Result of `tensor_from_grid` (or an isomorphic stacked tensor).
+/// @param row,col Summand indices into the stacked codomain / domain legs (negative OK).
+/// @param row_leg Leg of the row direct sum (default: first codomain leg).
+/// @param col_leg Leg of the column direct sum (default: last domain leg, ``-1``).
+[[nodiscard]] TensorPtr tensor_grid_cell(TensorCPtr tensor,
+                                         int64 row,
+                                         int64 col,
+                                         LegRef row_leg = int64{ 0 },
+                                         LegRef col_leg = int64{ -1 });
 
 } // namespace cyten

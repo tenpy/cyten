@@ -806,6 +806,20 @@ bind_direct_sum_space(py::module_& m)
       .def("with_opposite_duality",
            &DirectSumSpace::with_opposite_duality,
            DOC(cyten, ElementarySpace, with_opposite_duality))
+      .def("projection_onto_summands",
+           &DirectSumSpace::projection_onto_summands,
+           py::arg("indices"),
+           py::arg("backend") = nullptr,
+           py::arg("labels") = py::none(),
+           py::arg("device") = py::none(),
+           DOC(cyten, DirectSumSpace, projection_onto_summands))
+      .def("inclusion_of_summands",
+           &DirectSumSpace::inclusion_of_summands,
+           py::arg("indices"),
+           py::arg("backend") = nullptr,
+           py::arg("labels") = py::none(),
+           py::arg("device") = py::none(),
+           DOC(cyten, DirectSumSpace, inclusion_of_summands))
       .def("projection_onto_summand",
            &DirectSumSpace::projection_onto_summand,
            py::arg("i"),
@@ -828,6 +842,16 @@ bind_direct_sum_space(py::module_& m)
            py::arg("dtype") = py::none(),
            py::arg("device") = py::none(),
            DOC(cyten, DirectSumSpace, unit_vector_of_summand))
+      .def(
+        "set_basis_perm",
+        [](DirectSumSpace& self, py::args, py::kwargs) { self.set_basis_perm(std::nullopt); },
+        "Can not set basis_perm for DirectSumSpace.")
+      .def(
+        "set_inverse_basis_perm",
+        [](DirectSumSpace& self, py::args, py::kwargs) {
+            self.set_inverse_basis_perm(std::nullopt);
+        },
+        "Can not set basis_perm for DirectSumSpace.")
       .def("__repr__", [](DirectSumSpace const& self) { return self.repr(); })
       .def("repr",
            &DirectSumSpace::repr,

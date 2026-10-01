@@ -3933,6 +3933,147 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
         npt.assert_almost_equal(res1.to_numpy(understood_braiding=True), res2.to_numpy(understood_braiding=True))
 
 
+def test_tensor_grid_cell_roundtrip(make_compatible_tensor, make_compatible_space):
+    """Recover grid cells via DirectSumSpace projections (works without dense bases)."""
+    T: SymmetricTensor = make_compatible_tensor([None], [None], cls=SymmetricTensor, use_pipes=False)
+    dual_codom = T.codomain[0].is_dual
+    dual_dom = T.domain[-1].is_dual
+
+    row_spaces = [T.codomain[0], make_compatible_space(is_dual=dual_codom)]
+    col_spaces = [T.domain[-1], make_compatible_space(is_dual=dual_dom)]
+    grid = [
+        [make_compatible_tensor([row_spaces[i]], [col_spaces[j]], cls=SymmetricTensor) for j in range(2)]
+        for i in range(2)
+    ]
+    # zero cell
+    grid[1][0] = None
+
+    res = tensors.tensor_from_grid(grid, labels=['wL', 'wR'])
+    assert isinstance(res.codomain[0], DirectSumSpace)
+    assert isinstance(res.domain[-1], DirectSumSpace)
+
+    recovered = []
+    for i in range(2):
+        row = []
+        for j in range(2):
+            cell = tensors.tensor_grid_cell(res, i, j, row_leg='wL', col_leg='wR')
+            assert cell.labels == ['wL', 'wR']
+            if grid[i][j] is None:
+                assert tensors.almost_equal(cell, tensors.zero_like(cell))
+                row.append(None)
+            else:
+                row.append(cell)
+        recovered.append(row)
+
+    # Restacking recovered cells rebuilds the original stacked tensor.
+    res2 = tensors.tensor_from_grid(recovered, labels=['wL', 'wR'])
+    assert tensors.almost_equal(res, res2)
+
+
+def test_mpo_partition_and_make_U_I_pattern(compatible_symmetry, compatible_backend):
+    """DSS Mask patterns used by TeNPy make_U_I / make_U_II (IdL ⊕ other ⊕ IdR)."""
+    sym = compatible_symmetry
+    backend = compatible_backend
+    if not sym.can_be_dropped:
+        pytest.skip('dense reference needs can_be_dropped')
+
+    # All-trivial virtual sectors so public-basis order matches summand order.
+    Id = ElementarySpace.from_trivial_sector(1, symmetry=sym, is_dual=False)
+    other = ElementarySpace.from_trivial_sector(2, symmetry=sym, is_dual=False)
+    p = ElementarySpace.from_trivial_sector(2, symmetry=sym, is_dual=False)
+
+    left = DirectSumSpace([Id, other, Id], is_dual=False)  # IdL=0, other=1, IdR=2
+    Id_d = Id.dual
+    other_d = other.dual
+    right = DirectSumSpace([Id_d, other_d, Id_d], is_dual=True)
+    p_dual = p.dual
+
+    rng = np.random.default_rng(0)
+
+    def dense_cell(wL, wR):
+        # shape (wL, p, wR, p*) with domain factors [p*, wR] → numpy (wL, p, wR, p*)
+        block = rng.normal(size=(wL.dim, p.dim, wR.dim, p.dim)) + 1j * rng.normal(size=(wL.dim, p.dim, wR.dim, p.dim))
+        return SymmetricTensor.from_dense_block(
+            block,
+            [wL, p],
+            [p_dual, wR],
+            backend=backend,
+            labels=['wL', 'p', 'wR', 'p*'],
+            understood_braiding=True,
+        )
+
+    grid = [
+        [dense_cell(Id, Id_d), dense_cell(Id, other_d), dense_cell(Id, Id_d)],
+        [dense_cell(other, Id_d), dense_cell(other, other_d), dense_cell(other, Id_d)],
+        [None, dense_cell(Id, other_d), dense_cell(Id, Id_d)],
+    ]
+    W = tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
+    Wflat = W.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True)
+
+    IdL, IdR = 0, 2
+    other_idx = [1]
+    sl_IdL = slice(0, 1)
+    sl_other = slice(1, 3)
+    sl_IdR = slice(3, 4)
+    assert Wflat.shape[:2] == (4, 4)
+
+    left_leg = W.get_leg('wL')
+    right_leg = W.get_leg('wR')
+
+    D = tensors.apply_mask(
+        tensors.apply_mask(W, left_leg.projection_onto_summand(IdL, backend=backend), 'wL'),
+        right_leg.projection_onto_summand(IdR, backend=backend),
+        'wR',
+    )
+    C = tensors.apply_mask(
+        tensors.apply_mask(W, left_leg.projection_onto_summand(IdL, backend=backend), 'wL'),
+        right_leg.projection_onto_summands(other_idx, backend=backend),
+        'wR',
+    )
+    B = tensors.apply_mask(
+        tensors.apply_mask(W, left_leg.projection_onto_summands(other_idx, backend=backend), 'wL'),
+        right_leg.projection_onto_summand(IdR, backend=backend),
+        'wR',
+    )
+    A = tensors.apply_mask(
+        tensors.apply_mask(W, left_leg.projection_onto_summands(other_idx, backend=backend), 'wL'),
+        right_leg.projection_onto_summands(other_idx, backend=backend),
+        'wR',
+    )
+
+    npt.assert_almost_equal(
+        D.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        Wflat[sl_IdL, sl_IdR],
+    )
+    npt.assert_almost_equal(
+        C.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        Wflat[sl_IdL, sl_other],
+    )
+    npt.assert_almost_equal(
+        B.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        Wflat[sl_other, sl_IdR],
+    )
+    npt.assert_almost_equal(
+        A.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        Wflat[sl_other, sl_other],
+    )
+
+    dt = 0.25
+    col_IdR = tensors.apply_mask(W, right_leg.projection_onto_summand(IdR, backend=backend), 'wR')
+    col_on_IdL = tensors.enlarge_leg(col_IdR, right_leg.inclusion_of_summand(IdL, backend=backend), 'wR')
+    U = tensors.linear_combination(1.0, W, dt, col_on_IdL)
+    keep = right_leg.projection_onto_summands([0, 1], backend=backend)
+    U_kept = tensors.apply_mask(U, keep, 'wR')
+
+    expect = Wflat.copy()
+    expect[:, sl_IdL] = expect[:, sl_IdL] + dt * expect[:, sl_IdR]
+    expect = np.concatenate([expect[:, sl_IdL], expect[:, sl_other]], axis=1)
+    npt.assert_almost_equal(
+        U_kept.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        expect,
+    )
+
+
 def test_tensor_from_grid_hidden_labels(make_compatible_tensor, np_random):
     T = make_compatible_tensor([None], [None], cls=SymmetricTensor, use_pipes=False)
     labels = np_random.choice([['row', '!column'], ['!row', 'column'], ['!row', '!column']])

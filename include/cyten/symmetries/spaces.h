@@ -500,6 +500,9 @@ class DirectSumSpace : public ElementarySpace
 
     ElementarySpace::Ptr with_opposite_duality() const override;
 
+    void set_basis_perm(std::optional<std::vector<int64>> basis_perm) override;
+    void set_inverse_basis_perm(std::optional<std::vector<int64>> inverse_basis_perm) override;
+
     bool operator==(Leg const& other) const override;
     bool operator==(Space const& other) const override;
 
@@ -507,6 +510,24 @@ class DirectSumSpace : public ElementarySpace
     [[nodiscard]] bool equals_dss(DirectSumSpace const& other) const;
 
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
+
+    /// Projection Mask onto the union of summands ``indices``.
+    ///
+    /// Kept multiplicity blocks appear in ascending summand-index order (duplicates ignored).
+    /// Negative indices count from the end. The large leg is this space; the small leg is the
+    /// plain `ElementarySpace` spanned by the kept multiplicities.
+    [[nodiscard]] MaskPtr projection_onto_summands(
+      std::vector<int64> indices,
+      std::shared_ptr<TensorBackend> backend = nullptr,
+      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<std::string> device = std::nullopt) const;
+
+    /// Inclusion Mask of the union of summands ``indices`` (dagger of the projection).
+    [[nodiscard]] MaskPtr inclusion_of_summands(
+      std::vector<int64> indices,
+      std::shared_ptr<TensorBackend> backend = nullptr,
+      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<std::string> device = std::nullopt) const;
 
     /// Projection Mask onto summand ``i``.
     ///

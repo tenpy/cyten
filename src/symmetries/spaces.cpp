@@ -2139,6 +2139,18 @@ DirectSumSpace::take_slice(py::array blockmask) const
     return as_plain_ElementarySpace()->take_slice(std::move(blockmask));
 }
 
+void
+DirectSumSpace::set_basis_perm(std::optional<std::vector<int64>> /*basis_perm*/)
+{
+    throw py::type_error("Can not set basis_perm for DirectSumSpace.");
+}
+
+void
+DirectSumSpace::set_inverse_basis_perm(std::optional<std::vector<int64>> /*inverse_basis_perm*/)
+{
+    throw py::type_error("Can not set basis_perm for DirectSumSpace.");
+}
+
 ElementarySpace::Ptr
 DirectSumSpace::with_opposite_duality() const
 {
