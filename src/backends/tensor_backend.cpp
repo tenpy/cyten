@@ -4,9 +4,12 @@
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
+#include <cyten/tools/misc.h>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -15,17 +18,15 @@ namespace cyten {
 
 namespace {
 
-std::vector<bool>
-bool_array_to_vector(py::array arr)
+std::vector<float64>
+f64_array_to_vector(py::array arr)
 {
-    auto np = py::module_::import("numpy");
-    py::array_t<bool> flat = np.attr("asarray")(arr, py::arg("dtype") = np.attr("bool_"))
-                               .attr("ravel")()
-                               .cast<py::array_t<bool>>();
+    py::array_t<float64, py::array::c_style | py::array::forcecast> flat =
+      py::array_t<float64, py::array::c_style | py::array::forcecast>::ensure(arr).reshape({ -1 });
     auto buf = flat.unchecked<1>();
-    std::vector<bool> out(static_cast<std::size_t>(buf.shape(0)));
+    std::vector<float64> out(static_cast<std::size_t>(buf.shape(0)));
     for (py::ssize_t i = 0; i < buf.shape(0); ++i) {
-        out[static_cast<std::size_t>(i)] = static_cast<bool>(buf(i));
+        out[static_cast<std::size_t>(i)] = buf(i);
     }
     return out;
 }
@@ -33,20 +34,12 @@ bool_array_to_vector(py::array arr)
 py::array
 bool_vector_to_array(std::vector<bool> const& v)
 {
-    auto np = py::module_::import("numpy");
     py::array_t<bool> arr(static_cast<py::ssize_t>(v.size()));
     auto buf = arr.mutable_unchecked<1>();
     for (std::size_t i = 0; i < v.size(); ++i) {
         buf(static_cast<py::ssize_t>(i)) = v[i];
     }
-    return np.attr("asarray")(arr, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
-}
-
-py::array
-combine_constraints_arr(py::array good1, py::array good2, char const* warn_msg)
-{
-    return bool_vector_to_array(
-      combine_constraints(bool_array_to_vector(good1), bool_array_to_vector(good2), warn_msg));
+    return arr;
 }
 
 std::string
@@ -177,100 +170,120 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
                                                    bool minimize_error)
 {
     // --- hints from Python TensorBackend._truncate_singular_values_selection ---
-    // qdims = qdims[piv]  # not needed again.
-    // this is equivalent to
-    // ``(S[cut] - S[cut-1])/S[cut-1] < exp(deg_tol) - 1 = deg_tol + O(deg_tol^2)``
-    // keep only values S[i] >= svd_min
-    // smallest cut for which good[cut] is True
-    // largest cut for which good[cut] is True
-    // ---
     // contributions ``err[i] = d[i] * S[i] ** 2`` to the error, if S[i] would be truncated.
-    py::module_ np = py::module_::import("numpy");
-    py::object S_obj = S;
-    py::object marginal_errs;
+    // ---
+    auto S_v = f64_array_to_vector(S);
+    std::vector<float64> marginal_errs(S_v.size());
     if (qdims.is_none()) {
-        marginal_errs = S_obj.attr("__pow__")(2);
+        for (std::size_t i = 0; i < S_v.size(); ++i) {
+            marginal_errs[i] = S_v[i] * S_v[i];
+        }
     } else {
-        marginal_errs = qdims.attr("__mul__")(S_obj.attr("__pow__")(2));
+        auto q = f64_array_to_vector(qdims.cast<py::array>());
+        if (q.size() != S_v.size()) {
+            throw std::invalid_argument(
+              "_truncate_singular_values_selection: qdims size mismatch");
+        }
+        for (std::size_t i = 0; i < S_v.size(); ++i) {
+            marginal_errs[i] = q[i] * S_v[i] * S_v[i];
+        }
     }
 
-    // sort *ascending* by marginal errors (smallest first, should be truncated first)
-    py::array piv = np.attr("argsort")(marginal_errs).cast<py::array>();
-    S_obj = S_obj.attr("__getitem__")(piv);
-    marginal_errs = marginal_errs.attr("__getitem__")(piv);
+    std::size_t const n = S_v.size();
+    std::vector<std::size_t> piv(n);
+    std::iota(piv.begin(), piv.end(), std::size_t{ 0 });
+    std::stable_sort(piv.begin(), piv.end(), [&](std::size_t a, std::size_t b) {
+        return marginal_errs[a] < marginal_errs[b];
+    });
 
-    // take safe logarithm, clipping small values to log(1e-100).
-    // this is only used for degeneracy tol.
-    py::object ones = np.attr("ones")(py::len(S_obj));
-    py::object clipped = np.attr("choose")(S_obj.attr("__le__")(1.0e-100),
-                                           py::make_tuple(S_obj, ones.attr("__mul__")(1.0e-100)));
-    py::object logS = np.attr("log")(clipped);
+    std::vector<float64> S_sorted(n);
+    std::vector<float64> err_sorted(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        S_sorted[i] = S_v[piv[i]];
+        err_sorted[i] = marginal_errs[piv[i]];
+    }
 
-    // goal: find an index 'cut' such that we keep piv[cut:], i.e. cut between `cut-1` and `cut`.
-    // build an array good, where ``good[cut] = (is `cut` an allowed choice)``.
-    // we then choose the smallest good cut, i.e. we keep as many singular values as possible
-    py::ssize_t n = py::len(S_obj);
-    py::array good = np.attr("ones")(n, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
+    std::vector<float64> logS(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        float64 v = S_sorted[i] <= 1.0e-100 ? 1.0e-100 : S_sorted[i];
+        logS[i] = std::log(v);
+    }
 
-    if (chi_max.has_value() && *chi_max < n) {
-        // keep at most chi_max values
-        py::array good2 =
-          np.attr("zeros")(n, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
-        good2.attr("__setitem__")(py::slice(-*chi_max, std::nullopt, std::nullopt), true);
-        good = combine_constraints_arr(good, good2, "chi_max");
+    std::vector<bool> good(n, true);
+
+    if (chi_max.has_value() && static_cast<std::size_t>(*chi_max) < n) {
+        std::vector<bool> good2(n, false);
+        for (std::size_t i = n - static_cast<std::size_t>(*chi_max); i < n; ++i) {
+            good2[i] = true;
+        }
+        good = combine_constraints(good, good2, "chi_max");
     }
 
     if (chi_min > 1) {
-        // keep at least chi_min values
-        py::array good2 =
-          np.attr("ones")(n, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
-        good2.attr("__setitem__")(py::slice(-chi_min + 1, std::nullopt, std::nullopt), false);
-        good = combine_constraints_arr(good, good2, "chi_min");
+        std::vector<bool> good2(n, true);
+        std::size_t start = n >= static_cast<std::size_t>(chi_min - 1)
+                              ? n - static_cast<std::size_t>(chi_min - 1)
+                              : 0;
+        for (std::size_t i = start; i < n; ++i) {
+            good2[i] = false;
+        }
+        good = combine_constraints(good, good2, "chi_min");
     }
 
     if (degeneracy_tol > 0) {
-        // don't cut between values (cut-1, cut) with ``log(S[cut]/S[cut-1]) < deg_tol``
-        py::array good2 = np.attr("empty")(n, np.attr("bool_")).cast<py::array>();
-        good2.attr("__setitem__")(0, true);
-        py::object dlog =
-          logS.attr("__getitem__")(py::slice(1, std::nullopt, std::nullopt))
-            .attr("__sub__")(logS.attr("__getitem__")(py::slice(std::nullopt, -1, std::nullopt)));
-        good2.attr("__setitem__")(py::slice(1, std::nullopt, std::nullopt),
-                                  np.attr("greater_equal")(dlog, degeneracy_tol));
-        good = combine_constraints_arr(good, good2, "degeneracy_tol");
+        std::vector<bool> good2(n, true);
+        for (std::size_t i = 1; i < n; ++i) {
+            good2[i] = (logS[i] - logS[i - 1]) >= degeneracy_tol;
+        }
+        good = combine_constraints(good, good2, "degeneracy_tol");
     }
 
     if (svd_min.has_value()) {
-        py::array good2 = np.attr("greater_equal")(S_obj, *svd_min).cast<py::array>();
-        good = combine_constraints_arr(good, good2, "svd_min");
+        std::vector<bool> good2(n);
+        for (std::size_t i = 0; i < n; ++i) {
+            good2[i] = S_sorted[i] >= *svd_min;
+        }
+        good = combine_constraints(good, good2, "svd_min");
     }
 
     {
-        py::array good2 =
-          np.attr("cumsum")(marginal_errs).attr("__gt__")(trunc_cut * trunc_cut).cast<py::array>();
-        good = combine_constraints_arr(good, good2, "trunc_cut");
+        std::vector<bool> good2(n);
+        float64 csum = 0.0;
+        float64 const cut2 = trunc_cut * trunc_cut;
+        for (std::size_t i = 0; i < n; ++i) {
+            csum += err_sorted[i];
+            good2[i] = csum > cut2;
+        }
+        good = combine_constraints(good, good2, "trunc_cut");
     }
 
-    py::array nonzero =
-      np.attr("nonzero")(good).cast<py::tuple>().attr("__getitem__")(0).cast<py::array>();
-    int64 cut;
-    if (minimize_error) {
-        cut = nonzero.attr("__getitem__")(0).cast<int64>(); // smallest cut
-    } else {
-        cut = nonzero.attr("__getitem__")(-1).cast<int64>(); // largest cut
+    std::vector<std::size_t> nonzero;
+    for (std::size_t i = 0; i < n; ++i) {
+        if (good[i]) {
+            nonzero.push_back(i);
+        }
     }
-    // marginal_errs holds *squared* contributions (d[i] * S[i] ** 2); take sqrt to get the norm.
-    float64 err = std::sqrt(
-      np.attr("sum")(marginal_errs.attr("__getitem__")(py::slice(std::nullopt, cut, std::nullopt)))
-        .cast<float64>());
-    float64 new_norm = std::sqrt(
-      np.attr("sum")(marginal_errs.attr("__getitem__")(py::slice(cut, std::nullopt, std::nullopt)))
-        .cast<float64>());
-    // build mask in the original order, before sorting
-    py::array mask = np.attr("zeros")(n, py::arg("dtype") = np.attr("bool_")).cast<py::array>();
-    np.attr("put")(
-      mask, piv.attr("__getitem__")(py::slice(cut, std::nullopt, std::nullopt)), true);
-    return { mask, err, new_norm };
+    if (nonzero.empty()) {
+        throw std::runtime_error("_truncate_singular_values_selection: no valid cut");
+    }
+    std::size_t cut = minimize_error ? nonzero.front() : nonzero.back();
+
+    float64 err_sum = 0.0;
+    for (std::size_t i = 0; i < cut; ++i) {
+        err_sum += err_sorted[i];
+    }
+    float64 norm_sum = 0.0;
+    for (std::size_t i = cut; i < n; ++i) {
+        norm_sum += err_sorted[i];
+    }
+    float64 err = std::sqrt(err_sum);
+    float64 new_norm = std::sqrt(norm_sum);
+
+    std::vector<bool> mask(n, false);
+    for (std::size_t i = cut; i < n; ++i) {
+        mask[piv[i]] = true;
+    }
+    return { bool_vector_to_array(mask), err, new_norm };
 }
 
 bool
@@ -284,9 +297,9 @@ TensorBackend::is_real(TensorCPtr a)
 }
 
 void
-TensorBackend::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string subpath)
+TensorBackend::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& /*h5gr*/, std::string subpath)
 {
-    cyten::hdf5::py_save(subpath + "block_backend", block_backend);
+    hdf5_export::save_block_backend(saver, subpath + "block_backend", block_backend);
 }
 
 TensorBackend::Ptr
@@ -295,11 +308,11 @@ TensorBackend::from_hdf5(py::object cls,
                          HighFive::Group& h5gr,
                          std::string subpath)
 {
-    auto block_backend =
-      cyten::hdf5::py_load(subpath + "block_backend").cast<std::shared_ptr<BlockBackend>>();
+    auto block_backend = hdf5_export::load_block_backend(loader, subpath + "block_backend");
     py::object obj = cls(block_backend);
-    cyten::hdf5::py_memorize_load(h5gr, obj);
-    return obj.cast<Ptr>();
+    auto ptr = obj.cast<Ptr>();
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(ptr));
+    return ptr;
 }
 
 std::vector<Leg::Ptr>

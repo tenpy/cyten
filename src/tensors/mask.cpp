@@ -10,10 +10,14 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
 #include <format>
+#include <functional>
+#include <hdf5_io/h5_ops.h>
 #include <numeric>
+#include <random>
 #include <ranges>
 #include <stdexcept>
 #include <utility>
@@ -22,6 +26,12 @@
 namespace cyten {
 
 namespace {
+
+[[nodiscard]] py::object
+py_bool_dtype()
+{
+    return py::reinterpret_borrow<py::object>((PyObject*)&PyBool_Type);
+}
 
 ElementarySpace::Ptr
 as_elementary_space(Space::Ptr obj)
@@ -46,14 +56,27 @@ as_leg_cptr(Space::Ptr const& space)
     return std::static_pointer_cast<Leg const>(es);
 }
 
-/// Adapt a numpy-oriented bool function so backends can call it on Block objects.
+/// Invert each bool entry of a block (replaces ``operator.invert`` via numpy).
 BlockUnaryFn
-adapt_block_bool_unary(py::function func, std::shared_ptr<BlockBackend> bb)
+adapt_block_bool_invert(std::shared_ptr<BlockBackend> bb)
 {
-    return [func, bb](BlockBackend::BlockPtr const& block) {
-        auto arr = bb->to_numpy(block, py::module_::import("builtins").attr("bool"));
-        auto out = func(arr);
-        return bb->as_block(out, Dtype::Bool, block->device());
+    return [bb](BlockBackend::BlockPtr const& block) {
+        py::array arr = bb->to_numpy(block, py_bool_dtype());
+        py::array_t<bool, py::array::c_style | py::array::forcecast> flat =
+          py::array_t<bool, py::array::c_style | py::array::forcecast>::ensure(arr).reshape(
+            { -1 });
+        py::array_t<bool> out(flat.size());
+        auto src = flat.unchecked<1>();
+        auto dst = out.mutable_unchecked<1>();
+        for (py::ssize_t i = 0; i < src.shape(0); ++i) {
+            dst(i) = !src(i);
+        }
+        auto info = arr.request();
+        std::vector<py::ssize_t> shape(static_cast<std::size_t>(info.ndim));
+        for (py::ssize_t d = 0; d < info.ndim; ++d) {
+            shape[static_cast<std::size_t>(d)] = info.shape[d];
+        }
+        return bb->as_block(out.reshape(shape), Dtype::Bool, block->device());
     };
 }
 
@@ -75,9 +98,13 @@ basis_perm_trivial(ElementarySpace const& leg)
     if (!leg.has_custom_basis_perm()) {
         return true;
     }
-    auto np = py::module_::import("numpy");
-    auto perm = py::cast(leg.basis_perm());
-    return py::bool_(np.attr("all")(perm.attr("__eq__")(np.attr("arange")(py::len(perm)))));
+    auto const& perm = leg.basis_perm();
+    for (std::size_t i = 0; i < perm.size(); ++i) {
+        if (perm[i] != static_cast<int64>(i)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 TensorBackend::Ptr
@@ -244,30 +271,38 @@ Mask::test_sanity() const
         if (!small->has_custom_basis_perm()) {
             // consistent
         } else {
-            auto np = py::module_::import("numpy");
-            auto expected = np.attr("arange")(space_dim(*small));
-            auto actual = np.attr("asarray")(py::cast(small->basis_perm()));
-            if (!np.attr("array_equal")(actual, expected).cast<bool>()) {
-                throw std::logic_error(
-                  "Mask.test_sanity: small_leg.basis_perm inconsistent with trivial large_leg");
+            auto const& actual = small->basis_perm();
+            for (std::size_t i = 0; i < actual.size(); ++i) {
+                if (actual[i] != static_cast<int64>(i)) {
+                    throw std::logic_error("Mask.test_sanity: small_leg.basis_perm inconsistent "
+                                           "with trivial large_leg");
+                }
             }
         }
     } else {
-        auto np = py::module_::import("numpy");
-        auto mask_in_internal_basis = backend->block_backend->to_numpy(
-          backend->mask_to_block(std::static_pointer_cast<Mask const>(shared_from_this())),
-          py::module_::import("builtins").attr("bool"));
-        // Use Leg Python properties (perm_to_numpy) so empty perms stay integer dtype.
-        // np.asarray([]) defaults to float64 and breaks advanced indexing.
-        auto large_py = py::cast(large);
-        auto small_py = py::cast(small);
-        auto pi_1 = large_py.attr("basis_perm");
-        auto pi_2_inv = small_py.attr("inverse_basis_perm");
-        auto ranks =
-          pi_1.attr("__getitem__")(mask_in_internal_basis).attr("__getitem__")(pi_2_inv);
-        // check if ranks is sorted (strictly increasing)
-        if (!np.attr("all")(np.attr("diff")(ranks).attr("__gt__")(0)).cast<bool>()) {
-            throw std::logic_error("Mask.test_sanity: kept basis ranks are not sorted");
+        auto mask_block =
+          backend->mask_to_block(std::static_pointer_cast<Mask const>(shared_from_this()));
+        auto mask_np = backend->block_backend->to_numpy(mask_block, py_bool_dtype());
+        auto mask_bool =
+          py::array_t<bool, py::array::c_style | py::array::forcecast>::ensure(mask_np);
+        auto mbuf = mask_bool.unchecked<1>();
+        auto const& pi_1 = large->basis_perm();
+        auto const& pi_2_inv = small->inverse_basis_perm();
+        std::vector<int64> kept_ranks;
+        kept_ranks.reserve(static_cast<std::size_t>(mbuf.shape(0)));
+        for (py::ssize_t i = 0; i < mbuf.shape(0); ++i) {
+            if (mbuf(i)) {
+                kept_ranks.push_back(pi_1[static_cast<std::size_t>(i)]);
+            }
+        }
+        std::vector<int64> ranks(kept_ranks.size());
+        for (std::size_t i = 0; i < kept_ranks.size(); ++i) {
+            ranks[i] = kept_ranks[static_cast<std::size_t>(pi_2_inv[i])];
+        }
+        for (std::size_t i = 1; i < ranks.size(); ++i) {
+            if (!(ranks[i] > ranks[i - 1])) {
+                throw std::logic_error("Mask.test_sanity: kept basis ranks are not sorted");
+            }
         }
     }
 }
@@ -334,11 +369,21 @@ Mask::from_indices(py::object indices,
                    std::optional<OptionalLabels> labels,
                    std::optional<std::string> device)
 {
-    auto np = py::module_::import("numpy");
-    auto block_mask = np.attr("zeros")(space_dim(*large_leg), np.attr("bool_"));
-    block_mask.attr("__setitem__")(indices, true);
     backend = resolve_backend(std::move(backend), large_leg);
-    auto block = backend->block_backend->as_block(block_mask, Dtype::Bool, device);
+    auto bb = backend->block_backend;
+    auto dim = space_dim(*large_leg);
+    auto block = bb->zeros({ dim }, Dtype::Bool, device);
+    auto true_s = bb->as_scalar(true);
+    auto idx = py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(indices);
+    if (!idx) {
+        throw std::invalid_argument("Mask.from_indices: indices must be array-like of int");
+    }
+    auto info = idx.request();
+    auto const* ptr = static_cast<int64 const*>(info.ptr);
+    auto const n = static_cast<std::size_t>(info.size);
+    for (std::size_t i = 0; i < n; ++i) {
+        block->set_item(ptr[i], true_s);
+    }
     return from_block_mask(
       block, std::move(large_leg), std::move(backend), std::move(labels), device);
 }
@@ -362,10 +407,6 @@ Mask::from_random(Space::Ptr large_leg_in,
     // ---
     auto large_leg = as_elementary_space(std::move(large_leg_in));
     backend = resolve_backend(std::move(backend), large_leg);
-
-    if (np_random.is_none()) {
-        np_random = py::module_::import("numpy").attr("random").attr("default_rng")();
-    }
 
     if (!small_leg_in) {
         if (!(0. <= p_keep && p_keep <= 1.)) {
@@ -394,9 +435,11 @@ Mask::from_random(Space::Ptr large_leg_in,
         // explicitly constructing the small_leg with exactly min_keep sectors kept is
         // quite annoying bc of basis_perm. Instead we increase p_keep until we get there.
         // first, try a heuristic
-        auto np = py::module_::import("numpy");
-        p_keep =
-          py::float_(np.attr("ceil")(1.05 * min_keep / large_leg_sector_num)).cast<float64>();
+        p_keep = std::ceil(1.05 * static_cast<float64>(min_keep) /
+                           static_cast<float64>(large_leg_sector_num));
+        if (p_keep > 1.) {
+            p_keep = 1.;
+        }
         res = from_DiagonalTensor(
           py::cast(diag).attr("__lt__")(2. * p_keep - 1.).cast<DiagonalTensorCPtr>());
         for (int i = 0; i < 20; ++i) {
@@ -423,16 +466,39 @@ Mask::from_random(Space::Ptr large_leg_in,
 
     auto small_leg_cap = small_leg;
     auto np_random_cap = np_random;
-    auto np = py::module_::import("numpy");
     auto bb = backend->block_backend;
-    SectorBlockFactoryFn func = [small_leg_cap, np_random_cap, np, bb, device](
+    SectorBlockFactoryFn func = [small_leg_cap, np_random_cap, bb, device](
                                   std::vector<int64> const& shape, Sector const& coupled) {
         int64 num_keep = small_leg_cap->sector_multiplicity(coupled);
-        py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
-        auto which = np_random_cap.attr("choice")(
-          shape[0], py::arg("size") = num_keep, py::arg("replace") = false);
-        block.attr("__setitem__")(which, true);
-        return bb->as_block(block, Dtype::Bool, device);
+        auto block = bb->zeros(shape, Dtype::Bool, device);
+        auto true_s = bb->as_scalar(true);
+        std::vector<int64> which;
+        which.reserve(static_cast<std::size_t>(num_keep));
+        if (!np_random_cap.is_none()) {
+            auto choice = np_random_cap.attr("choice")(
+              shape[0], py::arg("size") = num_keep, py::arg("replace") = false);
+            auto arr =
+              py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(choice);
+            auto buf = arr.unchecked<1>();
+            for (py::ssize_t i = 0; i < buf.shape(0); ++i) {
+                which.push_back(buf(i));
+            }
+        } else {
+            // Native sample without replacement (Fisher–Yates partial shuffle).
+            std::vector<int64> pool(static_cast<std::size_t>(shape[0]));
+            std::iota(pool.begin(), pool.end(), int64{ 0 });
+            thread_local std::mt19937_64 rng{ std::random_device{}() };
+            for (int64 k = 0; k < num_keep; ++k) {
+                std::uniform_int_distribution<int64> dist(k, shape[0] - 1);
+                std::swap(pool[static_cast<std::size_t>(k)],
+                          pool[static_cast<std::size_t>(dist(rng))]);
+                which.push_back(pool[static_cast<std::size_t>(k)]);
+            }
+        }
+        for (int64 idx : which) {
+            block->set_item(idx, true_s);
+        }
+        return block;
     };
 
     auto diag = DiagonalTensor::from_sector_block_func(
@@ -649,8 +715,7 @@ Mask::move_to_device(std::string device_in)
 Mask::Ptr
 Mask::orthogonal_complement()
 {
-    return _unary_operand(adapt_block_bool_unary(py::module_::import("operator").attr("invert"),
-                                                 backend->block_backend));
+    return _unary_operand(adapt_block_bool_invert(backend->block_backend));
 }
 
 bool
@@ -680,8 +745,7 @@ Mask::as_block_mask()
 py::array
 Mask::as_numpy_mask()
 {
-    return backend->block_backend->to_numpy(as_block_mask(),
-                                            py::module_::import("builtins").attr("bool"));
+    return backend->block_backend->to_numpy(as_block_mask(), py_bool_dtype());
 }
 
 Tensor::Ptr
@@ -759,13 +823,45 @@ Mask::to_dense_block(std::optional<std::vector<std::variant<int64, std::string>>
           "that means (read the docstring of to_dense_block). Then you can disable "
           "this error by setting ``understood_braiding=True``.");
     }
-    // for Mask, defining via numpy is actually easier, to use numpy indexing
-    py::object numpy_dtype = py::none();
-    if (dtype_opt.has_value()) {
-        numpy_dtype = dtype::to_numpy_dtype(*dtype_opt);
+    assert(shape.size() == 2);
+    auto m = static_cast<int64>(shape[0]);
+    auto n = static_cast<int64>(shape[1]);
+    Dtype dt = dtype_opt.value_or(Dtype::Bool);
+    auto bb = backend->block_backend;
+    auto res = bb->zeros({ m, n }, dt);
+    auto one = (dt == Dtype::Bool) ? bb->as_scalar(true) : bb->as_scalar(py::int_(1), dt);
+
+    auto mask_block = as_block_mask();
+    auto mask_np = bb->to_numpy(mask_block, py_bool_dtype());
+    auto mask_bool = py::array_t<bool, py::array::c_style | py::array::forcecast>::ensure(mask_np);
+    auto info = mask_bool.request();
+    auto const* ptr = static_cast<bool const*>(info.ptr);
+    std::vector<int64> kept;
+    for (py::ssize_t i = 0; i < info.size; ++i) {
+        if (ptr[i]) {
+            kept.push_back(static_cast<int64>(i));
+        }
     }
-    auto as_numpy = to_numpy(leg_order, numpy_dtype, understood_braiding);
-    return backend->block_backend->as_block(as_numpy, dtype_opt, std::nullopt);
+    if (is_projection) {
+        if (static_cast<int64>(kept.size()) != m) {
+            throw std::logic_error("Mask.to_dense_block: projection mask length mismatch");
+        }
+        for (int64 i = 0; i < m; ++i) {
+            res->set_item(std::vector<int64>{ i, kept[static_cast<std::size_t>(i)] }, one);
+        }
+    } else {
+        if (static_cast<int64>(kept.size()) != n) {
+            throw std::logic_error("Mask.to_dense_block: inclusion mask length mismatch");
+        }
+        for (int64 j = 0; j < n; ++j) {
+            res->set_item(std::vector<int64>{ kept[static_cast<std::size_t>(j)], j }, one);
+        }
+    }
+    if (leg_order.has_value()) {
+        auto idcs = get_leg_idcs(*leg_order);
+        res = bb->permute_axes(res, idcs);
+    }
+    return res;
 }
 
 py::array
@@ -776,94 +872,57 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
     // --- hints from Python Mask.to_numpy ---
     // sets the appropriate dtype. e.g. sets ``True`` for bool.
     // ---
-    if (!symmetry->can_be_dropped()) {
-        throw SymmetryError(std::format(
-          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
+    std::optional<Dtype> dt;
+    if (!numpy_dtype.is_none()) {
+        dt = dtype::from_numpy_dtype(numpy_dtype);
     }
-    if (!symmetry->has_trivial_braid() && !understood_braiding) {
-        throw SymmetryError(
-          "If the symmetry has non-trivial braids, dense block representations do not "
-          "consistently reproduce the braiding statistics. Make sure you understand what "
-          "that means (read the docstring of to_dense_block). Then you can disable "
-          "this error by setting ``understood_braiding=True``.");
-    }
-    assert(symmetry->can_be_dropped());
-    auto np = py::module_::import("numpy");
-    auto mask = as_numpy_mask();
-    // Use Python shape property (int dims) — np.zeros rejects float dims.
-    // Match Python: ``numpy_dtype or bool`` (the type, not the value False).
-    auto res = np.attr("zeros")(
-      py::make_tuple(static_cast<int64>(shape[0]), static_cast<int64>(shape[1])),
-      numpy_dtype.is_none() ? py::module_::import("builtins").attr("bool") : numpy_dtype);
-    // shape is [m, n] for Mask
-    assert(shape.size() == 2);
-    auto m = static_cast<int64>(shape[0]);
-    auto n = static_cast<int64>(shape[1]);
-    if (is_projection) {
-        res.attr("__setitem__")(py::make_tuple(np.attr("arange")(m), mask), 1);
-    } else {
-        res.attr("__setitem__")(py::make_tuple(mask, np.attr("arange")(n)), 1);
-    }
-    if (leg_order.has_value()) {
-        auto idcs = get_leg_idcs(*leg_order);
-        res = np.attr("transpose")(res, py::cast(idcs));
-    }
-    return res;
+    auto block = to_dense_block(std::move(leg_order), dt, understood_braiding);
+    std::optional<py::object> np_dt =
+      numpy_dtype.is_none() ? std::nullopt : std::optional<py::object>{ numpy_dtype };
+    return backend->block_backend->to_numpy(block, np_dt).cast<py::array>();
 }
 
 void
 Mask::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
 {
-    /// Export Mask to hdf5 such that it can be re-imported with from_hdf5
-    cyten::hdf5::py_save(subpath + "domain", py::cast(domain));
-    cyten::hdf5::py_save(subpath + "codomain", py::cast(codomain));
-    cyten::hdf5::py_save(subpath + "backend", py::cast(backend));
-    cyten::hdf5::py_save(subpath + "data", py::cast(data));
-    cyten::hdf5::py_save(subpath + "symmetry", py::cast(symmetry));
-    cyten::hdf5::py_set_group_attr("dtype", py::cast(dtype::repr(dtype)));
-    cyten::hdf5::py_set_group_attr("num_legs", py::cast(num_legs));
-    cyten::hdf5::py_set_group_attr("shape",
-                                   py::module_::import("numpy").attr("array")(
-                                     py::cast(shape), py::module_::import("numpy").attr("intp")));
-    cyten::hdf5::py_set_group_attr("is_projection", py::cast(is_projection));
-    if (std::ranges::all_of(_labels, [](OptionalLabel const& l) { return !l; })) {
-        cyten::hdf5::py_set_group_attr("labels", py::list());
-    } else {
-        cyten::hdf5::py_set_group_attr("labels", py::cast(_labels));
-    }
+    hdf5_export::save_tensor_product(saver, subpath + "domain", domain);
+    hdf5_export::save_tensor_product(saver, subpath + "codomain", codomain);
+    hdf5_export::save_tensor_backend(saver, subpath + "backend", backend);
+    hdf5_export::save_tensor_backend_data(saver, subpath + "data", data);
+    hdf5_export::save_symmetry(saver, subpath + "symmetry", symmetry);
+    hdf5_io::h5_set_attr(h5gr.getId(), "dtype", dtype::repr(dtype));
+    hdf5_io::h5_set_attr(h5gr.getId(), "num_legs", static_cast<std::int64_t>(num_legs));
+    hdf5_export::save_f64_vector(saver, subpath + "shape", shape);
+    hdf5_io::h5_set_attr(h5gr.getId(), "is_projection", is_projection);
+    hdf5_export::save_optional_labels(saver, subpath + "labels", _labels);
 }
 
 Mask::Ptr
 Mask::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
-    /// Import Mask from hdf5
-    auto domain_tp = cyten::hdf5::py_load(subpath + "domain").cast<TensorProduct::Ptr>();
-    auto codomain_tp = cyten::hdf5::py_load(subpath + "codomain").cast<TensorProduct::Ptr>();
-    auto symmetry_in = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto backend_in = cyten::hdf5::py_load(subpath + "backend").cast<TensorBackend::Ptr>();
-    auto data_in = cyten::hdf5::py_load(subpath + "data").cast<TensorBackend::DataPtr>();
-    (void)cyten::hdf5::py_get_attr(h5gr, "dtype");
-    (void)cyten::hdf5::py_get_attr(h5gr, "num_legs");
-    auto shape_in = cyten::hdf5::py_get_attr(h5gr, "shape").cast<std::vector<float64>>();
+    auto domain_tp = hdf5_export::load_tensor_product(loader, subpath + "domain");
+    auto codomain_tp = hdf5_export::load_tensor_product(loader, subpath + "codomain");
+    auto symmetry_in = hdf5_export::load_symmetry(loader, subpath + "symmetry");
+    auto backend_in = hdf5_export::load_tensor_backend(loader, subpath + "backend");
+    auto data_in = hdf5_export::load_tensor_backend_data(loader, subpath + "data");
+    auto shape_in = hdf5_export::load_f64_vector(loader, subpath + "shape");
 
     bool proj = true;
-    try {
-        proj = cyten::hdf5::py_get_attr(h5gr, "is_projection").cast<bool>();
-    } catch (py::error_already_set&) {
+    auto proj_attr = hdf5_io::h5_get_attr_int64(h5gr.getId(), "is_projection");
+    if (proj_attr.has_value()) {
+        proj = *proj_attr != 0;
+    } else {
         auto space_in = as_space(domain_tp->factors[0]);
         auto space_out = as_space(codomain_tp->factors[0]);
         proj = space_dim(*space_in) >= space_dim(*space_out);
     }
 
     OptionalLabels labels_in(2, std::nullopt);
-    try {
-        labels_in = cyten::hdf5::py_get_attr(h5gr, "labels").cast<OptionalLabels>();
-        // Match Python save: all-None labels are stored as [].
+    if (hdf5_io::h5_contains(loader.root(), subpath + "labels")) {
+        labels_in = hdf5_export::load_optional_labels(loader, subpath + "labels");
         if (labels_in.empty()) {
             labels_in.assign(2, std::nullopt);
         }
-    } catch (py::error_already_set&) {
-        // older saves may omit labels
     }
 
     auto device_in = backend_in->get_device_from_data(data_in);
@@ -876,7 +935,7 @@ Mask::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string 
                                       std::move(labels_in),
                                       device_in);
     obj->shape = std::move(shape_in);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

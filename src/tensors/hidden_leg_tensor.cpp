@@ -7,8 +7,8 @@
 #include <cassert>
 #include <cctype>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
+#include <hdf5_io/h5_ops.h>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
@@ -376,9 +376,8 @@ HiddenLegTensor::save_hdf5(cyten::hdf5::Saver& saver,
                            HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
-    // Store as SymmetricTensor data + flag
     SymmetricTensor::save_hdf5(saver, h5gr, subpath);
-    cyten::hdf5::py_set_group_attr("is_hidden_leg_tensor", py::cast(true));
+    hdf5_io::h5_set_attr(h5gr.getId(), "is_hidden_leg_tensor", true);
 }
 
 HiddenLegTensor::Ptr
@@ -388,7 +387,7 @@ HiddenLegTensor::from_hdf5(cyten::hdf5::Loader& loader,
 {
     auto sym = SymmetricTensor::from_hdf5(loader, h5gr, subpath);
     auto obj = std::make_shared<HiddenLegTensor>(std::move(sym));
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

@@ -6,16 +6,24 @@
 #include <cmath>
 #include <cstdlib>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <iostream>
 #include <limits>
 #include <utility>
 #include <vector>
 
 namespace cyten {
 
-Sector const SU2::spin_zero{ 0 };
-Sector const SU2::spin_half{ 1 };
-Sector const SU2::spin_one{ 2 };
+namespace {
+
+constexpr char const* kSu2TestOnlyWarning =
+  "_SU2 is a test-only API for symbol checks; not for production. "
+  "Prefer SUN(N=2, ...) for real SU(2).";
+
+} // namespace
+
+Sector const _SU2::spin_zero{ 0 };
+Sector const _SU2::spin_half{ 1 };
+Sector const _SU2::spin_one{ 2 };
 
 namespace {
 
@@ -27,7 +35,7 @@ su2data()
 
 } // namespace
 
-SU2::SU2(std::optional<std::string> descriptive_name)
+_SU2::_SU2(std::optional<std::string> descriptive_name)
   : Group(FusionStyle::multiple_unique,
           Sector{ 0 },
           "SU(2)",
@@ -37,16 +45,17 @@ SU2::SU2(std::optional<std::string> descriptive_name)
           /*trivial_shift=*/true)
 {
     fusion_tensor_dtype = Dtype::Float64;
+    std::cerr << "UserWarning: " << kSu2TestOnlyWarning << '\n';
 }
 
 bool
-SU2::is_valid_sector(Sector a) const
+_SU2::is_valid_sector(Sector a) const
 {
     return a.len() == 1 && a.q[0] >= 0;
 }
 
 bool
-SU2::are_valid_sectors(SectorArray const& sectors) const
+_SU2::are_valid_sectors(SectorArray const& sectors) const
 {
     if (sectors.sector_ind_len() != 1) {
         return false;
@@ -60,7 +69,7 @@ SU2::are_valid_sectors(SectorArray const& sectors) const
 }
 
 SectorArray
-SU2::fusion_outcomes(Sector a, Sector b) const
+_SU2::fusion_outcomes(Sector a, Sector b) const
 {
     // --- hints from Python SU2.fusion_outcomes ---
     // J_tot = |J1 - J2|, ..., J1 + J2
@@ -78,7 +87,7 @@ SU2::fusion_outcomes(Sector a, Sector b) const
 }
 
 bool
-SU2::can_fuse_to(Sector a, Sector b, Sector c) const
+_SU2::can_fuse_to(Sector a, Sector b, Sector c) const
 {
     auto const aa = a.q[0];
     auto const bb = b.q[0];
@@ -87,7 +96,7 @@ SU2::can_fuse_to(Sector a, Sector b, Sector c) const
 }
 
 int64
-SU2::sector_dim(Sector a) const
+_SU2::sector_dim(Sector a) const
 {
     // --- hints from Python SU2.sector_dim ---
     // dim = 2 * J + 1 = jj + 1
@@ -96,7 +105,7 @@ SU2::sector_dim(Sector a) const
 }
 
 std::vector<int64>
-SU2::batch_sector_dim(SectorArray const& a) const
+_SU2::batch_sector_dim(SectorArray const& a) const
 {
     // --- hints from Python SU2.batch_sector_dim ---
     // dim = 2 * J + 1 = jj + 1
@@ -109,7 +118,7 @@ SU2::batch_sector_dim(SectorArray const& a) const
 }
 
 std::string
-SU2::sector_str(Sector a) const
+_SU2::sector_str(Sector a) const
 {
     auto const jj = a.q[0];
     std::string j_str = (jj % 2 == 0) ? std::to_string(jj / 2) : (std::to_string(jj) + "/2");
@@ -117,22 +126,22 @@ SU2::sector_str(Sector a) const
 }
 
 std::string
-SU2::repr() const
+_SU2::repr() const
 {
     if (!descriptive_name.has_value()) {
-        return "SU2Symmetry()";
+        return "_SU2()";
     }
-    return std::string("SU2Symmetry(\"") + *descriptive_name + "\")";
+    return std::string("_SU2(\"") + *descriptive_name + "\")";
 }
 
 bool
-SU2::_is_equivalent_factor(SymmetryFactor const& other) const
+_SU2::_is_equivalent_factor(SymmetryFactor const& other) const
 {
-    return dynamic_cast<SU2 const*>(&other) != nullptr;
+    return dynamic_cast<_SU2 const*>(&other) != nullptr;
 }
 
 Sector
-SU2::dual_sector(Sector a) const
+_SU2::dual_sector(Sector a) const
 {
     // --- hints from Python SU2.dual_sector ---
     // all sectors are self-dual
@@ -141,19 +150,19 @@ SU2::dual_sector(Sector a) const
 }
 
 SectorArray
-SU2::dual_sectors(SectorArray const& sectors) const
+_SU2::dual_sectors(SectorArray const& sectors) const
 {
     return sectors;
 }
 
 int64
-SU2::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
+_SU2::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 {
     return 1;
 }
 
 FusionSymbol
-SU2::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
+_SU2::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     // --- hints from Python SU2._f_symbol ---
     // OPTIMIZE: jutho has a special case if all sectors are trivial ...?
@@ -165,7 +174,7 @@ SU2::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 }
 
 int64
-SU2::frobenius_schur(Sector a) const
+_SU2::frobenius_schur(Sector a) const
 {
     // --- hints from Python SU2.frobenius_schur ---
     // +1 for integer spin (i.e. even `a`), -1 for half integer
@@ -174,13 +183,13 @@ SU2::frobenius_schur(Sector a) const
 }
 
 float64
-SU2::qdim(Sector a) const
+_SU2::qdim(Sector a) const
 {
     return static_cast<float64>(a.q[0]) + 1.0;
 }
 
 FusionSymbol
-SU2::_r_symbol(Sector a, Sector b, Sector c) const
+_SU2::_r_symbol(Sector a, Sector b, Sector c) const
 {
     // --- hints from Python SU2._r_symbol ---
     // R symbol is +1 if ``j_sum = (j_a + j_b - j_c)`` is even, -1 otherwise.
@@ -194,7 +203,7 @@ SU2::_r_symbol(Sector a, Sector b, Sector c) const
 }
 
 FusionSymbol
-SU2::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
+_SU2::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 {
     // --- hints from Python SU2._fusion_tensor ---
     // [µ, m_a, m_b, m_c] @ [m_a, m_abar*] -> [µ, m_b, m_c, m_abar*]
@@ -228,17 +237,17 @@ SU2::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 }
 
 FusionSymbol
-SU2::Z_iso(Sector a) const
+_SU2::Z_iso(Sector a) const
 {
     return fusion_symbol_from_numpy(su2data().attr("Z_iso")(a.q[0]).cast<py::array>());
 }
 
-SU2::Ptr
-SU2::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& /*subpath*/)
+_SU2::Ptr
+_SU2::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& /*subpath*/)
 {
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
-    auto obj = std::make_shared<SU2>(name);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    auto obj = std::make_shared<_SU2>(name);
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

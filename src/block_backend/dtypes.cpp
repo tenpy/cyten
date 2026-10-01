@@ -34,6 +34,24 @@ repr(Dtype dtype)
 }
 
 Dtype
+from_repr(std::string const& name)
+{
+    if (name == "bool")
+        return Dtype::Bool;
+    if (name == "float32")
+        return Dtype::Float32;
+    if (name == "complex64")
+        return Dtype::Complex64;
+    if (name == "float64")
+        return Dtype::Float64;
+    if (name == "complex128")
+        return Dtype::Complex128;
+    if (name == "int64")
+        return Dtype::Int64;
+    throw std::invalid_argument("dtype::from_repr: unknown dtype '" + name + "'");
+}
+
+Dtype
 to_complex(Dtype dtype)
 {
     if (dtype == Dtype::Bool)

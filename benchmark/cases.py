@@ -31,7 +31,7 @@ CASES: dict[str, CaseSpec] = {
     ),
     'su2': CaseSpec(
         name='su2',
-        symmetry_name='SU2',
+        symmetry_name='_SU2',
         allowed_symmetry_backends=('fusion_tree',),
     ),
 }
@@ -44,7 +44,7 @@ def get_symmetry(case: str):
     if case == 'u1':
         return ct.U1().as_Symmetry()
     if case == 'su2':
-        return ct.SU2().as_Symmetry()
+        return ct._SU2().as_Symmetry()
     raise ValueError(f'Unknown case {case!r}; choose from {sorted(CASES)}')
 
 

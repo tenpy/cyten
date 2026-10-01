@@ -42,7 +42,7 @@ Case    Symmetry     Allowed symmetry backends        Leg construction
 ======= ============ ================================ ========================================
 nosym   NoSymmetry   no_symmetry                      ``from_trivial_sector(dim)``
 u1      U1           abelian, fusion_tree             charges ``-2..2``, equal multiplicities
-su2     SU2          fusion_tree                      sectors ``0,1,2`` (j=0,½,1), equal mults
+su2     _SU2          fusion_tree                      sectors ``0,1,2`` (j=0,½,1), equal mults
 ======= ============ ================================ ========================================
 
 Comparing ``u1`` + ``abelian`` vs ``u1`` + ``fusion_tree`` isolates symmetry-backend

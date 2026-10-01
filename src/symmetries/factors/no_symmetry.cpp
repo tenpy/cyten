@@ -1,6 +1,5 @@
 #include <cyten/symmetries/factors/no_symmetry.h>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
 
 namespace cyten {
 
@@ -98,7 +97,7 @@ NoSymmetry::from_hdf5(cyten::hdf5::Loader& loader,
 {
     auto obj = std::make_shared<NoSymmetry>();
     obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

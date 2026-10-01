@@ -7,7 +7,7 @@ import numpy as np
 
 from .. import backends, tensors, tools
 from ..block_backends import dtypes
-from ..symmetries import SU2, U1, SectorArray, Symmetry, SymmetryFactor, spaces
+from ..symmetries import _SU2, U1, SectorArray, Symmetry, SymmetryFactor, spaces
 from ..symmetries.sector_utils import as_sector_array
 
 
@@ -46,7 +46,7 @@ def random_factor_sectors(factor: SymmetryFactor, num: int, np_random=np.random.
     """Random unique symmetry sectors, optionally sorted."""
     assert not isinstance(factor, Symmetry)
     assert isinstance(factor, SymmetryFactor)
-    if isinstance(factor, SU2):
+    if isinstance(factor, _SU2):
         res = np_random.choice(max(int(1.3 * num), 2), replace=False, size=(num, 1))
         return as_sector_array(res)
     if isinstance(factor, U1):

@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -38,6 +39,17 @@ namespace cyten {
 /// Lookup table from each sector to the indices where it appears in `sectors`.
 [[nodiscard]] std::unordered_map<Sector, std::vector<int64>> list_to_dict_list(
   SectorArray const& sectors);
+
+/// Join multiline strings side-by-side (Python ``cyten.tools.string.vert_join``).
+///
+/// @param strlist Strings to join (each may contain newlines).
+/// @param valign ``'t'`` / ``'c'`` / ``'b'`` vertical alignment.
+/// @param halign ``'l'`` / ``'c'`` / ``'r'`` horizontal alignment within each column.
+/// @param delim Separator between columns.
+[[nodiscard]] std::string vert_join(std::vector<std::string> const& strlist,
+                                    char valign = 't',
+                                    char halign = 'l',
+                                    std::string const& delim = " ");
 
 /// Duplicate values in `seq`, excluding those in `ignore`.
 template<typename T>

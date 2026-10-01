@@ -1,30 +1,21 @@
 #include <cyten/symmetries/symmetry.h>
 
 #include <cyten/symmetries/fusion_symbol.h>
-#include <cyten/symmetries/sector_numpy.h>
 #include <cyten/tools/warn.h>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
+#include <hdf5_io/constants.h>
+#include <hdf5_io/h5_ops.h>
 #include <limits>
 #include <numeric>
 #include <stdexcept>
 #include <utility>
 
 namespace cyten {
-
-namespace {
-
-py::module_
-numpy()
-{
-    return py::module_::import("numpy");
-}
-
-} // namespace
 
 FusionStyle
 Symmetry::max_fusion_style(std::vector<SymmetryFactor::Ptr> const& factors)
@@ -278,64 +269,44 @@ Symmetry::fusion_outcomes(Sector a, Sector b) const
     // form an array of all combinations of the c_i
     // e.g. if we have 3 factors, we want
     // result[n1, n2, n3, :] = np.concatenate([c_1[n1, :], c_2[n2, :], c_3[n3, :]], axis=-1)
-    // we set the following elements:
-    // |                                                       i-th axis
-    // |                                                       v
-    // | results[:, :, ..., :, slice_i] = c_i[None, None, ..., :, ..., None, :]
-    // now reshape so that we get a 2D array where the first index (axis=0) runs over all those
-    // combinations
     // ---
-    auto np = numpy();
-    std::vector<py::array> all_outcomes;
-    std::vector<ssize_t> num_possibilities;
+    if (factors.empty()) {
+        return SectorArray::empty(0);
+    }
+
+    std::vector<SectorArray> all_outcomes;
+    std::vector<std::size_t> num_possibilities;
     all_outcomes.reserve(factors.size());
     num_possibilities.reserve(factors.size());
 
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto c_i = factors[i]->fusion_outcomes(factor_sector(a, i), factor_sector(b, i));
-        all_outcomes.push_back(sector_array_to_numpy(c_i));
-        num_possibilities.push_back(static_cast<ssize_t>(c_i.size()));
+        num_possibilities.push_back(c_i.size());
+        all_outcomes.push_back(std::move(c_i));
     }
 
-    if (factors.empty()) {
-        return SectorArray::empty(0);
-    }
-
-    py::list shape_list;
-    for (auto n : num_possibilities) {
-        shape_list.append(n);
-    }
-    shape_list.append(static_cast<int>(sector_ind_len));
-    auto zeros = np.attr("zeros");
-    auto result = zeros(py::tuple(shape_list), py::arg("dtype") = np.attr("int64"));
-
-    py::object colon = py::slice(py::none(), py::none(), py::none());
-    for (std::size_t i = 0; i < factors.size(); ++i) {
-        py::list res_idx;
-        for (std::size_t k = 0; k < factors.size(); ++k) {
-            res_idx.append(colon);
-        }
-        res_idx.append(py::slice(
-          static_cast<int>(sector_slices[i]), static_cast<int>(sector_slices[i + 1]), 1));
-        py::list c_i_idx;
-        for (std::size_t k = 0; k < i; ++k) {
-            c_i_idx.append(py::none());
-        }
-        c_i_idx.append(colon);
-        for (std::size_t k = i + 1; k < factors.size(); ++k) {
-            c_i_idx.append(py::none());
-        }
-        c_i_idx.append(colon);
-        result[py::tuple(res_idx)] = all_outcomes[i][py::tuple(c_i_idx)];
-    }
-
-    ssize_t n_rows = 1;
+    std::size_t n_rows = 1;
     for (auto n : num_possibilities) {
         n_rows *= n;
     }
-    auto reshaped =
-      result.attr("reshape")(py::make_tuple(n_rows, static_cast<int>(sector_ind_len)));
-    return sector_array_from_numpy(reshaped);
+    SectorArray result(n_rows, sector_ind_len);
+    for (std::size_t row = 0; row < n_rows; ++row) {
+        Sector s = Sector::zeros(sector_ind_len);
+        std::size_t tmp = row;
+        // C-order: last factor index varies fastest.
+        for (std::size_t fi = factors.size(); fi-- > 0;) {
+            auto const ni = num_possibilities[fi];
+            auto const idx = tmp % ni;
+            tmp /= ni;
+            auto const& c = all_outcomes[fi][idx];
+            auto const begin = sector_slices[fi];
+            for (std::uint8_t j = 0; j < c.len(); ++j) {
+                s.q[begin + j] = c.q[j];
+            }
+        }
+        result[row] = s;
+    }
+    return result;
 }
 
 SectorArray
@@ -459,42 +430,37 @@ Symmetry::all_sectors() const
         return SectorArray::empty(0);
     }
 
-    auto np = numpy();
-    py::list shape_list;
+    std::vector<SectorArray> factor_secs;
+    std::vector<std::size_t> num_possibilities;
+    factor_secs.reserve(factors.size());
+    num_possibilities.reserve(factors.size());
     for (auto const& f : factors) {
-        shape_list.append(static_cast<long long>(f->num_sectors));
-    }
-    shape_list.append(static_cast<int>(sector_ind_len));
-    auto results = np.attr("zeros")(py::tuple(shape_list), py::arg("dtype") = np.attr("int64"));
-
-    py::object colon = py::slice(py::none(), py::none(), py::none());
-    for (std::size_t i = 0; i < factors.size(); ++i) {
-        py::list lhs_idx;
-        for (std::size_t k = 0; k < factors.size(); ++k) {
-            lhs_idx.append(colon);
-        }
-        lhs_idx.append(py::slice(
-          static_cast<int>(sector_slices[i]), static_cast<int>(sector_slices[i + 1]), 1));
-        py::list rhs_idx;
-        for (std::size_t k = 0; k < i; ++k) {
-            rhs_idx.append(py::none());
-        }
-        rhs_idx.append(colon);
-        for (std::size_t k = i + 1; k < factors.size(); ++k) {
-            rhs_idx.append(py::none());
-        }
-        rhs_idx.append(colon);
-        auto secs = sector_array_to_numpy(factors[i]->all_sectors());
-        results[py::tuple(lhs_idx)] = secs[py::tuple(rhs_idx)];
+        auto secs = f->all_sectors();
+        num_possibilities.push_back(secs.size());
+        factor_secs.push_back(std::move(secs));
     }
 
-    long long n_rows = 1;
-    for (auto const& f : factors) {
-        n_rows *= static_cast<long long>(f->num_sectors);
+    std::size_t n_rows = 1;
+    for (auto n : num_possibilities) {
+        n_rows *= n;
     }
-    auto reshaped =
-      results.attr("reshape")(py::make_tuple(n_rows, static_cast<int>(sector_ind_len)));
-    return sector_array_from_numpy(reshaped);
+    SectorArray result(n_rows, sector_ind_len);
+    for (std::size_t row = 0; row < n_rows; ++row) {
+        Sector s = Sector::zeros(sector_ind_len);
+        std::size_t tmp = row;
+        for (std::size_t fi = factors.size(); fi-- > 0;) {
+            auto const ni = num_possibilities[fi];
+            auto const idx = tmp % ni;
+            tmp /= ni;
+            auto const& c = factor_secs[fi][idx];
+            auto const begin = sector_slices[fi];
+            for (std::uint8_t j = 0; j < c.len(); ++j) {
+                s.q[begin + j] = c.q[j];
+            }
+        }
+        result[row] = s;
+    }
+    return result;
 }
 
 int64
@@ -707,41 +673,50 @@ Symmetry::save_hdf5(cyten::hdf5::Saver& saver,
                     HighFive::Group& h5gr,
                     std::string const& subpath) const
 {
-    py::list factors_py;
-    for (auto const& f : factors) {
-        factors_py.append(py::cast(f));
+    HighFive::Group factors_g;
+    std::string factors_sub;
+    saver.save_sequence_begin(subpath + "factors",
+                              hdf5_io::REPR_LIST,
+                              static_cast<std::int64_t>(factors.size()),
+                              factors_g,
+                              factors_sub);
+    cyten::hdf5::Saver factors_saver(factors_g);
+    for (std::size_t i = 0; i < factors.size(); ++i) {
+        hdf5_export::save_symmetry_factor(factors_saver, std::to_string(i), factors[i]);
     }
-    cyten::hdf5::py_save(subpath + "factors", factors_py);
-    auto np = numpy();
-    py::array slices = np.attr("array")(sector_slices, py::arg("dtype") = np.attr("int64"));
-    cyten::hdf5::py_save(subpath + "sector_slices", slices);
+    {
+        std::vector<std::int64_t> slices(sector_slices.begin(), sector_slices.end());
+        hdf5_export::save_i64_vector(saver, subpath + "sector_slices", slices);
+    }
     if (fusion_tensor_dtype.has_value()) {
-        cyten::hdf5::py_save(subpath + "fusion_tensor_dtype",
-                             static_cast<int>(*fusion_tensor_dtype));
+        saver.save_int64(subpath + "fusion_tensor_dtype",
+                         static_cast<std::int64_t>(*fusion_tensor_dtype));
     } else {
-        cyten::hdf5::py_save(subpath + "fusion_tensor_dtype", py::none());
+        saver.save_none(subpath + "fusion_tensor_dtype");
     }
-    cyten::hdf5::py_save(subpath + "fusion_style", static_cast<int>(fusion_style));
-    cyten::hdf5::py_save(subpath + "braiding_style", static_cast<int>(braiding_style));
-    cyten::hdf5::py_save(subpath + "trivial_sector", py::cast(trivial_sector));
-    cyten::hdf5::py_save(subpath + "num_sectors", num_sectors);
-    cyten::hdf5::py_save(subpath + "sector_ind_len", static_cast<int>(sector_ind_len));
-    cyten::hdf5::py_set_group_attr("has_complex_topological_data",
-                                   py::cast(has_complex_topological_data));
+    saver.save_int64(subpath + "fusion_style", static_cast<std::int64_t>(fusion_style));
+    saver.save_int64(subpath + "braiding_style", static_cast<std::int64_t>(braiding_style));
+    hdf5_export::save_sector(saver, subpath + "trivial_sector", trivial_sector);
+    saver.save_float64(subpath + "num_sectors", num_sectors);
+    saver.save_int64(subpath + "sector_ind_len", static_cast<std::int64_t>(sector_ind_len));
+    hdf5_io::h5_set_attr(
+      h5gr.getId(), "has_complex_topological_data", has_complex_topological_data);
 }
 
 Symmetry::Ptr
 Symmetry::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
-    py::list factors_py = cyten::hdf5::py_load(subpath + "factors").cast<py::list>();
+    hid_t factors_id = loader.open(subpath + "factors");
+    auto const n = hdf5_io::h5_get_attr_int64(factors_id, hdf5_io::ATTR_LEN).value_or(0);
+    HighFive::Group factors_g = hdf5_io::group_from_hid(factors_id);
+    cyten::hdf5::Loader factors_loader(factors_g);
     std::vector<SymmetryFactor::Ptr> factors;
-    factors.reserve(factors_py.size());
-    for (py::handle h : factors_py) {
-        factors.push_back(h.cast<SymmetryFactor::Ptr>());
+    factors.reserve(static_cast<std::size_t>(n));
+    for (std::int64_t i = 0; i < n; ++i) {
+        factors.push_back(hdf5_export::load_symmetry_factor(factors_loader, std::to_string(i)));
     }
     auto obj = std::make_shared<Symmetry>(std::move(factors));
-    py::object py_obj = py::cast(obj);
-    cyten::hdf5::py_memorize_load(h5gr, py_obj);
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

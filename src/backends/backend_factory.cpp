@@ -8,7 +8,9 @@
 #include <cyten/symmetries/factors/no_symmetry.h>
 #include <cyten/tools.h>
 
+#include <mutex>
 #include <stdexcept>
+#include <unordered_map>
 #include <utility>
 
 namespace cyten {
@@ -36,18 +38,6 @@ make_block_backend(std::string const& block_backend)
     throw std::invalid_argument("Unknown block_backend: " + block_backend);
 }
 
-py::object
-make_python_tensor_backend(std::string const& tensor_backend,
-                           std::shared_ptr<BlockBackend> block_backend_instance)
-{
-    if (tensor_backend != "fusion_tree") {
-        throw std::invalid_argument("Unknown tensor_backend: " + tensor_backend);
-    }
-    py::object cls =
-      py::module_::import("cyten.backends.fusion_tree_backend").attr("FusionTreeBackend");
-    return cls(py::arg("block_backend") = block_backend_instance);
-}
-
 bool
 is_no_symmetry(Symmetry const& symmetry)
 {
@@ -55,15 +45,54 @@ is_no_symmetry(Symmetry const& symmetry)
     return symmetry.is_equivalent_to(no_sym);
 }
 
-/// Module-lifetime cache (avoids static ``py::object`` destruction at interpreter shutdown).
-py::dict
+struct BackendCacheKey
+{
+    std::string tensor_backend;
+    std::string block_backend;
+
+    bool operator==(BackendCacheKey const& other) const noexcept
+    {
+        return tensor_backend == other.tensor_backend && block_backend == other.block_backend;
+    }
+};
+
+struct BackendCacheKeyHash
+{
+    std::size_t operator()(BackendCacheKey const& key) const noexcept
+    {
+        return std::hash<std::string>{}(key.tensor_backend) ^
+               (std::hash<std::string>{}(key.block_backend) << 1);
+    }
+};
+
+std::unordered_map<BackendCacheKey, TensorBackend::Ptr, BackendCacheKeyHash>&
 backend_cache()
 {
-    py::module_ core = py::module_::import("cyten._core");
-    if (!py::hasattr(core, "_tensor_backend_cache")) {
-        core.attr("_tensor_backend_cache") = py::dict();
+    static std::unordered_map<BackendCacheKey, TensorBackend::Ptr, BackendCacheKeyHash> cache;
+    return cache;
+}
+
+std::mutex&
+backend_cache_mutex()
+{
+    static std::mutex mu;
+    return mu;
+}
+
+TensorBackend::Ptr
+make_tensor_backend(std::string const& tensor_backend,
+                    std::shared_ptr<BlockBackend> block_backend_instance)
+{
+    if (tensor_backend == "no_symmetry") {
+        return std::make_shared<NoSymmetryBackend>(std::move(block_backend_instance));
     }
-    return core.attr("_tensor_backend_cache").cast<py::dict>();
+    if (tensor_backend == "abelian") {
+        return std::make_shared<AbelianBackend>(std::move(block_backend_instance));
+    }
+    if (tensor_backend == "fusion_tree") {
+        return std::make_shared<FusionTreeBackend>(std::move(block_backend_instance));
+    }
+    throw std::invalid_argument("Unknown tensor_backend: " + tensor_backend);
 }
 
 } // namespace
@@ -82,8 +111,9 @@ get_backend(py::object symmetry, py::object block_backend)
     }
 
     std::string tensor_backend;
+    Symmetry::Ptr sym_ptr;
     if (py::isinstance<Symmetry>(symmetry)) {
-        Symmetry::Ptr sym_ptr = symmetry.cast<Symmetry::Ptr>();
+        sym_ptr = symmetry.cast<Symmetry::Ptr>();
         if (is_no_symmetry(*sym_ptr)) {
             tensor_backend = "no_symmetry";
         } else if (sym_ptr->is_abelian() && sym_ptr->has_trivial_braid()) {
@@ -98,31 +128,35 @@ get_backend(py::object symmetry, py::object block_backend)
     }
 
     std::string block_backend_str = block_backend.cast<std::string>();
-    py::tuple key = py::make_tuple(tensor_backend, block_backend_str);
-    py::dict cache = backend_cache();
-    if (cache.contains(key))
-        return cache[key];
+    BackendCacheKey key{ tensor_backend, block_backend_str };
 
-    auto block_backend_instance = make_block_backend(block_backend_str);
-    py::object backend;
-    if (tensor_backend == "no_symmetry") {
-        backend = py::cast(std::make_shared<NoSymmetryBackend>(block_backend_instance));
-    } else if (tensor_backend == "abelian") {
-        backend = py::cast(std::make_shared<AbelianBackend>(block_backend_instance));
-    } else if (tensor_backend == "fusion_tree") {
-        backend = py::cast(std::make_shared<FusionTreeBackend>(block_backend_instance));
-    } else {
-        throw std::invalid_argument("Unknown tensor_backend: " + tensor_backend);
+    {
+        std::lock_guard<std::mutex> lock(backend_cache_mutex());
+        auto& cache = backend_cache();
+        auto it = cache.find(key);
+        if (it != cache.end()) {
+            return py::cast(it->second);
+        }
     }
 
-    if (py::isinstance<Symmetry>(symmetry)) {
-        if (!backend.attr("supports_symmetry")(symmetry).cast<bool>()) {
+    auto block_backend_instance = make_block_backend(block_backend_str);
+    auto backend = make_tensor_backend(tensor_backend, std::move(block_backend_instance));
+
+    if (sym_ptr) {
+        if (!backend->supports_symmetry(sym_ptr)) {
             throw std::runtime_error("backend does not support the given symmetry");
         }
     }
 
-    cache[key] = backend;
-    return backend;
+    {
+        std::lock_guard<std::mutex> lock(backend_cache_mutex());
+        auto& cache = backend_cache();
+        auto [it, inserted] = cache.emplace(key, backend);
+        if (!inserted) {
+            backend = it->second;
+        }
+    }
+    return py::cast(backend);
 }
 
 TensorBackend::Ptr

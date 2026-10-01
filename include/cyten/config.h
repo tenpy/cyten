@@ -69,7 +69,11 @@ class CytenConfig
     void update(py::dict options);
     void update(const CytenConfig& other);
     void update_from_env();
-    void update_from_yaml(const std::string& yaml_text);
+    /// Apply options from an already-parsed mapping (no YAML parsing in C++).
+    /// Python bindings load YAML via ``yaml.safe_load`` then call this / ``update``.
+    void update_from_mapping(py::dict options);
+    /// Load a flat ``key: value`` YAML-ish config file with a minimal C++ parser
+    /// (no PyYAML). Full YAML documents should go through the pybind ``update_from_yaml``.
     void update_from_file(const std::string& filename);
 
     py::object get_option(const std::string& key) const;

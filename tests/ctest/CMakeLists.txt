@@ -3,6 +3,18 @@
 # #####################################################################
 
 enable_testing()
+
+# C++ tests that exercise NumpyBlockBackend (or other py:: APIs) need
+# pybind11::embed so a Python interpreter is available. Pure C++ unit tests
+# that never touch numpy/pybind APIs would not need embed — none of the
+# current suite qualifies yet while public headers pull in py:: types.
+if(NOT CYTEN_WITH_PYTHON)
+  message(STATUS
+    "CYTEN_WITH_PYTHON=OFF: skipping CommonCppTests / examples that need "
+    "numpy backends (excluded from libcyten).")
+  return()
+endif()
+
 # create the testing file and list of tests
 set (TestsToRun
   test_sector.cpp
@@ -24,6 +36,8 @@ target_include_directories(CommonCppTests
   PRIVATE ${PROJECT_SOURCE_DIR}/pybind
   PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
+# embed: NumpyBlockBackend and related tests need an interpreter; keep even if
+# some tests look "pure C++" until headers no longer require py::.
 target_link_libraries(CommonCppTests PUBLIC cyten pybind11::embed)
 
 # Add all the ADD_TEST for each test

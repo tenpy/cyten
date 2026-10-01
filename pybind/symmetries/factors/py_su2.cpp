@@ -12,22 +12,37 @@
 
 namespace cyten {
 
+namespace {
+
+constexpr char const* kSu2TestOnlyWarning =
+  "_SU2 is a test-only API for symbol checks; not for production. "
+  "Prefer SUN(N=2, ...) for real SU(2).";
+
+} // namespace
+
 void
 bind_su2(py::module_& m)
 {
-    py::class_<SU2, Group, py::smart_holder> cls(m, "SU2", DOC(cyten, SU2));
+    py::class_<_SU2, Group, py::smart_holder> cls(m, "_SU2", DOC(cyten, _SU2));
 
-    cls.def(py::init<std::optional<std::string>>(), py::arg("descriptive_name") = py::none())
+    cls
+      .def(py::init([](std::optional<std::string> descriptive_name) {
+               py::module_::import("warnings")
+                 .attr("warn")(
+                   kSu2TestOnlyWarning, py::module_::import("builtins").attr("UserWarning"), 2);
+               return std::make_shared<_SU2>(std::move(descriptive_name));
+           }),
+           py::arg("descriptive_name") = py::none())
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<SU2>(),
+                  cyten::hdf5::wrap_from_hdf5<_SU2>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
 
-    // Class-level convenience sectors (match Python ``SU2.spin_half`` etc.).
-    cls.attr("spin_zero") = SU2::spin_zero;
-    cls.attr("spin_half") = SU2::spin_half;
-    cls.attr("spin_one") = SU2::spin_one;
+    // Class-level convenience sectors (match Python ``_SU2.spin_half`` etc.).
+    cls.attr("spin_zero") = _SU2::spin_zero;
+    cls.attr("spin_half") = _SU2::spin_half;
+    cls.attr("spin_one") = _SU2::spin_one;
 }
 
 } // namespace cyten

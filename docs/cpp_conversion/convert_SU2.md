@@ -1,22 +1,24 @@
-# Conversion of SU2
+# Conversion of _SU2 (formerly SU2)
 
 ## Status
 
-**Done for monkey-patch.** C++ `SU2` + bindings; imported from `_core`. `pytest tests/python_tests/test_symmetries.py`: 48 passed, 1 skipped.
+**Done for monkey-patch.** C++ `_SU2` + bindings; imported from `_core` as a **test-only** API.
+`pytest tests/python_tests/test_symmetries.py`: 48 passed, 1 skipped.
 
-Hand-written after codegen drafts. No trampoline (no Python subclasses of `SU2`).
+Hand-written after codegen drafts. No trampoline (no Python subclasses of `_SU2`).
+Prefer `SUN(N=2, ...)` for production SU(2).
 
 ## Metadata
 
 | Field | Value |
 | --- | --- |
-| original python name | `SU2` |
+| original python name | `SU2` (now `_SU2`) |
 | original python file | `cyten/symmetries/_symmetries.py` |
 | declaration | `include/cyten/symmetries/factors/su2.h` |
 | definition | `src/symmetries/factors/su2.cpp` |
 | pybind11 binding | `pybind/symmetries/factors/py_su2.cpp` |
 | trampoline | none |
-| first line of docstring | SU(2) symmetry. |
+| first line of docstring | Test-only SU(2) symmetry factor (`_SU2`). |
 
 ## Design notes
 
@@ -24,6 +26,7 @@ Hand-written after codegen drafts. No trampoline (no Python subclasses of `SU2`)
 - Class attrs `spin_zero` / `spin_half` / `spin_one` set on the pybind class; `fusion_tensor_dtype = Float64` in ctor.
 - `_f_symbol`, `_fusion_tensor`, `Z_iso` call Python `cyten.symmetries._su2data` (deferred full C++ conversion of that module).
 - Combinatorics (`fusion_outcomes`, `can_fuse_to`, dims, `_r_symbol`, `frobenius_schur`) in C++.
+- Construction warns (stderr in C++ ctor; `warnings.warn` in the pybind init wrapper).
 
 ## TODO checklist
 

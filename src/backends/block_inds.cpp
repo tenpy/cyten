@@ -1,10 +1,9 @@
 #include <cyten/backends/block_inds.h>
 
-#include <cyten/backends/block_inds_numpy.h>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_export.h>
 
 #include <algorithm>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
 #include <numeric>
 #include <stdexcept>
 #include <string>
@@ -663,7 +662,7 @@ BlockInds::save_hdf5(cyten::hdf5::Saver& saver,
                      HighFive::Group& /*h5gr*/,
                      std::string const& subpath) const
 {
-    cyten::hdf5::py_save(subpath + "values", block_inds_to_numpy(*this));
+    saver.save_array(subpath + "values", hdf5_export::i64_matrix_to_buffer(data_, nrows_, ncols_));
 }
 
 BlockInds
@@ -671,7 +670,11 @@ BlockInds::from_hdf5(cyten::hdf5::Loader& loader,
                      HighFive::Group& /*h5gr*/,
                      std::string const& subpath)
 {
-    return block_inds_from_numpy(cyten::hdf5::py_load(subpath + "values"));
+    hid_t id = loader.open(subpath + "values");
+    auto buf = loader.load_array(id);
+    H5Idec_ref(id);
+    auto [flat, shape] = hdf5_export::i64_matrix_from_buffer(buf);
+    return BlockInds(std::move(flat), shape.first, shape.second);
 }
 
 } // namespace cyten

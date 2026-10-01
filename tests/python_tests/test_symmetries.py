@@ -727,12 +727,12 @@ def test_no_symmetry(np_random):
     assert sym == sym
     assert sym == symmetries.NoSymmetry()
     assert sym != symmetries.U1()
-    assert sym != symmetries.SU2() * u1_symmetry
+    assert sym != symmetries._SU2() * u1_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(symmetries.NoSymmetry())
     assert not sym.is_equivalent_to(symmetries.U1())
-    assert not sym.is_equivalent_to(symmetries.SU2() * u1_symmetry)
+    assert not sym.is_equivalent_to(symmetries._SU2() * u1_symmetry)
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(s), s)
@@ -770,8 +770,8 @@ def test_product_symmetry(np_random):
         npt.assert_almost_equal(doubleIsing._r_symbol([1, 1], [2, 2], [1, 1]), 1)
         npt.assert_almost_equal(doubleIsing._r_symbol([2, 2], [1, 1], [1, 1]), 1)
 
-    sym = symmetries.Symmetry([symmetries.SU2(), symmetries.U1(), symmetries.FermionParity()])
-    sym_with_name = symmetries.Symmetry([symmetries.SU2('foo'), symmetries.U1('bar'), symmetries.FermionParity()])
+    sym = symmetries.Symmetry([symmetries._SU2(), symmetries.U1(), symmetries.FermionParity()])
+    sym_with_name = symmetries.Symmetry([symmetries._SU2('foo'), symmetries.U1('bar'), symmetries.FermionParity()])
     s1 = np.array([5, 3, 1])  # e.g. spin 5/2 , 3 particles , odd parity ("fermionic")
     s2 = np.array([3, 2, 0])  # e.g. spin 3/2 , 2 particles , even parity ("bosonic")
     sectors = np.array([s1, s2])
@@ -799,7 +799,7 @@ def test_product_symmetry(np_random):
     assert u1_z3.has_symmetric_braid
 
     print('checking creation via __mul__')
-    sym2 = symmetries.SU2() * u1_symmetry * fermion_parity
+    sym2 = symmetries._SU2() * u1_symmetry * fermion_parity
     assert sym2 == sym
 
     print('checking valid sectors')
@@ -829,13 +829,13 @@ def test_product_symmetry(np_random):
     print('checking equality')
     assert sym == sym
     assert sym != sym_with_name
-    assert sym != symmetries.SU2() * u1_symmetry
+    assert sym != symmetries._SU2() * u1_symmetry
     assert sym != no_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(sym_with_name)
-    assert not sym.is_equivalent_to(symmetries.SU2() * u1_symmetry)
+    assert not sym.is_equivalent_to(symmetries._SU2() * u1_symmetry)
     assert not sym.is_equivalent_to(no_symmetry)
 
     print('checking dual_sector')
@@ -884,14 +884,14 @@ def test_u1_symmetry(np_random):
     assert sym != sym_with_name
     assert sym == symmetries.U1()
     assert sym != symmetries.NoSymmetry()
-    assert sym != symmetries.SU2() * u1_symmetry
+    assert sym != symmetries._SU2() * u1_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(sym_with_name)
     assert sym.is_equivalent_to(symmetries.U1('even_with_name'))
     assert not sym.is_equivalent_to(symmetries.NoSymmetry())
-    assert not sym.is_equivalent_to(symmetries.SU2() * u1_symmetry)
+    assert not sym.is_equivalent_to(symmetries._SU2() * u1_symmetry)
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(s_1), s_neg1)
@@ -958,7 +958,7 @@ def test_ZN_symmetry(N, np_random):
 
 
 def test_su2_symmetry(np_random):
-    sym = symmetries.SU2()
+    sym = symmetries._SU2()
     common_checks(
         sym,
         example_sectors=np.array([[0], [3], [5], [2], [1], [23]]),
@@ -968,7 +968,7 @@ def test_su2_symmetry(np_random):
 
     spin_1 = np.array([2])
     spin_3_half = np.array([3])
-    sym_with_name = symmetries.SU2('foo')
+    sym_with_name = symmetries._SU2('foo')
 
     assert not sym.is_abelian
     assert sym.has_unique_fusion
@@ -997,7 +997,7 @@ def test_su2_symmetry(np_random):
     print('checking equality')
     assert sym == sym
     assert sym != sym_with_name
-    assert sym == symmetries.SU2()
+    assert sym == symmetries._SU2()
     assert sym != fermion_parity
 
     print('checking dual_sector')
@@ -1075,7 +1075,7 @@ def test_suN_symmetry(N, cg_h, f_h, r_h, np_random):
 
     # spin_1 = np.array([2])
     # spin_3_half = np.array([3])
-    # sym_with_name = symmetries.SU2Symmetry('foo')
+    # sym_with_name = symmetries._SU2('foo')
 
     assert not sym.is_abelian
     # SUN always uses FusionStyle::general (outer multiplicities can exceed 1 for N >= 3, via the
@@ -1097,7 +1097,7 @@ def test_suN_symmetry(N, cg_h, f_h, r_h, np_random):
     print('checking equality')
     assert sym == sym
     assert sym != sym_with_name
-    assert sym != symmetries.SU2()
+    assert sym != symmetries._SU2()
     assert sym != fermion_parity
 
 
@@ -1185,13 +1185,13 @@ def test_fermion_parity(np_random):
     assert sym == symmetries.FermionParity()
     assert sym != symmetries.FermionNumber()
     assert sym != symmetries.NoSymmetry()
-    assert sym != symmetries.SU2()
+    assert sym != symmetries._SU2()
     assert sym != fermion_parity * z2_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert not sym.is_equivalent_to(no_symmetry)
-    assert not sym.is_equivalent_to(symmetries.SU2())
+    assert not sym.is_equivalent_to(symmetries._SU2())
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(odd), odd)
@@ -1228,13 +1228,13 @@ def test_fermion_number(np_random):
     assert sym == symmetries.FermionNumber()
     assert sym != symmetries.FermionParity()
     assert sym != symmetries.NoSymmetry()
-    assert sym != symmetries.SU2()
+    assert sym != symmetries._SU2()
     assert sym != fermion_number * z2_symmetry
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert not sym.is_equivalent_to(symmetries.NoSymmetry())
-    assert not sym.is_equivalent_to(symmetries.SU2())
+    assert not sym.is_equivalent_to(symmetries._SU2())
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(np.array([2])), np.array([-2]))
@@ -1273,14 +1273,14 @@ def test_fibonacci_grading(handedness, np_random):
     assert sym == symmetries.FibonacciAnyonCategory(handedness)
     assert sym != symmetries.FibonacciAnyonCategory(other_handedness)
     assert sym != no_symmetry
-    assert sym != symmetries.SU2()
+    assert sym != symmetries._SU2()
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(symmetries.FibonacciAnyonCategory(handedness))
     assert not sym.is_equivalent_to(symmetries.FibonacciAnyonCategory(other_handedness))
     assert not sym.is_equivalent_to(no_symmetry)
-    assert not sym.is_equivalent_to(symmetries.SU2())
+    assert not sym.is_equivalent_to(symmetries._SU2())
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(tau), tau)
@@ -1319,14 +1319,14 @@ def test_ising_grading(nu, np_random):
     assert sym == symmetries.IsingAnyonCategory(nu)
     assert sym != symmetries.IsingAnyonCategory(nu + 2)
     assert sym != symmetries.NoSymmetry()
-    assert sym != symmetries.SU2()
+    assert sym != symmetries._SU2()
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert sym.is_equivalent_to(symmetries.IsingAnyonCategory(nu))
     assert not sym.is_equivalent_to(symmetries.IsingAnyonCategory(nu + 2))
     assert not sym.is_equivalent_to(symmetries.NoSymmetry())
-    assert not sym.is_equivalent_to(symmetries.SU2())
+    assert not sym.is_equivalent_to(symmetries._SU2())
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(anyon), anyon)
@@ -1365,12 +1365,12 @@ def test_SU3_3AnyonCategory(np_random):
     print('checking equality')
     assert sym == sym
     assert sym != no_symmetry
-    assert sym != symmetries.SU2()
+    assert sym != symmetries._SU2()
 
     print('checking is_equivalent_to')
     assert sym.is_equivalent_to(sym)
     assert not sym.is_equivalent_to(no_symmetry)
-    assert not sym.is_equivalent_to(symmetries.SU2())
+    assert not sym.is_equivalent_to(symmetries._SU2())
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(b), b)
@@ -1552,7 +1552,7 @@ def test_SU2_kAnyonCategory(k, handedness, np_random):
     assert sym == sym
     assert (sym == symmetries.SU2_kAnyonCategory(k, 'right')) == (handedness == 'right')
     assert sym != symmetries.SU2_kAnyonCategory(k + 1, handedness)
-    assert sym != symmetries.SU2()
+    assert sym != symmetries._SU2()
 
     print('checking dual_sector')
     npt.assert_array_equal(sym.dual_sector(sectors_a[-1]), sectors_a[-1])

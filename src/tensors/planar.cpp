@@ -1,4 +1,5 @@
 #include <cyten/tensors/planar.h>
+#include <cyten/tools/warn.h>
 
 #include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/symmetries/spaces.h>
@@ -161,15 +162,9 @@ py_mod(int64 idx, int64 length)
 }
 
 void
-warn(std::string const& msg, int stacklevel = 1)
+planar_warn(std::string const& msg, int stacklevel = 1)
 {
-    auto warnings = py::module_::import("warnings");
-    if (stacklevel == 1) {
-        warnings.attr("warn")(msg);
-    } else {
-        warnings.attr("warn")(
-          msg, py::module_::import("builtins").attr("UserWarning"), stacklevel);
-    }
+    cyten::warn(msg, stacklevel);
 }
 
 [[nodiscard]] std::string
@@ -1274,9 +1269,10 @@ PlanarDiagram::parse_tensors(
                 }
                 joined += unused[i];
             }
-            warn(std::format("The following leg labels were given in dims, but do not exist: {}",
-                             joined),
-                 3);
+            planar_warn(
+              std::format("The following leg labels were given in dims, but do not exist: {}",
+                          joined),
+              3);
         }
     }
 
@@ -1307,7 +1303,7 @@ PlanarDiagram::parse_tensors(
   std::vector<std::string>* name_order)
 {
     if (dims) {
-        warn("dims are ignored if tensors is given as a dict");
+        planar_warn("dims are ignored if tensors is given as a dict");
     }
     if (name_order) {
         name_order->clear();

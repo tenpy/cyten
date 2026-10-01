@@ -4,7 +4,6 @@
 
 #include <cmath>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
 #include <numbers>
 #include <stdexcept>
 #include <utility>
@@ -286,7 +285,7 @@ FibonacciAnyonCategory::save_hdf5(cyten::hdf5::Saver& saver,
                                   std::string const& subpath) const
 {
     SymmetryFactor::save_hdf5(saver, h5gr, subpath);
-    cyten::hdf5::py_save(subpath + "handedness", handedness);
+    saver.save_string(subpath + "handedness", handedness);
 }
 
 FibonacciAnyonCategory::Ptr
@@ -294,10 +293,12 @@ FibonacciAnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
                                   HighFive::Group& h5gr,
                                   std::string const& subpath)
 {
-    std::string handedness = cyten::hdf5::py_load(subpath + "handedness").cast<std::string>();
+    hid_t id = loader.open(subpath + "handedness");
+    std::string handedness = loader.load_string(id);
+    H5Idec_ref(id);
     auto obj = std::make_shared<FibonacciAnyonCategory>(handedness);
     obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

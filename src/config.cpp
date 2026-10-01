@@ -1,13 +1,14 @@
+#include <algorithm>
 #include <cyten/config.h>
 #include <cyten/tools/warn.h>
 
 #include <cctype>
 #include <cstdlib>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <hdf5_io/h5_ops.h>
 #include <ranges>
 #include <sstream>
 #include <stdexcept>
@@ -367,20 +368,72 @@ CytenConfig::update_from_env()
 }
 
 void
-CytenConfig::update_from_yaml(const std::string& yaml_text)
+CytenConfig::update_from_mapping(py::dict options)
 {
-    py::module_ yaml = py::module_::import("yaml");
-    py::object data = yaml.attr("safe_load")(yaml_text);
-    if (data.is_none())
-        return;
-    if (!py::isinstance<py::dict>(data))
-        throw py::type_error("Config must contain a mapping");
-    update(py::reinterpret_borrow<py::dict>(data));
+    update(std::move(options));
 }
+
+namespace {
+
+[[nodiscard]] std::string
+trim_ws(std::string s)
+{
+    auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), not_space));
+    s.erase(std::find_if(s.rbegin(), s.rend(), not_space).base(), s.end());
+    return s;
+}
+
+[[nodiscard]] std::string
+strip_quotes(std::string s)
+{
+    if (s.size() >= 2) {
+        char a = s.front();
+        char b = s.back();
+        if ((a == '"' && b == '"') || (a == '\'' && b == '\'')) {
+            return s.substr(1, s.size() - 2);
+        }
+    }
+    return s;
+}
+
+/// Minimal flat ``key: value`` parser for ``.cytenconfig.yaml`` files.
+/// Nested YAML / multi-line values are not supported; use pybind ``update_from_yaml``.
+void
+apply_flat_yaml_text(CytenConfig& config, std::string const& text)
+{
+    std::istringstream in(text);
+    std::string line;
+    while (std::getline(in, line)) {
+        auto hash = line.find('#');
+        if (hash != std::string::npos) {
+            line = line.substr(0, hash);
+        }
+        line = trim_ws(line);
+        if (line.empty()) {
+            continue;
+        }
+        auto colon = line.find(':');
+        if (colon == std::string::npos) {
+            throw py::value_error("Invalid config line (expected key: value): " + line);
+        }
+        auto key = trim_ws(line.substr(0, colon));
+        auto value = strip_quotes(trim_ws(line.substr(colon + 1)));
+        if (key.empty()) {
+            throw py::value_error("Invalid config line (empty key): " + line);
+        }
+        config.set_option(key, value);
+    }
+}
+
+} // namespace
 
 void
 CytenConfig::update_from_file(const std::string& filename)
 {
+    // Chosen approach: C++ config file loading uses a minimal flat key:value parser so
+    // ``src/`` does not import PyYAML. Full YAML (anchors, nested maps, …) is loaded only
+    // from pybind via ``yaml.safe_load`` → ``update_from_mapping`` / ``update``.
     const std::filesystem::path path(filename);
     if (!std::filesystem::exists(path))
         return;
@@ -390,7 +443,7 @@ CytenConfig::update_from_file(const std::string& filename)
     }
     std::ostringstream ss;
     ss << in.rdbuf();
-    update_from_yaml(ss.str());
+    apply_flat_yaml_text(*this, ss.str());
 }
 
 py::object
@@ -449,8 +502,18 @@ CytenConfig::save_hdf5(cyten::hdf5::Saver& saver,
                        HighFive::Group& /*h5gr*/,
                        const std::string& subpath) const
 {
-    for (const auto& key : all_option_keys())
-        cyten::hdf5::py_save(subpath + key, get_option(key));
+    saver.save_int64(subpath + "print_linewidth", print_linewidth);
+    saver.save_int64(subpath + "print_indent", print_indent);
+    saver.save_int64(subpath + "maxlines_spaces", maxlines_spaces);
+    saver.save_int64(subpath + "maxlines_tensors", maxlines_tensors);
+    saver.save_bool(subpath + "check_fusion", check_fusion);
+    saver.save_bool(subpath + "implicit_scalar_conversion", implicit_scalar_conversion);
+    saver.save_string(subpath + "default_tensor_backend", default_tensor_backend);
+    saver.save_string(subpath + "default_block_backend", default_block_backend);
+    saver.save_float64(subpath + "fusion_tree_eps", fusion_tree_eps);
+    saver.save_string(subpath + "su_n_data_path", su_n_data_path);
+    saver.save_string(subpath + "su_n_data_filename_base", su_n_data_filename_base);
+    saver.save_float64(subpath + "coupling_cutoff", coupling_cutoff);
 }
 
 CytenConfig
@@ -459,20 +522,30 @@ CytenConfig::from_hdf5(cyten::hdf5::Loader& loader,
                        std::string const& subpath)
 {
     CytenConfig obj;
-    py::dict options;
-    for (const auto& key : all_option_keys()) {
-        try {
-            options[py::str(key)] = cyten::hdf5::py_load(subpath + key);
-        } catch (py::error_already_set& e) {
-            // Older files may omit newly added keys; keep the class default.
-            if (!e.matches(PyExc_KeyError))
-                throw;
-            e.restore();
-            PyErr_Clear();
-        }
-    }
-    obj.update(options);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    auto load_opt = [&](std::string const& key, auto&& apply) {
+        if (!hdf5_io::h5_contains(loader.root(), subpath + key))
+            return;
+        hid_t id = loader.open(subpath + key);
+        apply(id);
+        H5Idec_ref(id);
+    };
+    load_opt("print_linewidth", [&](hid_t id) { obj.print_linewidth = loader.load_int64(id); });
+    load_opt("print_indent", [&](hid_t id) { obj.print_indent = loader.load_int64(id); });
+    load_opt("maxlines_spaces", [&](hid_t id) { obj.maxlines_spaces = loader.load_int64(id); });
+    load_opt("maxlines_tensors", [&](hid_t id) { obj.maxlines_tensors = loader.load_int64(id); });
+    load_opt("check_fusion", [&](hid_t id) { obj.check_fusion = loader.load_bool(id); });
+    load_opt("implicit_scalar_conversion",
+             [&](hid_t id) { obj.implicit_scalar_conversion = loader.load_bool(id); });
+    load_opt("default_tensor_backend",
+             [&](hid_t id) { obj.default_tensor_backend = loader.load_string(id); });
+    load_opt("default_block_backend",
+             [&](hid_t id) { obj.default_block_backend = loader.load_string(id); });
+    load_opt("fusion_tree_eps", [&](hid_t id) { obj.fusion_tree_eps = loader.load_float64(id); });
+    load_opt("su_n_data_path", [&](hid_t id) { obj.su_n_data_path = loader.load_string(id); });
+    load_opt("su_n_data_filename_base",
+             [&](hid_t id) { obj.su_n_data_filename_base = loader.load_string(id); });
+    load_opt("coupling_cutoff", [&](hid_t id) { obj.coupling_cutoff = loader.load_float64(id); });
+    (void)h5gr;
     return obj;
 }
 

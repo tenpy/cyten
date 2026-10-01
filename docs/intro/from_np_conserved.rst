@@ -167,7 +167,7 @@ Symmetries instead of ``ChargeInfo``
    * - ``npc.ChargeInfo([1, 2], names=['N', 'P'])``
      - ``ct.U1("N") * ct.ZN(2, "P")``
    * - (not available)
-     - ``ct.SU2()``, ``ct.FermionParity()``, anyon categories, …
+     - ``ct.SUN(2, ...)`` (preferred SU(2)), ``ct.FermionParity()``, anyon categories, …
 
 Sectors are 1D integer arrays. For a single :math:`U(1)` they look like
 ``[n]``, same as TeNPy's 1-column charge arrays. For a product symmetry they

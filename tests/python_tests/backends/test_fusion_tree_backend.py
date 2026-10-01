@@ -15,7 +15,7 @@ from cyten.backends import fusion_tree_backend, get_backend
 from cyten.block_backends.dtypes import Dtype
 from cyten.config import get_option
 from cyten.symmetries import (
-    SU2,
+    _SU2,
     U1,
     ZN,
     ElementarySpace,
@@ -206,7 +206,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     funcs = [cross_check_single_c_symbol_tree_blocks, cross_check_single_c_symbol_tree_cols, apply_single_c_symbol]
     zero_block = backend.block_backend.zeros
     eps = 1.0e-14
-    sym = Symmetry([fibonacci_anyon_category, SU2()])
+    sym = Symmetry([fibonacci_anyon_category, _SU2()])
     s1 = ElementarySpace(sym, [[1, 1]], [2])  # only (tau, spin-1/2)
     s2 = ElementarySpace(sym, [[0, 0], [1, 1]], [1, 2])  # (1, spin-0) and (tau, spin-1/2)
     codomain = TensorProduct([s2, s2, s2])
@@ -813,7 +813,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     reshape = backend.block_backend.reshape
     zero_block = backend.block_backend.zeros
     eps = 1.0e-14
-    sym = Symmetry([fibonacci_anyon_category, SU2()])
+    sym = Symmetry([fibonacci_anyon_category, _SU2()])
     s1 = ElementarySpace(sym, [[1, 1]], [1])  # only (tau, spin-1/2)
     s2 = ElementarySpace(sym, [[0, 0], [1, 1]], [1, 2])  # (1, spin-0) and (tau, spin-1/2)
     s3 = ElementarySpace(sym, [[0, 0], [1, 1], [1, 2]], [1, 2, 2])  # (1, spin-0), (tau, spin-1/2) and (tau, spin-1)
@@ -1230,7 +1230,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         ising_anyon_category,
         SU2_kAnyonCategory(4).as_Symmetry(),
         SU2_kAnyonCategory(5) * u1_symmetry,
-        SU2() * ising_anyon_category,
+        _SU2() * ising_anyon_category,
         SU3_3AnyonCategory() * u1_symmetry,
         fibonacci_anyon_category * z5_symmetry,
     ],
@@ -1580,7 +1580,7 @@ def test_permute_legs_instructions():
         ising_anyon_category,
         SU2_kAnyonCategory(4).as_Symmetry(),
         SU2_kAnyonCategory(5) * u1_symmetry,
-        SU2() * ising_anyon_category,
+        _SU2() * ising_anyon_category,
         SU3_3AnyonCategory() * u1_symmetry,
         fibonacci_anyon_category * z5_symmetry,
     ],

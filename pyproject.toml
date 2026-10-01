@@ -102,6 +102,8 @@ filterwarnings = [
     "error",  # consider all unfiltered warnings error. they should be handled or filtered.
     # sympy still calls deprecated mpmath.bitcount; ignore until sympy catches up
     "ignore:bitcount function is deprecated:DeprecationWarning:mpmath",
+    # _SU2 is intentionally test-only and warns on every construction
+    "ignore:_SU2 is a test-only API:UserWarning",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

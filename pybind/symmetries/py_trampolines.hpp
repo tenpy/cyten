@@ -309,7 +309,7 @@ class PySymmetryFactor
     }
 };
 
-/// Trampoline for Python subclasses of Group (SU2, SUN, …).
+/// Trampoline for Python subclasses of Group (_SU2, SUN, …).
 class PyGroup
   : public Group
   , public py::trampoline_self_life_support

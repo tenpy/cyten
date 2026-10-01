@@ -634,22 +634,15 @@ fusion_symbol_from_numpy(py::array arr)
         shape[i] = static_cast<std::size_t>(info.shape[i]);
     }
 
-    // Force C-contiguous copy of the right dtype.
+    // Promote ints / float32 etc. used by historical ones arrays, then forcecast into a
+    // contiguous native buffer (no numpy.asarray).
     Dtype dt = dtype::from_numpy_dtype(arr.attr("dtype"));
     if (dt != Dtype::Float64 && dt != Dtype::Complex128) {
-        // Promote ints / float32 etc. used by historical ones arrays.
         if (dtype::is_real(dt) || dt == Dtype::Int64 || dt == Dtype::Bool) {
             dt = Dtype::Float64;
-            arr = py::module_::import("numpy")
-                    .attr("asarray")(arr, dtype::to_numpy_dtype(Dtype::Float64))
-                    .cast<py::array>();
         } else {
             dt = Dtype::Complex128;
-            arr = py::module_::import("numpy")
-                    .attr("asarray")(arr, dtype::to_numpy_dtype(Dtype::Complex128))
-                    .cast<py::array>();
         }
-        info = arr.request();
     }
 
     auto const n = FusionSymbol::product(shape);

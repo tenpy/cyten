@@ -81,7 +81,7 @@ first_factor(Symmetry::Ptr const& sym)
 bool
 factor_is_su2(SymmetryFactor::Ptr const& factor)
 {
-    return dynamic_cast<SU2 const*>(factor.get()) != nullptr;
+    return dynamic_cast<_SU2 const*>(factor.get()) != nullptr;
 }
 
 bool

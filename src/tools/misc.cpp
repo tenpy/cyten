@@ -174,4 +174,105 @@ iter_common_sorted_1d(std::vector<int64> const& a,
     }
 }
 
+namespace {
+
+[[nodiscard]] std::vector<std::string>
+split_lines(std::string s)
+{
+    // expand tabs
+    std::string expanded;
+    expanded.reserve(s.size());
+    for (char c : s) {
+        if (c == '\t') {
+            expanded.append(8, ' ');
+        } else {
+            expanded.push_back(c);
+        }
+    }
+    std::vector<std::string> lines;
+    std::size_t start = 0;
+    while (start <= expanded.size()) {
+        auto pos = expanded.find('\n', start);
+        if (pos == std::string::npos) {
+            lines.push_back(expanded.substr(start));
+            break;
+        }
+        lines.push_back(expanded.substr(start, pos - start));
+        start = pos + 1;
+    }
+    return lines;
+}
+
+} // namespace
+
+std::string
+vert_join(std::vector<std::string> const& strlist,
+          char valign,
+          char halign,
+          std::string const& delim)
+{
+    std::vector<std::vector<std::string>> cols;
+    cols.reserve(strlist.size());
+    std::vector<std::size_t> numlines;
+    std::vector<std::size_t> widths;
+    std::size_t totallines = 0;
+    for (auto const& s : strlist) {
+        auto lines = split_lines(s);
+        std::size_t w = 0;
+        for (auto const& l : lines) {
+            w = std::max(w, l.size());
+        }
+        totallines = std::max(totallines, lines.size());
+        numlines.push_back(lines.size());
+        widths.push_back(w);
+        cols.push_back(std::move(lines));
+    }
+
+    char align = (halign == 'c') ? '^' : (halign == 'r') ? '>' : '<';
+    (void)align; // format manually below
+
+    std::vector<std::vector<std::string>> res(totallines,
+                                              std::vector<std::string>(strlist.size()));
+    for (std::size_t j = 0; j < strlist.size(); ++j) {
+        for (std::size_t i = 0; i < totallines; ++i) {
+            res[i][j] = std::string(widths[j], ' ');
+        }
+        std::size_t voffset = 0;
+        if (valign == 'b') {
+            voffset = totallines - numlines[j];
+        } else if (valign == 'c') {
+            voffset = (totallines - numlines[j]) / 2;
+        } else if (valign != 't') {
+            throw std::invalid_argument("vert_join: invalid valign");
+        }
+        for (std::size_t i = 0; i < cols[j].size(); ++i) {
+            auto const& l = cols[j][i];
+            std::string padded(widths[j], ' ');
+            if (halign == 'r') {
+                padded.replace(widths[j] - l.size(), l.size(), l);
+            } else if (halign == 'c') {
+                std::size_t left = (widths[j] - l.size()) / 2;
+                padded.replace(left, l.size(), l);
+            } else {
+                padded.replace(0, l.size(), l);
+            }
+            res[i + voffset][j] = std::move(padded);
+        }
+    }
+
+    std::string out;
+    for (std::size_t i = 0; i < totallines; ++i) {
+        if (i > 0) {
+            out += '\n';
+        }
+        for (std::size_t j = 0; j < strlist.size(); ++j) {
+            if (j > 0) {
+                out += delim;
+            }
+            out += res[i][j];
+        }
+    }
+    return out;
+}
+
 } // namespace cyten

@@ -7,10 +7,40 @@
 #include <cyten/symmetries/factors/sun.h>
 
 #include "tools/hdf5_bind.h"
+#include <map>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace cyten {
+
+namespace {
+
+std::string
+path_from_file_or_str(py::handle obj)
+{
+    if (py::isinstance<py::str>(obj)) {
+        return obj.cast<std::string>();
+    }
+    // Open h5py.File (or anything with a .filename attribute).
+    return py::str(obj.attr("filename")).cast<std::string>();
+}
+
+py::dict
+sector_int_map_to_py(std::map<Sector, int64> const& m)
+{
+    py::dict out;
+    for (auto const& [sec, val] : m) {
+        py::tuple k(sec.len());
+        for (std::uint8_t j = 0; j < sec.len(); ++j) {
+            k[j] = sec.q[j];
+        }
+        out[k] = val;
+    }
+    return out;
+}
+
+} // namespace
 
 void
 bind_sun(py::module_& m)
@@ -44,7 +74,17 @@ bind_sun(py::module_& m)
             py::arg("filename_base") = py::none(),
             py::arg("descriptive_name") = py::none());
 
-    cls.def(py::init<int, py::object, py::object, py::object, std::optional<std::string>>(),
+    cls.def(py::init([](int N,
+                        py::object CGfile,
+                        py::object Ffile,
+                        py::object Rfile,
+                        std::optional<std::string> descriptive_name) {
+                return std::make_shared<SUN>(N,
+                                             path_from_file_or_str(CGfile),
+                                             path_from_file_or_str(Ffile),
+                                             path_from_file_or_str(Rfile),
+                                             std::move(descriptive_name));
+            }),
             py::arg("N"),
             py::arg("CGfile"),
             py::arg("Ffile"),
@@ -69,9 +109,13 @@ bind_sun(py::module_& m)
           DOC(cyten, su_n_data_file_path));
 
     cls.def_readonly("N", &SUN::N)
-      .def_readwrite("CGfile", &SUN::CGfile)
-      .def_readwrite("Ffile", &SUN::Ffile)
-      .def_readwrite("Rfile", &SUN::Rfile)
+      .def_readonly("CGpath", &SUN::CGpath)
+      .def_readonly("Fpath", &SUN::Fpath)
+      .def_readonly("Rpath", &SUN::Rpath)
+      // Back-compat aliases for the former h5py handle attributes (expose paths).
+      .def_property_readonly("CGfile", [](SUN const& self) { return py::str(self.CGpath); })
+      .def_property_readonly("Ffile", [](SUN const& self) { return py::str(self.Fpath); })
+      .def_property_readonly("Rfile", [](SUN const& self) { return py::str(self.Rpath); })
       .def_static("from_hdf5",
                   cyten::hdf5::wrap_from_hdf5<SUN>(),
                   py::arg("hdf5_loader"),
@@ -90,16 +134,22 @@ bind_sun(py::module_& m)
            py::arg("a"),
            py::arg("b"),
            DOC(cyten, SUN, highest_irrep_in_decomp))
-      .def("dims_of_irreps",
-           &SUN::dims_of_irreps,
-           py::arg("a"),
-           py::arg("b"),
-           DOC(cyten, SUN, dims_of_irreps))
-      .def("outer_multiplicity_from_CG",
-           &SUN::outer_multiplicity_from_CG,
-           py::arg("a"),
-           py::arg("b"),
-           DOC(cyten, SUN, outer_multiplicity_from_CG))
+      .def(
+        "dims_of_irreps",
+        [](SUN const& self, Sector a, Sector b) {
+            return sector_int_map_to_py(self.dims_of_irreps(a, b));
+        },
+        py::arg("a"),
+        py::arg("b"),
+        DOC(cyten, SUN, dims_of_irreps))
+      .def(
+        "outer_multiplicity_from_CG",
+        [](SUN const& self, Sector a, Sector b) {
+            return sector_int_map_to_py(self.outer_multiplicity_from_CG(a, b));
+        },
+        py::arg("a"),
+        py::arg("b"),
+        DOC(cyten, SUN, outer_multiplicity_from_CG))
       .def("clebschgordan",
            &SUN::clebschgordan,
            py::arg("a"),
@@ -125,11 +175,33 @@ bind_sun(py::module_& m)
            py::arg("b"),
            py::arg("c"),
            DOC(cyten, SUN, _r_symbol_from_CG))
-      .def("has_data_in_group", &SUN::has_data_in_group, py::arg("group"))
-      .def("sanity_check_hdf5",
-           &SUN::sanity_check_hdf5,
-           py::arg("file"),
-           DOC(cyten, SUN, sanity_check_hdf5));
+      .def(
+        "has_data_in_group",
+        [](SUN const& self, py::object group) {
+            // Accept HighFive-wrapped or h5py objects via .id.id / .id
+            hid_t hid = -1;
+            if (py::hasattr(group, "id")) {
+                py::object idobj = group.attr("id");
+                if (py::hasattr(idobj, "id")) {
+                    hid = idobj.attr("id").cast<hid_t>();
+                } else {
+                    hid = idobj.cast<hid_t>();
+                }
+            } else {
+                throw py::type_error("has_data_in_group expects an h5py Group/Dataset");
+            }
+            return self.has_data_in_group(hid);
+        },
+        py::arg("group"))
+      .def(
+        "sanity_check_hdf5",
+        [](SUN const& self, py::object file) {
+            auto path = path_from_file_or_str(file);
+            HighFive::File hf(path, HighFive::File::ReadOnly);
+            self.sanity_check_hdf5(hf);
+        },
+        py::arg("file"),
+        DOC(cyten, SUN, sanity_check_hdf5));
 }
 
 } // namespace cyten

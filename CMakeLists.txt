@@ -55,6 +55,14 @@ option(BUILD_DOC "Build API documentation" OFF)
 option(LINTING "Use clang-tidy for linting" OFF)
 option(BUILD_TESTING "Build ctest tests" ON)
 option(CYTEN_WITH_HDF5 "Link hdf5_io_core for native HDF5 I/O" ON)
+# When ON (default): build Numpy/Torch/Array-API backends, models, _SU2, and
+# the pybind11 ``_core`` extension. NumpyBlockBackend requires a live Python
+# interpreter (extension or pybind11::embed) — it is not a pure-C++ backend.
+# When OFF: those Python-owned TUs are excluded from libcyten; ``_core`` is
+# not built. Public headers still use ``py::`` extensively (via cyten.h), so
+# pybind11 remains a compile/link requirement until those APIs are decoupled.
+option(CYTEN_WITH_PYTHON
+  "Include Python/pybind11-dependent libcyten sources and build _core" ON)
 
 
 # #####################################################################
@@ -71,8 +79,11 @@ cmake_print_variables(PROJECT_SOURCE_DIR)
 cmake_print_variables(CMAKE_CXX_STANDARD)
 
 # #####################################################################
-# ## find python
+# ## find python / pybind11
 # #####################################################################
+# Required even with CYTEN_WITH_PYTHON=OFF: include/cyten/cyten.h and many
+# public headers declare py:: types. A Python-free configure is blocked until
+# those headers are split (see message below when OFF).
 
 set(Python_FIND_VIRTUALENV ONLY)
 set(Python_FIND_STRATEGY LOCATION)
@@ -85,6 +96,28 @@ cmake_print_variables(Python_VERSION)
 cmake_print_variables(Python_INCLUDE_DIRS)
 cmake_print_variables(Python_NumPy_VERSION)
 cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
+
+if(NOT CYTEN_WITH_PYTHON)
+  message(WARNING
+    "CYTEN_WITH_PYTHON=OFF: excluding block_backend/{numpy,torch,array_api}.cpp, "
+    "symmetries/factors/su2.cpp, and models/*.cpp from libcyten; skipping _core.\n"
+    "pybind11 is STILL required because public headers use py:: types. Remaining "
+    "blockers for a Python-free libcyten (non-exhaustive):\n"
+    "  include/cyten/cyten.h  (includes pybind11; namespace py = pybind11)\n"
+    "  include/cyten/config.h\n"
+    "  include/cyten/tools.h, tools/warn.h, tools/hdf5_export.h\n"
+    "  include/cyten/block_backend/{block_backend,dtypes,numpy,torch,array_api}.h\n"
+    "  include/cyten/backends/{tensor_backend,abelian,fusion_tree_*,no_symmetry,\n"
+    "                         backend_factory,block_inds_numpy}.h\n"
+    "  include/cyten/tensors/{tensor,diagonal_tensor,mask,symmetric_tensor,\n"
+    "                        sparse,krylov_based}.h\n"
+    "  include/cyten/symmetries/{spaces,sector_numpy,fusion_symbol}.h\n"
+    "  include/cyten/models/{degrees_of_freedom,sites,couplings}.h\n"
+    "Also: src TUs outside the gated list still call Numpy/Torch APIs "
+    "(e.g. backends/backend_factory.cpp, tools/hdf5_export.cpp, "
+    "symmetries/trees.cpp, block_backend/block_backend.cpp) — linking "
+    "executables that pull those symbols will fail until further decoupling.")
+endif()
 
 # Reject a compiler whose libstdc++ is newer than the one conda Python loads.
 function(cyten_glibcxx_max so_file out_var)
@@ -211,6 +244,10 @@ target_include_directories(cyten
 add_subdirectory(src)
 target_compile_options(cyten PUBLIC -fPIC)
 
+# pybind11::headers are required while public APIs still use py:: types
+# (include/cyten/cyten.h). CYTEN_WITH_PYTHON gates which *sources* ship the
+# numpy/torch/array_api backends; it does not remove this link dependency yet.
+# NumpyBlockBackend specifically needs a Python interpreter at runtime.
 target_link_libraries(cyten PUBLIC pybind11::pybind11 "${TORCH_LIBRARIES}")
 
 # #####################################################################
@@ -238,15 +275,21 @@ endif()
 # #####################################################################
 # ## PYTHON BINDINGS
 # #####################################################################
+# hdf5_py_bridge.{h,cpp} live under pybind/tools/ and are compiled only into
+# ``_core`` (not libcyten).
 
-pybind11_add_module(_core pybind/_core.cpp)
+if(CYTEN_WITH_PYTHON)
+  pybind11_add_module(_core pybind/_core.cpp)
 
-target_include_directories(_core
-  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/pybind
-  PUBLIC "${PROJECT_SOURCE_DIR}/include")
-add_subdirectory(pybind)  # adds source files to _core
+  target_include_directories(_core
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/pybind
+    PUBLIC "${PROJECT_SOURCE_DIR}/include")
+  add_subdirectory(pybind)  # adds source files to _core
 
-target_link_libraries(_core PUBLIC cyten)
+  target_link_libraries(_core PUBLIC cyten)
+else()
+  message(STATUS "CYTEN_WITH_PYTHON=OFF: skipping pybind11 module _core")
+endif()
 
 # #####################################################################
 # ## Docstrings (Doxygen XML → pybind/docstrings/<rel>, always at build)
@@ -320,6 +363,7 @@ set(CYTEN_MKDOC_HEADERS
   tools.h
 )
 
+if(CYTEN_WITH_PYTHON)
 find_program(CYTEN_DOXYGEN_EXECUTABLE NAMES doxygen REQUIRED)
 set(CYTEN_DOCSTRINGS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pybind/docstrings")
 set(CYTEN_DOCSTRING_SCRIPT
@@ -432,6 +476,8 @@ set_target_properties(_core PROPERTIES
 install(TARGETS _core LIBRARY DESTINATION cyten)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cyten/py.typed" DESTINATION cyten)
 install(FILES ${CYTEN_CORE_PYI} DESTINATION cyten OPTIONAL)
+
+endif() # CYTEN_WITH_PYTHON
 
 
 # #####################################################################

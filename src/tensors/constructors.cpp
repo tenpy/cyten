@@ -541,10 +541,9 @@ DirectSumSpace::projection_onto_summands(std::vector<int64> indices,
     auto const slices = mult_slices();
     auto space_cap = shared_dss();
     auto kept_cap = kept;
-    auto np = py::module_::import("numpy");
     auto bb = backend->block_backend;
 
-    SectorBlockFactoryFn func = [space_cap, slices, kept_cap, np, bb, device](
+    SectorBlockFactoryFn func = [space_cap, slices, kept_cap, bb, device](
                                   std::vector<int64> const& shape, Sector const& coupled) {
         auto sector_idx = space_cap->sector_decomposition_where(coupled);
         if (!sector_idx.has_value()) {
@@ -556,12 +555,16 @@ DirectSumSpace::projection_onto_summands(std::vector<int64> indices,
             throw std::runtime_error(
               "DirectSumSpace::projection_onto_summands: unexpected diagonal block shape");
         }
-        py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
+        py::array_t<bool> block(static_cast<py::ssize_t>(shape[0]));
+        auto buf = block.mutable_unchecked<1>();
+        for (py::ssize_t i = 0; i < buf.shape(0); ++i) {
+            buf(i) = false;
+        }
         for (auto i_cap : kept_cap) {
             int64 const start = slc[static_cast<std::size_t>(i_cap)];
             int64 const stop = slc[static_cast<std::size_t>(i_cap) + 1];
-            if (stop > start) {
-                block.attr("__setitem__")(py::slice(start, stop, 1), true);
+            for (int64 i = start; i < stop; ++i) {
+                buf(static_cast<py::ssize_t>(i)) = true;
             }
         }
         return bb->as_block(block, Dtype::Bool, device);

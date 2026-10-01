@@ -1,4 +1,4 @@
-#include <cyten/tools/hdf5_py_bridge.h>
+#include "hdf5_py_bridge.h"
 
 #include <stdexcept>
 
