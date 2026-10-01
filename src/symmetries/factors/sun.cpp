@@ -10,10 +10,10 @@
 #include <cassert>
 #include <cctype>
 #include <cmath>
-#include <filesystem>
-#include <format>
 #include <cyten/tools/hdf5.h>
 #include <cyten/tools/hdf5_py_bridge.h>
+#include <filesystem>
+#include <format>
 #include <limits>
 #include <optional>
 #include <span>

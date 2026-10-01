@@ -207,11 +207,18 @@ const std::vector<std::string>&
 CytenConfig::all_option_keys()
 {
     static const std::vector<std::string> keys = {
-        "print_linewidth",          "print_indent",          "maxlines_spaces",
-        "maxlines_tensors",         "check_fusion",          "implicit_scalar_conversion",
-        "default_tensor_backend", "default_block_backend",   "fusion_tree_eps",
+        "print_linewidth",
+        "print_indent",
+        "maxlines_spaces",
+        "maxlines_tensors",
+        "check_fusion",
+        "implicit_scalar_conversion",
+        "default_tensor_backend",
+        "default_block_backend",
+        "fusion_tree_eps",
         "su_n_data_path",
-        "su_n_data_filename_base", "coupling_cutoff",
+        "su_n_data_filename_base",
+        "coupling_cutoff",
     };
     return keys;
 }
