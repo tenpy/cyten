@@ -171,4 +171,20 @@ namespace cyten {
                                          LegRef row_leg = int64{ 0 },
                                          LegRef col_leg = int64{ -1 });
 
+/// Project selected tensor legs onto summands of their `DirectSumSpace`s.
+///
+/// Unlike `tensor_grid_cell`, this operation can be applied to any tensor with direct-sum legs,
+/// including tensors produced by contracting gridded tensors. Each cell reference is resolved
+/// against the corresponding leg's summand labels or indices. If `squeeze` is true, the
+/// projected legs are removed; this requires each selected summand to be trivial.
+///
+/// @param tensor Tensor to project.
+/// @param legs Leg labels or indices to project.
+/// @param cells Summand labels or indices, parallel to `legs`.
+/// @param squeeze Whether to remove the projected trivial legs afterwards.
+[[nodiscard]] TensorPtr grid_project(TensorCPtr tensor,
+                                     std::vector<LegRef> legs,
+                                     std::vector<DirectSumSpace::SummandRef> cells,
+                                     bool squeeze = false);
+
 } // namespace cyten

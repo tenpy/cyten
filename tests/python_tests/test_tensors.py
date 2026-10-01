@@ -3973,6 +3973,22 @@ def test_tensor_grid_cell_roundtrip(make_compatible_tensor, make_compatible_spac
     res2 = tensors.tensor_from_grid(recovered, labels=['wL', 'wR'])
     assert tensors.almost_equal(res, res2)
 
+    # The operation only depends on the current legs, not tensor_from_grid provenance.
+    direct = make_compatible_tensor([res.codomain[0]], [res.domain[-1]], cls=SymmetricTensor, use_pipes=False)
+    direct.set_labels(['wL', 'wR'])
+    expected = tensors.apply_mask(
+        direct,
+        direct.get_leg('wL').projection_onto_summand(1, backend=direct.backend),
+        'wL',
+    )
+    expected = tensors.apply_mask(
+        expected,
+        expected.get_leg('wR').projection_onto_summand(0, backend=direct.backend),
+        'wR',
+    )
+    projected = tensors.grid_project(direct, ['wL', 'wR'], ['IdR', 'IdL'])
+    assert tensors.almost_equal(projected, expected)
+
 
 def test_mpo_partition_and_make_U_I_pattern(compatible_symmetry, compatible_backend):
     """DSS Mask patterns used by TeNPy make_U_I / make_U_II (IdL ⊕ other ⊕ IdR)."""
@@ -4013,6 +4029,13 @@ def test_mpo_partition_and_make_U_I_pattern(compatible_symmetry, compatible_back
     ]
     W = tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
     Wflat = W.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True)
+
+    projected_IdL = tensors.grid_project(W, ['wL'], [0], squeeze=True)
+    expected_IdL = tensors.squeeze_legs(
+        tensors.apply_mask(W, W.get_leg('wL').projection_onto_summand(0, backend=backend), 'wL'),
+        ['wL'],
+    )
+    assert tensors.almost_equal(projected_IdL, expected_IdL)
 
     IdL, IdR = 0, 2
     other_idx = [1]

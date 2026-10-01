@@ -688,4 +688,33 @@ tensor_grid_cell(TensorCPtr tensor,
     return cell;
 }
 
+TensorPtr
+grid_project(TensorCPtr tensor,
+             std::vector<LegRef> legs,
+             std::vector<DirectSumSpace::SummandRef> cells,
+             bool squeeze)
+{
+    if (!tensor) {
+        throw std::invalid_argument("grid_project: tensor must be non-null");
+    }
+    if (legs.size() != cells.size()) {
+        throw std::invalid_argument("grid_project: legs and cells must have equal length");
+    }
+
+    TensorPtr result = std::const_pointer_cast<Tensor>(tensor);
+    for (std::size_t i = 0; i < legs.size(); ++i) {
+        auto dss = std::dynamic_pointer_cast<DirectSumSpace>(result->get_leg(legs[i]));
+        if (!dss) {
+            throw std::invalid_argument("grid_project: selected leg is not a DirectSumSpace");
+        }
+        auto const summand = dss->get_summand_idx(cells[i]);
+        auto projector = dss->projection_onto_summand(summand, result->backend);
+        result = apply_mask(result, projector, legs[i]);
+    }
+    if (squeeze && !legs.empty()) {
+        result = squeeze_legs(result, legs);
+    }
+    return result;
+}
+
 } // namespace cyten
