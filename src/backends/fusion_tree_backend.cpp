@@ -2447,6 +2447,23 @@ FusionTreeBackend::mask_contract_small_leg(TensorCPtr tensor, MaskCPtr mask, int
     return _mask_contract(tensor, mask, leg_idx, false);
 }
 
+namespace {
+
+/// `space` with its `LegPipe` factors replaced by their flat legs.
+///
+/// The fusion trees (and thus the block layout) of the data are w.r.t. the flat legs; the coupled
+/// sectors are unchanged.
+TensorProduct::Ptr
+flatten_pipes(TensorProduct::Ptr const& space)
+{
+    if (!space->has_pipes())
+        return space;
+    return std::make_shared<TensorProduct>(
+      space->flat_legs(), space->symmetry, space->sector_decomposition, space->multiplicities);
+}
+
+} // namespace
+
 std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
 FusionTreeBackend::_mask_contract(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx, bool large_leg)
 {
@@ -2456,8 +2473,6 @@ FusionTreeBackend::_mask_contract(TensorCPtr tensor, MaskCPtr mask, int64 leg_id
     // -> the corresponding shape has a zero entry -> remove later using discard_zero_blocks
     // uncoupled sector not in mask
     // ---
-    if (tensor->has_pipes())
-        throw NotImplemented("_mask_contract does not support pipes yet");
     py::object parsed = py::cast(tensor).attr("_parse_leg_idx")(leg_idx);
     bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
     int64 co_domain_idx = parsed.attr("__getitem__")(1).cast<int64>();
@@ -2488,6 +2503,13 @@ FusionTreeBackend::_mask_contract(TensorCPtr tensor, MaskCPtr mask, int64 leg_id
           py::type::of<TensorProduct>()(sp, py::arg("symmetry") = py::cast(tensor->symmetry)));
         iter_space = py::cast(tensor->codomain).cast<TensorProduct::Ptr>();
     }
+    // pipes on the other legs are fine; the data is organized w.r.t. the flat legs
+    auto const masked_flat_idcs = iter_space->flat_leg_idcs(co_domain_idx);
+    if (masked_flat_idcs.size() != 1)
+        throw NotImplemented("_mask_contract does not support masking a LegPipe");
+    int64 const flat_idx = masked_flat_idcs.front();
+    auto const flat_iter_space = flatten_pipes(iter_space);
+    auto const flat_target_space = flatten_pipes(target_space);
     auto t_data = data_from_tensor(tensor);
     auto m_data = data_from_tensor(mask);
     int64 in_domain_int = in_domain ? 1 : 0;
@@ -2518,12 +2540,12 @@ FusionTreeBackend::_mask_contract(TensorCPtr tensor, MaskCPtr mask, int64 leg_id
         }
         res_blocks.push_back(block);
     }
-    auto flat_legs = iter_space->flat_legs();
-    for (auto const& fb : iter_space->iter_forest_blocks(coupled_arr)) {
+    auto const& flat_legs = flat_iter_space->factors;
+    for (auto const& fb : flat_iter_space->iter_forest_blocks(coupled_arr)) {
         auto unc = fb.uncoupled;
-        auto dom_idx_mask = py::cast(mask->domain)
-                              .attr("sector_decomposition_where")(
-                                py::cast(unc[static_cast<std::size_t>(co_domain_idx)]));
+        auto dom_idx_mask =
+          py::cast(mask->domain)
+            .attr("sector_decomposition_where")(py::cast(unc[static_cast<std::size_t>(flat_idx)]));
         if (dom_idx_mask.is_none())
             continue;
         auto j = m_data->block_ind_from_domain_sector_ind(dom_idx_mask.cast<int64>());
@@ -2551,7 +2573,7 @@ FusionTreeBackend::_mask_contract(TensorCPtr tensor, MaskCPtr mask, int64 leg_id
             final_shape = { -1, block_backend->get_shape(block_slice)[1] };
         }
         block_slice = block_backend->reshape(block_slice, intermediate_shape);
-        int64 ax = in_domain_int + co_domain_idx;
+        int64 ax = in_domain_int + flat_idx;
         if (large_leg)
             block_slice = block_backend->apply_mask(
               block_slice, m_data->blocks[static_cast<std::size_t>(*j)], ax);
@@ -2559,7 +2581,7 @@ FusionTreeBackend::_mask_contract(TensorCPtr tensor, MaskCPtr mask, int64 leg_id
             block_slice = block_backend->enlarge_leg(
               block_slice, m_data->blocks[static_cast<std::size_t>(*j)], ax);
         block_slice = block_backend->reshape(block_slice, final_shape);
-        auto new_slc = target_space->forest_block_slice(
+        auto new_slc = flat_target_space->forest_block_slice(
           unc, coupled_arr[static_cast<std::size_t>(fb.coupled_idx)]);
         if (in_domain)
             b_set(res_blocks[static_cast<std::size_t>(fb.coupled_idx)],
@@ -2855,8 +2877,8 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
             std::vector<int64> dm = tb.multiplicities;
             int64 dm0 = prod_int(
               std::vector<int64>(dm.begin(), dm.begin() + static_cast<std::size_t>(flat_leg_idx)));
-            int64 dm2 = prod_int(
-              std::vector<int64>(dm.begin() + static_cast<std::size_t>(flat_leg_idx) + 1, dm.end()));
+            int64 dm2 = prod_int(std::vector<int64>(
+              dm.begin() + static_cast<std::size_t>(flat_leg_idx) + 1, dm.end()));
             std::vector<int64> dummy_mults = { dm0, 1, dm2 };
 
             auto b_cod = py::cast(b->codomain).cast<TensorProduct::Ptr>();
@@ -2865,7 +2887,8 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
             for (auto const& xb : b_cod->iter_tree_blocks(b_coupled_arr)) {
                 FusionTreeLinearCombination X_b_trafo = tb.tree.insert_at(flat_leg_idx, xb.tree);
                 for (auto const& yb : b_dom->iter_tree_blocks(b_coupled_arr)) {
-                    FusionTreeLinearCombination Y_b_trafo = tb.tree.insert_at(flat_leg_idx, yb.tree);
+                    FusionTreeLinearCombination Y_b_trafo =
+                      tb.tree.insert_at(flat_leg_idx, yb.tree);
                     auto b_tree_block =
                       b_get(b_data->blocks[static_cast<std::size_t>(*b_block_ind)],
                             py::make_tuple(slice_from_index_slice(xb.slice),
@@ -3650,15 +3673,8 @@ FusionTreeBackend::scale_axis(TensorCPtr a, DiagonalTensorCPtr b, int64 leg)
     TensorProduct::Ptr iter_space = in_domain ? py::cast(a->domain).cast<TensorProduct::Ptr>()
                                               : py::cast(a->codomain).cast<TensorProduct::Ptr>();
     if (a->has_pipes()) {
-        for (int64 i = 0; i < co_domain_idx; ++i)
-            co_domain_idx += static_cast<int64>(iter_space->flat_leg_idcs(i).size()) - 1;
-        py::list flat_factors;
-        for (auto const& fl : iter_space->flat_legs())
-            flat_factors.append(py::cast(fl));
-        iter_space = std::make_shared<TensorProduct>(flat_factors.cast<std::vector<Leg::Ptr>>(),
-                                                     iter_space->symmetry,
-                                                     iter_space->sector_decomposition,
-                                                     iter_space->multiplicities);
+        co_domain_idx = iter_space->flat_leg_idcs(co_domain_idx).front();
+        iter_space = flatten_pipes(iter_space);
     }
     py::list coupled_list;
     for (std::size_t r = 0; r < a_bi.nrows(); ++r)
