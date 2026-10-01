@@ -4306,6 +4306,55 @@ def test_HiddenLegTensor_permute_leaves_hidden_in_place(make_compatible_tensor):
     assert res.labels[2] == '!h'
 
 
+@pytest.mark.parametrize('hidden_in_domain', [True, False])
+def test_HiddenLegTensor_decompositions_keep_hidden(hidden_in_domain, make_compatible_tensor):
+    if hidden_in_domain:
+        T = make_compatible_tensor(codomain=2, domain=2, labels=['vL', 'p', 'vR', 'h'], use_pipes=False)
+    else:
+        T = make_compatible_tensor(codomain=3, domain=1, labels=['h', 'vL', 'p', 'vR'], use_pipes=False)
+    H = HiddenLegTensor(T, ['h'])
+
+    def check(left, right):
+        hidden, public = (right, left) if hidden_in_domain else (left, right)
+        for X in [left, right]:
+            X.test_sanity()
+        assert isinstance(hidden, HiddenLegTensor) and '!h' in hidden.labels
+        assert not isinstance(public, HiddenLegTensor) and '!h' not in public.labels
+        res = tensors.compose(left, right)
+        assert isinstance(res, HiddenLegTensor)
+        assert res.labels == H.labels
+        assert tensors.almost_equal(res, H)
+
+    check(*tensors.qr(H, new_labels=['vR', 'vL']))
+    check(*tensors.lq(H, new_labels=['vR', 'vL']))
+    U, S, Vh = tensors.svd(H, new_labels=['vR', 'vL'])
+    check(tensors.compose(U, S), Vh)
+    U, S, Vh, _, _ = tensors.truncated_svd(H, new_labels=['vR', 'vL'])
+    check(U, tensors.compose(S, Vh))
+    # partial_compose keeps the hidden leg of tensor1
+    vL = H.codomain.factors[1] if not hidden_in_domain else H.codomain.factors[0]
+    X = make_compatible_tensor(codomain=[vL], domain=[vL], labels=['vL', 'x'], use_pipes=False)
+    res = tensors.partial_compose(H, X, 'vL')
+    res.test_sanity()
+    assert isinstance(res, HiddenLegTensor)
+    assert res.labels == H.labels
+    expect = tensors.partial_compose(H.unhide_legs(), X, 'vL')
+    assert tensors.almost_equal(res.unhide_legs(), expect)
+
+
+def test_HiddenLegTensor_to_numpy_public_leg_order(make_compatible_tensor):
+    T = make_compatible_tensor(codomain=2, domain=2, labels=['a', 'h', 'b', 'c'], use_pipes=False)
+    if not T.symmetry.can_be_dropped:
+        pytest.skip('no dense representation')
+    H = HiddenLegTensor(T, ['h'])
+    full = H.to_numpy(understood_braiding=True)
+    # hidden legs need not be named; they are the last legs of the result
+    res = H.to_numpy(['c', 'a', 'b'], understood_braiding=True)
+    npt.assert_array_equal(res, np.transpose(full, [3, 0, 2, 1]))
+    res = H.to_numpy(['c', 'a', 'b', '!h'], understood_braiding=True)
+    npt.assert_array_equal(res, np.transpose(full, [3, 0, 2, 1]))
+
+
 @pytest.mark.parametrize('do_dagger', [True, False])
 def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
     labels = ['a', 'b', 'c', 'h']
