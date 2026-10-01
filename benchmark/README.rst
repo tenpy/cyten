@@ -95,7 +95,21 @@ Flag                 Meaning
 Interpreting results
 --------------------
 
-Each JSON record includes ``impl`` (``cyten`` or ``numpy``), ``mean`` / ``median`` /
+JSON layout::
+
+    {
+      "metadata": {
+        "cyten_version": "...",
+        "cyten_commit_id": "...",
+        "hostname": "...",
+        "started_at": "YYYY-MM-DDTHH:MM",
+        "compile": { "cmake_build_type": "Debug", "...": "..." },
+        "..."
+      },
+      "results": [ { "op": "tdot", "impl": "cyten", "...": "..." }, ... ]
+    }
+
+Each result row includes ``impl`` (``cyten`` or ``numpy``), ``mean`` / ``median`` /
 ``min`` / ``stdev`` wall times, plus ``actual_dim``, ``num_blocks``, and backend metadata.
 
 * At **small** ``actual_dim``, symmetry-backend bookkeeping often dominates: expect

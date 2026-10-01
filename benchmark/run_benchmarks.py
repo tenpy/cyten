@@ -42,6 +42,7 @@ from benchmark.common import (  # noqa: E402
     BLOCK_BACKENDS,
     SYMMETRY_BACKENDS,
     BenchmarkRecord,
+    collect_run_metadata,
     device_available,
     device_compatible,
     normalize_block_backend,
@@ -193,6 +194,19 @@ def main(argv: list[str] | None = None) -> int:
         print('No compatible benchmark configurations to run.', file=sys.stderr)
         return 1
 
+    metadata = collect_run_metadata(cli_args=vars(args))
+    print(
+        f'cyten {metadata.get("cyten_version")} '
+        f'(commit {metadata.get("cyten_commit_id")}) '
+        f'on {metadata.get("hostname")} at {metadata.get("started_at")}'
+    )
+    compile_info = metadata.get('compile') or {}
+    if compile_info.get('cmake_build_type'):
+        print(
+            f'compile: CMAKE_BUILD_TYPE={compile_info["cmake_build_type"]} '
+            f'flags={compile_info.get("cmake_cxx_flags_for_build_type")!r}'
+        )
+
     print(f'Running {len(configs)} benchmark configurations...')
     records: list[BenchmarkRecord] = []
     numpy_done: set[tuple] = set()
@@ -240,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
     out_path = Path(args.output)
     if not out_path.is_absolute():
         out_path = _REPO_ROOT / out_path
-    save_results(out_path, records)
+    save_results(out_path, records, metadata=metadata)
     print(f'Wrote {len(records)} records to {out_path}')
     return 0 if records else 1
 

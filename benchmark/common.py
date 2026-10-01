@@ -207,17 +207,151 @@ def num_blocks_of(tensor) -> int | None:
     return None
 
 
-def save_results(path: str | Path, records: Sequence[BenchmarkRecord]) -> None:
-    """Write benchmark records as a JSON list."""
+def _read_cmake_cache(cache_path: Path) -> dict[str, str]:
+    """Parse selected entries from a CMakeCache.txt file."""
+    keys = (
+        'CMAKE_BUILD_TYPE',
+        'CMAKE_CXX_COMPILER',
+        'CMAKE_CXX_FLAGS',
+        'CMAKE_CXX_FLAGS_DEBUG',
+        'CMAKE_CXX_FLAGS_RELEASE',
+        'CMAKE_CXX_FLAGS_RELWITHDEBINFO',
+        'CMAKE_CXX_FLAGS_MINSIZEREL',
+    )
+    wanted = set(keys)
+    found: dict[str, str] = {}
+    try:
+        text = cache_path.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return found
+    for line in text.splitlines():
+        if not line or line.startswith('//') or line.startswith('#'):
+            continue
+        # KEY:TYPE=VALUE
+        if ':' not in line or '=' not in line:
+            continue
+        key_type, _, value = line.partition('=')
+        key = key_type.split(':', 1)[0]
+        if key in wanted:
+            found[key] = value
+    return found
+
+
+def _guess_cmake_cache_paths() -> list[Path]:
+    """Candidate CMakeCache.txt locations for an editable / in-tree build."""
+    candidates: list[Path] = []
+    # Repo root next to the installed/editable ``cyten`` package.
+    pkg_root = Path(ct.__file__).resolve().parent.parent
+    candidates.append(pkg_root / 'build' / 'CMakeCache.txt')
+    # Current working directory (when launching from the repo).
+    candidates.append(Path.cwd() / 'build' / 'CMakeCache.txt')
+    # Deduplicate while preserving order.
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in candidates:
+        if path in seen:
+            continue
+        seen.add(path)
+        unique.append(path)
+    return unique
+
+
+def collect_compile_info() -> dict[str, Any]:
+    """Best-effort compile / build-type info for reproducibility notes."""
+    import os
+
+    info: dict[str, Any] = {
+        'python_debug': __debug__,
+        'cxxflags_env': os.environ.get('CXXFLAGS') or None,
+        'cflags_env': os.environ.get('CFLAGS') or None,
+        'cmake_build_type': None,
+        'cmake_cxx_compiler': None,
+        'cmake_cxx_flags': None,
+        'cmake_cxx_flags_for_build_type': None,
+        'cmake_cache': None,
+    }
+    for cache_path in _guess_cmake_cache_paths():
+        if not cache_path.is_file():
+            continue
+        cache = _read_cmake_cache(cache_path)
+        if not cache:
+            continue
+        build_type = cache.get('CMAKE_BUILD_TYPE') or ''
+        info['cmake_cache'] = str(cache_path)
+        info['cmake_build_type'] = build_type or None
+        info['cmake_cxx_compiler'] = cache.get('CMAKE_CXX_COMPILER') or None
+        info['cmake_cxx_flags'] = cache.get('CMAKE_CXX_FLAGS') or None
+        bt_key = f'CMAKE_CXX_FLAGS_{build_type.upper()}' if build_type else None
+        if bt_key and bt_key in cache:
+            info['cmake_cxx_flags_for_build_type'] = cache[bt_key] or None
+        break
+    return info
+
+
+def collect_run_metadata(*, cli_args: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Gather host / version / compile metadata at the start of a benchmark run."""
+    import platform
+    import sys
+    from datetime import datetime
+
+    import numpy
+
+    try:
+        import torch
+
+        torch_version = getattr(torch, '__version__', None)
+    except ImportError:
+        torch_version = None
+
+    started = datetime.now().astimezone().strftime('%Y-%m-%dT%H:%M')
+    return {
+        'cyten_version': getattr(ct, '__version__', None),
+        'cyten_commit_id': getattr(ct, '__commit_id__', None),
+        'hostname': platform.node(),
+        'started_at': started,
+        'python_version': sys.version.replace('\n', ' '),
+        'numpy_version': numpy.__version__,
+        'torch_version': torch_version,
+        'platform': platform.platform(),
+        'compile': collect_compile_info(),
+        'cli': cli_args,
+    }
+
+
+def save_results(
+    path: str | Path,
+    records: Sequence[BenchmarkRecord],
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    """Write benchmark records as JSON with a top-level metadata section."""
     out = Path(path)
     out.parent.mkdir(parents=True, exist_ok=True)
-    payload = [r.to_dict() for r in records]
+    payload = {
+        'metadata': metadata if metadata is not None else {},
+        'results': [r.to_dict() for r in records],
+    }
     out.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
 
 
-def load_results(path: str | Path) -> list[dict[str, Any]]:
-    """Load a JSON results file produced by ``save_results``."""
-    return json.loads(Path(path).read_text(encoding='utf-8'))
+def load_results(path: str | Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Load a results file.
+
+    Supports the current ``{metadata, results}`` object and legacy bare lists.
+    Returns ``(metadata, records)``.
+    """
+    raw = json.loads(Path(path).read_text(encoding='utf-8'))
+    if isinstance(raw, list):
+        return {}, raw
+    if isinstance(raw, dict) and 'results' in raw:
+        meta = raw.get('metadata') or {}
+        if not isinstance(meta, dict):
+            meta = {}
+        results = raw['results']
+        if not isinstance(results, list):
+            raise ValueError(f'Invalid results payload in {path}')
+        return meta, results
+    raise ValueError(f'Unrecognized benchmark results format in {path}')
 
 
 def make_record(
