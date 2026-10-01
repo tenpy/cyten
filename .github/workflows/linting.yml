@@ -1,5 +1,7 @@
 name: Linting
-# Run linter (flake8) and custom linting script (tests/linting/python_linting.py)
+# Run Python linters/formatters, clang-format, C++ docstring indent check,
+# re-export __all__ parity, and the custom linting script
+# (aligned with .pre-commit-config.yaml where applicable).
 
 on:
   # pushes to main
@@ -27,7 +29,8 @@ jobs:
     - name: Install lint dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install ruff flake8 flake8-rst-docstrings sphinx-lint
+        # clang-format version matches mirrors-clang-format in .pre-commit-config.yaml
+        python -m pip install ruff flake8 flake8-rst-docstrings sphinx-lint clang-format==21.1.8
 
     - name: Lint python code
       # uses options from pyproject.toml
@@ -45,6 +48,23 @@ jobs:
       # uses options from pyproject.toml
       run: |
         ruff format --diff
+
+    - name: Check C++ formatting
+      # matches clang-format pre-commit hook; style from .clang-format
+      run: |
+        git ls-files -z -- '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hh' '*.hpp' '*.hxx' \
+          | xargs -0 clang-format --dry-run --Werror
+
+    - name: Check C++ docstring indentation
+      # matches cpp-docstring-indent pre-commit hook (pybind/**/*.cpp)
+      run: |
+        mapfile -d '' files < <(git ls-files -z -- pybind | grep -z '\.cpp$')
+        python ./tests/linting/cpp_docstring_indent.py "${files[@]}"
+
+    - name: Check re-export __all__ lists
+      # matches reexport-all-parity pre-commit hook (--check for CI)
+      run: |
+        python ./scripts/generate_reexport_all.py --check
 
     - name: Run custom linting script
       run: |
