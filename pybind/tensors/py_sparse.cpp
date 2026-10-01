@@ -18,19 +18,19 @@ namespace cyten {
 
 namespace {
 
-std::optional<LegLabels>
+std::optional<OptionalLabels>
 optional_labels(py::object labels)
 {
     if (labels.is_none()) {
         return std::nullopt;
     }
-    return labels.cast<LegLabels>();
+    return labels.cast<OptionalLabels>();
 }
 
-std::vector<LegLabel>
+std::vector<OptionalLabel>
 to_leg_labels(py::object maybe_labels)
 {
-    std::vector<LegLabel> out;
+    std::vector<OptionalLabel> out;
     for (auto item : maybe_labels) {
         if (item.is_none()) {
             out.push_back(std::nullopt);
@@ -41,13 +41,13 @@ to_leg_labels(py::object maybe_labels)
     return out;
 }
 
-std::optional<LegLabels>
+std::optional<OptionalLabels>
 optional_vector_labels_from_py(py::object labels)
 {
     if (labels.is_none()) {
         return std::nullopt;
     }
-    return LegLabels(to_leg_labels(labels));
+    return OptionalLabels(to_leg_labels(labels));
 }
 
 class PyLinearOperatorAdapter : public LinearOperator
@@ -130,7 +130,7 @@ bind_tensors_sparse(py::module_& m)
     linear_operator.attr("acts_on") = LinearOperator::acts_on;
 
     linear_operator
-      .def(py::init<std::vector<Leg::Ptr>, Dtype, std::optional<LegLabels>>(),
+      .def(py::init<std::vector<Leg::Ptr>, Dtype, std::optional<OptionalLabels>>(),
            py::arg("vector_legs") = std::vector<Leg::Ptr>{},
            py::arg("dtype") = Dtype::Float64,
            py::arg("vector_labels") = py::none())

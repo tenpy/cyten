@@ -16,10 +16,10 @@ namespace cyten {
 
 namespace {
 
-LegLabels
+OptionalLabels
 py_leg_labels(py::object seq)
 {
-    LegLabels out;
+    OptionalLabels out;
     for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
         if (item.is_none()) {
             out.push_back(std::nullopt);

@@ -2,6 +2,7 @@
 
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -65,8 +66,8 @@ class ChargedTensor : public Tensor
       std::variant<ElementarySpace::Ptr, Sector> charge);
 
     /// Utility like `_init_parse_labels`, but also returns invariant part labels.
-    [[nodiscard]] static std::tuple<LegLabels, LegLabels> _parse_inv_labels(
-      std::optional<LegLabels> labels,
+    [[nodiscard]] static std::tuple<OptionalLabels, OptionalLabels> _parse_inv_labels(
+      std::optional<OptionalLabels> labels,
       TensorProduct::Ptr const& codomain,
       TensorProduct::Ptr const& domain);
 
@@ -82,7 +83,7 @@ class ChargedTensor : public Tensor
                                              TensorProduct::Ptr domain = nullptr,
                                              BlockBackend::BlockPtr charged_state = nullptr,
                                              TensorBackend::Ptr backend = nullptr,
-                                             std::optional<LegLabels> labels = std::nullopt,
+                                             std::optional<OptionalLabels> labels = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
@@ -93,7 +94,7 @@ class ChargedTensor : public Tensor
       TensorProduct::Ptr domain = nullptr,
       std::optional<std::variant<ElementarySpace::Ptr, Sector>> charge = std::nullopt,
       TensorBackend::Ptr backend = nullptr,
-      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt,
       float64 tol = 1e-6,
@@ -127,17 +128,19 @@ class ChargedTensor : public Tensor
                                        std::variant<ElementarySpace::Ptr, Sector> charge,
                                        BlockBackend::BlockPtr charged_state = nullptr,
                                        TensorBackend::Ptr backend = nullptr,
-                                       std::optional<LegLabels> labels = std::nullopt,
+                                       std::optional<OptionalLabels> labels = std::nullopt,
                                        Dtype dtype = Dtype::Complex128,
                                        std::optional<std::string> device = std::nullopt);
 
     /// Import ChargedTensor from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Export ChargedTensor to hdf5 such that it can be re-imported with from_hdf5
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     // --- Tensor overrides ---
 
@@ -204,9 +207,9 @@ class ChargedTensor : public Tensor
       bool use_symm_str = false) const override;
 
     /// Set a single label at given position, in-place. Return the modified instance.
-    LabelledLegs& set_label(int64 pos, LegLabel label) override;
+    LabelledLegs& set_label(int64 pos, OptionalLabel label) override;
     /// Set the given labels, in-place. Return the modified instance.
-    Tensor& set_labels(LegLabels labels) override;
+    Tensor& set_labels(OptionalLabels labels) override;
 
     /// Convert to a tensor with a different backend.
     ///

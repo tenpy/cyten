@@ -16,6 +16,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <array>
 #include <cmath>
 #include <optional>
@@ -31,6 +32,10 @@ symmetry_from_python(py::object symmetry_obj)
 {
     if (py::isinstance<Symmetry>(symmetry_obj)) {
         return symmetry_obj.cast<Symmetry::Ptr>();
+    }
+    if (py::isinstance<SymmetryFactor>(symmetry_obj)) {
+        auto ptr = symmetry_obj.cast<SymmetryFactor::Ptr>();
+        return std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ ptr });
     }
     return symmetry_obj.attr("as_Symmetry")().cast<Symmetry::Ptr>();
 }
@@ -302,7 +307,7 @@ bind_spaces(py::module_& m)
       .def_property_readonly("ascii_arrow", &Leg::ascii_arrow, DOC(cyten, Leg, ascii_arrow));
 
     cls.def("test_sanity", &Leg::test_sanity, DOC(cyten, Leg, test_sanity))
-      .def("as_Space", &Leg::as_Space, DOC(cyten, Leg, as_Space))
+      .def("as_Space", &Leg::as_space_obj, DOC(cyten, Leg, as_space))
       .def("as_ElementarySpace",
            &Leg::as_ElementarySpace,
            py::arg("is_dual") = false,
@@ -651,7 +656,7 @@ bind_elementary_space(py::module_& m)
                }
                return py::cast(self.equals_es(other.cast<ElementarySpace const&>()));
            })
-      .def("as_Space", &ElementarySpace::as_Space, DOC(cyten, ElementarySpace, as_Space))
+      .def("as_Space", &ElementarySpace::as_space_obj, DOC(cyten, ElementarySpace, as_space_obj))
       .def("as_ElementarySpace",
            &ElementarySpace::as_ElementarySpace,
            py::arg("is_dual") = false,
@@ -675,14 +680,18 @@ bind_elementary_space(py::module_& m)
         DOC(cyten, ElementarySpace, change_symmetry))
       .def(
         "direct_sum",
-        [](ElementarySpace const& self, py::args others_obj) {
+        [](ElementarySpace const& self,
+           py::args others_obj,
+           std::optional<OptionalLabels> summand_labels) {
             std::vector<ElementarySpace::Ptr> others;
             others.reserve(static_cast<std::size_t>(others_obj.size()));
             for (py::handle item : others_obj) {
                 others.push_back(item.cast<ElementarySpace::Ptr>());
             }
-            return self.direct_sum(others);
+            return self.direct_sum(others, std::move(summand_labels));
         },
+        py::kw_only(),
+        py::arg("summand_labels") = py::none(),
         doc_cpp_ref(DOC(cyten, ElementarySpace), "cyten::ElementarySpace::direct_sum()"))
       .def(
         "drop_symmetry",
@@ -715,12 +724,12 @@ bind_elementary_space(py::module_& m)
            py::arg("is_dual"),
            DOC(cyten, ElementarySpace, with_is_dual))
       .def("save_hdf5",
-           &ElementarySpace::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<ElementarySpace>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &ElementarySpace::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<ElementarySpace>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"))
@@ -735,39 +744,61 @@ bind_direct_sum_space(py::module_& m)
     py::class_<DirectSumSpace, ElementarySpace, PyDirectSumSpace, py::smart_holder> cls(
       m, "DirectSumSpace", DOC(cyten, DirectSumSpace));
 
-    cls.def(py::init([](py::sequence spaces_obj, bool is_dual) {
-                std::vector<ElementarySpace::Ptr> spaces;
-                spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
-                for (py::handle item : spaces_obj) {
-                    spaces.push_back(item.cast<ElementarySpace::Ptr>());
-                }
-                return std::make_shared<PyDirectSumSpace>(std::move(spaces), is_dual);
-            }),
-            py::arg("spaces"),
-            py::arg("is_dual") = false);
-
-    cls.def_property_readonly("spaces", [](DirectSumSpace const& self) { return self.spaces; });
-
-    cls
-      .def_static(
-        "from_spaces",
-        [](py::sequence spaces_obj, bool is_dual) {
+    cls.def(
+      py::init(
+        [](py::sequence spaces_obj, bool is_dual, std::optional<OptionalLabels> summand_labels) {
             std::vector<ElementarySpace::Ptr> spaces;
             spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
             for (py::handle item : spaces_obj) {
                 spaces.push_back(item.cast<ElementarySpace::Ptr>());
             }
-            return DirectSumSpace::from_spaces(std::move(spaces), is_dual);
+            return std::make_shared<PyDirectSumSpace>(
+              std::move(spaces), is_dual, std::move(summand_labels));
+        }),
+      py::arg("spaces"),
+      py::arg("is_dual") = false,
+      py::arg("summand_labels") = py::none());
+
+    cls.def_property_readonly("spaces", [](DirectSumSpace const& self) { return self.spaces; });
+    cls.def_property_readonly("summand_labels",
+                              [](DirectSumSpace const& self) { return self.summand_labels; });
+
+    cls
+      .def_static(
+        "from_spaces",
+        [](py::sequence spaces_obj, bool is_dual, std::optional<OptionalLabels> summand_labels) {
+            std::vector<ElementarySpace::Ptr> spaces;
+            spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
+            for (py::handle item : spaces_obj) {
+                spaces.push_back(item.cast<ElementarySpace::Ptr>());
+            }
+            return DirectSumSpace::from_spaces(
+              std::move(spaces), is_dual, std::move(summand_labels));
         },
         py::arg("spaces"),
         py::arg("is_dual") = false,
+        py::arg("summand_labels") = py::none(),
         DOC(cyten, DirectSumSpace, from_spaces))
+      .def(
+        "get_summand_idx",
+        [](DirectSumSpace const& self, py::object which) {
+            if (py::isinstance<py::str>(which)) {
+                return self.get_summand_idx(which.cast<std::string>());
+            }
+            return self.get_summand_idx(which.cast<int64>());
+        },
+        py::arg("which"),
+        DOC(cyten, DirectSumSpace, get_summand_idx))
+      .def("has_summand_label",
+           &DirectSumSpace::has_summand_label,
+           py::arg("label"),
+           DOC(cyten, DirectSumSpace, has_summand_label))
       .def("mult_slices", &DirectSumSpace::mult_slices, DOC(cyten, DirectSumSpace, mult_slices))
       .def("as_plain_ElementarySpace",
            &DirectSumSpace::as_plain_ElementarySpace,
            DOC(cyten, DirectSumSpace, as_plain_ElementarySpace))
       .def("test_sanity", &DirectSumSpace::test_sanity)
-      .def("as_Space", &DirectSumSpace::as_Space, DOC(cyten, DirectSumSpace, as_Space))
+      .def("as_Space", &DirectSumSpace::as_space_obj, DOC(cyten, DirectSumSpace, as_space_obj))
       .def("as_ElementarySpace",
            &DirectSumSpace::as_ElementarySpace,
            py::arg("is_dual") = false,
@@ -801,6 +832,20 @@ bind_direct_sum_space(py::module_& m)
       .def("with_opposite_duality",
            &DirectSumSpace::with_opposite_duality,
            DOC(cyten, ElementarySpace, with_opposite_duality))
+      .def("projection_onto_summands",
+           &DirectSumSpace::projection_onto_summands,
+           py::arg("indices"),
+           py::arg("backend") = nullptr,
+           py::arg("labels") = py::none(),
+           py::arg("device") = py::none(),
+           DOC(cyten, DirectSumSpace, projection_onto_summands))
+      .def("inclusion_of_summands",
+           &DirectSumSpace::inclusion_of_summands,
+           py::arg("indices"),
+           py::arg("backend") = nullptr,
+           py::arg("labels") = py::none(),
+           py::arg("device") = py::none(),
+           DOC(cyten, DirectSumSpace, inclusion_of_summands))
       .def("projection_onto_summand",
            &DirectSumSpace::projection_onto_summand,
            py::arg("i"),
@@ -823,6 +868,16 @@ bind_direct_sum_space(py::module_& m)
            py::arg("dtype") = py::none(),
            py::arg("device") = py::none(),
            DOC(cyten, DirectSumSpace, unit_vector_of_summand))
+      .def(
+        "set_basis_perm",
+        [](DirectSumSpace& self, py::args, py::kwargs) { self.set_basis_perm(std::nullopt); },
+        "Can not set basis_perm for DirectSumSpace.")
+      .def(
+        "set_inverse_basis_perm",
+        [](DirectSumSpace& self, py::args, py::kwargs) {
+            self.set_inverse_basis_perm(std::nullopt);
+        },
+        "Can not set basis_perm for DirectSumSpace.")
       .def("__repr__", [](DirectSumSpace const& self) { return self.repr(); })
       .def("repr",
            &DirectSumSpace::repr,
@@ -855,12 +910,12 @@ bind_direct_sum_space(py::module_& m)
                         "from_trivial_sector is not supported for DirectSumSpace");
                   })
       .def("save_hdf5",
-           &DirectSumSpace::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<DirectSumSpace>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &DirectSumSpace::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<DirectSumSpace>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -1097,12 +1152,12 @@ bind_tensor_product(py::module_& m)
       .def(
         "repr", &TensorProduct::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
       .def("save_hdf5",
-           &TensorProduct::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<TensorProduct>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &TensorProduct::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<TensorProduct>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -1193,7 +1248,7 @@ bind_abelian_leg_pipe(py::module_& m)
         DOC(cyten, AbelianLegPipe, from_trivial_sector));
 
     cls.def("test_sanity", &AbelianLegPipe::test_sanity, DOC(cyten, AbelianLegPipe, test_sanity))
-      .def("as_Space", &AbelianLegPipe::as_Space, DOC(cyten, Leg, as_Space))
+      .def("as_Space", &AbelianLegPipe::as_space_obj, DOC(cyten, Leg, as_space))
       .def("as_ElementarySpace",
            &AbelianLegPipe::as_ElementarySpace,
            py::arg("is_dual") = false,
@@ -1255,12 +1310,12 @@ bind_abelian_leg_pipe(py::module_& m)
            py::arg("show_symmetry") = true,
            py::arg("one_line") = false)
       .def("save_hdf5",
-           &AbelianLegPipe::save_hdf5,
+           cyten::hdf5::wrap_save_hdf5_const<AbelianLegPipe>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  &AbelianLegPipe::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<AbelianLegPipe>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

@@ -13,11 +13,13 @@
 
 #include <array>
 #include <cstdint>
+#include <cyten/tools/hdf5.h>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -25,6 +27,8 @@
 namespace cyten {
 
 class TensorBackend;
+class Space;
+class ElementarySpace;
 
 /// Common base of `Leg` and `Space`, providing ``shared_from_this``.
 ///
@@ -64,11 +68,16 @@ class Leg : public virtual LegOrSpace
     /// Perform sanity checks.
     virtual void test_sanity() const;
 
-    /// Convert to (an appropriate subclass of) `Space`.
-    virtual py::object as_Space() = 0;
+    /// Convert to (an appropriate subclass of) `Space` (MI hook; override `as_space_obj`).
+    std::shared_ptr<Space> as_space() { return as_space_obj(); }
+
+    /// Implement `as_space` for `Leg` subclasses.
+    ///
+    /// Named differently from `Space::as_Space` because `ElementarySpace` inherits both.
+    virtual std::shared_ptr<Space> as_space_obj() = 0;
 
     /// Convert to an isomorphic `ElementarySpace`.
-    virtual py::object as_ElementarySpace(bool is_dual = false);
+    virtual std::shared_ptr<ElementarySpace> as_ElementarySpace(bool is_dual = false);
 
     /// The dual leg (hook for MI; override `dual_leg`).
     Ptr dual() const { return dual_leg(); }
@@ -183,7 +192,7 @@ class Space : public virtual LegOrSpace
 
     [[nodiscard]] bool is_subspace_of(Space const& other) const;
 
-    virtual py::object as_ElementarySpace(bool is_dual = false);
+    virtual std::shared_ptr<ElementarySpace> as_ElementarySpace(bool is_dual = false);
 
     /// Change the symmetry by specifying how the sectors change.
     ///
@@ -202,16 +211,16 @@ class Space : public virtual LegOrSpace
     /// list of unique outputs, if the inputs are unique.
     /// @returns A space with the new symmetry. The order of the basis is preserved, but every
     /// basis element lives in a new sector, according to `sector_map`.
-    virtual py::object change_symmetry(Symmetry::Ptr symmetry,
-                                       SectorMapFn sector_map,
-                                       bool injective = false) = 0;
+    virtual Ptr change_symmetry(Symmetry::Ptr symmetry,
+                                SectorMapFn sector_map,
+                                bool injective = false) = 0;
 
     /// Drop some or all symmetries.
     ///
     /// @param which If ``'all'`` (default) the entire symmetry is dropped and the result has
     /// ``no_symmetry``. An integer or list of integers indicates to drop the `factors` with those
     /// indices.
-    virtual py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) = 0;
+    virtual Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) = 0;
 
     /// Convert to (an appropriate subclass of) `Space`.
     Ptr as_Space();
@@ -246,7 +255,7 @@ class LegPipe : public virtual Leg
     /// Perform sanity checks.
     void test_sanity() const override;
 
-    py::object as_Space() override;
+    std::shared_ptr<Space> as_space_obj() override;
 
     Leg::Ptr dual_leg() const override;
 
@@ -372,19 +381,23 @@ class ElementarySpace
     /// Common implementation of both ``operator==`` overloads.
     [[nodiscard]] bool equals_es(ElementarySpace const& other) const;
 
-    py::object as_ElementarySpace(bool is_dual = false) override;
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual = false) override;
 
     /// The ket space (``is_dual=False``) isomorphic or equal to self.
     [[nodiscard]] Ptr as_ket_space();
     [[nodiscard]] Ptr as_bra_space();
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective = false) override;
 
-    [[nodiscard]] Ptr direct_sum(std::vector<Ptr> const& others) const;
+    /// Direct sum with `others`, always wrapped as a `DirectSumSpace` (even if `others`
+    /// is empty and no `summand_labels` are given).
+    [[nodiscard]] Ptr direct_sum(
+      std::vector<Ptr> const& others,
+      std::optional<OptionalLabels> summand_labels = std::nullopt) const;
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
 
     Space::Ptr dual_space() const override;
     Leg::Ptr dual_leg() const override;
@@ -410,15 +423,19 @@ class ElementarySpace
 
     [[nodiscard]] Ptr with_is_dual(bool is_dual) const;
 
-    py::object as_Space() override;
+    std::shared_ptr<Space> as_space_obj() override;
 
     bool is_trivial() const override;
 
     std::string ascii_arrow() const override;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
     /// If this is a `DirectSumSpace` (default: false).
     [[nodiscard]] virtual bool is_direct_sum_space() const { return false; }
@@ -442,17 +459,38 @@ class DirectSumSpace : public ElementarySpace
     using Ptr = std::shared_ptr<DirectSumSpace>;
     using CPtr = std::shared_ptr<const DirectSumSpace>;
 
+    /// A summand reference: either its (possibly negative) index or its label.
+    using SummandRef = std::variant<int64, std::string>;
+
     /// Ordered summands. Never contains nested `DirectSumSpace` instances.
     std::vector<ElementarySpace::Ptr> spaces;
 
-    explicit DirectSumSpace(std::vector<ElementarySpace::Ptr> spaces, bool is_dual = false);
+    /// Optional label per summand (parallel to `spaces`; `nullopt` entries are unlabeled).
+    OptionalLabels summand_labels;
+
+    explicit DirectSumSpace(std::vector<ElementarySpace::Ptr> spaces,
+                            bool is_dual = false,
+                            std::optional<OptionalLabels> summand_labels = std::nullopt);
     ~DirectSumSpace() override = default;
 
     void test_sanity() const override;
 
     /// Build from an ordered list of summands (nested DSS flattened).
-    [[nodiscard]] static Ptr from_spaces(std::vector<ElementarySpace::Ptr> spaces,
-                                         bool is_dual = false);
+    ///
+    /// If a summand is itself a `DirectSumSpace`, its own `summand_labels` are propagated
+    /// to the flattened slots it expands into; in that case an explicit label for that slot
+    /// in `summand_labels` must be `nullopt` (raises otherwise, since one label can not be
+    /// attached to more than one flattened summand).
+    [[nodiscard]] static Ptr from_spaces(
+      std::vector<ElementarySpace::Ptr> spaces,
+      bool is_dual = false,
+      std::optional<OptionalLabels> summand_labels = std::nullopt);
+
+    /// Resolve a summand reference (index or label) to a normalized, non-negative index.
+    [[nodiscard]] int64 get_summand_idx(SummandRef which) const;
+
+    /// If a summand with the given label exists.
+    [[nodiscard]] bool has_summand_label(std::string const& label) const;
 
     [[nodiscard]] bool is_direct_sum_space() const override { return true; }
 
@@ -471,22 +509,25 @@ class DirectSumSpace : public ElementarySpace
     /// same fused sectors / multiplicities / ``basis_perm``.
     [[nodiscard]] ElementarySpace::Ptr as_plain_ElementarySpace() const;
 
-    py::object as_Space() override;
-    py::object as_ElementarySpace(bool is_dual = false) override;
+    std::shared_ptr<Space> as_space_obj() override;
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual = false) override;
 
     Space::Ptr dual_space() const override;
     Leg::Ptr dual_leg() const override;
     [[nodiscard]] Ptr dual_dss() const;
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective = false) override;
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
 
     ElementarySpace::Ptr take_slice(py::array blockmask) const override;
 
     ElementarySpace::Ptr with_opposite_duality() const override;
+
+    void set_basis_perm(std::optional<std::vector<int64>> basis_perm) override;
+    void set_inverse_basis_perm(std::optional<std::vector<int64>> inverse_basis_perm) override;
 
     bool operator==(Leg const& other) const override;
     bool operator==(Space const& other) const override;
@@ -496,6 +537,24 @@ class DirectSumSpace : public ElementarySpace
 
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
 
+    /// Projection Mask onto the union of summands ``indices``.
+    ///
+    /// Kept multiplicity blocks appear in ascending summand-index order (duplicates ignored).
+    /// Negative indices count from the end. The large leg is this space; the small leg is the
+    /// plain `ElementarySpace` spanned by the kept multiplicities.
+    [[nodiscard]] MaskPtr projection_onto_summands(
+      std::vector<int64> indices,
+      std::shared_ptr<TensorBackend> backend = nullptr,
+      std::optional<OptionalLabels> labels = std::nullopt,
+      std::optional<std::string> device = std::nullopt) const;
+
+    /// Inclusion Mask of the union of summands ``indices`` (dagger of the projection).
+    [[nodiscard]] MaskPtr inclusion_of_summands(
+      std::vector<int64> indices,
+      std::shared_ptr<TensorBackend> backend = nullptr,
+      std::optional<OptionalLabels> labels = std::nullopt,
+      std::optional<std::string> device = std::nullopt) const;
+
     /// Projection Mask onto summand ``i``.
     ///
     /// The large leg is this space; the small leg is isomorphic to ``spaces[i]``
@@ -503,14 +562,14 @@ class DirectSumSpace : public ElementarySpace
     [[nodiscard]] MaskPtr projection_onto_summand(
       int64 i,
       std::shared_ptr<TensorBackend> backend = nullptr,
-      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<std::string> device = std::nullopt) const;
 
     /// Inclusion Mask of summand ``i`` (dagger of the projection).
     [[nodiscard]] MaskPtr inclusion_of_summand(
       int64 i,
       std::shared_ptr<TensorBackend> backend = nullptr,
-      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<std::string> device = std::nullopt) const;
 
     /// Unit vector selecting summand ``i``.
@@ -522,7 +581,7 @@ class DirectSumSpace : public ElementarySpace
     [[nodiscard]] SymmetricTensorPtr unit_vector_of_summand(
       int64 i,
       std::shared_ptr<TensorBackend> backend = nullptr,
-      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt) const;
 
@@ -542,9 +601,13 @@ class DirectSumSpace : public ElementarySpace
                                    bool is_dual = false,
                                    std::optional<std::vector<int64>> basis_perm = std::nullopt);
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
   private:
     struct Prepared
@@ -554,11 +617,17 @@ class DirectSumSpace : public ElementarySpace
         SectorArray defining_sectors;
         std::vector<int64> multiplicities;
         std::optional<std::vector<int64>> basis_perm;
+        OptionalLabels summand_labels;
     };
 
-    static Prepared prepare(std::vector<ElementarySpace::Ptr> spaces, bool is_dual);
+    static Prepared prepare(std::vector<ElementarySpace::Ptr> spaces,
+                            bool is_dual,
+                            std::optional<OptionalLabels> summand_labels);
 
     DirectSumSpace(Prepared prepared, bool is_dual);
+
+    /// Label -> index among `spaces` (built once at construction).
+    std::unordered_map<std::string, int64> _summand_labelmap;
 };
 
 /// Half-open index range ``[start, stop)``, corresponding to a Python ``slice(start, stop)``.
@@ -620,11 +689,11 @@ class TensorProduct : public Space
     /// The size of a block (``coupled`` may be a sector index or a sector).
     [[nodiscard]] int64 block_size(std::variant<int64, Sector> coupled) const;
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective = false) override;
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
 
     [[nodiscard]] bool has_pipes() const;
 
@@ -712,9 +781,13 @@ class TensorProduct : public Space
     [[nodiscard]] std::pair<SectorArray, std::vector<int64>> calc_sectors(
       std::vector<Leg::Ptr> const& factors) const;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
   private:
     /// Arguments of the `Space` base, which is initialized before the constructor body.
@@ -765,9 +838,9 @@ class AbelianLegPipe
     /// Perform sanity checks.
     void test_sanity() const override;
 
-    py::object as_Space() override;
+    std::shared_ptr<Space> as_space_obj() override;
 
-    py::object as_ElementarySpace(bool is_dual = false) override;
+    ElementarySpace::Ptr as_ElementarySpace(bool is_dual = false) override;
 
     Space::Ptr dual_space() const override;
     Leg::Ptr dual_leg() const override;
@@ -843,11 +916,11 @@ class AbelianLegPipe
                                    bool is_dual = false,
                                    std::optional<std::vector<int64>> basis_perm = std::nullopt);
 
-    py::object change_symmetry(Symmetry::Ptr symmetry,
+    Space::Ptr change_symmetry(Symmetry::Ptr symmetry,
                                SectorMapFn sector_map,
                                bool injective = false) override;
 
-    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+    Space::Ptr drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
 
     void set_basis_perm(std::optional<std::vector<int64>> basis_perm) override;
 
@@ -877,7 +950,9 @@ class AbelianLegPipe
     /// The `legs`, downcast to `ElementarySpace`.
     [[nodiscard]] std::vector<ElementarySpace::Ptr> es_legs() const;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     /// Special case of a `LegPipe` for abelian group symmetries.
     ///
@@ -922,7 +997,9 @@ class AbelianLegPipe
     ///     Map for the embedding of uncoupled to coupled indices, see notes of the Python class.
     ///     Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
     ///     i.e. ``M == prod(leg.num_sectors for leg in legs)`` and ``N == 3 + len(legs)``.
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 
   private:
     struct Prepared

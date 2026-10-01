@@ -15,7 +15,7 @@ from cyten.symmetries import (
     spaces,
     trees,
 )
-from cyten.tensors import SymmetricTensor
+from cyten.tensors import Mask, SymmetricTensor
 from cyten.testing import random_ElementarySpace, random_LegPipe
 from cyten.tools import is_permutation, make_grid
 
@@ -518,7 +518,9 @@ def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
     a = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
     b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
     c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
-    assert a == spaces.ElementarySpace.direct_sum(a)
+    single = spaces.ElementarySpace.direct_sum(a)
+    assert isinstance(single, spaces.DirectSumSpace)
+    assert single.spaces == [a]
     d = spaces.ElementarySpace.direct_sum(a, b, c)
     d.test_sanity()
     assert isinstance(d, spaces.DirectSumSpace)
@@ -595,6 +597,58 @@ def test_DirectSumSpace(is_dual, make_any_space, max_mult=3, max_sectors=3):
         assert not isinstance(sliced, spaces.DirectSumSpace)
 
 
+def test_DirectSumSpace_summand_labels(make_any_space, max_mult=3, max_sectors=3):
+    a = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=False)
+    b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=False)
+    c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=False)
+
+    # unlabeled by default
+    d = spaces.DirectSumSpace([a, b, c])
+    d.test_sanity()
+    assert d.summand_labels == [None, None, None]
+
+    d = spaces.DirectSumSpace([a, b, c], summand_labels=['IdL', None, 'IdR'])
+    d.test_sanity()
+    assert d.summand_labels == ['IdL', None, 'IdR']
+    assert d.has_summand_label('IdL')
+    assert not d.has_summand_label('other')
+    assert d.get_summand_idx('IdL') == 0
+    assert d.get_summand_idx('IdR') == 2
+    assert d.get_summand_idx(1) == 1
+    assert d.get_summand_idx(-1) == 2
+
+    with pytest.raises(ValueError):
+        d.get_summand_idx('missing')
+
+    # duplicate labels are rejected
+    with pytest.raises(ValueError):
+        spaces.DirectSumSpace([a, b, c], summand_labels=['x', 'x', None])
+
+    # length mismatch is rejected
+    with pytest.raises(ValueError):
+        spaces.DirectSumSpace([a, b, c], summand_labels=['x', None])
+
+    # structural equality ignores labels
+    unlabeled = spaces.DirectSumSpace([a, b, c])
+    assert d == unlabeled
+
+    # labels are preserved through structure-preserving ops
+    dual = d.dual
+    assert dual.summand_labels == ['IdL', None, 'IdR']
+    opp = d.with_opposite_duality()
+    assert opp.summand_labels == ['IdL', None, 'IdR']
+
+    # nested DirectSumSpace summands propagate their own labels
+    nested_inner = spaces.DirectSumSpace([b, c], summand_labels=['x', 'y'])
+    nested = spaces.DirectSumSpace([a, nested_inner], summand_labels=['IdL', None])
+    assert nested.spaces == [a, b, c]
+    assert nested.summand_labels == ['IdL', 'x', 'y']
+
+    # an explicit label for a nested-DirectSumSpace slot is ambiguous
+    with pytest.raises(ValueError):
+        spaces.DirectSumSpace([a, nested_inner], summand_labels=['IdL', 'not-allowed'])
+
+
 def test_DirectSumSpace_inclusion_unit_vector(compatible_symmetry, compatible_backend):
     """Inclusions / unit vectors without requiring a dense basis."""
     sym = compatible_symmetry
@@ -624,6 +678,35 @@ def test_DirectSumSpace_inclusion_unit_vector(compatible_symmetry, compatible_ba
     rp = tensors.outer(tensors.dagger(rp_unit), eye)
     rp.test_sanity()
     assert 'vL' in rp.labels and 'wR*' in rp.labels
+
+
+def test_DirectSumSpace_projection_onto_summands(compatible_symmetry, compatible_backend):
+    """Multi-summand projection keeps ascending union of multiplicity slices."""
+    sym = compatible_symmetry
+    backend = compatible_backend
+    I = spaces.ElementarySpace.from_trivial_sector(1, symmetry=sym)
+    other = spaces.ElementarySpace.from_trivial_sector(2, symmetry=sym)
+    d = spaces.DirectSumSpace([I, other, I])  # IdL ⊕ other ⊕ IdR
+    d.test_sanity()
+
+    # complement of IdL/IdR = middle summand only
+    proj_other = d.projection_onto_summands([1], backend=backend)
+    proj_ends = d.projection_onto_summands([0, -1], backend=backend)
+    proj_all = d.projection_onto_summands([0, 1, 2], backend=backend)
+    assert proj_other.is_projection
+    assert proj_ends.is_projection
+    assert (proj_ends.dagger.dagger == proj_ends).all()
+
+    # single-summand wrappers match multi-summand
+    assert (d.projection_onto_summand(1, backend=backend) == proj_other).all()
+    assert (d.inclusion_of_summands([1], backend=backend).dagger == proj_other).all()
+
+    # projecting onto all summands is the identity Mask on d
+    eye = Mask.from_eye(d, is_projection=True, backend=backend)
+    assert (proj_all == eye).all()
+
+    with pytest.raises(TypeError, match='basis_perm'):
+        d.set_basis_perm([0, 1, 2, 3])
 
 
 def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines=20):

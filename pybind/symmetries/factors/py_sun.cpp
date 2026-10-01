@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/sun.h>
 
+#include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
@@ -27,8 +28,11 @@ bind_sun(py::module_& m)
       .def_readwrite("CGfile", &SUN::CGfile)
       .def_readwrite("Ffile", &SUN::Ffile)
       .def_readwrite("Rfile", &SUN::Rfile)
-      .def_static(
-        "from_hdf5", &SUN::from_hdf5, py::arg("hdf5_loader"), py::arg("h5gr"), py::arg("subpath"));
+      .def_static("from_hdf5",
+                  cyten::hdf5::wrap_from_hdf5<SUN>(),
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 
     cls.def("hweight_from_CG_hdf5", &SUN::hweight_from_CG_hdf5)
       .def("hweight_from_F_hdf5", &SUN::hweight_from_F_hdf5)

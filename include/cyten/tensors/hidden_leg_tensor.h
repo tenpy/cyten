@@ -2,6 +2,7 @@
 
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -53,22 +54,22 @@ class HiddenLegTensor : public SymmetricTensor
 
     /// True for ChargedTensor charge markers and short-lived compose temps (``!``, ``!1``,
     /// ``!A``).
-    [[nodiscard]] static bool is_charge_temp_label(LegLabel const& label);
+    [[nodiscard]] static bool is_charge_temp_label(OptionalLabel const& label);
 
     /// True if `label` is a user-facing hidden leg label (``!`` prefix, not a charge temp).
-    [[nodiscard]] static bool is_hidden_leg_label(LegLabel const& label);
+    [[nodiscard]] static bool is_hidden_leg_label(OptionalLabel const& label);
 
     /// True if any label starts with ``!``.
-    [[nodiscard]] static bool has_hidden_leg_labels(LegLabels const& labels);
+    [[nodiscard]] static bool has_hidden_leg_labels(OptionalLabels const& labels);
 
     /// Strip a leading ``!`` from a hidden label. Returns `label` unchanged if not hidden.
-    [[nodiscard]] static LegLabel strip_hidden_prefix(LegLabel const& label);
+    [[nodiscard]] static OptionalLabel strip_hidden_prefix(OptionalLabel const& label);
 
     /// Prefix ``!`` to a non-hidden label. Raises if already hidden or empty.
     [[nodiscard]] static std::string add_hidden_prefix(std::string const& label);
 
     /// Raise if hidden labels contain duplicates or a dual pair (`!a` and `!a*`).
-    static void validate_no_dual_hidden_pair(LegLabels const& labels);
+    static void validate_no_dual_hidden_pair(OptionalLabels const& labels);
 
     /// Indices of legs whose labels start with ``!``.
     [[nodiscard]] std::vector<int64> hidden_leg_idcs() const;
@@ -97,25 +98,27 @@ class HiddenLegTensor : public SymmetricTensor
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt) override;
 
-    LabelledLegs& set_label(int64 pos, LegLabel label) override;
-    Tensor& set_labels(LegLabels labels) override;
+    LabelledLegs& set_label(int64 pos, OptionalLabel label) override;
+    Tensor& set_labels(OptionalLabels labels) override;
 
     /// Import from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Export to hdf5
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     /// Wrap `tensor` as `HiddenLegTensor` if it has hidden labels; otherwise return `tensor`.
     [[nodiscard]] static TensorPtr maybe_wrap(SymmetricTensor::Ptr tensor);
 };
 
 /// True if any label contains the character ``!`` (not necessarily as a prefix).
-[[nodiscard]] bool label_contains_exclamation(LegLabel const& label);
+[[nodiscard]] bool label_contains_exclamation(OptionalLabel const& label);
 
 /// Raise if any label contains ``!``. Used by normal (non-HiddenLeg) tensors.
-void reject_exclamation_in_labels(LegLabels const& labels, std::string const& context);
+void reject_exclamation_in_labels(OptionalLabels const& labels, std::string const& context);
 
 } // namespace cyten

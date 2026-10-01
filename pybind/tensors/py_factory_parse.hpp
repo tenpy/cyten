@@ -3,7 +3,7 @@
 /// Python-flexible parsing for tensor factory bindings.
 ///
 /// Sequence-of-spaces (co)domains, nested labels, numpy blocks, and optional tensors stay at
-/// the binding layer. Typed C++ factories receive Ptrs / BlockPtrs / LegLabels.
+/// the binding layer. Typed C++ factories receive Ptrs / BlockPtrs / OptionalLabels.
 
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>

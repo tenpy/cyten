@@ -629,6 +629,63 @@ def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_rando
         assert ct.almost_equal(permuted_back2, T)
 
 
+planar_permute_legs_hidden_cases = {
+    # h sits between b and c, which stay neighbors in the codomain -> h is forced in between.
+    # Planar only if h is hidden, since a public h would have to end up in the codomain too.
+    'inner-gap': (3, 2, list('abhcd'), ['b', 'c'], ['a', 'd'], ['b', 'h', 'c'], ['a', 'd'], True),
+    # h sits at the (left) boundary between new domain and codomain -> could go on either side.
+    # It stays in the codomain, where it is originally, while a public h would be bent.
+    'boundary-gap-codomain': (3, 2, list('abhcd'), ['c', 'd'], None, ['h', 'c', 'd'], ['b', 'a'], False),
+    # same, but h is originally in the domain and stays there
+    'boundary-gap-domain': (2, 3, list('abhcd'), ['c', 'd'], None, ['c', 'd'], ['h', 'b', 'a'], False),
+    # all public legs end up in the codomain, h stays alone in the domain
+    'wrap-gap-empty-domain': (2, 2, list('abch'), ['a', 'b', 'c'], [], ['a', 'b', 'c'], ['h'], False),
+}
+
+
+@pytest.mark.parametrize(
+    'J, K, labels, codomain, domain, expect_codomain, expect_domain, needs_hiding',
+    planar_permute_legs_hidden_cases.values(),
+    ids=planar_permute_legs_hidden_cases.keys(),
+)
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (no_symmetry, 'no_symmetry'),
+        (u1_symmetry, 'abelian'),
+        (u1_symmetry, 'fusion_tree'),
+        (fermion_parity, 'fusion_tree'),
+        (fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_planar_permute_legs_hidden(
+    J, K, labels, codomain, domain, expect_codomain, expect_domain, needs_hiding, symmetry, backend, np_random
+):
+    # For a HiddenLegTensor, only the public legs need to be permuted planarly. Hidden legs stay in
+    # the gap between their public neighbors (never braid) and are only bent if necessary.
+    backend = ct.get_backend(backend, 'numpy')
+    T_sym = ct.testing.random_tensor(symmetry, J, K, labels=labels, backend=backend, np_random=np_random)
+    T = ct.HiddenLegTensor(T_sym, ['h'])
+
+    if needs_hiding:
+        with pytest.raises(ValueError):
+            _ = ct.planar.planar_permute_legs(T_sym, codomain=codomain, domain=domain)
+        with pytest.raises(ValueError, match='non-planar'):
+            _ = ct.planar.planar_permute_legs(T_sym, codomain=codomain)
+
+    res = ct.planar.planar_permute_legs(T, codomain=codomain, domain=domain)
+    res.test_sanity()
+    assert isinstance(res, ct.HiddenLegTensor)
+    hide = {'h': '!h'}
+    assert res.codomain_labels == [hide.get(l, l) for l in expect_codomain]
+    assert res.domain_labels == [hide.get(l, l) for l in expect_domain]
+
+    # the same as a planar permutation that specifies the hidden leg explicitly
+    expect = ct.planar.planar_permute_legs(T_sym, codomain=expect_codomain, domain=expect_domain)
+    assert ct.almost_equal(res.as_SymmetricTensor(), expect)
+    assert ct.planar.planar_almost_equal(res.as_SymmetricTensor(), T_sym)
+
+
 @pytest.mark.parametrize(
     'cls, dom, cod, dom_cut, cod_cut, new_leg_dual',
     [
@@ -749,7 +806,15 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
     assert ct.planar.planar_almost_equal(Vh, Vh2)
 
     print('Truncated SVD')
-    for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
+    # chi_max=1 forces non-trivial truncation, which is needed to catch bugs in the
+    # reported `err` (e.g. confusing it with the squared error).
+    for svd_min, normalize_to, chi_max in [
+        (1e-14, None, None),
+        (1e-4, None, None),
+        (1e-4, 2.7, None),
+        (0.0, None, 1),
+        (0.0, 2.7, 1),
+    ]:
         U, S, Vh, err, renormalize = ct.planar.planar_truncated_svd(
             T,
             codomain_cut=cod_cut,
@@ -758,6 +823,7 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
             new_leg_dual=new_leg_dual,
             normalize_to=normalize_to,
             svd_min=svd_min,
+            chi_max=chi_max,
         )
         U.test_sanity()
         S.test_sanity()
@@ -770,15 +836,13 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
         assert Vh.num_domain_legs == dom - dom_cut
         assert Vh.labels == ['d', *T.labels[cod_cut : T.num_legs - dom_cut]]
 
-        # check that U @ S @ Vd recovers the original tensor up to the error incurred
-        T_approx = ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd') / renormalize
-        npt.assert_almost_equal(
-            err,
-            ct.norm(
-                T.as_SymmetricTensor()
-                - ct.planar_permute_legs(T_approx, codomain=T.codomain_labels, domain=T.domain_labels)
-            ).to_numpy(),
-        )
+        norm_T = ct.norm(T).to_numpy()
+        lambda_kept = S / norm_T if normalize_to is None else (renormalize / norm_T) * S
+        npt.assert_almost_equal(err**2, 1 - ct.norm(lambda_kept).to_numpy() ** 2)
+        T_approx = renormalize * ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd')
+        T_approx = ct.planar_permute_legs(T_approx, codomain=T.codomain_labels, domain=T.domain_labels)
+        distance = ct.norm(T.as_SymmetricTensor() - T_approx).to_numpy()
+        npt.assert_almost_equal(err, distance / norm_T)
 
         # check isometric properties
         eye = ct.SymmetricTensor.from_eye(S.domain, backend=T.backend, labels=['a*', 'a'])
@@ -790,7 +854,12 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
 
         # compare to non-planar result
         U2, S2, Vh2, _, _ = ct.truncated_svd(
-            T2, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min
+            T2,
+            new_labels=['a', 'b', 'c', 'd'],
+            new_leg_dual=new_leg_dual,
+            normalize_to=normalize_to,
+            svd_min=svd_min,
+            chi_max=chi_max,
         )
         U2.test_sanity()
         S2.test_sanity()
@@ -1350,32 +1419,51 @@ def test_PlanarLinearOperator(symmetry, np_random):
     # ===========================================
     # create example tensors
     # ===========================================
-
+    # Fib FusionTree with several multi-sector legs makes to_tensor / matvec / planar
+    # rebuild each take ~3s under the default RNG seed. Single-sector legs stay cheap
+    # while still exercising non-abelian planar contractions.
+    max_mult = 1 if not symmetry.is_abelian else 2
+    max_blocks = 1 if not symmetry.is_abelian else 2
     theta = ct.testing.random_tensor(
-        symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
+        symmetry,
+        4,
+        labels=['vL', 'p0', 'p1', 'vR'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
     vL, p0, p1, vR = theta.legs
     Lp = ct.testing.random_tensor(
-        symmetry, [vL, None, vL.dual], labels=['vR*', 'wR', 'vR'], max_multiplicity=3, max_blocks=3, np_random=np_random
+        symmetry,
+        [vL, None, vL.dual],
+        labels=['vR*', 'wR', 'vR'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
     W0 = ct.testing.random_tensor(
         symmetry,
         [p0, None, p0.dual, Lp.get_leg('wR').dual],
         labels=['p', 'wR', 'p*', 'wL'],
-        max_multiplicity=3,
-        max_blocks=3,
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
         np_random=np_random,
     )
     W1 = ct.testing.random_tensor(
         symmetry,
         [p1, None, p1.dual, W0.get_leg('wR').dual],
         labels=['p', 'wR', 'p*', 'wL'],
-        max_multiplicity=3,
-        max_blocks=3,
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
         np_random=np_random,
     )
     Rp = ct.testing.random_tensor(
-        symmetry, [vR, vR.dual, W1.get_leg('wR').dual], labels=['vL*', 'vL', 'wL'], np_random=np_random
+        symmetry,
+        [vR, vR.dual, W1.get_leg('wR').dual],
+        labels=['vL*', 'vL', 'wL'],
+        max_multiplicity=max_mult,
+        max_blocks=max_blocks,
+        np_random=np_random,
     )
 
     # ===========================================

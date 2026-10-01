@@ -87,10 +87,10 @@ eval_result_to_py(PlanarResult const& v)
     return py_from_tensor_or_scalar(v);
 }
 
-LegLabels
+OptionalLabels
 py_leg_labels(py::object seq)
 {
-    LegLabels out;
+    OptionalLabels out;
     for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
         if (item.is_none()) {
             out.push_back(std::nullopt);
@@ -101,7 +101,7 @@ py_leg_labels(py::object seq)
     return out;
 }
 
-std::optional<LegLabels>
+std::optional<OptionalLabels>
 py_opt_labels(py::object obj)
 {
     if (obj.is_none()) {

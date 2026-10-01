@@ -6,6 +6,7 @@
 
 #include <cyten/symmetries/factors/su2_k_anyon_category.h>
 
+#include "tools/hdf5_bind.h"
 #include <string>
 
 namespace cyten {
@@ -17,7 +18,7 @@ bind_su2_k_anyon_category(py::module_& m)
       m, "SU2_kAnyonCategory", DOC(cyten, SU2_kAnyonCategory));
     cls.def(py::init<int, std::string>(), py::arg("k"), py::arg("handedness") = "left")
       .def_static("from_hdf5",
-                  &SU2_kAnyonCategory::from_hdf5,
+                  cyten::hdf5::wrap_from_hdf5<SU2_kAnyonCategory>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

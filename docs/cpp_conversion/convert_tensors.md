@@ -93,7 +93,7 @@ flowchart TD
   `BlockPtr`; py-object ctors removed from the C++ API.
 - `as_SymmetricTensor` returns `SymmetricTensor::Ptr`; `legs()` / `get_leg` / `charge_leg`
   return `Leg::Ptr`.
-- Helpers and free functions take `Tensor(C)Ptr` / `Mask(C)Ptr` / `LegRef` / `LegLabels`.
+- Helpers and free functions take `Tensor(C)Ptr` / `Mask(C)Ptr` / `LegRef` / `OptionalLabels`.
   Sequence-of-spaces, nested labels, numpy blocks, and `*args` stay in pybind.
 - HDF5 and numpy-facing methods remain `py::object` / `py::array`.
 

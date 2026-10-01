@@ -2,6 +2,7 @@
 
 #include <cyten/tensors/diagonal_tensor.h>
 
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -102,7 +103,7 @@ class Mask : public Tensor
          bool is_projection,
          TensorBackend::Ptr backend,
          Symmetry::Ptr symmetry,
-         LegLabels labels,
+         OptionalLabels labels,
          std::string device);
 
     ~Mask() override = default;
@@ -133,7 +134,7 @@ class Mask : public Tensor
     [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       bool is_projection = true,
                                       TensorBackend::Ptr backend = nullptr,
-                                      std::optional<LegLabels> labels = std::nullopt,
+                                      std::optional<OptionalLabels> labels = std::nullopt,
                                       std::optional<std::string> device = std::nullopt);
 
     /// Create a projection Mask from a boolean block.
@@ -152,7 +153,7 @@ class Mask : public Tensor
     [[nodiscard]] static Ptr from_block_mask(BlockBackend::BlockPtr block_mask,
                                              Space::Ptr large_leg,
                                              TensorBackend::Ptr backend = nullptr,
-                                             std::optional<LegLabels> labels = std::nullopt,
+                                             std::optional<OptionalLabels> labels = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
     /// Create a projection Mask from a boolean DiagonalTensor.
@@ -180,7 +181,7 @@ class Mask : public Tensor
     [[nodiscard]] static Ptr from_indices(py::object indices,
                                           Space::Ptr large_leg,
                                           TensorBackend::Ptr backend = nullptr,
-                                          std::optional<LegLabels> labels = std::nullopt,
+                                          std::optional<OptionalLabels> labels = std::nullopt,
                                           std::optional<std::string> device = std::nullopt);
 
     /// Create a random projection Mask.
@@ -203,7 +204,7 @@ class Mask : public Tensor
                                          TensorBackend::Ptr backend = nullptr,
                                          float64 p_keep = 0.5,
                                          int64 min_keep = 0,
-                                         std::optional<LegLabels> labels = std::nullopt,
+                                         std::optional<OptionalLabels> labels = std::nullopt,
                                          std::optional<std::string> device = std::nullopt,
                                          py::object np_random = py::none());
 
@@ -218,16 +219,18 @@ class Mask : public Tensor
     ///     The projection (or inclusion) Mask that keeps all states
     [[nodiscard]] static Ptr from_zero(Space::Ptr large_leg,
                                        TensorBackend::Ptr backend = nullptr,
-                                       std::optional<LegLabels> labels = std::nullopt,
+                                       std::optional<OptionalLabels> labels = std::nullopt,
                                        std::optional<std::string> device = std::nullopt);
 
     /// Import Mask from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Export Mask to hdf5 such that it can be re-imported with from_hdf5
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     // --- Tensor overrides ---
 

@@ -206,7 +206,6 @@ def pytest_collection_modifyitems(config, items):
         'test_outer[FusionTreeBackend-U1xZ3-numpy-Charged@Sym-1-2-2-1]',
         'test_coupling[FusionTreeBackend-SU2-3]',
         'test_ftb_transpose[numpy-symmetry2]',
-        'test_PlanarLinearOperator[symmetry2]',
         'test_c_symbol_fibonacci_anyons[numpy]',
         # 3s–12s
         'test_SymmetricTensor_from_eye[FusionTreeBackend-U1-numpy-3]',

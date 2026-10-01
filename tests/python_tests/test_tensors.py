@@ -235,7 +235,10 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
 
 @pytest.mark.parametrize('leg_num', [1, 2, 3])
 def test_SymmetricTensor_from_eye(make_compatible_space, make_compatible_tensor, compatible_backend, leg_num):
-    legs = [make_compatible_space() for _ in range(leg_num)]
+    # Shrink spaces for multi-leg eye: dense checks scale poorly with FusionTree/SU2.
+    max_sectors = 3 if leg_num < 3 else 2
+    max_mult = 3 if leg_num < 3 else 2
+    legs = [make_compatible_space(max_sectors=max_sectors, max_mult=max_mult) for _ in range(leg_num)]
     labels = list('abcdefg')[:leg_num]
     tens = SymmetricTensor.from_eye(legs, backend=compatible_backend, labels=labels)
 
@@ -1573,7 +1576,9 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     ],
 )
 def test_combine_split(use_pipes, make_compatible_tensor):
-    T: SymmetricTensor = make_compatible_tensor(['a', 'b'], ['d', 'c'], use_pipes=use_pipes)
+    T: SymmetricTensor = make_compatible_tensor(
+        ['a', 'b'], ['d', 'c'], use_pipes=use_pipes, max_blocks=3, max_block_size=3
+    )
     assert T.labels == ['a', 'b', 'c', 'd']
 
     # 1) combine in codomain
@@ -1776,10 +1781,11 @@ def test_swap_gate_numpy(np_random):
 def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tensor):
     # use dense blocks as check that pipes are consistent across the different backends
     labels = ['a', 'b', 'c', 'd']
+    kwargs = dict(use_pipes=use_pipes, max_blocks=3, max_block_size=3)
     if in_domain:
-        T: SymmetricTensor = make_compatible_tensor([], labels[::-1], use_pipes=use_pipes)
+        T: SymmetricTensor = make_compatible_tensor([], labels[::-1], **kwargs)
     else:
-        T: SymmetricTensor = make_compatible_tensor(labels, [], use_pipes=use_pipes)
+        T: SymmetricTensor = make_compatible_tensor(labels, [], **kwargs)
     assert T.labels == labels
 
     if T.symmetry.can_be_dropped:
@@ -3010,6 +3016,29 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
     assert tensors.almost_equal(res, expect)
 
 
+@pytest.mark.parametrize('in_domain', [False, True])
+def test_partial_compose_after_pipe(in_domain, make_compatible_tensor, make_compatible_space):
+    # A pipe *before* the contracted leg: leg indices count the pipe once, but the FusionTreeBackend
+    # has trees over its components. Compare with contracting before combining the legs.
+    X0, X1, Y, D, W = [make_compatible_space(max_sectors=3, max_mult=2) for _ in range(5)]
+    if in_domain:
+        A0 = make_compatible_tensor([D], [X0, X1, Y], labels=['d', 'y', 'x1', 'x0'], use_pipes=False)
+        B = make_compatible_tensor([Y], [W], labels=['y', 'z'], use_pipes=False)
+        pipe_legs = ['x1', 'x0']
+    else:
+        A0 = make_compatible_tensor([X0, X1, Y], [D], labels=['x0', 'x1', 'y', 'd'], use_pipes=False)
+        B = make_compatible_tensor([W], [Y], labels=['z', 'y'], use_pipes=False)
+        pipe_legs = ['x0', 'x1']
+    A = tensors.combine_legs(A0, pipe_legs)
+    expect = tensors.combine_legs(tensors.partial_compose(A0, B, 'y'), pipe_legs)
+    pipe_factors = A.domain.factors if in_domain else A.codomain.factors
+    assert isinstance(pipe_factors[0], LegPipe)  # the pipe comes before 'y'
+    res = tensors.partial_compose(A, B, 'y')
+    res.test_sanity()
+    assert res.labels == expect.labels
+    assert tensors.almost_equal(res, expect)
+
+
 @pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codom, dom',
@@ -3525,21 +3554,44 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         assert tensors.almost_equal(U_iso.hc @ U_iso, eye, allow_different_types=True)
         assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
+    S_full = S
+    did_any_nontrivial_trunction = False
     print('Truncated SVD')
-    for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
+    for svd_min, normalize_to, chi_max in [
+        (1e-14, None, None),
+        (0.1, None, None),
+        (0.3, None, None),
+        (0.999, None, None),
+        (0.4, 2.7, None),
+        (0.0, None, 1),
+        (0.0, 2.7, 1),
+    ]:
+        norm_T = tensors.norm(T).to_numpy()
+        if svd_min >= S_full.max() / norm_T:
+            with pytest.warns(UserWarning, match="truncation: can't satisfy constraint for svd_min"):
+                U, S, Vh, err, renormalize = tensors.truncated_svd(T, svd_min=svd_min, chi_max=chi_max)
+            return
+
         U, S, Vh, err, renormalize = tensors.truncated_svd(
-            T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min
+            T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min, chi_max=chi_max
         )
+        min_chi_needed = int(tensors.trace(S_full > 1e-14).to_numpy())
+        if S.leg.dim < min_chi_needed:
+            assert err > 0  # make sure we did a non-trivial truncation
+            did_any_nontrivial_trunction = True
         U.test_sanity()
         S.test_sanity()
         Vh.test_sanity()
-        # check that U @ S @ Vd recovers the original tensor up to the error incurred
-        T_approx = U @ S @ Vh / renormalize
-        if isinstance(T, ChargedTensor):
-            npt.assert_almost_equal(err, tensors.norm(T - T_approx).to_numpy())
+        lambda_kept = S / norm_T if normalize_to is None else (renormalize / norm_T) * S
+
+        # 1) Check that T = T_approx + T_ortho = renormalize * U @ S @ Vh + T_ortho
+        #   -> Uh @ T @ V = renormalize * S
+        if not isinstance(T, ChargedTensor):
+            assert tensors.almost_equal(U.hc @ T @ Vh.hc, (1.0 + 0.0j) * renormalize * S, allow_different_types=True)
         else:
-            npt.assert_almost_equal(err, tensors.norm(T.as_SymmetricTensor() - T_approx).to_numpy())
-        # check isometric properties
+            pass  # projection is not defined here for charged tensors or non-trivial braidings
+
+        # 2) Check isometric property of U and Vh
         eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
         assert tensors.almost_equal(U.hc @ U, eye, allow_different_types=True)
         if isinstance(Vh, ChargedTensor):
@@ -3547,25 +3599,60 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         else:
             assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
+        # 3) Check singular value properties of S
+        if not T.symmetry.is_abelian:
+            # TODO this is probably not the intended definition of svd_min!
+            qdims = tensors.DiagonalTensor.from_sector_block_func(
+                lambda shape, c: T.symmetry.qdim(c) * np.ones(shape), leg=lambda_kept.leg, backend=T.backend
+            )
+            assert (lambda_kept * qdims >= svd_min).all()
+        else:
+            assert (lambda_kept >= svd_min).all()
+
+        # 4) Check properties of err / renormalize
+        assert err**2 == pytest.approx(1 - tensors.norm(lambda_kept).to_numpy() ** 2)
+        if normalize_to is not None:
+            assert err**2 == pytest.approx(1 - (normalize_to * renormalize / norm_T) ** 2)
+        T_approx = renormalize * (U @ S @ Vh)
+        if isinstance(T, ChargedTensor):
+            distance = tensors.norm(T - T_approx).to_numpy()
+        else:
+            distance = tensors.norm(T.as_SymmetricTensor() - T_approx).to_numpy()
+        assert err == pytest.approx(distance / norm_T)
+
+        # 5) Check definition of renor
+
+        # check that U @ S @ Vd recovers the original tensor up to the error incurred
+        T_approx = U @ S @ Vh / renormalize
+        # check isometric properties
+
         if isinstance(T, ChargedTensor):
             assert isinstance(Vh, ChargedTensor)
             assert isinstance(U, SymmetricTensor)
 
             # for charge_leg_top = True above; for charge_leg_top = False below
             U, S, Vh, err, renormalize = tensors.truncated_svd(
-                T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min, charge_leg_top=False
+                T,
+                new_leg_dual=new_leg_dual,
+                normalize_to=normalize_to,
+                svd_min=svd_min,
+                chi_max=chi_max,
+                charge_leg_top=False,
             )
             U.test_sanity()
             S.test_sanity()
             Vh.test_sanity()
             assert isinstance(U, ChargedTensor)
             assert isinstance(Vh, SymmetricTensor)
-            T_approx = U @ S @ Vh / renormalize
-            npt.assert_almost_equal(err, tensors.norm(T - T_approx).to_numpy())
+            T_approx = renormalize * (U @ S @ Vh)
+            distance = tensors.norm(T - T_approx).to_numpy()
+            assert err == pytest.approx(distance / norm_T)
             eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
             U_iso = tensors.move_leg(U.invariant_part, U._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
             assert tensors.almost_equal(U_iso.hc @ U_iso, eye, allow_different_types=True)
             assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
+
+    assert did_any_nontrivial_trunction or isinstance(T, tensors.Mask)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(
@@ -3876,6 +3963,174 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
     assert res1.backend.almost_equal(res1, res2, rtol=1e-12, atol=1e-12)
     if T.symmetry.can_be_dropped:
         npt.assert_almost_equal(res1.to_numpy(understood_braiding=True), res2.to_numpy(understood_braiding=True))
+
+
+def test_tensor_grid_cell_roundtrip(make_compatible_tensor, make_compatible_space):
+    """Recover grid cells via DirectSumSpace projections (works without dense bases)."""
+    T: SymmetricTensor = make_compatible_tensor([None], [None], cls=SymmetricTensor, use_pipes=False)
+    dual_codom = T.codomain[0].is_dual
+    dual_dom = T.domain[-1].is_dual
+
+    row_spaces = [T.codomain[0], make_compatible_space(is_dual=dual_codom)]
+    col_spaces = [T.domain[-1], make_compatible_space(is_dual=dual_dom)]
+    grid = [
+        [make_compatible_tensor([row_spaces[i]], [col_spaces[j]], cls=SymmetricTensor) for j in range(2)]
+        for i in range(2)
+    ]
+    # zero cell
+    grid[1][0] = None
+
+    res = tensors.tensor_from_grid(grid, labels=['wL', 'wR'], row_labels=['IdL', 'IdR'], col_labels=['IdL', 'IdR'])
+    assert isinstance(res.codomain[0], DirectSumSpace)
+    assert isinstance(res.domain[-1], DirectSumSpace)
+    assert res.codomain[0].summand_labels == ['IdL', 'IdR']
+    assert res.domain[-1].summand_labels == ['IdL', 'IdR']
+
+    recovered = []
+    row_refs = [0, 'IdR']
+    col_refs = ['IdL', -1]
+    for i in range(2):
+        row = []
+        for j in range(2):
+            cell = tensors.tensor_grid_cell(res, row_refs[i], col_refs[j], row_leg='wL', col_leg='wR')
+            assert cell.labels == ['wL', 'wR']
+            if grid[i][j] is None:
+                assert tensors.almost_equal(cell, tensors.zero_like(cell))
+                row.append(None)
+            else:
+                row.append(cell)
+        recovered.append(row)
+
+    # Restacking recovered cells rebuilds the original stacked tensor.
+    res2 = tensors.tensor_from_grid(recovered, labels=['wL', 'wR'])
+    assert tensors.almost_equal(res, res2)
+
+    # The operation only depends on the current legs, not tensor_from_grid provenance.
+    direct = make_compatible_tensor([res.codomain[0]], [res.domain[-1]], cls=SymmetricTensor, use_pipes=False)
+    direct.set_labels(['wL', 'wR'])
+    expected = tensors.apply_mask(
+        direct,
+        direct.get_leg('wL').projection_onto_summand(1, backend=direct.backend),
+        'wL',
+    )
+    expected = tensors.apply_mask(
+        expected,
+        expected.get_leg('wR').projection_onto_summand(0, backend=direct.backend),
+        'wR',
+    )
+    projected = tensors.grid_project(direct, ['wL', 'wR'], ['IdR', 'IdL'])
+    assert tensors.almost_equal(projected, expected)
+
+
+def test_mpo_partition_and_make_U_I_pattern(compatible_symmetry, compatible_backend):
+    """DSS Mask patterns used by TeNPy make_U_I / make_U_II (IdL ⊕ other ⊕ IdR)."""
+    sym = compatible_symmetry
+    backend = compatible_backend
+    if not sym.can_be_dropped:
+        pytest.skip('dense reference needs can_be_dropped')
+
+    # All-trivial virtual sectors so public-basis order matches summand order.
+    Id = ElementarySpace.from_trivial_sector(1, symmetry=sym, is_dual=False)
+    other = ElementarySpace.from_trivial_sector(2, symmetry=sym, is_dual=False)
+    p = ElementarySpace.from_trivial_sector(2, symmetry=sym, is_dual=False)
+
+    left = DirectSumSpace([Id, other, Id], is_dual=False)  # IdL=0, other=1, IdR=2
+    Id_d = Id.dual
+    other_d = other.dual
+    right = DirectSumSpace([Id_d, other_d, Id_d], is_dual=True)
+    p_dual = p.dual
+
+    rng = np.random.default_rng(0)
+
+    def dense_cell(wL, wR):
+        # shape (wL, p, wR, p*) with domain factors [p*, wR] → numpy (wL, p, wR, p*)
+        block = rng.normal(size=(wL.dim, p.dim, wR.dim, p.dim)) + 1j * rng.normal(size=(wL.dim, p.dim, wR.dim, p.dim))
+        return SymmetricTensor.from_dense_block(
+            block,
+            [wL, p],
+            [p_dual, wR],
+            backend=backend,
+            labels=['wL', 'p', 'wR', 'p*'],
+            understood_braiding=True,
+        )
+
+    grid = [
+        [dense_cell(Id, Id_d), dense_cell(Id, other_d), dense_cell(Id, Id_d)],
+        [dense_cell(other, Id_d), dense_cell(other, other_d), dense_cell(other, Id_d)],
+        [None, dense_cell(Id, other_d), dense_cell(Id, Id_d)],
+    ]
+    W = tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
+    Wflat = W.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True)
+
+    projected_IdL = tensors.grid_project(W, ['wL'], [0], squeeze=True)
+    expected_IdL = tensors.squeeze_legs(
+        tensors.apply_mask(W, W.get_leg('wL').projection_onto_summand(0, backend=backend), 'wL'),
+        ['wL'],
+    )
+    assert tensors.almost_equal(projected_IdL, expected_IdL)
+
+    IdL, IdR = 0, 2
+    other_idx = [1]
+    sl_IdL = slice(0, 1)
+    sl_other = slice(1, 3)
+    sl_IdR = slice(3, 4)
+    assert Wflat.shape[:2] == (4, 4)
+
+    left_leg = W.get_leg('wL')
+    right_leg = W.get_leg('wR')
+
+    D = tensors.apply_mask(
+        tensors.apply_mask(W, left_leg.projection_onto_summand(IdL, backend=backend), 'wL'),
+        right_leg.projection_onto_summand(IdR, backend=backend),
+        'wR',
+    )
+    C = tensors.apply_mask(
+        tensors.apply_mask(W, left_leg.projection_onto_summand(IdL, backend=backend), 'wL'),
+        right_leg.projection_onto_summands(other_idx, backend=backend),
+        'wR',
+    )
+    B = tensors.apply_mask(
+        tensors.apply_mask(W, left_leg.projection_onto_summands(other_idx, backend=backend), 'wL'),
+        right_leg.projection_onto_summand(IdR, backend=backend),
+        'wR',
+    )
+    A = tensors.apply_mask(
+        tensors.apply_mask(W, left_leg.projection_onto_summands(other_idx, backend=backend), 'wL'),
+        right_leg.projection_onto_summands(other_idx, backend=backend),
+        'wR',
+    )
+
+    npt.assert_almost_equal(
+        D.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        Wflat[sl_IdL, sl_IdR],
+    )
+    npt.assert_almost_equal(
+        C.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        Wflat[sl_IdL, sl_other],
+    )
+    npt.assert_almost_equal(
+        B.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        Wflat[sl_other, sl_IdR],
+    )
+    npt.assert_almost_equal(
+        A.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        Wflat[sl_other, sl_other],
+    )
+
+    dt = 0.25
+    col_IdR = tensors.apply_mask(W, right_leg.projection_onto_summand(IdR, backend=backend), 'wR')
+    col_on_IdL = tensors.enlarge_leg(col_IdR, right_leg.inclusion_of_summand(IdL, backend=backend), 'wR')
+    U = tensors.linear_combination(1.0, W, dt, col_on_IdL)
+    keep = right_leg.projection_onto_summands([0, 1], backend=backend)
+    U_kept = tensors.apply_mask(U, keep, 'wR')
+
+    expect = Wflat.copy()
+    expect[:, sl_IdL] = expect[:, sl_IdL] + dt * expect[:, sl_IdR]
+    expect = np.concatenate([expect[:, sl_IdL], expect[:, sl_other]], axis=1)
+    npt.assert_almost_equal(
+        U_kept.to_numpy(leg_order=['wL', 'wR', 'p', 'p*'], understood_braiding=True),
+        expect,
+    )
 
 
 def test_tensor_from_grid_hidden_labels(make_compatible_tensor, np_random):
@@ -4228,6 +4483,55 @@ def test_HiddenLegTensor_permute_leaves_hidden_in_place(make_compatible_tensor):
     assert res.labels[2] == '!h'
 
 
+@pytest.mark.parametrize('hidden_in_domain', [True, False])
+def test_HiddenLegTensor_decompositions_keep_hidden(hidden_in_domain, make_compatible_tensor):
+    if hidden_in_domain:
+        T = make_compatible_tensor(codomain=2, domain=2, labels=['vL', 'p', 'vR', 'h'], use_pipes=False)
+    else:
+        T = make_compatible_tensor(codomain=3, domain=1, labels=['h', 'vL', 'p', 'vR'], use_pipes=False)
+    H = HiddenLegTensor(T, ['h'])
+
+    def check(left, right):
+        hidden, public = (right, left) if hidden_in_domain else (left, right)
+        for X in [left, right]:
+            X.test_sanity()
+        assert isinstance(hidden, HiddenLegTensor) and '!h' in hidden.labels
+        assert not isinstance(public, HiddenLegTensor) and '!h' not in public.labels
+        res = tensors.compose(left, right)
+        assert isinstance(res, HiddenLegTensor)
+        assert res.labels == H.labels
+        assert tensors.almost_equal(res, H)
+
+    check(*tensors.qr(H, new_labels=['vR', 'vL']))
+    check(*tensors.lq(H, new_labels=['vR', 'vL']))
+    U, S, Vh = tensors.svd(H, new_labels=['vR', 'vL'])
+    check(tensors.compose(U, S), Vh)
+    U, S, Vh, _, _ = tensors.truncated_svd(H, new_labels=['vR', 'vL'])
+    check(U, tensors.compose(S, Vh))
+    # partial_compose keeps the hidden leg of tensor1
+    vL = H.codomain.factors[1] if not hidden_in_domain else H.codomain.factors[0]
+    X = make_compatible_tensor(codomain=[vL], domain=[vL], labels=['vL', 'x'], use_pipes=False)
+    res = tensors.partial_compose(H, X, 'vL')
+    res.test_sanity()
+    assert isinstance(res, HiddenLegTensor)
+    assert res.labels == H.labels
+    expect = tensors.partial_compose(H.unhide_legs(), X, 'vL')
+    assert tensors.almost_equal(res.unhide_legs(), expect)
+
+
+def test_HiddenLegTensor_to_numpy_public_leg_order(make_compatible_tensor):
+    T = make_compatible_tensor(codomain=2, domain=2, labels=['a', 'h', 'b', 'c'], use_pipes=False)
+    if not T.symmetry.can_be_dropped:
+        pytest.skip('no dense representation')
+    H = HiddenLegTensor(T, ['h'])
+    full = H.to_numpy(understood_braiding=True)
+    # hidden legs need not be named; they are the last legs of the result
+    res = H.to_numpy(['c', 'a', 'b'], understood_braiding=True)
+    npt.assert_array_equal(res, np.transpose(full, [3, 0, 2, 1]))
+    res = H.to_numpy(['c', 'a', 'b', '!h'], understood_braiding=True)
+    npt.assert_array_equal(res, np.transpose(full, [3, 0, 2, 1]))
+
+
 @pytest.mark.parametrize('do_dagger', [True, False])
 def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
     labels = ['a', 'b', 'c', 'h']
@@ -4261,9 +4565,9 @@ def test_HiddenLegTensor_inner(do_dagger, make_compatible_tensor):
     npt.assert_almost_equal((tensors.norm(T2) ** 2).to_numpy(), tensors.inner(T2, T2, do_dagger=True).to_numpy())
 
 
-def _move_hidden_leg_pair(make_compatible_tensor, hidden_space, extra_hidden=False, hide_on_B=False):
+def _move_hidden_leg_pair(make_compatible_tensor, hidden_space, extra_hidden=False, hide_on_B=False, **tensor_kwargs):
     """Build contractible A (HiddenLegTensor) and B with A.vR dual to B.vL."""
-    kwargs = {'use_pipes': False}
+    kwargs = {'use_pipes': False, 'max_blocks': 3, 'max_block_size': 3, **tensor_kwargs}
     A_codomain = [hidden_space, None, None, None]
     A_labels = ['charge', 'pA', 'vL', 'vR']
     if extra_hidden:
@@ -4327,11 +4631,10 @@ def test_move_hidden_leg_domain_pos(make_compatible_tensor, compatible_symmetry)
     _assert_tdot_equal(expect, got)
 
 
-def test_move_hidden_leg_dim_gt_one_keeps_pipes(make_compatible_tensor, make_compatible_space, compatible_symmetry):
-    h = make_compatible_space()
-    if h.dim == 1:
-        pytest.skip('need a hidden space with dim > 1')
-    A, B = _move_hidden_leg_pair(make_compatible_tensor, h)
+def test_move_hidden_leg_dim_gt_one_keeps_pipes(make_compatible_tensor, compatible_symmetry):
+    # Keep the hidden space tiny: default make_compatible_space() is far too large for SU2/FusionTree.
+    h = ElementarySpace.from_trivial_sector(2, symmetry=compatible_symmetry)
+    A, B = _move_hidden_leg_pair(make_compatible_tensor, h, max_blocks=2, max_block_size=2)
     try:
         expect = tensors.tdot(A, B, 'vR', 'vL')
         A2, B2 = tensors.move_hidden_leg(A, B, 'vR', 'vL', '!charge', target_codomain_pos=2)
@@ -4408,3 +4711,81 @@ def test_move_hidden_leg_errors(make_compatible_tensor, compatible_symmetry):
     )
     with pytest.raises(ValueError, match='dual hidden'):
         tensors.move_hidden_leg(A, B_dual, 'vR', 'vL', '!charge', 1)
+
+
+@pytest.mark.parametrize('dual_pipes', [False, True])
+def test_flatten_pipe_leg(dual_pipes, make_compatible_tensor, make_compatible_space):
+    # combine two bonds like for an MPS: vL pipe in the codomain, the dual vR pipe in the domain.
+    # For `dual_pipes`, the pipe *factors* in the codomain and domain are dual pipes instead.
+    V0 = make_compatible_space()
+    V1 = make_compatible_space()
+    labels = ['vL0', 'vL1', 'vR1', 'vR0']
+    A0 = make_compatible_tensor([V0, V1], [V0, V1], labels=labels, use_pipes=False)
+    B0 = make_compatible_tensor([V0, V1], [V0, V1], labels=labels, use_pipes=False)
+
+    def combine(T):
+        dualities = [True, False] if dual_pipes else [False, True]
+        T = tensors.combine_legs(T, ['vL0', 'vL1'], ['vR1', 'vR0'], pipe_dualities=dualities)
+        return T.relabel({'(vL0.vL1)': 'vL', '(vR1.vR0)': 'vR'})
+
+    A, B = [combine(T) for T in [A0, B0]]
+    assert A.codomain == A.domain
+    assert A.codomain.factors[0].is_dual == dual_pipes
+    expect = tensors.compose(A, B)
+
+    A2, B2, expect2 = [tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(T, 'vL'), 'vR') for T in [A, B, expect]]
+    for T, T2 in [(A, A2), (B, B2), (expect, expect2)]:
+        T2.test_sanity()
+        assert T2.labels == T.labels
+        for label in ['vL', 'vR']:
+            leg, leg2 = T.get_leg(label), T2.get_leg(label)
+            assert isinstance(leg, LegPipe)
+            assert isinstance(leg2, ElementarySpace) and not isinstance(leg2, LegPipe)
+            assert leg2.is_dual == leg.is_dual
+            leg_flat = leg.as_ElementarySpace(leg.is_dual)
+            npt.assert_array_equal(leg2.sector_decomposition, leg_flat.sector_decomposition)
+            npt.assert_array_equal(leg2.multiplicities, leg_flat.multiplicities)
+        npt.assert_almost_equal(tensors.norm(T2).to_numpy(), tensors.norm(T).to_numpy())
+    assert A2.codomain == A2.domain
+    # the flattened legs are consistent, such that contractions give the same data
+    assert tensors.almost_equal(tensors.compose(A2, B2), expect2)
+    # ... also the same as contracting the separate legs, i.e. the flattened legs keep their meaning
+    expect0 = combine(tensors.compose(A0, B0))
+    expect0 = tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(expect0, 'vL'), 'vR')
+    assert tensors.almost_equal(tensors.compose(A2, B2), expect0)
+    # flattening commutes with (planar) permutations of the other legs, here the pipe is not the
+    # first factor of the domain
+    W = make_compatible_space()
+    C = make_compatible_tensor([V0, V1], [W, V0, V1], labels=labels + ['w'], use_pipes=False)
+    C = combine(C)
+    assert C.domain_labels == ['w', 'vR']
+    C2 = tensors.flatten_pipe_leg(C, 'vR')
+    C3 = tensors.planar_permute_legs(C, domain=['vR'])
+    C3 = tensors.flatten_pipe_leg(C3, 'vR')
+    C3 = tensors.planar_permute_legs(C3, codomain=C.codomain_labels, domain=C.domain_labels)
+    assert C2.labels == C.labels
+    assert tensors.almost_equal(C2, C3)
+    # flattening a leg bent to the other side (i.e. the dual pipe factor) is consistent with
+    # flattening it in place
+    B3 = tensors.planar_permute_legs(B, codomain=['vR', 'vL'], domain=[])
+    assert B3.codomain.factors[0].is_dual != B.domain.factors[0].is_dual
+    B3 = tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(B3, 'vL'), 'vR')
+    B3 = tensors.planar_permute_legs(B3, codomain=B.codomain_labels, domain=B.domain_labels)
+    assert tensors.almost_equal(B3, B2)
+    # two pipes on the same side: flattening commutes, also if another pipe precedes the flattened one
+    D = make_compatible_tensor([V0, V1, V0, V1], [W], labels=['a0', 'a1', 'b0', 'b1', 'w'], use_pipes=False)
+    D = tensors.combine_legs(D, ['a0', 'a1'], ['b0', 'b1'])
+    D_ab = tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(D, '(a0.a1)'), '(b0.b1)')
+    D_ba = tensors.flatten_pipe_leg(tensors.flatten_pipe_leg(D, '(b0.b1)'), '(a0.a1)')
+    assert tensors.almost_equal(D_ab, D_ba)
+    # flattening a leg which is not a pipe does nothing
+    assert tensors.almost_equal(tensors.flatten_pipe_leg(A2, 0), A2)
+    # also works with a pipe in the codomain of a HiddenLegTensor
+    H = HiddenLegTensor(
+        tensors.add_trivial_leg(A, codomain_pos=0, label='h'),
+        ['h'],
+    )
+    H2 = tensors.flatten_pipe_leg(H, 'vL')
+    assert isinstance(H2, HiddenLegTensor)
+    assert H2.labels == H.labels
+    assert not isinstance(H2.get_leg('vL'), LegPipe)

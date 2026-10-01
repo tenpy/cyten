@@ -70,7 +70,7 @@ bind_tensors_constructors(py::module_& m)
               if (!domain.is_none()) {
                   dom = tensor_product_from_python(domain, t->symmetry);
               }
-              std::optional<LegLabels> labs;
+              std::optional<OptionalLabels> labs;
               if (!labels.is_none()) {
                   labs = parse_tensor_init_labels(labels, t->codomain, t->domain);
               }
@@ -118,7 +118,7 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
           std::optional<int64> legs_pos_opt;
           std::optional<int64> codomain_pos_opt;
           std::optional<int64> domain_pos_opt;
-          LegLabel label_opt = std::nullopt;
+          OptionalLabel label_opt = std::nullopt;
           if (!legs_pos.is_none()) {
               legs_pos_opt = legs_pos.cast<int64>();
           }
@@ -155,7 +155,11 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
 
     m.def(
       "tensor_from_grid",
-      [](py::object grid, py::object labels, py::object dtype) {
+      [](py::object grid,
+         py::object labels,
+         py::object dtype,
+         std::optional<OptionalLabels> row_labels,
+         std::optional<OptionalLabels> col_labels) {
           std::optional<Dtype> dtype_opt;
           if (!dtype.is_none()) {
               dtype_opt = dtype.cast<Dtype>();
@@ -169,7 +173,8 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
               }
               g.push_back(std::move(row));
           }
-          auto res = tensor_from_grid(std::move(g), std::nullopt, dtype_opt);
+          auto res = tensor_from_grid(
+            std::move(g), std::nullopt, dtype_opt, std::move(row_labels), std::move(col_labels));
           if (!labels.is_none()) {
               res->set_labels(parse_tensor_init_labels(labels, res->codomain, res->domain));
           }
@@ -178,10 +183,93 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
       py::arg("grid"),
       py::arg("labels") = py::none(),
       py::arg("dtype") = py::none(),
+      py::kw_only(),
+      py::arg("row_labels") = py::none(),
+      py::arg("col_labels") = py::none(),
       doc_plus(DOC(cyten, tensor_from_grid),
                R"pydoc(
 In Python, ``grid`` is ``list[list[SymmetricTensor | None]]`` (``None`` = zero cell);
-``labels`` / ``dtype`` use ``None`` for C++ ``nullopt``.
+``labels`` / ``dtype`` / ``row_labels`` / ``col_labels`` use ``None`` for C++ ``nullopt``.
+)pydoc"));
+
+    m.def(
+      "tensor_grid_cell",
+      [](py::object tensor,
+         py::object row,
+         py::object col,
+         py::object row_leg,
+         py::object col_leg) {
+          auto as_summand_ref = [](py::object obj) -> DirectSumSpace::SummandRef {
+              if (py::isinstance<py::str>(obj)) {
+                  return obj.cast<std::string>();
+              }
+              return obj.cast<int64>();
+          };
+          LegRef row_ref = int64{ 0 };
+          LegRef col_ref = int64{ -1 };
+          if (!row_leg.is_none()) {
+              if (py::isinstance<py::str>(row_leg)) {
+                  row_ref = row_leg.cast<std::string>();
+              } else {
+                  row_ref = row_leg.cast<int64>();
+              }
+          }
+          if (!col_leg.is_none()) {
+              if (py::isinstance<py::str>(col_leg)) {
+                  col_ref = col_leg.cast<std::string>();
+              } else {
+                  col_ref = col_leg.cast<int64>();
+              }
+          }
+          return tensor_grid_cell(
+            tensor.cast<TensorCPtr>(), as_summand_ref(row), as_summand_ref(col), row_ref, col_ref);
+      },
+      py::arg("tensor"),
+      py::arg("row"),
+      py::arg("col"),
+      py::arg("row_leg") = py::none(),
+      py::arg("col_leg") = py::none(),
+      doc_plus(DOC(cyten, tensor_grid_cell),
+               R"pydoc(
+In Python, ``row`` / ``col`` accept ``int | str`` (a summand label, resolved via
+``DirectSumSpace.get_summand_idx``).
+)pydoc"));
+
+    m.def(
+      "grid_project",
+      [](py::object tensor, py::object legs, py::object cells, bool squeeze) {
+          auto as_leg_ref = [](py::handle item) -> LegRef {
+              py::object obj = py::reinterpret_borrow<py::object>(item);
+              if (py::isinstance<py::str>(obj)) {
+                  return obj.cast<std::string>();
+              }
+              return obj.cast<int64>();
+          };
+          auto as_summand_ref = [](py::handle item) -> DirectSumSpace::SummandRef {
+              py::object obj = py::reinterpret_borrow<py::object>(item);
+              if (py::isinstance<py::str>(obj)) {
+                  return obj.cast<std::string>();
+              }
+              return obj.cast<int64>();
+          };
+          std::vector<LegRef> leg_refs;
+          for (auto item : py::reinterpret_borrow<py::iterable>(legs)) {
+              leg_refs.push_back(as_leg_ref(item));
+          }
+          std::vector<DirectSumSpace::SummandRef> cell_refs;
+          for (auto item : py::reinterpret_borrow<py::iterable>(cells)) {
+              cell_refs.push_back(as_summand_ref(item));
+          }
+          return grid_project(
+            tensor.cast<TensorCPtr>(), std::move(leg_refs), std::move(cell_refs), squeeze);
+      },
+      py::arg("tensor"),
+      py::arg("legs"),
+      py::arg("cells"),
+      py::arg("squeeze") = false,
+      doc_plus(DOC(cyten, grid_project),
+               R"pydoc(
+In Python, ``legs`` and ``cells`` are parallel sequences of ``str | int`` values.
 )pydoc"));
 }
 

@@ -3,6 +3,8 @@
 #include <cyten/symmetries/topo_ones.h>
 
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <numbers>
 #include <stdexcept>
 #include <utility>
@@ -342,21 +344,23 @@ IsingAnyonCategory::all_sectors() const
 }
 
 void
-IsingAnyonCategory::save_hdf5(py::object hdf5_saver,
-                              py::object h5gr,
+IsingAnyonCategory::save_hdf5(cyten::hdf5::Saver& saver,
+                              HighFive::Group& h5gr,
                               std::string const& subpath) const
 {
-    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
-    hdf5_saver.attr("save")(nu, subpath + "nu");
+    SymmetryFactor::save_hdf5(saver, h5gr, subpath);
+    cyten::hdf5::py_save(subpath + "nu", nu);
 }
 
 IsingAnyonCategory::Ptr
-IsingAnyonCategory::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+IsingAnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
+                              HighFive::Group& h5gr,
+                              std::string const& subpath)
 {
-    int nu = hdf5_loader.attr("load")(subpath + "nu").cast<int>();
+    int nu = cyten::hdf5::py_load(subpath + "nu").cast<int>();
     auto obj = std::make_shared<IsingAnyonCategory>(nu);
     obj->descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

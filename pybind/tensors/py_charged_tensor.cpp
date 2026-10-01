@@ -10,6 +10,7 @@
 
 #include <pybind11/stl.h>
 
+#include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 #include <variant>
@@ -257,13 +258,13 @@ bind_tensors_charged_tensor(py::module_& m)
       DOC(cyten, ChargedTensor, from_zero));
 
     cls.def_static("from_hdf5",
-                   &ChargedTensor::from_hdf5,
+                   cyten::hdf5::wrap_from_hdf5<ChargedTensor>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
                    DOC(cyten, ChargedTensor, from_hdf5));
     cls.def("save_hdf5",
-            &ChargedTensor::save_hdf5,
+            cyten::hdf5::wrap_save_hdf5_const<ChargedTensor>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
@@ -299,8 +300,9 @@ bind_tensors_charged_tensor(py::module_& m)
     cls.def(
       "set_label",
       [](ChargedTensor& self, int64 pos, py::object label) -> ChargedTensor& {
-          LegLabel lab = label.is_none() ? std::nullopt
-                                         : std::optional<std::string>{ label.cast<std::string>() };
+          OptionalLabel lab = label.is_none()
+                                ? std::nullopt
+                                : std::optional<std::string>{ label.cast<std::string>() };
           self.set_label(pos, lab);
           return self;
       },

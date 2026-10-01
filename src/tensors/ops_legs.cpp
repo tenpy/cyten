@@ -1,10 +1,12 @@
 #include <cyten/tensors/ops_legs.h>
 
+#include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/backends/tensor_backend.h>
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/spaces.h>
+#include <cyten/symmetries/trees.h>
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/constructors.h>
 #include <cyten/tensors/diagonal_tensor.h>
@@ -20,6 +22,8 @@
 #include <cassert>
 #include <format>
 #include <map>
+#include <memory>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -32,58 +36,54 @@ namespace cyten {
 
 namespace {
 
-py::object
-tensors_mod()
+TensorProduct::Ptr
+tensor_product_from_py(py::object factors_obj,
+                       py::object symmetry_obj,
+                       py::object sector_decomposition = py::none(),
+                       py::object multiplicities = py::none())
 {
-    return py::module_::import("cyten.tensors._tensors");
-}
-
-py::object
-spaces_mod()
-{
-    return py::module_::import("cyten.symmetries.spaces");
-}
-
-py::object
-misc_mod()
-{
-    return py::module_::import("cyten.tools.misc");
-}
-
-bool
-is_python_instance(py::object obj, char const* class_name)
-{
-    return py::isinstance(obj, tensors_mod().attr(class_name));
+    auto factors = factors_obj.cast<std::vector<Leg::Ptr>>();
+    auto symmetry = symmetry_obj.cast<Symmetry::Ptr>();
+    std::optional<SectorArray> sectors;
+    std::optional<std::vector<int64>> mults;
+    if (!sector_decomposition.is_none()) {
+        sectors = sector_decomposition.cast<SectorArray>();
+    }
+    if (!multiplicities.is_none()) {
+        mults = multiplicities.cast<std::vector<int64>>();
+    }
+    return std::make_shared<TensorProduct>(
+      std::move(factors), std::move(symmetry), std::move(sectors), std::move(mults));
 }
 
 bool
 is_Mask(py::object obj)
 {
-    return is_python_instance(obj, "Mask") || py::isinstance<Mask>(obj);
+    return py::isinstance<Mask>(obj);
 }
 
 bool
 is_DiagonalTensor(py::object obj)
 {
-    return is_python_instance(obj, "DiagonalTensor") || py::isinstance<DiagonalTensor>(obj);
+    return py::isinstance<DiagonalTensor>(obj);
 }
 
 bool
 is_SymmetricTensor(py::object obj)
 {
-    return is_python_instance(obj, "SymmetricTensor") || py::isinstance<SymmetricTensor>(obj);
+    return py::isinstance<SymmetricTensor>(obj);
 }
 
 bool
 is_ChargedTensor(py::object obj)
 {
-    return is_python_instance(obj, "ChargedTensor") || py::isinstance<ChargedTensor>(obj);
+    return py::isinstance<ChargedTensor>(obj);
 }
 
 bool
 is_HiddenLegTensor(py::object obj)
 {
-    return is_python_instance(obj, "HiddenLegTensor") || py::isinstance<HiddenLegTensor>(obj);
+    return py::isinstance<HiddenLegTensor>(obj);
 }
 
 /// Cast a TensorCPtr to a Python object of the most-derived bound type.
@@ -118,7 +118,7 @@ tensor_as_py(TensorCPtr const& tensor)
 bool
 is_LegPipe(py::object obj)
 {
-    return py::isinstance(obj, spaces_mod().attr("LegPipe")) || py::isinstance<LegPipe>(obj);
+    return py::isinstance<LegPipe>(obj);
 }
 
 bool
@@ -131,11 +131,13 @@ py_eq(py::object a, py::object b)
     return eq.cast<bool>();
 }
 
-py::object
-data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& /*backend*/)
+[[nodiscard]] Space::Ptr
+as_space_leg(py::object leg)
 {
-    // C++ SymmetricTensor/Mask/DiagonalTensor ctors take DataPtr (including NoSymmetry BlockData).
-    return py::cast(std::move(data));
+    if (py::isinstance<LegPipe>(leg)) {
+        throw std::invalid_argument("DiagonalTensor / Mask is not defined on LegPipes.");
+    }
+    return leg.cast<Space::Ptr>();
 }
 
 py::object
@@ -145,23 +147,22 @@ make_python_symmetric_tensor(TensorBackend::DataPtr data,
                              TensorBackend::Ptr backend,
                              py::object labels)
 {
-    return tensors_mod().attr("SymmetricTensor")(data_as_python(std::move(data), backend),
-                                                 codomain,
-                                                 domain,
-                                                 py::arg("backend") = py::cast(backend),
-                                                 py::arg("labels") = labels);
+    auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+    return py::cast(std::make_shared<SymmetricTensor>(
+      std::move(data), init.codomain, init.domain, init.backend, init.symmetry, init.labels));
 }
 
 py::object
 make_python_charged_tensor(py::object invariant_part, py::object charged_state)
 {
-    return tensors_mod().attr("ChargedTensor")(invariant_part, charged_state);
+    return py::cast(std::make_shared<ChargedTensor>(invariant_part.cast<SymmetricTensor::Ptr>(),
+                                                    charged_state.cast<BlockBackend::BlockPtr>()));
 }
 
-LegLabels
+OptionalLabels
 leg_labels_from_py(py::object seq)
 {
-    LegLabels out;
+    OptionalLabels out;
     for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
         if (item.is_none()) {
             out.push_back(std::nullopt);
@@ -173,7 +174,7 @@ leg_labels_from_py(py::object seq)
 }
 
 py::object
-labels_to_py(LegLabels const& labels)
+labels_to_py(OptionalLabels const& labels)
 {
     py::list out;
     for (auto const& lab : labels) {
@@ -187,7 +188,7 @@ labels_to_py(LegLabels const& labels)
 }
 
 py::object
-nested_leg_labels_to_py(LegLabels const& codomain_labels, LegLabels const& domain_labels)
+nested_leg_labels_to_py(OptionalLabels const& codomain_labels, OptionalLabels const& domain_labels)
 {
     return py::make_tuple(labels_to_py(codomain_labels), labels_to_py(domain_labels));
 }
@@ -212,21 +213,6 @@ bool
 contains_int(std::vector<int64> const& v, int64 x)
 {
     return std::find(v.begin(), v.end(), x) != v.end();
-}
-
-std::vector<int64>
-inverse_permutation_local(std::vector<int64> const& perm)
-{
-    std::vector<int64> inv(perm.size());
-    for (std::size_t i = 0; i < perm.size(); ++i) {
-        auto const idx = perm[i];
-        if (idx < 0 || static_cast<std::size_t>(idx) >= perm.size()) {
-            throw std::invalid_argument(
-              std::format("permutation index {} is out of range for length {}", idx, perm.size()));
-        }
-        inv[static_cast<std::size_t>(idx)] = static_cast<int64>(i);
-    }
-    return inv;
 }
 
 std::vector<Leg::Ptr>
@@ -425,8 +411,8 @@ permute_legs_py(py::object tensor,
         codomain_v = get_leg_idcs_py(tensor, codomain);
         std::vector<int64> specified_legs = domain_v;
         specified_legs.insert(specified_legs.end(), codomain_v.begin(), codomain_v.end());
-        py::object duplicates = misc_mod().attr("duplicate_entries")(py::cast(specified_legs));
-        if (py::len(duplicates) > 0) {
+        auto duplicates = duplicate_entries(specified_legs);
+        if (!duplicates.empty()) {
             std::string joined;
             bool first = true;
             for (auto d : duplicates) {
@@ -434,7 +420,7 @@ permute_legs_py(py::object tensor,
                     joined += ", ";
                 }
                 first = false;
-                joined += std::to_string(d.cast<int64>());
+                joined += std::to_string(d);
             }
             throw std::invalid_argument(
               std::format("Duplicate entries. By leg index: {}", joined));
@@ -722,12 +708,8 @@ permute_legs_py(py::object tensor,
         for (auto i : domain_v) {
             dom_spaces.append(tensor.attr("_as_domain_leg")(i));
         }
-        new_codomain = spaces_mod()
-                         .attr("TensorProduct")(cod_spaces, tensor.attr("symmetry"))
-                         .cast<TensorProduct::Ptr>();
-        new_domain = spaces_mod()
-                       .attr("TensorProduct")(dom_spaces, tensor.attr("symmetry"))
-                       .cast<TensorProduct::Ptr>();
+        new_codomain = tensor_product_from_py(cod_spaces, tensor.attr("symmetry"));
+        new_domain = tensor_product_from_py(dom_spaces, tensor.attr("symmetry"));
     } else {
         // (co)domain has the same factor as before, only permuted -> can re-use sectors!
         new_codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>()->permuted(codomain_v);
@@ -749,9 +731,9 @@ permute_legs_py(py::object tensor,
                                       levels_v,
                                       bend_right_v);
 
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
-    LegLabels cod_labels;
-    LegLabels dom_labels;
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
+    OptionalLabels cod_labels;
+    OptionalLabels dom_labels;
     for (auto n : codomain_v) {
         cod_labels.push_back(all_labels[static_cast<std::size_t>(n)]);
     }
@@ -908,7 +890,7 @@ combine_legs_py(py::object tensor,
     for (auto const& group : which_legs_v) {
         to_combine.insert(to_combine.end(), group.begin(), group.end());
     }
-    if (py::len(misc_mod().attr("duplicate_entries")(py::cast(to_combine))) > 0) {
+    if (!duplicate_entries(to_combine).empty()) {
         throw std::invalid_argument("Groups may not contain duplicates.");
     }
 
@@ -948,7 +930,7 @@ combine_legs_py(py::object tensor,
     // leg positions have changed, so we need to update the following lists/dicts:
     std::vector<int64> full_perm = codomain_idcs;
     full_perm.insert(full_perm.end(), domain_idcs_reversed.begin(), domain_idcs_reversed.end());
-    auto inv_perm = inverse_permutation_local(full_perm);
+    auto inv_perm = inverse_permutation(full_perm);
     for (auto& group : which_legs_v) {
         for (auto& l : group) {
             l = inv_perm[static_cast<std::size_t>(l)];
@@ -996,12 +978,12 @@ combine_legs_py(py::object tensor,
 
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
     std::vector<py::object> codomain_spaces;
-    std::vector<LegLabel> codomain_labels;
-    std::vector<LegLabel> domain_labels_reversed;
+    std::vector<OptionalLabel> codomain_labels;
+    std::vector<OptionalLabel> domain_labels_reversed;
     std::vector<py::object> domain_spaces_reversed;
     std::size_t i = 0; // have already used pipes[:i]
     int64 label_offset = 0;
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
 
     for (int64 n = 0; n < N; ++n) {
         if (codomain_groups.contains(n)) {
@@ -1019,8 +1001,8 @@ combine_legs_py(py::object tensor,
               legs_from_sequence(spaces_to_combine), pipe_dualities_v[i], pipe_arg);
             pipes_list[static_cast<py::ssize_t>(i)] = py::cast(combined);
             codomain_spaces.push_back(py::cast(combined));
-            LegLabels group_labels(all_labels.begin() + group.front(),
-                                   all_labels.begin() + group.back() + 1);
+            OptionalLabels group_labels(all_labels.begin() + group.front(),
+                                        all_labels.begin() + group.back() + 1);
             codomain_labels.push_back(_combine_leg_labels(group_labels, label_offset));
             ++i;
             int64 none_count = 0;
@@ -1048,8 +1030,8 @@ combine_legs_py(py::object tensor,
               legs_from_sequence(spaces_to_combine), !pipe_dualities_v[i], pipe_arg);
             pipes_list[static_cast<py::ssize_t>(i)] = py::cast(combined);
             domain_spaces_reversed.push_back(py::cast(combined));
-            LegLabels group_labels(all_labels.begin() + group.front(),
-                                   all_labels.begin() + group.back() + 1);
+            OptionalLabels group_labels(all_labels.begin() + group.front(),
+                                        all_labels.begin() + group.back() + 1);
             domain_labels_reversed.push_back(_combine_leg_labels(group_labels, label_offset));
             ++i;
             int64 none_count = 0;
@@ -1075,9 +1057,13 @@ combine_legs_py(py::object tensor,
     for (auto it = domain_spaces_reversed.rbegin(); it != domain_spaces_reversed.rend(); ++it) {
         domain_spaces.append(*it);
     }
+    py::list codomain_spaces_list;
+    for (auto const& o : codomain_spaces) {
+        codomain_spaces_list.append(o);
+    }
     py::object codomain =
-      spaces_mod().attr("TensorProduct")(py::cast(codomain_spaces), tensor.attr("symmetry"));
-    py::object domain = spaces_mod().attr("TensorProduct")(domain_spaces, tensor.attr("symmetry"));
+      py::cast(tensor_product_from_py(codomain_spaces_list, tensor.attr("symmetry")));
+    py::object domain = py::cast(tensor_product_from_py(domain_spaces, tensor.attr("symmetry")));
 
     // 4) Build the data / finish up
     std::sort(which_legs_v.begin(), which_legs_v.end());
@@ -1092,7 +1078,7 @@ combine_legs_py(py::object tensor,
                                       codomain.cast<TensorProduct::Ptr>(),
                                       domain.cast<TensorProduct::Ptr>());
 
-    LegLabels res_labels = codomain_labels;
+    OptionalLabels res_labels = codomain_labels;
     // domain_labels_reversed is already in legs order for the domain part of tensor.legs
     // (right-to-left build), matching Python [*codomain_labels, *domain_labels_reversed]
     res_labels.insert(
@@ -1244,20 +1230,20 @@ split_legs_py(py::object tensor, py::object legs)
     }
 
     // we only split, i.e. remove parentheses in tensor products, so sectors dont change
-    py::object codomain = spaces_mod().attr("TensorProduct")(
-      codomain_spaces,
-      tensor.attr("symmetry"),
-      py::arg("_sector_decomposition") = tensor.attr("codomain").attr("sector_decomposition"),
-      py::arg("_multiplicities") = tensor.attr("codomain").attr("multiplicities"));
-    py::object domain = spaces_mod().attr("TensorProduct")(
-      domain_spaces,
-      tensor.attr("symmetry"),
-      py::arg("_sector_decomposition") = tensor.attr("domain").attr("sector_decomposition"),
-      py::arg("_multiplicities") = tensor.attr("domain").attr("multiplicities"));
+    py::object codomain =
+      py::cast(tensor_product_from_py(codomain_spaces,
+                                      tensor.attr("symmetry"),
+                                      tensor.attr("codomain").attr("sector_decomposition"),
+                                      tensor.attr("codomain").attr("multiplicities")));
+    py::object domain =
+      py::cast(tensor_product_from_py(domain_spaces,
+                                      tensor.attr("symmetry"),
+                                      tensor.attr("domain").attr("sector_decomposition"),
+                                      tensor.attr("domain").attr("multiplicities")));
 
     // build labels
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
-    LegLabels labels;
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("labels"));
+    OptionalLabels labels;
     std::unordered_set<int64> leg_idcs_set(leg_idcs.begin(), leg_idcs.end());
     for (int64 idx = 0; idx < static_cast<int64>(all_labels.size()); ++idx) {
         if (leg_idcs_set.contains(idx)) {
@@ -1293,8 +1279,8 @@ squeeze_legs_py(py::object tensor, py::object legs)
     std::vector<int64> legs_v;
     if (legs.is_none()) {
         int64 n = 0;
-        for (auto l : tensors_mod().attr("conventional_leg_order")(tensor)) {
-            if (py::reinterpret_borrow<py::object>(l).attr("is_trivial").cast<bool>()) {
+        for (auto l : conventional_leg_order(tensor.cast<TensorCPtr>())) {
+            if (l->is_trivial()) {
                 legs_v.push_back(n);
             }
             ++n;
@@ -1348,19 +1334,19 @@ squeeze_legs_py(py::object tensor, py::object legs)
             dom_spaces.append(tensor.attr("domain").attr("__getitem__")(n));
         }
     }
-    py::object codomain = spaces_mod().attr("TensorProduct")(
-      cod_spaces,
-      tensor.attr("symmetry"),
-      py::arg("_sector_decomposition") = tensor.attr("codomain").attr("sector_decomposition"),
-      py::arg("_multiplicities") = tensor.attr("codomain").attr("multiplicities"));
-    py::object domain = spaces_mod().attr("TensorProduct")(
-      dom_spaces,
-      tensor.attr("symmetry"),
-      py::arg("_sector_decomposition") = tensor.attr("domain").attr("sector_decomposition"),
-      py::arg("_multiplicities") = tensor.attr("domain").attr("multiplicities"));
+    py::object codomain =
+      py::cast(tensor_product_from_py(cod_spaces,
+                                      tensor.attr("symmetry"),
+                                      tensor.attr("codomain").attr("sector_decomposition"),
+                                      tensor.attr("codomain").attr("multiplicities")));
+    py::object domain =
+      py::cast(tensor_product_from_py(dom_spaces,
+                                      tensor.attr("symmetry"),
+                                      tensor.attr("domain").attr("sector_decomposition"),
+                                      tensor.attr("domain").attr("multiplicities")));
 
-    LegLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
-    LegLabels labels;
+    OptionalLabels all_labels = leg_labels_from_py(tensor.attr("_labels"));
+    OptionalLabels labels;
     for (auto n : remaining) {
         labels.push_back(all_labels[static_cast<std::size_t>(n)]);
     }
@@ -1609,10 +1595,235 @@ move_onto_target_side(TensorPtr tensor, LegRef moving, LegRef target, bool after
       tensor, std::move(moving), std::nullopt, insert, std::move(levels), BendRight{ true });
 }
 
-[[nodiscard]] TensorPtr
-flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
+/// Permutation of the block rows (codomain) / columns (domain) of a `FusionTreeBackend` tensor,
+/// if the pipe ``old_prod.factors[0]`` is replaced by the `ElementarySpace` ``new_prod.factors[0]``.
+///
+/// The `FusionTreeBackend` treats pipes as transparent, i.e. the blocks are indexed by the
+/// uncoupled sectors of the *flat* legs (the pipe components), the fusion trees and the
+/// multiplicities. Since the pipe is the first factor, the first vertices of each fusion tree
+/// fuse the pipe components to a sector ``e`` (the "pipe tree"), and the remaining tree fuses
+/// ``e`` with the other legs. For the flat leg, the pipe tree and the multiplicities of the
+/// components instead enumerate the multiplicity of ``e``, in the order of the rows of the block
+/// ``e`` of `pipe_prod`, the `TensorProduct` of the pipe components, which defines
+/// `LegPipe::as_ElementarySpace`. No F-moves are required, so this is a pure permutation.
+///
+/// @returns `perm` such that ``new_block[i] = old_block[perm[i]]``.
+[[nodiscard]] std::vector<int64>
+flatten_pipe_block_perm(TensorProduct const& old_prod,
+                        TensorProduct const& new_prod,
+                        TensorProduct const& pipe_prod,
+                        Sector const& coupled)
 {
-    auto sym = std::dynamic_pointer_cast<SymmetricTensor>(tensor);
+    auto const& symmetry = old_prod.symmetry;
+    auto const ind_len = symmetry->sector_ind_len;
+    auto const n_pipe = static_cast<std::size_t>(pipe_prod.num_flat_legs());
+    std::vector<int64> perm(static_cast<std::size_t>(old_prod.block_size(coupled)), -1);
+    int64 old_start = 0;
+    for (auto const& item : old_prod.iter_uncoupled()) {
+        auto const old_trees = fusion_trees(symmetry, item.uncoupled, coupled).all_trees();
+        if (old_trees.empty()) {
+            continue;
+        }
+        auto const n_flat = item.uncoupled.size();
+        SectorArray pipe_uncoupled(n_pipe, ind_len);
+        SectorArray rest_uncoupled(n_flat - n_pipe + 1, ind_len);
+        for (std::size_t k = 0; k < n_flat; ++k) {
+            (k < n_pipe ? pipe_uncoupled[k] : rest_uncoupled[k - n_pipe + 1]) = item.uncoupled[k];
+        }
+        int64 pipe_size = 1; // multiplicities of the pipe components
+        int64 rest_size = 1; // multiplicities of the other flat legs
+        for (std::size_t k = 0; k < n_flat; ++k) {
+            (k < n_pipe ? pipe_size : rest_size) *= item.multiplicities[k];
+        }
+        for (std::size_t alpha = 0; alpha < old_trees.size(); ++alpha) {
+            auto const& tree = old_trees[alpha];
+            // split into the pipe tree (vertices 0 .. n_pipe - 2) and the rest tree
+            Sector const e = n_pipe == n_flat ? coupled
+                             : n_pipe == 1    ? item.uncoupled[0]
+                                              : tree.inner_sectors[n_pipe - 2];
+            rest_uncoupled[0] = e;
+            SectorArray pipe_inner(n_pipe >= 2 ? n_pipe - 2 : 0, ind_len);
+            std::vector<int64> pipe_mults;
+            for (std::size_t k = 0; k + 2 < n_pipe; ++k) {
+                pipe_inner[k] = tree.inner_sectors[k];
+            }
+            SectorArray rest_inner(n_flat >= n_pipe + 1 ? n_flat - n_pipe - 1 : 0, ind_len);
+            for (std::size_t k = 0; k < rest_inner.size(); ++k) {
+                rest_inner[k] = tree.inner_sectors[n_pipe - 1 + k];
+            }
+            std::vector<int64> rest_mults;
+            for (std::size_t k = 0; k < tree.multiplicities.size(); ++k) {
+                (k + 1 < n_pipe ? pipe_mults : rest_mults).push_back(tree.multiplicities[k]);
+            }
+            int64 alpha_pipe = 0;
+            if (n_pipe >= 2) {
+                FusionTree pipe_tree(symmetry,
+                                     pipe_uncoupled,
+                                     e,
+                                     std::vector<std::uint8_t>(n_pipe, 0),
+                                     pipe_inner,
+                                     tree.multiplicities.empty()
+                                       ? std::nullopt
+                                       : std::optional(pipe_mults));
+                alpha_pipe = static_cast<int64>(
+                  fusion_trees(symmetry, pipe_uncoupled, e).index(pipe_tree));
+            }
+            int64 beta = 0;
+            if (rest_uncoupled.size() >= 2) {
+                FusionTree rest_tree(symmetry,
+                                     rest_uncoupled,
+                                     coupled,
+                                     std::vector<std::uint8_t>(rest_uncoupled.size(), 0),
+                                     rest_inner,
+                                     tree.multiplicities.empty()
+                                       ? std::nullopt
+                                       : std::optional(rest_mults));
+                beta = static_cast<int64>(
+                  fusion_trees(symmetry, rest_uncoupled, coupled).index(rest_tree));
+            }
+            // multiplicity index on the flat leg, i.e. the row in the block `e` of `pipe_prod`
+            int64 const e_offset =
+              pipe_prod.forest_block_slice(pipe_uncoupled, e).start + alpha_pipe * pipe_size;
+            int64 const e_mult = pipe_prod.block_size(e);
+            int64 const new_start = new_prod.forest_block_slice(rest_uncoupled, coupled).start +
+                                    beta * e_mult * rest_size;
+            int64 const old_tree_start = old_start + static_cast<int64>(alpha) * pipe_size * rest_size;
+            for (int64 mp = 0; mp < pipe_size; ++mp) {
+                for (int64 mr = 0; mr < rest_size; ++mr) {
+                    perm[static_cast<std::size_t>(new_start + (e_offset + mp) * rest_size + mr)] =
+                      old_tree_start + mp * rest_size + mr;
+                }
+            }
+        }
+        old_start += static_cast<int64>(old_trees.size()) * pipe_size * rest_size;
+    }
+    return perm;
+}
+
+/// Data of a `FusionTreeBackend` tensor, where the pipe ``old_prod.factors[0]`` in the codomain
+/// (or domain, if `in_domain`) is replaced by the `ElementarySpace` ``new_prod.factors[0]``.
+[[nodiscard]] TensorBackend::DataPtr
+flatten_first_pipe_data_fusion_tree(SymmetricTensor const& tensor,
+                                    bool in_domain,
+                                    TensorProduct const& old_prod,
+                                    TensorProduct const& new_prod,
+                                    LegPipe& pipe)
+{
+    if (pipe.is_dual) {
+        // dual pipes are bent to the other side first, see `flatten_pipe_leg_at`
+        throw std::logic_error("flatten_first_pipe_data_fusion_tree requires a non-dual pipe");
+    }
+    auto const pipe_legs = pipe.flat_legs();
+    if (static_cast<int64>(pipe_legs.size()) != pipe.num_legs) {
+        throw NotImplemented("flatten_pipe_leg for nested pipes with the FusionTreeBackend");
+    }
+    TensorProduct pipe_prod(pipe_legs, tensor.symmetry);
+    auto const flat = as_space(new_prod.factors[0]);
+    if (pipe_prod.sector_decomposition != flat->sector_decomposition ||
+        pipe_prod.multiplicities != flat->multiplicities) {
+        throw NotImplemented("flatten_pipe_leg: the pipe components do not match the flat leg");
+    }
+    auto const data = FusionTreeBackend::unwrap(tensor.data);
+    auto const& other_prod = in_domain ? *tensor.codomain : *tensor.domain;
+    auto& block_backend = *tensor.backend->block_backend;
+    std::vector<BlockBackend::BlockPtr> blocks;
+    blocks.reserve(data->blocks.size());
+    for (std::size_t i = 0; i < data->blocks.size(); ++i) {
+        auto const coupled = old_prod.sector_decomposition[static_cast<std::size_t>(
+          data->block_inds(i, in_domain ? 1 : 0))];
+        auto perm = flatten_pipe_block_perm(old_prod, new_prod, pipe_prod, coupled);
+        std::vector<int64> other(static_cast<std::size_t>(other_prod.block_size(coupled)));
+        std::iota(other.begin(), other.end(), int64{ 0 });
+        std::vector<py::array_t<int64>> perms{ py::array_t<int64>(py::cast(perm)),
+                                               py::array_t<int64>(py::cast(other)) };
+        if (in_domain) {
+            std::swap(perms[0], perms[1]);
+        }
+        blocks.push_back(block_backend.apply_leg_permutations(data->blocks[i], perms));
+    }
+    return FusionTreeBackend::wrap(std::make_shared<FusionTreeData>(
+      data->block_inds, std::move(blocks), data->dtype, data->device, true));
+}
+
+/// The unitary ``U: pipe -> flat`` used by `flatten_pipe_leg` for the `FusionTreeBackend`, as a
+/// tensor with codomain ``[flat]`` and domain ``[pipe]``.
+///
+/// For a non-dual pipe, all blocks of ``U`` are identities, i.e. ``U`` uses the same order of
+/// the states as `flatten_pipe_block_perm`. A dual pipe is ``P.dual_leg()`` for a non-dual pipe
+/// ``P``, i.e. the pipe as seen from the other side of a bond. To be consistent with flattening
+/// ``P`` on the other side, we use ``(U_P^dagger)^T``. This bends only the small tensor ``U_P``.
+[[nodiscard]] TensorPtr
+flatten_pipe_unitary(LegPipe::Ptr const& pipe, Leg::Ptr const& flat, SymmetricTensor const& like)
+{
+    auto const& symmetry = like.symmetry;
+    if (pipe->is_dual) {
+        auto P = std::dynamic_pointer_cast<LegPipe>(pipe->dual_leg());
+        Leg::Ptr flat_P = P->as_ElementarySpace(false);
+        auto U = transpose(dagger(flatten_pipe_unitary(P, flat_P, like)));
+        auto U_sym = std::dynamic_pointer_cast<SymmetricTensor>(U);
+        if (!U_sym || !(*U_sym->domain->factors.at(0) == *pipe)) {
+            throw std::logic_error("flatten_pipe_leg: the dual unitary does not match the dual pipe");
+        }
+        // The flat leg is ``flat_P.dual``. It has the same sectors as `flat`, but may differ in
+        // the `basis_perm`; it is the one consistent with flattening ``P`` on the other side.
+        return U;
+    }
+    std::vector<Leg::Ptr> pipe_factors{ pipe };
+    auto pipe_prod = std::make_shared<TensorProduct>(std::move(pipe_factors), symmetry);
+    std::vector<Leg::Ptr> flat_factors{ flat };
+    auto flat_prod = std::make_shared<TensorProduct>(
+      std::move(flat_factors), symmetry, pipe_prod->sector_decomposition, pipe_prod->multiplicities);
+    auto data = like.backend->eye_data(pipe_prod, like.dtype, like.device);
+    return std::make_shared<SymmetricTensor>(std::move(data),
+                                             std::move(flat_prod),
+                                             std::move(pipe_prod),
+                                             like.backend,
+                                             symmetry,
+                                             LegLabels{ "?flat", "?pipe" });
+}
+
+/// `flatten_pipe_leg` for the `FusionTreeBackend` by contracting the pipe at ``legs_idx`` with
+/// the unitary `flatten_pipe_unitary`. In contrast to permuting the pipe to the first position,
+/// this does not bend any legs of `tensor`, but only requires (one-sided) F-moves.
+[[nodiscard]] TensorPtr
+flatten_pipe_leg_by_unitary(SymmetricTensorCPtr const& tensor,
+                            int64 legs_idx,
+                            bool in_domain,
+                            TensorProduct const& product,
+                            LegPipe::Ptr const& pipe,
+                            Leg::Ptr const& flat)
+{
+    // act on the unhidden tensor, such that the leg indices include hidden legs
+    TensorPtr plain = std::const_pointer_cast<SymmetricTensor>(tensor)->as_SymmetricTensor();
+    auto const label = plain->labels().at(static_cast<std::size_t>(legs_idx));
+    auto U = flatten_pipe_unitary(pipe, flat, *tensor); // [flat] <- [pipe]
+    if (in_domain) {
+        U = dagger(U); // [pipe] <- [flat]
+    }
+    // the label of the contracted leg of U replaces the pipe label
+    U->set_labels(in_domain ? LegLabels{ "?pipe", label } : LegLabels{ label, "?pipe" });
+    TensorPtr res;
+    if (product.num_factors == 1) {
+        // partial_compose requires a remaining leg; contract the full (co)domain instead
+        res = std::get<TensorPtr>(in_domain ? compose(plain, U) : compose(U, plain));
+    } else {
+        res = partial_compose(plain, U, LegRef{ legs_idx }, std::nullopt, std::nullopt);
+    }
+    auto res_sym = std::dynamic_pointer_cast<SymmetricTensor>(res);
+    // restore the original labels, including the ``!`` of hidden legs
+    return HiddenLegTensor::maybe_wrap(std::make_shared<SymmetricTensor>(res_sym->data,
+                                                                         res_sym->codomain,
+                                                                         res_sym->domain,
+                                                                         res_sym->backend,
+                                                                         res_sym->symmetry,
+                                                                         tensor->labels(),
+                                                                         false));
+}
+
+[[nodiscard]] TensorPtr
+flatten_pipe_leg_at(TensorCPtr tensor, int64 legs_idx)
+{
+    auto sym = std::dynamic_pointer_cast<const SymmetricTensor>(tensor);
     if (!sym) {
         throw std::invalid_argument("flatten_pipe_leg expects a SymmetricTensor");
     }
@@ -1622,9 +1833,11 @@ flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
     auto factor = product->factors.at(static_cast<std::size_t>(co_idx));
     auto pipe = std::dynamic_pointer_cast<LegPipe>(factor);
     if (!pipe) {
-        return tensor;
+        return std::const_pointer_cast<Tensor>(tensor);
     }
-    auto es = pipe->as_ElementarySpace(pipe->is_dual).cast<ElementarySpace::Ptr>();
+    bool const fusion_tree = static_cast<bool>(
+      std::dynamic_pointer_cast<FusionTreeBackend const>(tensor->backend));
+    auto es = pipe->as_ElementarySpace(pipe->is_dual);
     if (std::dynamic_pointer_cast<LegPipe>(es)) {
         // AbelianLegPipe is both a pipe and an ElementarySpace; drop the pipe
         // metadata so the bond is a plain charge-shifted ElementarySpace.
@@ -1637,6 +1850,12 @@ flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
         es = std::make_shared<ElementarySpace>(
           sp.symmetry, es->defining_sectors, sp.multiplicities, lg.is_dual, std::move(bperm));
     }
+    if (fusion_tree && (co_idx != 0 || pipe->is_dual)) {
+        // The data can only be permuted for a non-dual pipe as the first factor of the
+        // (co)domain. Otherwise, contract the pipe with a unitary ``pipe -> flat leg``, which
+        // requires only one-sided F-moves (no bending of `tensor`).
+        return flatten_pipe_leg_by_unitary(sym, legs_idx, in_domain, *product, pipe, es);
+    }
     auto new_factors = product->factors;
     new_factors.at(static_cast<std::size_t>(co_idx)) = es;
     auto new_product = std::make_shared<TensorProduct>(std::move(new_factors),
@@ -1645,7 +1864,10 @@ flatten_pipe_leg(TensorPtr tensor, int64 legs_idx)
                                                        product->multiplicities);
     auto new_cod = in_domain ? tensor->codomain : new_product;
     auto new_dom = in_domain ? new_product : tensor->domain;
-    auto out = std::make_shared<SymmetricTensor>(sym->data,
+    auto data = fusion_tree
+                  ? flatten_first_pipe_data_fusion_tree(*sym, in_domain, *product, *new_product, *pipe)
+                  : sym->data;
+    auto out = std::make_shared<SymmetricTensor>(std::move(data),
                                                  std::move(new_cod),
                                                  std::move(new_dom),
                                                  tensor->backend,
@@ -1728,6 +1950,13 @@ rehide_labels(TensorPtr tensor, std::vector<std::string> const& stripped)
 
 } // namespace
 
+TensorPtr
+flatten_pipe_leg(TensorCPtr tensor, LegRef which_leg)
+{
+    int64 idx = leg_idx(tensor, which_leg);
+    return flatten_pipe_leg_at(std::move(tensor), idx);
+}
+
 std::pair<TensorPtr, HiddenLegTensorPtr>
 move_hidden_leg(HiddenLegTensorCPtr A,
                 TensorCPtr B,
@@ -1757,7 +1986,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
         throw std::invalid_argument(
           "move_hidden_leg: specify exactly one of target_codomain_pos and target_domain_pos.");
     }
-    if (!HiddenLegTensor::is_hidden_leg_label(LegLabel{ hidden_leg_label })) {
+    if (!HiddenLegTensor::is_hidden_leg_label(OptionalLabel{ hidden_leg_label })) {
         throw std::invalid_argument(std::format(
           "move_hidden_leg: hidden_leg_label '{}' must be a hidden label (including '!').",
           hidden_leg_label));
@@ -1799,7 +2028,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
           "move_hidden_leg: B already has label '{}'. Relabel one of the hidden legs first.",
           hidden_leg_label));
     }
-    auto dual_hidden = _dual_leg_label(LegLabel{ hidden_leg_label });
+    auto dual_hidden = _dual_leg_label(OptionalLabel{ hidden_leg_label });
     if (dual_hidden && B->has_label(*dual_hidden)) {
         throw std::invalid_argument(std::format(
           "move_hidden_leg: B already has dual hidden label '{}'. Dual hidden pairs on one "
@@ -1807,7 +2036,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
           *dual_hidden));
     }
 
-    auto stripped_h = HiddenLegTensor::strip_hidden_prefix(LegLabel{ hidden_leg_label });
+    auto stripped_h = HiddenLegTensor::strip_hidden_prefix(OptionalLabel{ hidden_leg_label });
     if (!stripped_h) {
         throw std::invalid_argument("move_hidden_leg: hidden_leg_label has no name after '!'.");
     }
@@ -1863,7 +2092,8 @@ move_hidden_leg(HiddenLegTensorCPtr A,
     if (!A_work) {
         throw std::runtime_error("move_hidden_leg: expected SymmetricTensor after combining A");
     }
-    auto pipe_A_label = _combine_leg_labels({ LegLabel{ *stripped_h }, original_axis_A_label });
+    auto pipe_A_label =
+      _combine_leg_labels({ OptionalLabel{ *stripped_h }, original_axis_A_label });
     int64 pipe_A_idx = A_work->get_leg_idcs(pipe_A_label).at(0);
     A_work->set_label(pipe_A_idx, original_axis_A_label);
     auto pipe_A = A_work->get_leg(A_work->get_leg_idcs(*original_axis_A_label).at(0));
@@ -1877,7 +2107,7 @@ move_hidden_leg(HiddenLegTensorCPtr A,
     }
     auto I = eye(h_space,
                  A->backend,
-                 LegLabels{ LegLabel{ open_lab }, LegLabel{ int_lab } },
+                 OptionalLabels{ OptionalLabel{ open_lab }, OptionalLabel{ int_lab } },
                  A->dtype,
                  A->device,
                  /*diagonal=*/false);
@@ -1896,12 +2126,12 @@ move_hidden_leg(HiddenLegTensorCPtr A,
       PipeDualities{ desired_B_legs->is_dual },
       b_pipes,
       levels_with_hidden(B_ext, int_idx));
-    auto pipe_B_label = _combine_leg_labels({ original_axis_B_label, LegLabel{ int_lab } });
+    auto pipe_B_label = _combine_leg_labels({ original_axis_B_label, OptionalLabel{ int_lab } });
     int64 pipe_B_idx = B_ext->get_leg_idcs(pipe_B_label).at(0);
     B_ext->set_label(pipe_B_idx, original_axis_B_label);
     if (flatten_1d) {
         A_work = std::dynamic_pointer_cast<SymmetricTensor>(
-          flatten_pipe_leg(A_work, A_work->get_leg_idcs(*original_axis_A_label).at(0)));
+          flatten_pipe_leg_at(A_work, A_work->get_leg_idcs(*original_axis_A_label).at(0)));
         if (!A_work) {
             throw std::runtime_error(
               "move_hidden_leg: expected SymmetricTensor after flattening A");

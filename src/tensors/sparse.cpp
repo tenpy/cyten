@@ -97,7 +97,7 @@ TensorLinearOperator::TensorLinearOperator(SymmetricTensorPtr tensor,
 
     this->vector_legs = { legs[other_leg] };
     auto labels = this->tensor->labels();
-    this->vector_labels = VectorLabels{ LegLabels{ labels[other_leg] } };
+    this->vector_labels = VectorLabels{ OptionalLabels{ labels[other_leg] } };
     this->dtype = this->tensor->dtype;
 }
 

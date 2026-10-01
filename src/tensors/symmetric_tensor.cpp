@@ -1,6 +1,7 @@
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/helpers.h>
 #include <cyten/tensors/hidden_leg_tensor.h>
+#include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
 #include <cyten/backends/abelian.h>
@@ -10,7 +11,10 @@
 #include <cyten/tools.h>
 #include <cyten/tools/warn.h>
 
+#include <algorithm>
 #include <cassert>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <numeric>
 #include <ranges>
@@ -40,7 +44,7 @@ SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
                                  TensorProduct::Ptr domain_in,
                                  TensorBackend::Ptr backend_in,
                                  Symmetry::Ptr symmetry_in,
-                                 LegLabels labels_in,
+                                 OptionalLabels labels_in,
                                  bool check_complex_dtype)
   : Tensor(std::move(codomain_in),
            std::move(domain_in),
@@ -73,9 +77,7 @@ SymmetricTensor::test_sanity() const
     bool is_diagonal = dynamic_cast<DiagonalTensor const*>(this) != nullptr;
     if (!is_diagonal && Py_IsInitialized()) {
         try {
-            is_diagonal =
-              py::isinstance(py::cast(shared_from_this()),
-                             py::module_::import("cyten.tensors._tensors").attr("DiagonalTensor"));
+            is_diagonal = py::isinstance<DiagonalTensor>(py::cast(shared_from_this()));
         } catch (py::error_already_set& e) {
             e.restore();
             PyErr_Clear();
@@ -145,7 +147,7 @@ SymmetricTensor::Ptr
 SymmetricTensor::from_zero(TensorProduct::Ptr codomain,
                            TensorProduct::Ptr domain,
                            TensorBackend::Ptr backend,
-                           std::optional<LegLabels> labels,
+                           std::optional<OptionalLabels> labels,
                            Dtype dtype,
                            std::optional<std::string> device)
 {
@@ -167,7 +169,7 @@ SymmetricTensor::from_zero(TensorProduct::Ptr codomain,
 SymmetricTensor::Ptr
 SymmetricTensor::from_eye(TensorProduct::Ptr co_domain,
                           TensorBackend::Ptr backend,
-                          std::optional<LegLabels> labels,
+                          std::optional<OptionalLabels> labels,
                           Dtype dtype,
                           std::optional<std::string> device)
 {
@@ -189,7 +191,7 @@ SymmetricTensor::from_block_func(BlockFactoryFn func,
                                  TensorProduct::Ptr codomain,
                                  TensorProduct::Ptr domain,
                                  TensorBackend::Ptr backend,
-                                 std::optional<LegLabels> labels,
+                                 std::optional<OptionalLabels> labels,
                                  std::optional<Dtype> dtype,
                                  std::optional<std::string> device)
 {
@@ -224,7 +226,7 @@ SymmetricTensor::from_sector_block_func(SectorBlockFactoryFn func,
                                         TensorProduct::Ptr codomain,
                                         TensorProduct::Ptr domain,
                                         TensorBackend::Ptr backend,
-                                        std::optional<LegLabels> labels,
+                                        std::optional<OptionalLabels> labels,
                                         std::optional<Dtype> dtype,
                                         std::optional<std::string> device)
 {
@@ -251,7 +253,7 @@ SymmetricTensor::from_dense_block(BlockBackend::BlockPtr block,
                                   TensorProduct::Ptr codomain,
                                   TensorProduct::Ptr domain,
                                   TensorBackend::Ptr backend,
-                                  std::optional<LegLabels> labels,
+                                  std::optional<OptionalLabels> labels,
                                   std::optional<Dtype> dtype,
                                   std::optional<std::string> device,
                                   float64 tol,
@@ -296,7 +298,7 @@ SymmetricTensor::from_dense_block_trivial_sector(BlockBackend::BlockPtr vector,
                                                  Leg::Ptr space,
                                                  TensorBackend::Ptr backend,
                                                  std::optional<std::string> device,
-                                                 LegLabel label)
+                                                 OptionalLabel label)
 {
     if (!space) {
         throw std::invalid_argument("space must be specified");
@@ -336,7 +338,7 @@ SymmetricTensor::from_dense_block_trivial_sector(BlockBackend::BlockPtr vector,
       std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ space }, space->symmetry);
     auto domain = std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{}, space->symmetry);
     return std::make_shared<SymmetricTensor>(
-      data, codomain, domain, backend, space->symmetry, LegLabels{ std::move(label) });
+      data, codomain, domain, backend, space->symmetry, OptionalLabels{ std::move(label) });
 }
 
 SymmetricTensor::Ptr
@@ -345,7 +347,7 @@ SymmetricTensor::from_random_normal(TensorProduct::Ptr codomain,
                                     TensorCPtr mean,
                                     float64 sigma,
                                     TensorBackend::Ptr backend,
-                                    std::optional<LegLabels> labels,
+                                    std::optional<OptionalLabels> labels,
                                     std::optional<Dtype> dtype,
                                     std::optional<std::string> device)
 {
@@ -442,7 +444,7 @@ SymmetricTensor::Ptr
 SymmetricTensor::from_random_uniform(TensorProduct::Ptr codomain,
                                      TensorProduct::Ptr domain,
                                      TensorBackend::Ptr backend,
-                                     std::optional<LegLabels> labels,
+                                     std::optional<OptionalLabels> labels,
                                      Dtype dtype,
                                      std::optional<std::string> device)
 {
@@ -468,7 +470,7 @@ SymmetricTensor::Ptr
 SymmetricTensor::from_sector_projection(TensorProduct::Ptr co_domain,
                                         Sector sector,
                                         TensorBackend::Ptr backend,
-                                        std::optional<LegLabels> labels,
+                                        std::optional<OptionalLabels> labels,
                                         std::optional<Dtype> dtype,
                                         std::optional<std::string> device)
 {
@@ -516,7 +518,7 @@ SymmetricTensor::from_tree_pairs(py::object trees_obj,
                                  TensorProduct::Ptr codomain,
                                  TensorProduct::Ptr domain,
                                  TensorBackend::Ptr backend,
-                                 std::optional<LegLabels> labels,
+                                 std::optional<OptionalLabels> labels,
                                  std::optional<Dtype> dtype,
                                  std::optional<std::string> device)
 {
@@ -695,31 +697,33 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
         // This means we dont have to deal with the permutation induced by pipes in the AB backend
         // or with the special AbelianLegPipe type
         // OPTIMIZE do it directly if no abelian backend is involved?
-        auto tensors_mod = py::module_::import("cyten.tensors._tensors");
-        std::vector<py::object> combine;
+        std::vector<std::vector<LegRef>> which_legs;
         std::vector<bool> pipe_dualities;
         int64 flat_leg_counter = 0;
         for (auto const& leg : legs()) {
             if (auto pipe = std::dynamic_pointer_cast<LegPipe>(leg)) {
                 auto num = pipe->num_legs;
-                py::list group;
+                std::vector<LegRef> group;
+                group.reserve(static_cast<std::size_t>(num));
                 for (int64 i = flat_leg_counter; i < flat_leg_counter + num; ++i) {
-                    group.append(i);
+                    group.emplace_back(i);
                 }
-                combine.push_back(group);
+                which_legs.push_back(std::move(group));
                 pipe_dualities.push_back(leg->is_dual);
                 flat_leg_counter += num;
             } else {
                 flat_leg_counter += 1;
             }
         }
-        py::object flat = tensors_mod.attr("split_legs")(py::cast(shared_from_this()));
-        py::object res_flat =
-          flat.attr("to_backend")(py::cast(new_backend), py::cast(dt), py::cast(device_s));
-        py::object res = tensors_mod.attr("combine_legs")(
-          res_flat, *py::tuple(py::cast(combine)), py::arg("pipe_dualities") = pipe_dualities);
+        auto flat = split_legs(shared_from_this());
+        auto res_flat = flat->to_backend(new_backend, dt, device_s);
+        auto res = combine_legs(res_flat, std::move(which_legs), PipeDualities{ pipe_dualities });
         // Do not cast res.attr("data") to DataPtr: NoSymmetry exposes the raw Block.
-        return res.cast<SymmetricTensor::Ptr>();
+        auto out = std::dynamic_pointer_cast<SymmetricTensor>(res);
+        if (!out) {
+            throw std::runtime_error("to_backend: expected SymmetricTensor after combine_legs");
+        }
+        return out;
     }
 
     TensorBackend::DataPtr new_data;
@@ -810,6 +814,18 @@ SymmetricTensor::to_dense_block(
     }
     if (leg_order.has_value()) {
         auto idcs = get_leg_idcs(*leg_order);
+        auto const labs = labels();
+        std::vector<int64> hidden;
+        for (int64 i = 0; i < num_legs; ++i) {
+            if (HiddenLegTensor::is_hidden_leg_label(labs[static_cast<std::size_t>(i)])) {
+                hidden.push_back(i);
+            }
+        }
+        if (static_cast<int64>(idcs.size() + hidden.size()) == num_legs &&
+            std::ranges::none_of(idcs, [&](int64 i) { return std::ranges::contains(hidden, i); })) {
+            // `leg_order` specifies only the public legs of a HiddenLegTensor: hidden legs last
+            idcs.insert(idcs.end(), hidden.begin(), hidden.end());
+        }
         block = backend->block_backend->permute_axes(block, idcs);
     }
     return block;
@@ -855,42 +871,44 @@ SymmetricTensor::to_dense_block_trivial_sector() const
 }
 
 void
-SymmetricTensor::save_hdf5(py::object hdf5_saver,
-                           py::object h5gr,
+SymmetricTensor::save_hdf5(cyten::hdf5::Saver& saver,
+                           HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
     /// Export SymmetricTensor to hdf5 such that it can be re-imported with from_hdf5
-    hdf5_saver.attr("save")(py::cast(domain), subpath + "domain");
-    hdf5_saver.attr("save")(py::cast(codomain), subpath + "codomain");
-    hdf5_saver.attr("save")(py::cast(backend), subpath + "backend");
-    hdf5_saver.attr("save")(py::cast(data), subpath + "data");
-    hdf5_saver.attr("save")(py::cast(symmetry), subpath + "symmetry");
-    hdf5_saver.attr("save")(dtype::to_numpy_dtype(dtype), subpath + "dtype");
-    hdf5_saver.attr("save")(device, subpath + "device");
-    h5gr.attr("attrs")["num_legs"] = num_legs;
-    h5gr.attr("attrs")["shape"] = py::cast(shape);
-    h5gr.attr("attrs")["cls"] = class_name();
-    if (std::ranges::all_of(_labels, [](LegLabel const& l) { return !l; })) {
-        h5gr.attr("attrs")["labels"] = py::list();
+    cyten::hdf5::py_save(subpath + "domain", py::cast(domain));
+    cyten::hdf5::py_save(subpath + "codomain", py::cast(codomain));
+    cyten::hdf5::py_save(subpath + "backend", py::cast(backend));
+    cyten::hdf5::py_save(subpath + "data", py::cast(data));
+    cyten::hdf5::py_save(subpath + "symmetry", py::cast(symmetry));
+    cyten::hdf5::py_save(subpath + "dtype", dtype::to_numpy_dtype(dtype));
+    cyten::hdf5::py_save(subpath + "device", device);
+    cyten::hdf5::py_set_group_attr("num_legs", py::cast(num_legs));
+    cyten::hdf5::py_set_group_attr("shape", py::cast(shape));
+    cyten::hdf5::py_set_group_attr("cls", py::cast(class_name()));
+    if (std::ranges::all_of(_labels, [](OptionalLabel const& l) { return !l; })) {
+        cyten::hdf5::py_set_group_attr("labels", py::list());
     } else {
-        h5gr.attr("attrs")["labels"] = py::cast(_labels);
+        cyten::hdf5::py_set_group_attr("labels", py::cast(_labels));
     }
 }
 
 SymmetricTensor::Ptr
-SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+SymmetricTensor::from_hdf5(cyten::hdf5::Loader& loader,
+                           HighFive::Group& h5gr,
+                           std::string const& subpath)
 {
     /// Import SymmetricTensor from hdf5
-    auto domain = hdf5_loader.attr("load")(subpath + "domain").cast<TensorProduct::Ptr>();
-    auto codomain = hdf5_loader.attr("load")(subpath + "codomain").cast<TensorProduct::Ptr>();
-    auto symmetry = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto backend = hdf5_loader.attr("load")(subpath + "backend").cast<TensorBackend::Ptr>();
-    auto data = hdf5_loader.attr("load")(subpath + "data").cast<TensorBackend::DataPtr>();
-    (void)hdf5_loader.attr("load")(subpath + "device"); // device follows loaded blocks / fallback
-    auto dt = dtype::from_numpy_dtype(hdf5_loader.attr("load")(subpath + "dtype"));
-    (void)hdf5_loader.attr("get_attr")(h5gr, "num_legs");
-    auto shape = hdf5_loader.attr("get_attr")(h5gr, "shape").cast<std::vector<float64>>();
-    auto labels = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
+    auto domain = cyten::hdf5::py_load(subpath + "domain").cast<TensorProduct::Ptr>();
+    auto codomain = cyten::hdf5::py_load(subpath + "codomain").cast<TensorProduct::Ptr>();
+    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto backend = cyten::hdf5::py_load(subpath + "backend").cast<TensorBackend::Ptr>();
+    auto data = cyten::hdf5::py_load(subpath + "data").cast<TensorBackend::DataPtr>();
+    (void)cyten::hdf5::py_load(subpath + "device"); // device follows loaded blocks / fallback
+    auto dt = dtype::from_numpy_dtype(cyten::hdf5::py_load(subpath + "dtype"));
+    (void)cyten::hdf5::py_get_attr(h5gr, "num_legs");
+    auto shape = cyten::hdf5::py_get_attr(h5gr, "shape").cast<std::vector<float64>>();
+    auto labels = cyten::hdf5::py_get_attr(h5gr, "labels").cast<OptionalLabels>();
     // Match Python save: all-None labels are stored as []; expand for the Tensor ctor.
     int64 nlegs = codomain->num_factors + domain->num_factors;
     if (labels.empty() && nlegs > 0) {
@@ -913,7 +931,7 @@ SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
         }
     }
     obj->shape = std::move(shape);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

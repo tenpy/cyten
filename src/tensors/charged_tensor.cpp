@@ -4,12 +4,16 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/tensors/hidden_leg_tensor.h>
+#include <cyten/tensors/ops_algebra.h>
+#include <cyten/tensors/ops_legs.h>
 #include <cyten/tools.h>
 #include <cyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <stdexcept>
 #include <utility>
@@ -17,16 +21,6 @@
 #include <vector>
 
 namespace cyten {
-
-namespace {
-
-py::object
-tensors_mod()
-{
-    return py::module_::import("cyten.tensors._tensors");
-}
-
-} // namespace
 
 ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr charged_state_in)
   : Tensor(
@@ -42,7 +36,7 @@ ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr ch
               throw std::invalid_argument(
                 "ChargedTensor invariant_part must have a charge-leg label");
           }
-          return LegLabels(labs.begin(), labs.end() - 1);
+          return OptionalLabels(labs.begin(), labs.end() - 1);
       }(),
       inv->dtype,
       inv->device)
@@ -84,7 +78,7 @@ ChargedTensor::test_sanity() const
 {
     Tensor::test_sanity();
     auto inv_labs = invariant_part->labels();
-    assert(labels() == LegLabels(inv_labs.begin(), inv_labs.end() - 1));
+    assert(labels() == OptionalLabels(inv_labs.begin(), inv_labs.end() - 1));
     invariant_part->allow_charge_leg_label = true;
     invariant_part->test_sanity();
     assert(invariant_part->device == device);
@@ -134,8 +128,8 @@ ChargedTensor::_parse_inv_domain(TensorProduct::Ptr domain,
     return { domain->left_multiply(std::dynamic_pointer_cast<Leg>(charge_leg_sp)), charge_leg_sp };
 }
 
-std::tuple<LegLabels, LegLabels>
-ChargedTensor::_parse_inv_labels(std::optional<LegLabels> labels,
+std::tuple<OptionalLabels, OptionalLabels>
+ChargedTensor::_parse_inv_labels(std::optional<OptionalLabels> labels,
                                  TensorProduct::Ptr const& codomain,
                                  TensorProduct::Ptr const& domain)
 {
@@ -152,7 +146,7 @@ ChargedTensor::from_block_func(BlockFactoryFn func,
                                TensorProduct::Ptr domain,
                                BlockBackend::BlockPtr charged_state,
                                TensorBackend::Ptr backend,
-                               std::optional<LegLabels> labels,
+                               std::optional<OptionalLabels> labels,
                                std::optional<Dtype> dtype,
                                std::optional<std::string> device)
 {
@@ -192,7 +186,7 @@ ChargedTensor::from_dense_block(BlockBackend::BlockPtr block,
                                 TensorProduct::Ptr domain,
                                 std::optional<std::variant<ElementarySpace::Ptr, Sector>> charge,
                                 TensorBackend::Ptr backend,
-                                std::optional<LegLabels> labels,
+                                std::optional<OptionalLabels> labels,
                                 std::optional<Dtype> dtype,
                                 std::optional<std::string> device,
                                 float64 tol,
@@ -255,7 +249,7 @@ ChargedTensor::from_dense_block_single_sector(BlockBackend::BlockPtr vector,
       std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ space }, space->symmetry);
     auto inv_domain =
       std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ charge_leg }, space->symmetry);
-    LegLabels inv_labels{ label, std::string(_CHARGE_LEG_LABEL) };
+    OptionalLabels inv_labels{ label, std::string(_CHARGE_LEG_LABEL) };
     auto inv_part = std::make_shared<SymmetricTensor>(
       data, codomain, inv_domain, backend, space->symmetry, std::move(inv_labels));
     auto charged_state =
@@ -293,8 +287,7 @@ ChargedTensor::from_two_charge_legs(SymmetricTensor::Ptr invariant_part,
                                     BlockBackend::BlockPtr state1,
                                     BlockBackend::BlockPtr state2)
 {
-    // Uses combine_legs free function — keep via Python helper when needed.
-    auto inv_obj = py::cast(invariant_part);
+    // Uses combine_legs free function.
     auto labs = invariant_part->labels();
     if (labs.size() < 2) {
         throw std::invalid_argument("from_two_charge_legs requires at least two labels");
@@ -310,12 +303,20 @@ ChargedTensor::from_two_charge_legs(SymmetricTensor::Ptr invariant_part,
                                     "Use HiddenLegTensor to hide legs without a state.");
     }
     invariant_part->allow_charge_leg_label = true;
-    auto inv_part = tensors_mod().attr("combine_legs")(inv_obj, py::make_tuple(-2, -1));
-    inv_part.attr("set_label")(-1, _CHARGE_LEG_LABEL);
-    auto pipe = inv_part.attr("domain").attr("__getitem__")(0).cast<LegPipe::Ptr>();
+    auto combined = combine_legs(invariant_part, { { int64{ -2 }, int64{ -1 } } });
+    auto inv_sym = std::dynamic_pointer_cast<SymmetricTensor>(combined);
+    if (!inv_sym) {
+        throw std::runtime_error(
+          "from_two_charge_legs: expected SymmetricTensor after combine_legs");
+    }
+    inv_sym->set_label(-1, _CHARGE_LEG_LABEL);
+    auto pipe = std::dynamic_pointer_cast<LegPipe>(inv_sym->domain->factors[0]);
+    if (!pipe) {
+        throw std::runtime_error("from_two_charge_legs: expected LegPipe charge leg");
+    }
     auto state = invariant_part->backend->state_tensor_product(state1, state2, pipe)
                    .cast<BlockBackend::BlockPtr>();
-    return from_invariant_part(inv_part.cast<SymmetricTensor::Ptr>(), state);
+    return from_invariant_part(inv_sym, state);
 }
 
 ChargedTensor::Ptr
@@ -324,7 +325,7 @@ ChargedTensor::from_zero(TensorProduct::Ptr codomain,
                          std::variant<ElementarySpace::Ptr, Sector> charge,
                          BlockBackend::BlockPtr charged_state,
                          TensorBackend::Ptr backend,
-                         std::optional<LegLabels> labels,
+                         std::optional<OptionalLabels> labels,
                          Dtype dtype,
                          std::optional<std::string> device)
 {
@@ -374,10 +375,13 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
         throw SymmetryError("Not a symmetric tensor");
     }
     if (charge_leg->dim == 1.) {
-        auto res = tensors_mod().attr("squeeze_legs")(py::cast(invariant_part), -1);
+        auto squeezed = squeeze_legs(invariant_part, std::vector<LegRef>{ int64{ -1 } });
         auto scale = backend->block_backend->item(charged_state);
-        res = res.attr("__mul__")(py::cast(scale));
-        return res.cast<SymmetricTensorPtr>();
+        auto scaled = std::dynamic_pointer_cast<SymmetricTensor>(squeezed->scaled(scale));
+        if (!scaled) {
+            throw std::runtime_error("as_SymmetricTensor: expected SymmetricTensor after scaling");
+        }
+        return scaled;
     }
     // charge_leg.dual (Python wrote charged_state.dual — treat as charge_leg.dual)
     auto dual = charge_leg->dual_leg();
@@ -387,16 +391,26 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
       state_codomain,
       nullptr,
       backend,
-      LegLabels{ _dual_leg_label(std::string(_CHARGE_LEG_LABEL)) },
+      OptionalLabels{ _dual_leg_label(std::string(_CHARGE_LEG_LABEL)) },
       dtype,
       std::nullopt,
       1e-6,
       /*understood_braiding=*/true);
     state->allow_charge_leg_label = true;
-    auto res = tensors_mod().attr("tdot")(py::cast(state), py::cast(invariant_part), 0, -1);
-    return tensors_mod()
-      .attr("bend_legs")(res, py::arg("num_codomain_legs") = num_codomain_legs())
-      .cast<SymmetricTensorPtr>();
+    auto contracted = tdot(state,
+                           invariant_part,
+                           std::vector<LegRef>{ int64{ 0 } },
+                           std::vector<LegRef>{ int64{ -1 } });
+    auto* tens = std::get_if<TensorPtr>(&contracted);
+    if (!tens) {
+        throw std::runtime_error("as_SymmetricTensor: unexpected scalar from tdot");
+    }
+    auto bent = bend_legs(*tens, num_codomain_legs());
+    auto out = std::dynamic_pointer_cast<SymmetricTensor>(bent);
+    if (!out) {
+        throw std::runtime_error("as_SymmetricTensor: expected SymmetricTensor after bend_legs");
+    }
+    return out;
 }
 
 Tensor::Ptr
@@ -423,7 +437,7 @@ ChargedTensor::dagger() const
 {
     // Match free-function dagger(ChargedTensor); dagger the invariant part in C++.
     auto labs = invariant_part->labels();
-    LegLabels dual_rev;
+    OptionalLabels dual_rev;
     dual_rev.reserve(labs.size());
     for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
         dual_rev.push_back(_dual_leg_label(*it));
@@ -435,13 +449,14 @@ ChargedTensor::dagger() const
                                                      backend,
                                                      symmetry,
                                                      std::move(dual_rev));
-    auto inv_part = py::cast(inv_sym);
-    inv_part.attr("set_label")(0, _CHARGE_LEG_LABEL);
-    inv_part = tensors_mod().attr("move_leg")(
-      inv_part, 0, py::arg("domain_pos") = 0, py::arg("bend_right") = true);
+    inv_sym->set_label(0, _CHARGE_LEG_LABEL);
+    auto moved = move_leg(inv_sym, 0, std::nullopt, 0, std::nullopt, BendRight{ true });
+    auto moved_sym = std::dynamic_pointer_cast<SymmetricTensor>(moved);
+    if (!moved_sym) {
+        throw std::runtime_error("ChargedTensor::dagger: expected SymmetricTensor after move_leg");
+    }
     BlockBackend::BlockPtr cs = backend->block_backend->conj(charged_state);
-    return std::get<ChargedTensor::Ptr>(
-      from_invariant_part(inv_part.cast<SymmetricTensor::Ptr>(), cs));
+    return std::get<ChargedTensor::Ptr>(from_invariant_part(moved_sym, cs));
 }
 
 BlockBackend::Scalar
@@ -494,7 +509,7 @@ ChargedTensor::_repr_header_lines(std::string const& indent, bool use_symm_str) 
 }
 
 LabelledLegs&
-ChargedTensor::set_label(int64 pos, LegLabel label)
+ChargedTensor::set_label(int64 pos, OptionalLabel label)
 {
     pos = to_valid_idx(pos, num_legs);
     if (label_contains_exclamation(label)) {
@@ -506,7 +521,7 @@ ChargedTensor::set_label(int64 pos, LegLabel label)
 }
 
 Tensor&
-ChargedTensor::set_labels(LegLabels labels_in)
+ChargedTensor::set_labels(OptionalLabels labels_in)
 {
     reject_exclamation_in_labels(labels_in, "ChargedTensor");
     Tensor::set_labels(labels_in);
@@ -574,30 +589,35 @@ ChargedTensor::to_dense_block_single_sector()
 }
 
 void
-ChargedTensor::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+ChargedTensor::save_hdf5(cyten::hdf5::Saver& saver,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath) const
 {
-    hdf5_saver.attr("save")(py::cast(invariant_part), subpath + "invariant_part");
-    hdf5_saver.attr("save")(py::cast(charged_state), subpath + "charged_state");
-    h5gr.attr("attrs")["has_charged_state"] = true;
-    h5gr.attr("attrs")["dtype"] = dtype::repr(dtype);
-    h5gr.attr("attrs")["num_legs"] = num_legs;
-    h5gr.attr("attrs")["shape"] = py::module_::import("numpy").attr("array")(
-      py::cast(shape), py::module_::import("numpy").attr("intp"));
-    if (std::ranges::all_of(_labels, [](LegLabel const& l) { return !l; })) {
-        h5gr.attr("attrs")["labels"] = py::list();
+    cyten::hdf5::py_save(subpath + "invariant_part", py::cast(invariant_part));
+    cyten::hdf5::py_save(subpath + "charged_state", py::cast(charged_state));
+    cyten::hdf5::py_set_group_attr("has_charged_state", py::cast(true));
+    cyten::hdf5::py_set_group_attr("dtype", py::cast(dtype::repr(dtype)));
+    cyten::hdf5::py_set_group_attr("num_legs", py::cast(num_legs));
+    cyten::hdf5::py_set_group_attr("shape",
+                                   py::module_::import("numpy").attr("array")(
+                                     py::cast(shape), py::module_::import("numpy").attr("intp")));
+    if (std::ranges::all_of(_labels, [](OptionalLabel const& l) { return !l; })) {
+        cyten::hdf5::py_set_group_attr("labels", py::list());
     } else {
-        h5gr.attr("attrs")["labels"] = py::cast(_labels);
+        cyten::hdf5::py_set_group_attr("labels", py::cast(_labels));
     }
 }
 
 ChargedTensor::Ptr
-ChargedTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+ChargedTensor::from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath)
 {
-    auto inv = hdf5_loader.attr("load")(subpath + "invariant_part").cast<SymmetricTensor::Ptr>();
+    auto inv = cyten::hdf5::py_load(subpath + "invariant_part").cast<SymmetricTensor::Ptr>();
     inv->allow_charge_leg_label = true;
     bool has_cs = true;
     try {
-        has_cs = hdf5_loader.attr("get_attr")(h5gr, "has_charged_state").cast<bool>();
+        has_cs = cyten::hdf5::py_get_attr(h5gr, "has_charged_state").cast<bool>();
     } catch (py::error_already_set&) {
         has_cs = true;
     }
@@ -606,9 +626,9 @@ ChargedTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string co
           "HDF5 ChargedTensor without charged_state is no longer supported. "
           "Re-save or convert to HiddenLegTensor.");
     }
-    auto cs = hdf5_loader.attr("load")(subpath + "charged_state").cast<BlockBackend::BlockPtr>();
+    auto cs = cyten::hdf5::py_load(subpath + "charged_state").cast<BlockBackend::BlockPtr>();
     auto obj = std::make_shared<ChargedTensor>(inv, cs);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

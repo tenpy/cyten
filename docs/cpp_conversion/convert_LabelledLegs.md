@@ -26,8 +26,8 @@
 
 ## Design notes
 
-- Label type: `using LegLabel = std::optional<std::string>;` — `None` ↔ `std::nullopt`.
-- Label list: `using LegLabels = std::vector<LegLabel>;`
+- Label type: `using OptionalLabel = std::optional<std::string>;` — `None` ↔ `std::nullopt`.
+- Label list: `using OptionalLabels = std::vector<OptionalLabel>;`
 - `LabelledLegs` members: `_labels`, `num_legs`, `_labelmap` (`std::unordered_map<std::string, int64>`).
 - Virtual destructor; `set_labels` virtual (overridden by `Tensor` / `ChargedTensor`).
 - `get_leg_idcs`: C++ overloads for `int64`, `std::string`, `std::vector` of variants; bindings accept Python `int | str | Sequence`.

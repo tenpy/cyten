@@ -72,19 +72,6 @@ legs_equal(Leg::Ptr const& a, Leg::Ptr const& b)
     return a && b && a->operator==(*b);
 }
 
-bool
-is_permutation(std::vector<int64> const& permutation)
-{
-    std::vector<int64> sorted = permutation;
-    std::sort(sorted.begin(), sorted.end());
-    for (std::size_t i = 0; i < sorted.size(); ++i) {
-        if (sorted[i] != static_cast<int64>(i)) {
-            return false;
-        }
-    }
-    return true;
-}
-
 Leg::Ptr
 as_leg(ElementarySpace::Ptr space)
 {
@@ -189,7 +176,8 @@ swap_adjacent_factors(SymmetricTensorPtr const& Wa, SymmetricTensorPtr const& Wb
                                   levels_from_label_dict(T, level_dict),
                                   true));
 
-    auto [left, right] = horizontal_factorization(T, 2, 1, LegLabels{ "wR", "wL" }, std::nullopt);
+    auto [left, right] =
+      horizontal_factorization(T, 2, 1, OptionalLabels{ "wR", "wL" }, std::nullopt);
     SymmetricTensorPtr Wleft = as_symmetric(std::move(left));
     SymmetricTensorPtr Wright = as_symmetric(std::move(right));
     Wleft->relabel({ { "p1", "p" }, { "p1*", "p*" } });
@@ -223,7 +211,7 @@ fibonacci_symmetry()
 {
     static Symmetry::Ptr sym = [] {
         auto cat = std::make_shared<FibonacciAnyonCategory>();
-        return py::cast<Symmetry::Ptr>(cat->as_Symmetry());
+        return cat->as_Symmetry();
     }();
     return sym;
 }
@@ -500,7 +488,7 @@ Coupling::from_dense_block(py::object operator_,
     for (std::size_t i = 0; i < sites.size(); ++i) {
         p_labels.push_back(std::format("p{}", i));
     }
-    LegLabels labels;
+    OptionalLabels labels;
     for (auto const& pl : p_labels) {
         labels.emplace_back(pl);
     }
@@ -548,7 +536,7 @@ Coupling::from_tensor(SymmetricTensorPtr operator_,
     for (std::size_t i = 0; i < sites.size(); ++i) {
         p_labels.push_back(std::format("p{}", i));
     }
-    LegLabels expected_labels;
+    OptionalLabels expected_labels;
     for (auto const& pl : p_labels) {
         expected_labels.emplace_back(pl);
     }
@@ -577,7 +565,8 @@ Coupling::from_tensor(SymmetricTensorPtr operator_,
         factorization = { W };
     } else {
         SymmetricTensorPtr rest = operator_;
-        auto [W0, rest0] = horizontal_factorization(rest, 1, 1, LegLabels{ "wR", "wL" }, cutoff);
+        auto [W0, rest0] =
+          horizontal_factorization(rest, 1, 1, OptionalLabels{ "wR", "wL" }, cutoff);
         W0 = as_symmetric(W0);
         rest = as_symmetric(rest0);
         W0->relabel({ { "p0", "p" }, { "p0*", "p*" } });
@@ -586,7 +575,7 @@ Coupling::from_tensor(SymmetricTensorPtr operator_,
 
         for (std::size_t i = 1; i + 1 < sites.size(); ++i) {
             auto [Wi, resti] =
-              horizontal_factorization(rest, 2, 1, LegLabels{ "wR", "wL" }, cutoff);
+              horizontal_factorization(rest, 2, 1, OptionalLabels{ "wR", "wL" }, cutoff);
             Wi = as_symmetric(Wi);
             rest = as_symmetric(resti);
             Wi->relabel({ { std::format("p{}", i), "p" }, { std::format("p{}*", i), "p*" } });
@@ -1233,7 +1222,7 @@ sector_projection_coupling(std::vector<Site::Ptr> sites,
         legs.push_back(as_leg(s->leg));
     }
     auto codomain = std::make_shared<TensorProduct>(legs);
-    LegLabels labels;
+    OptionalLabels labels;
     for (std::size_t i = 0; i < sites.size(); ++i) {
         labels.emplace_back(std::format("p{}", i));
     }

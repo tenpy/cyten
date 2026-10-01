@@ -31,7 +31,7 @@ each class (`Tensor::Ptr`, `Space::Ptr`, …).
 | Tensor / any subclass | `Tensor(C)Ptr` (or `SymmetricTensor(C)Ptr` / `DiagonalTensor(C)Ptr` / `Mask(C)Ptr` / `ChargedTensor(C)Ptr` when the contract is that specific) |
 | `(co)domain` already a product | `TensorProduct::Ptr` |
 | single tensor leg (ElementarySpace or LegPipe) | `Leg::Ptr` |
-| labels | `LegLabels` |
+| labels | `OptionalLabels` |
 | dense / diag / mask blocks | `BlockBackend::BlockPtr` |
 | scalars (`item`, `norm`, `inner`, `entropy`, …) | `BlockBackend::Scalar` |
 | leg index or label | `LegRef` = `std::variant<int64, std::string>` |
@@ -83,7 +83,7 @@ Space-only operations on a pipe go through `Leg::as_Space()` / `dynamic_pointer_
 
 Most classes had a typed ctor plus a py-object ctor. The py-object overloads are deleted from
 headers and `.cpp`. `_init_parse_args` / `_init_parse_labels` are typed helpers
-(`TensorProduct::Ptr` + `LegLabels`). Sequence-of-spaces and nested-label parsing live in pybind
+(`TensorProduct::Ptr` + `OptionalLabels`). Sequence-of-spaces and nested-label parsing live in pybind
 lambdas.
 
 Other tightened returns:

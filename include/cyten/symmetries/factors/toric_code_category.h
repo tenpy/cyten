@@ -2,6 +2,7 @@
 
 #include "quantum_double_zn_anyon_category.h"
 
+#include <cyten/tools/hdf5.h>
 #include <optional>
 #include <string>
 
@@ -27,7 +28,9 @@ class ToricCodeCategory : public QuantumDoubleZNAnyonCategory
     std::string repr() const override;
     bool _is_equivalent_factor(SymmetryFactor const& other) const override;
 
-    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+    static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath);
 };
 
 } // namespace cyten

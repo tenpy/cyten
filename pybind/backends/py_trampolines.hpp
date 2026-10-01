@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cyten/backends/tensor_backend.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 
 #include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
@@ -722,9 +723,20 @@ class PyTensorBackend
           TensorBackend::DataPtr, TensorBackend, zero_mask_data, large_leg, device);
     }
     bool is_real(TensorCPtr a) override { PYBIND11_OVERRIDE(bool, TensorBackend, is_real, a); }
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string subpath) override
+    void save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string subpath) override
     {
-        PYBIND11_OVERRIDE(void, TensorBackend, save_hdf5, hdf5_saver, h5gr, subpath);
+        py::gil_scoped_acquire gil;
+        py::function ov = py::get_overload(static_cast<TensorBackend*>(this), "save_hdf5");
+        if (ov) {
+            py::object* ps = cyten::hdf5::tls_py_saver();
+            py::object* pg = cyten::hdf5::tls_py_h5gr();
+            if (!ps || !pg)
+                py::pybind11_fail(
+                  "TensorBackend.save_hdf5 Python override requires an active hdf5 PyBridge");
+            ov(*ps, *pg, subpath);
+            return;
+        }
+        TensorBackend::save_hdf5(saver, h5gr, std::move(subpath));
     }
 }; // trampoline class PyTensorBackend
 

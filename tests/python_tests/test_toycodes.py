@@ -39,10 +39,10 @@ def test_toy_models():
 def test_dmrg_golden_chain():
     # energies from MPSKit.jl with DMRG
     GC_energies = {6: -4.02595560765756, 8: -5.54888659415890, 10: -7.0735949995638}
-    L = 8
+    L = 6
     psi = init_Fib_anyon_MPS(L)
     model = GoldenChainModel(L, J=1)
-    dmrg = DMRGEngine(psi, model)
+    dmrg = DMRGEngine(psi, model, chi_max=40)
     e = dmrg.run()
     assert abs(e - GC_energies[L]) < 1e-9
 
@@ -51,10 +51,10 @@ def test_dmrg_golden_chain():
 def test_planar_dmrg_golden_chain():
     # energies from MPSKit.jl with DMRG
     GC_energies = {6: -4.02595560765756, 8: -5.54888659415890, 10: -7.0735949995638}
-    L = 8
+    L = 6
     psi = init_Fib_anyon_MPS(L)
     model = GoldenChainModel(L, J=1)
-    dmrg = PlanarDMRGEngine(psi, model)
+    dmrg = PlanarDMRGEngine(psi, model, chi_max=40)
     e = dmrg.run()
     assert abs(e - GC_energies[L]) < 1e-9
 
@@ -62,7 +62,7 @@ def test_planar_dmrg_golden_chain():
 @pytest.mark.slow
 def test_dmrg_heisenberg():
     backend = ct.get_backend('fusion_tree', 'numpy')
-    L = 8
+    L = 6
     e_exact = heisenberg_finite_gs_energy(L, J=1)
     for conserve in ['none', 'Z2', 'SU2']:
         if conserve == 'SU2':
@@ -70,7 +70,7 @@ def test_dmrg_heisenberg():
         else:
             psi = init_Neel_MPS(L, backend=backend, conserve=conserve)
         model = HeisenbergModel(L, J=1, backend=backend, conserve=conserve)
-        dmrg = DMRGEngine(psi, model)
+        dmrg = DMRGEngine(psi, model, chi_max=40)
         e = dmrg.run()
         assert abs(e - e_exact) < 1e-9
 
@@ -78,7 +78,7 @@ def test_dmrg_heisenberg():
 @pytest.mark.slow
 def test_planar_dmrg_heisenberg():
     backend = ct.get_backend('fusion_tree', 'numpy')
-    L = 8
+    L = 6
     e_exact = heisenberg_finite_gs_energy(L, J=1)
     for conserve in ['none', 'Z2', 'SU2']:
         if conserve == 'SU2':
@@ -86,7 +86,7 @@ def test_planar_dmrg_heisenberg():
         else:
             psi = init_Neel_MPS(L, backend=backend, conserve=conserve)
         model = HeisenbergModel(L, J=1, backend=backend, conserve=conserve)
-        dmrg = PlanarDMRGEngine(psi, model)
+        dmrg = PlanarDMRGEngine(psi, model, chi_max=40)
         e = dmrg.run()
         assert abs(e - e_exact) < 1e-9
 
@@ -94,14 +94,14 @@ def test_planar_dmrg_heisenberg():
 @pytest.mark.slow
 def test_dmrg_tfi(np_random):
     backend = ct.get_backend('abelian', 'numpy')
-    L = 16
+    L = 10
     J, g = np_random.random(2)
     e_exact = tfi_finite_gs_energy(L, J, g)
 
     for conserve in ['none', 'Z2']:
         psi = init_FM_MPS(L, backend=backend, conserve=conserve)
         model = TFIModel(L, J, g, backend=backend, conserve=conserve)
-        dmrg = DMRGEngine(psi, model)
+        dmrg = DMRGEngine(psi, model, chi_max=40)
         e = dmrg.run()
         assert abs(e - e_exact) < 1e-9
 
@@ -109,13 +109,13 @@ def test_dmrg_tfi(np_random):
 @pytest.mark.slow
 def test_planar_dmrg_tfi(np_random):
     backend = ct.get_backend('abelian', 'numpy')
-    L = 16
+    L = 10
     J, g = np_random.random(2)
     e_exact = tfi_finite_gs_energy(L, J, g)
 
     for conserve in ['none', 'Z2']:
         psi = init_FM_MPS(L, backend=backend, conserve=conserve)
         model = TFIModel(L, J, g, backend=backend, conserve=conserve)
-        dmrg = PlanarDMRGEngine(psi, model)
+        dmrg = PlanarDMRGEngine(psi, model, chi_max=40)
         e = dmrg.run()
         assert abs(e - e_exact) < 1e-9

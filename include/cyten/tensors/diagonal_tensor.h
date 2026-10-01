@@ -2,6 +2,7 @@
 
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include <cyten/tools/hdf5.h>
 #include <memory>
 #include <optional>
 #include <string>
@@ -54,7 +55,7 @@ class DiagonalTensor : public SymmetricTensor
                    Space::Ptr leg,
                    TensorBackend::Ptr backend,
                    Symmetry::Ptr symmetry,
-                   LegLabels labels);
+                   OptionalLabels labels);
 
     ~DiagonalTensor() override = default;
 
@@ -96,7 +97,7 @@ class DiagonalTensor : public SymmetricTensor
     [[nodiscard]] static Ptr from_block_func(BlockFactoryFn func,
                                              Space::Ptr leg,
                                              TensorBackend::Ptr backend = nullptr,
-                                             std::optional<LegLabels> labels = std::nullopt,
+                                             std::optional<OptionalLabels> labels = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
@@ -104,7 +105,7 @@ class DiagonalTensor : public SymmetricTensor
     [[nodiscard]] static Ptr from_dense_block(BlockBackend::BlockPtr block,
                                               Space::Ptr leg,
                                               TensorBackend::Ptr backend = nullptr,
-                                              std::optional<LegLabels> labels = std::nullopt,
+                                              std::optional<OptionalLabels> labels = std::nullopt,
                                               std::optional<Dtype> dtype = std::nullopt,
                                               float64 tol = 1e-6,
                                               std::optional<std::string> device = std::nullopt,
@@ -123,7 +124,7 @@ class DiagonalTensor : public SymmetricTensor
     [[nodiscard]] static Ptr from_diag_block(BlockBackend::BlockPtr diag,
                                              Space::Ptr leg,
                                              TensorBackend::Ptr backend = nullptr,
-                                             std::optional<LegLabels> labels = std::nullopt,
+                                             std::optional<OptionalLabels> labels = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt,
                                              float64 tol = 1e-6);
@@ -135,7 +136,7 @@ class DiagonalTensor : public SymmetricTensor
     /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       TensorBackend::Ptr backend = nullptr,
-                                      std::optional<LegLabels> labels = std::nullopt,
+                                      std::optional<OptionalLabels> labels = std::nullopt,
                                       Dtype dtype = Dtype::Float64,
                                       std::optional<std::string> device = std::nullopt);
 
@@ -154,13 +155,14 @@ class DiagonalTensor : public SymmetricTensor
     /// @param sigma The standard deviation of the distribution
     /// @param dtype The dtype for the entries.
     /// @param device The device of the tensor. If omitted, use the default device of the backend.
-    [[nodiscard]] static Ptr from_random_normal(Space::Ptr leg = nullptr,
-                                                TensorCPtr mean = nullptr,
-                                                float64 sigma = 1.0,
-                                                TensorBackend::Ptr backend = nullptr,
-                                                std::optional<LegLabels> labels = std::nullopt,
-                                                Dtype dtype = Dtype::Complex128,
-                                                std::optional<std::string> device = std::nullopt);
+    [[nodiscard]] static Ptr from_random_normal(
+      Space::Ptr leg = nullptr,
+      TensorCPtr mean = nullptr,
+      float64 sigma = 1.0,
+      TensorBackend::Ptr backend = nullptr,
+      std::optional<OptionalLabels> labels = std::nullopt,
+      Dtype dtype = Dtype::Complex128,
+      std::optional<std::string> device = std::nullopt);
 
     /// Generate a tensor with uniformly random block-entries.
     ///
@@ -176,11 +178,12 @@ class DiagonalTensor : public SymmetricTensor
     /// @param leg, backend, labels Arguments for constructor of `DiagonalTensor`.
     /// @param dtype The dtype for the entries.
     /// @param device The device of the tensor. If omitted, use the default device of the backend.
-    [[nodiscard]] static Ptr from_random_uniform(Space::Ptr leg,
-                                                 TensorBackend::Ptr backend = nullptr,
-                                                 std::optional<LegLabels> labels = std::nullopt,
-                                                 Dtype dtype = Dtype::Complex128,
-                                                 std::optional<std::string> device = std::nullopt);
+    [[nodiscard]] static Ptr from_random_uniform(
+      Space::Ptr leg,
+      TensorBackend::Ptr backend = nullptr,
+      std::optional<OptionalLabels> labels = std::nullopt,
+      Dtype dtype = Dtype::Complex128,
+      std::optional<std::string> device = std::nullopt);
 
     /// Initialize a `SymmetricTensor` by generating its blocks from a function.
     ///
@@ -212,7 +215,7 @@ class DiagonalTensor : public SymmetricTensor
       SectorBlockFactoryFn func,
       Space::Ptr leg,
       TensorBackend::Ptr backend = nullptr,
-      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
@@ -233,17 +236,19 @@ class DiagonalTensor : public SymmetricTensor
     /// backend.
     [[nodiscard]] static Ptr from_zero(Space::Ptr leg,
                                        TensorBackend::Ptr backend = nullptr,
-                                       std::optional<LegLabels> labels = std::nullopt,
+                                       std::optional<OptionalLabels> labels = std::nullopt,
                                        Dtype dtype = Dtype::Complex128,
                                        std::optional<std::string> device = std::nullopt);
 
     /// Import DiagonalTensor from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    void save_hdf5(cyten::hdf5::Saver& saver,
+                   HighFive::Group& h5gr,
+                   std::string const& subpath) const;
 
     // --- Tensor / SymmetricTensor overrides ---
 
@@ -419,7 +424,7 @@ class Identity : public DiagonalTensor
     Identity(Space::Ptr leg,
              TensorBackend::Ptr backend,
              Symmetry::Ptr symmetry,
-             LegLabels labels,
+             OptionalLabels labels,
              Dtype dtype,
              std::string device);
 
@@ -440,13 +445,13 @@ class Identity : public DiagonalTensor
     /// @param device The device of the tensor. If omitted, use the default device of the backend.
     [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       TensorBackend::Ptr backend = nullptr,
-                                      std::optional<LegLabels> labels = std::nullopt,
+                                      std::optional<OptionalLabels> labels = std::nullopt,
                                       Dtype dtype = Dtype::Float64,
                                       std::optional<std::string> device = std::nullopt);
 
     /// Import Identity from hdf5
-    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
-                                       py::object h5gr,
+    [[nodiscard]] static Ptr from_hdf5(cyten::hdf5::Loader& loader,
+                                       HighFive::Group& h5gr,
                                        std::string const& subpath);
 
     /// Convert to a tensor of the given dtype on the same device.

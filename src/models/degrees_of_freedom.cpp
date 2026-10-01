@@ -18,6 +18,8 @@
 
 #include <cassert>
 #include <cmath>
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <format>
 #include <functional>
 #include <numeric>
@@ -49,33 +51,16 @@ numpy()
     return py::module_::import("numpy");
 }
 
-py::module_
-tensors_mod()
-{
-    return py::module_::import("cyten.tensors");
-}
-
-bool
-is_python_tensor(py::object const& obj, char const* class_name)
-{
-    try {
-        return py::isinstance(obj, tensors_mod().attr(class_name));
-    } catch (py::error_already_set&) {
-        return false;
-    }
-}
-
 bool
 is_symmetric_tensor(py::object const& op)
 {
-    return py::isinstance<SymmetricTensor>(op) || is_python_tensor(op, "SymmetricTensor");
+    return py::isinstance<SymmetricTensor>(op);
 }
 
 bool
 is_diagonal_tensor(py::object const& op)
 {
-    return py::isinstance<DiagonalTensor>(op) || py::isinstance<Identity>(op) ||
-           is_python_tensor(op, "DiagonalTensor") || is_python_tensor(op, "Identity");
+    return py::isinstance<DiagonalTensor>(op) || py::isinstance<Identity>(op);
 }
 
 SymmetricTensorPtr
@@ -99,14 +84,14 @@ product_of_legs(std::vector<Leg::Ptr> factors)
     return std::make_shared<TensorProduct>(std::move(factors));
 }
 
-LegLabels
+OptionalLabels
 pp_labels()
 {
-    return LegLabels{ "p", "p*" };
+    return OptionalLabels{ "p", "p*" };
 }
 
 bool
-leg_labels_are_p_pstar(LegLabels const& labels)
+leg_labels_are_p_pstar(OptionalLabels const& labels)
 {
     return labels.size() == 2 && labels[0] == "p" && labels[1] == "p*";
 }
@@ -498,7 +483,7 @@ SymmetricTensorPtr
 Site::identity_tensor(ElementarySpace::Ptr w, bool overbraid)
 {
     auto co_domain = product_of_legs(std::vector<Leg::Ptr>{ leg, std::move(w) });
-    auto tensor = SymmetricTensor::from_eye(co_domain, backend, LegLabels{ "p", "w" });
+    auto tensor = SymmetricTensor::from_eye(co_domain, backend, OptionalLabels{ "p", "w" });
     auto permuted = permute_legs(tensor,
                                  std::vector<LegRef>{ "w", "p" },
                                  std::vector<LegRef>{ "p*", "w*" },
@@ -570,20 +555,22 @@ Site::hdf5_init_kwargs() const
 }
 
 void
-Site::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string const& subpath) const
+Site::save_hdf5(cyten::hdf5::Saver& saver,
+                HighFive::Group& /*h5gr*/,
+                std::string const& subpath) const
 {
-    hdf5_saver.attr("save")(hdf5_init_kwargs(), subpath + "init_kwargs");
+    cyten::hdf5::py_save(subpath + "init_kwargs", hdf5_init_kwargs());
 }
 
 py::object
 Site::from_hdf5(py::object cls,
-                py::object hdf5_loader,
-                py::object h5gr,
+                cyten::hdf5::Loader& loader,
+                HighFive::Group& h5gr,
                 std::string const& subpath)
 {
-    py::dict kwargs = hdf5_loader.attr("load")(subpath + "init_kwargs").cast<py::dict>();
+    py::dict kwargs = cyten::hdf5::py_load(subpath + "init_kwargs").cast<py::dict>();
     py::object obj = cls(**kwargs);
-    hdf5_loader.attr("memorize_load")(h5gr, obj);
+    cyten::hdf5::py_memorize_load(h5gr, obj);
     return obj;
 }
 

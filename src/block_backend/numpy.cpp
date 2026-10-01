@@ -2,6 +2,8 @@
 #include <cyten/block_backend/numpy.h>
 #include <cyten/tools.h>
 
+#include <cyten/tools/hdf5.h>
+#include <cyten/tools/hdf5_py_bridge.h>
 #include <map>
 #include <mutex>
 #include <pybind11/numpy.h>
@@ -275,21 +277,26 @@ NumpyBlockBackend::Block::pow(const BlockBackend::Block& exponent) const
 }
 
 void
-NumpyBlockBackend::Block::save_hdf5(py::object hdf5_saver,
-                                    py::object /*h5gr*/,
+NumpyBlockBackend::Block::save_hdf5(cyten::hdf5::Saver& saver,
+                                    HighFive::Group& /*h5gr*/,
                                     const std::string& subpath)
 {
-    hdf5_saver.attr("save")(arr_, subpath + std::string("arr"));
+    cyten::hdf5::py_save(subpath + std::string("arr"), arr_);
 }
 
 std::shared_ptr<NumpyBlockBackend::Block>
-NumpyBlockBackend::Block::from_hdf5(py::object hdf5_loader,
-                                    py::object h5gr,
-                                    const std::string& subpath)
+NumpyBlockBackend::Block::from_hdf5(cyten::hdf5::Loader& loader,
+                                    HighFive::Group& h5gr,
+                                    std::string const& subpath)
 {
-    py::array arr = hdf5_loader.attr("load")(subpath + std::string("arr")).cast<py::array>();
+    py::array arr = cyten::hdf5::py_load(subpath + std::string("arr")).cast<py::array>();
+    // Older/raw HDF5 writers store bool as uint8; uint8 is not a valid block dtype.
+    auto np = py::module_::import("numpy");
+    if (arr.dtype().kind() == 'u' && arr.dtype().itemsize() == 1) {
+        arr = py::reinterpret_steal<py::array>(arr.attr("astype")(np.attr("bool_")).release());
+    }
     auto obj = std::make_shared<NumpyBlockBackend::Block>(arr);
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 
@@ -1364,10 +1371,12 @@ NumpyBlockBackend::zeros(const std::vector<int64>& shape,
 }
 
 std::shared_ptr<NumpyBlockBackend>
-NumpyBlockBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
+NumpyBlockBackend::from_hdf5(cyten::hdf5::Loader& loader,
+                             HighFive::Group& h5gr,
+                             std::string const& subpath)
 {
     auto obj = NumpyBlockBackend::from_factory_shared("cpu");
-    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
     return obj;
 }
 

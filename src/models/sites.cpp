@@ -206,7 +206,7 @@ add_anyon_projectors(AnyonDOF& site,
           SymmetricTensor::from_sector_projection(leg_tp,
                                                   decomposition[i],
                                                   backend,
-                                                  std::optional<LegLabels>{ { "p", "p*" } },
+                                                  std::optional<OptionalLabels>{ { "p", "p*" } },
                                                   std::nullopt,
                                                   default_device);
         site.onsite_operators["P_" + names[i]] = std::move(op);

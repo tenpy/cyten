@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <format>
+#include <initializer_list>
 #include <numeric>
 #include <ranges>
 #include <set>
@@ -45,7 +46,7 @@ _assert_valid_planar_placeholder_labels(std::vector<std::string> const& labels,
 }
 
 [[nodiscard]] bool
-_is_hidden_planar_label(LegLabel const& label)
+_is_hidden_planar_label(OptionalLabel const& label)
 {
     if (!label) {
         return false;
@@ -60,7 +61,7 @@ _is_hidden_planar_label(LegLabel const& label)
     if (pos == std::string::npos) {
         return false;
     }
-    LegLabel tail{ s.substr(pos + 1) };
+    OptionalLabel tail{ s.substr(pos + 1) };
     return HiddenLegTensor::is_hidden_leg_label(tail) ||
            HiddenLegTensor::is_charge_temp_label(tail);
 }
@@ -68,11 +69,11 @@ _is_hidden_planar_label(LegLabel const& label)
 [[nodiscard]] bool
 _is_hidden_planar_label(std::string const& label)
 {
-    return _is_hidden_planar_label(LegLabel{ label });
+    return _is_hidden_planar_label(OptionalLabel{ label });
 }
 
 [[nodiscard]] std::vector<std::string>
-as_strings(LegLabels const& labels)
+as_strings(OptionalLabels const& labels)
 {
     std::vector<std::string> out;
     out.reserve(labels.size());
@@ -267,10 +268,10 @@ strip_ws(std::string s)
     return s.substr(a, b - a + 1);
 }
 
-[[nodiscard]] LegLabels
+[[nodiscard]] OptionalLabels
 labels_from_strings(std::vector<std::string> const& labels)
 {
-    LegLabels out;
+    OptionalLabels out;
     out.reserve(labels.size());
     for (auto const& l : labels) {
         out.emplace_back(l);
@@ -330,7 +331,7 @@ planar_decomposition(TensorCPtr tensor,
                      int64 codomain_cut,
                      int64 domain_cut,
                      PlanarDecompWhich which,
-                     std::optional<LegLabels> new_labels,
+                     std::optional<OptionalLabels> new_labels,
                      bool new_leg_dual,
                      std::optional<std::string> sort = std::nullopt,
                      std::optional<std::string> algorithm = std::nullopt,
@@ -378,15 +379,16 @@ planar_decomposition(TensorCPtr tensor,
         B = std::move(q);
     } else if (which == PlanarDecompWhich::eigh) {
         // eigh returns W, V, where V is the unitary -> permute legs as, e.g., Q in QR
-        auto [W, V] = eigh(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
+        auto [W, V] =
+          eigh(to_decompose, new_labels.value_or(OptionalLabels{}), new_leg_dual, sort);
         B = std::move(W);
         A = std::move(V);
     } else if (which == PlanarDecompWhich::eig) {
-        auto [W, V] = eig(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
+        auto [W, V] = eig(to_decompose, new_labels.value_or(OptionalLabels{}), new_leg_dual, sort);
         B = std::move(W);
         A = std::move(V);
     } else if (which == PlanarDecompWhich::eigvals) {
-        auto W = eigvals(to_decompose, new_labels.value_or(LegLabels{}), new_leg_dual, sort);
+        auto W = eigvals(to_decompose, new_labels.value_or(OptionalLabels{}), new_leg_dual, sort);
         B = std::move(W);
     } else if (which == PlanarDecompWhich::svd) {
         auto [u, s, vh] = svd(to_decompose, new_labels, new_leg_dual, true, algorithm);
@@ -446,7 +448,7 @@ std::string
 _as_valid_name(std::string name)
 {
     name = strip_ws(std::move(name));
-    if (!is_valid_leg_label(LegLabel{ name })) {
+    if (!is_valid_leg_label(OptionalLabel{ name })) {
         throw std::invalid_argument(std::format("Invalid name or leg label: {}", name));
     }
     return name;
@@ -1379,7 +1381,8 @@ PlanarDiagram::verify_diagram()
         check(tensors.at(t1).has_label(l1), std::format("Tensor {} has no leg {}", t1, l1));
         num_legs += 1;
         if (!t2) {
-            check(is_valid_leg_label(LegLabel{ l2 }), std::format("Invalid leg label {}", l2));
+            check(is_valid_leg_label(OptionalLabel{ l2 }),
+                  std::format("Invalid leg label {}", l2));
         } else {
             check(tensors.contains(*t2), std::format("No tensor with name {}", *t2));
             check(tensors.at(*t2).has_label(l2), std::format("Tensor {} has no leg {}", *t2, l2));
@@ -1758,7 +1761,7 @@ std::tuple<TensorPtr, TensorPtr>
 horizontal_factorization(TensorCPtr tensor,
                          int64 codomain_cut,
                          int64 domain_cut,
-                         std::optional<LegLabels> new_labels,
+                         std::optional<OptionalLabels> new_labels,
                          std::optional<float64> cutoff_singular_values)
 {
     if (!cutoff_singular_values) {
@@ -1786,7 +1789,7 @@ planar_almost_equal(TensorCPtr tensor_1, TensorCPtr tensor_2, float64 rtol, floa
 {
     auto labs1 = tensor_1->labels();
     auto labs2 = tensor_2->labels();
-    if (contains(labs1, LegLabel{}) || contains(labs2, LegLabel{})) {
+    if (contains(labs1, OptionalLabel{}) || contains(labs2, OptionalLabel{})) {
         throw std::invalid_argument("Can only compare tensors for which each leg has a label");
     }
     std::set<std::string> s1;
@@ -1981,7 +1984,7 @@ _hidden_dual_label_pairs(TensorCPtr tensor1, TensorCPtr tensor2)
     std::vector<bool> used2(hidden2.size(), false);
     for (auto const& [i1, lab1] : hidden1) {
         (void)i1;
-        auto dual1 = _dual_leg_label(LegLabel{ lab1 });
+        auto dual1 = _dual_leg_label(OptionalLabel{ lab1 });
         for (std::size_t j = 0; j < hidden2.size(); ++j) {
             if (used2[j]) {
                 continue;
@@ -2569,7 +2572,7 @@ std::tuple<DiagonalTensorPtr, TensorPtr>
 planar_eigh(TensorCPtr tensor,
             int64 codomain_cut,
             int64 domain_cut,
-            std::optional<LegLabels> new_labels,
+            std::optional<OptionalLabels> new_labels,
             bool new_leg_dual,
             std::optional<std::string> sort)
 {
@@ -2591,7 +2594,7 @@ std::tuple<DiagonalTensorPtr, TensorPtr>
 planar_eig(TensorCPtr tensor,
            int64 codomain_cut,
            int64 domain_cut,
-           std::optional<LegLabels> new_labels,
+           std::optional<OptionalLabels> new_labels,
            bool new_leg_dual,
            std::optional<std::string> sort)
 {
@@ -2613,7 +2616,7 @@ DiagonalTensorPtr
 planar_eigvals(TensorCPtr tensor,
                int64 codomain_cut,
                int64 domain_cut,
-               std::optional<LegLabels> new_labels,
+               std::optional<OptionalLabels> new_labels,
                bool new_leg_dual,
                std::optional<std::string> sort)
 {
@@ -2635,7 +2638,7 @@ std::tuple<TensorPtr, TensorPtr>
 planar_lq(TensorCPtr tensor,
           int64 codomain_cut,
           int64 domain_cut,
-          std::optional<LegLabels> new_labels,
+          std::optional<OptionalLabels> new_labels,
           bool new_leg_dual)
 {
     auto r = planar_decomposition(tensor,
@@ -2951,45 +2954,27 @@ planar_partial_trace(TensorPlaceholder const& tensor, std::vector<std::vector<Le
     return TensorPlaceholder(std::move(labels), std::move(open_dims), std::move(cost));
 }
 
-TensorPtr
-planar_permute_legs(TensorCPtr T,
-                    std::optional<std::vector<LegRef>> codomain,
-                    std::optional<std::vector<LegRef>> domain)
+/// Check that `codomain_idcs` / `domain_idcs` (at least one given) form a planar bipartition of
+/// `num_legs` legs on a circle and infer the missing one.
+[[nodiscard]] std::pair<std::vector<int64>, std::vector<int64>>
+_planar_permute_bipartition(std::optional<std::vector<int64>> codomain_idcs,
+                            std::optional<std::vector<int64>> domain_idcs,
+                            int64 num_legs)
 {
-    // Note: parse_leg_bipartition cannot easily be used in this function due to how it interacts
-    // with empty (co)domains
-
-    if (!codomain && !domain) {
-        throw std::invalid_argument("Need to specify either codomain or domain that is non-empty");
-    }
-    if ((!codomain && domain && domain->empty()) || (!domain && codomain && codomain->empty())) {
-        throw std::invalid_argument("Specified codomain or domain is empty");
-    }
-
-    // do this for both before potentially comparing (avoid comparing to labels)
-    std::optional<std::vector<int64>> domain_idcs;
-    std::optional<std::vector<int64>> codomain_idcs;
-    if (domain) {
-        domain_idcs = T->get_leg_idcs(*domain);
-    }
-    if (codomain) {
-        codomain_idcs = T->get_leg_idcs(*codomain);
-    }
-
     if (domain_idcs && !domain_idcs->empty()) {
         std::vector<int64> expect;
         expect.reserve(domain_idcs->size());
         for (int64 i = 0; i < static_cast<int64>(domain_idcs->size()); ++i) {
-            expect.push_back(py_mod((*domain_idcs)[domain_idcs->size() - 1] + i, T->num_legs));
+            expect.push_back(py_mod((*domain_idcs)[domain_idcs->size() - 1] + i, num_legs));
         }
         std::ranges::reverse(expect);
         if (*domain_idcs != expect) {
             throw std::invalid_argument("The given domain is a non-planar permutation");
         }
-        auto num_codom_legs = T->num_legs - static_cast<int64>(domain_idcs->size());
+        auto num_codom_legs = num_legs - static_cast<int64>(domain_idcs->size());
         std::vector<int64> codomain2;
         for (int64 i = 0; i < num_codom_legs; ++i) {
-            codomain2.push_back(py_mod((*domain_idcs)[0] + 1 + i, T->num_legs));
+            codomain2.push_back(py_mod((*domain_idcs)[0] + 1 + i, num_legs));
         }
         if (!codomain_idcs) {
             codomain_idcs = std::move(codomain2);
@@ -3001,15 +2986,15 @@ planar_permute_legs(TensorCPtr T,
         std::vector<int64> expect;
         expect.reserve(codomain_idcs->size());
         for (int64 i = 0; i < static_cast<int64>(codomain_idcs->size()); ++i) {
-            expect.push_back(py_mod((*codomain_idcs)[0] + i, T->num_legs));
+            expect.push_back(py_mod((*codomain_idcs)[0] + i, num_legs));
         }
         if (*codomain_idcs != expect) {
             throw std::invalid_argument("The given codomain is a non-planar permutation");
         }
-        auto num_dom_legs = T->num_legs - static_cast<int64>(codomain_idcs->size());
+        auto num_dom_legs = num_legs - static_cast<int64>(codomain_idcs->size());
         std::vector<int64> reverse_domain;
         for (int64 i = 0; i < num_dom_legs; ++i) {
-            reverse_domain.push_back(py_mod(codomain_idcs->back() + 1 + i, T->num_legs));
+            reverse_domain.push_back(py_mod(codomain_idcs->back() + 1 + i, num_legs));
         }
         auto domain2 = reversed_copy(reverse_domain);
         if (!domain_idcs) {
@@ -3018,9 +3003,128 @@ planar_permute_legs(TensorCPtr T,
             throw std::invalid_argument("The given codomain and domain are inconsistent!");
         }
     }
+    return { std::move(*codomain_idcs), std::move(*domain_idcs) };
+}
 
-    auto const& co = *codomain_idcs;
-    auto const& dom = *domain_idcs;
+/// Insert the hidden legs of `T` into a planar bipartition `co_pub`, `dom_pub` of its public legs
+/// (given as positions in `public_idcs`), returning the bipartition of all legs.
+///
+/// Every hidden leg stays in the gap between the same two (cyclically) neighboring public legs,
+/// such that the full permutation is planar, i.e. hidden legs are never braided.
+/// Hidden legs in a gap at the boundary between the new codomain and domain may end up on either
+/// side; we split such a gap to minimize the number of hidden legs that switch between codomain
+/// and domain, i.e. that need to be bent.
+[[nodiscard]] std::pair<std::vector<int64>, std::vector<int64>>
+_planar_permute_insert_hidden(TensorCPtr const& T,
+                              std::vector<int64> const& public_idcs,
+                              std::vector<int64> const& co_pub,
+                              std::vector<int64> const& dom_pub)
+{
+    auto n_pub = static_cast<int64>(public_idcs.size());
+    // gaps[k]: hidden legs (cyclically) between public leg k and public leg k + 1
+    std::vector<std::vector<int64>> gaps(static_cast<std::size_t>(n_pub));
+    for (int64 k = 0; k < n_pub; ++k) {
+        auto start = public_idcs[static_cast<std::size_t>(k)] + 1;
+        auto stop = (k + 1 < n_pub) ? public_idcs[static_cast<std::size_t>(k + 1)]
+                                    : public_idcs[0] + T->num_legs;
+        for (int64 i = start; i < stop; ++i) {
+            gaps[static_cast<std::size_t>(k)].push_back(py_mod(i, T->num_legs));
+        }
+    }
+    auto num_codomain_legs = T->num_codomain_legs();
+    auto in_codomain = [num_codomain_legs](int64 i) { return i < num_codomain_legs; };
+    // number of legs in `legs[start:stop]` that change sides if put in the codomain / domain
+    auto cost = [&](std::vector<int64> const& legs, std::size_t start, std::size_t stop, bool to_co) {
+        int64 res = 0;
+        for (auto n = start; n < stop; ++n) {
+            res += (in_codomain(legs[n]) != to_co) ? 1 : 0;
+        }
+        return res;
+    };
+    // legs in the order of `ks` with the gaps in between (but not after the last)
+    auto with_inner_gaps = [&](std::vector<int64> const& ks) {
+        std::vector<int64> res;
+        for (std::size_t n = 0; n < ks.size(); ++n) {
+            res.push_back(public_idcs[static_cast<std::size_t>(ks[n])]);
+            if (n + 1 < ks.size()) {
+                auto const& gap = gaps[static_cast<std::size_t>(ks[n])];
+                res.insert(res.end(), gap.begin(), gap.end());
+            }
+        }
+        return res;
+    };
+    auto slice = [](std::vector<int64> const& v, std::size_t start, std::size_t stop) {
+        return std::vector<int64>(v.begin() + static_cast<std::ptrdiff_t>(start),
+                                  v.begin() + static_cast<std::ptrdiff_t>(stop));
+    };
+    auto concat = [](std::initializer_list<std::vector<int64>> parts) {
+        std::vector<int64> res;
+        for (auto const& p : parts) {
+            res.insert(res.end(), p.begin(), p.end());
+        }
+        return res;
+    };
+
+    // the result has cyclic leg order `co + reversed(dom)`, we build `rdom = reversed(dom)`
+    auto rdom_pub = reversed_copy(dom_pub);
+    auto co_core = with_inner_gaps(co_pub);
+    auto rdom_core = with_inner_gaps(rdom_pub);
+    std::vector<int64> co;
+    std::vector<int64> rdom;
+    if (!co_pub.empty() && !rdom_pub.empty()) {
+        // right boundary: gap_R[:s_R] ends the codomain, gap_R[s_R:] starts rdom
+        // left boundary: gap_L[:s_L] ends rdom, gap_L[s_L:] starts the codomain
+        auto const& gap_R = gaps[static_cast<std::size_t>(co_pub.back())];
+        auto const& gap_L = gaps[static_cast<std::size_t>(rdom_pub.back())];
+        auto best_split = [&](std::vector<int64> const& gap, bool first_to_co) {
+            std::size_t best = 0;
+            int64 best_cost = -1;
+            for (std::size_t s = 0; s <= gap.size(); ++s) {
+                auto c = cost(gap, 0, s, first_to_co) + cost(gap, s, gap.size(), !first_to_co);
+                if (best_cost < 0 || c < best_cost) {
+                    best = s;
+                    best_cost = c;
+                }
+            }
+            return best;
+        };
+        auto s_R = best_split(gap_R, true);
+        auto s_L = best_split(gap_L, false);
+        co = concat({ slice(gap_L, s_L, gap_L.size()), co_core, slice(gap_R, 0, s_R) });
+        rdom = concat({ slice(gap_R, s_R, gap_R.size()), rdom_core, slice(gap_L, 0, s_L) });
+    } else {
+        // all public legs on one side; the gap wrapping around may be split in three parts:
+        // gap[:i] ends `outer`, gap[i:j] forms `inner` (the other side), gap[j:] starts `outer`
+        bool outer_is_co = rdom_pub.empty();
+        auto const& outer_pub = outer_is_co ? co_pub : rdom_pub;
+        auto const& outer_core = outer_is_co ? co_core : rdom_core;
+        auto const& gap = gaps[static_cast<std::size_t>(outer_pub.back())];
+        std::size_t best_i = 0;
+        std::size_t best_j = 0;
+        int64 best_cost = -1;
+        for (std::size_t i = 0; i <= gap.size(); ++i) {
+            for (std::size_t j = i; j <= gap.size(); ++j) {
+                auto c = cost(gap, 0, i, outer_is_co) + cost(gap, i, j, !outer_is_co) +
+                         cost(gap, j, gap.size(), outer_is_co);
+                if (best_cost < 0 || c < best_cost) {
+                    best_i = i;
+                    best_j = j;
+                    best_cost = c;
+                }
+            }
+        }
+        auto outer = concat({ slice(gap, best_j, gap.size()), outer_core, slice(gap, 0, best_i) });
+        auto inner = slice(gap, best_i, best_j);
+        co = outer_is_co ? std::move(outer) : std::move(inner);
+        rdom = outer_is_co ? std::move(inner) : std::move(outer);
+    }
+    return { std::move(co), reversed_copy(rdom) };
+}
+
+/// Implementation of `planar_permute_legs` for a planar bipartition `co`, `dom` of *all* legs.
+[[nodiscard]] TensorPtr
+_planar_permute_legs_idcs(TensorCPtr T, std::vector<int64> const& co, std::vector<int64> const& dom)
+{
 
     // figure out if legs need to bend right or left of the tensor.
     std::vector<int64> codomain_staying;
@@ -3276,11 +3380,66 @@ planar_permute_legs(TensorCPtr T,
       T, as_leg_refs(co), as_leg_refs(dom), std::nullopt, BendRight{ std::move(bend_right_list) });
 }
 
+TensorPtr
+planar_permute_legs(TensorCPtr T,
+                    std::optional<std::vector<LegRef>> codomain,
+                    std::optional<std::vector<LegRef>> domain)
+{
+    // Note: parse_leg_bipartition cannot easily be used in this function due to how it interacts
+    // with empty (co)domains
+
+    if (!codomain && !domain) {
+        throw std::invalid_argument("Need to specify either codomain or domain that is non-empty");
+    }
+    if ((!codomain && domain && domain->empty()) || (!domain && codomain && codomain->empty())) {
+        throw std::invalid_argument("Specified codomain or domain is empty");
+    }
+
+    // do this for both before potentially comparing (avoid comparing to labels)
+    std::optional<std::vector<int64>> domain_idcs;
+    std::optional<std::vector<int64>> codomain_idcs;
+    if (domain) {
+        domain_idcs = T->get_leg_idcs(*domain);
+    }
+    if (codomain) {
+        codomain_idcs = T->get_leg_idcs(*codomain);
+    }
+
+    // Hidden legs live on a second plane: if only public legs are specified, the permutation
+    // needs to be planar only w.r.t. the public legs. If hidden legs are specified explicitly
+    // (e.g. by internal callers), the permutation needs to be planar w.r.t. all legs.
+    auto hidden = _hidden_leg_idcs(T);
+    auto names_hidden = [&hidden](std::optional<std::vector<int64>> const& idcs) {
+        return idcs && std::ranges::any_of(*idcs, [&hidden](int64 i) { return contains(hidden, i); });
+    };
+    if (hidden.empty() || names_hidden(codomain_idcs) || names_hidden(domain_idcs)) {
+        auto [co, dom] =
+          _planar_permute_bipartition(std::move(codomain_idcs), std::move(domain_idcs), T->num_legs);
+        return _planar_permute_legs_idcs(T, co, dom);
+    }
+    auto public_idcs = _public_leg_idcs(T);
+    auto to_public_positions = [&public_idcs](std::optional<std::vector<int64>> const& idcs) {
+        std::optional<std::vector<int64>> res;
+        if (idcs) {
+            res.emplace();
+            for (auto i : *idcs) {
+                res->push_back(index_of(public_idcs, i));
+            }
+        }
+        return res;
+    };
+    auto [co_pub, dom_pub] = _planar_permute_bipartition(to_public_positions(codomain_idcs),
+                                                         to_public_positions(domain_idcs),
+                                                         static_cast<int64>(public_idcs.size()));
+    auto [co, dom] = _planar_permute_insert_hidden(T, public_idcs, co_pub, dom_pub);
+    return _planar_permute_legs_idcs(T, co, dom);
+}
+
 std::tuple<TensorPtr, TensorPtr>
 planar_qr(TensorCPtr tensor,
           int64 codomain_cut,
           int64 domain_cut,
-          std::optional<LegLabels> new_labels,
+          std::optional<OptionalLabels> new_labels,
           bool new_leg_dual)
 {
     auto r = planar_decomposition(tensor,
@@ -3296,7 +3455,7 @@ std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr>
 planar_svd(TensorCPtr tensor,
            int64 codomain_cut,
            int64 domain_cut,
-           std::optional<LegLabels> new_labels,
+           std::optional<OptionalLabels> new_labels,
            bool new_leg_dual,
            std::optional<std::string> algorithm)
 {
@@ -3315,7 +3474,7 @@ std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr, float64, float64>
 planar_truncated_svd(TensorCPtr tensor,
                      int64 codomain_cut,
                      int64 domain_cut,
-                     std::optional<LegLabels> new_labels,
+                     std::optional<OptionalLabels> new_labels,
                      bool new_leg_dual,
                      std::optional<std::string> algorithm,
                      std::optional<float64> normalize_to,
