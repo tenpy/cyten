@@ -183,6 +183,34 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
 In Python, ``grid`` is ``list[list[SymmetricTensor | None]]`` (``None`` = zero cell);
 ``labels`` / ``dtype`` use ``None`` for C++ ``nullopt``.
 )pydoc"));
+
+    m.def(
+      "tensor_grid_cell",
+      [](py::object tensor, int64 row, int64 col, py::object row_leg, py::object col_leg) {
+          LegRef row_ref = int64{ 0 };
+          LegRef col_ref = int64{ -1 };
+          if (!row_leg.is_none()) {
+              if (py::isinstance<py::str>(row_leg)) {
+                  row_ref = row_leg.cast<std::string>();
+              } else {
+                  row_ref = row_leg.cast<int64>();
+              }
+          }
+          if (!col_leg.is_none()) {
+              if (py::isinstance<py::str>(col_leg)) {
+                  col_ref = col_leg.cast<std::string>();
+              } else {
+                  col_ref = col_leg.cast<int64>();
+              }
+          }
+          return tensor_grid_cell(tensor.cast<TensorCPtr>(), row, col, row_ref, col_ref);
+      },
+      py::arg("tensor"),
+      py::arg("row"),
+      py::arg("col"),
+      py::arg("row_leg") = py::none(),
+      py::arg("col_leg") = py::none(),
+      DOC(cyten, tensor_grid_cell));
 }
 
 } // namespace cyten
