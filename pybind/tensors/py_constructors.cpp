@@ -234,6 +234,43 @@ In Python, ``grid`` is ``list[list[SymmetricTensor | None]]`` (``None`` = zero c
 In Python, ``row`` / ``col`` accept ``int | str`` (a summand label, resolved via
 ``DirectSumSpace.get_summand_idx``).
 )pydoc"));
+
+    m.def(
+      "grid_project",
+      [](py::object tensor, py::object legs, py::object cells, bool squeeze) {
+          auto as_leg_ref = [](py::handle item) -> LegRef {
+              py::object obj = py::reinterpret_borrow<py::object>(item);
+              if (py::isinstance<py::str>(obj)) {
+                  return obj.cast<std::string>();
+              }
+              return obj.cast<int64>();
+          };
+          auto as_summand_ref = [](py::handle item) -> DirectSumSpace::SummandRef {
+              py::object obj = py::reinterpret_borrow<py::object>(item);
+              if (py::isinstance<py::str>(obj)) {
+                  return obj.cast<std::string>();
+              }
+              return obj.cast<int64>();
+          };
+          std::vector<LegRef> leg_refs;
+          for (auto item : py::reinterpret_borrow<py::iterable>(legs)) {
+              leg_refs.push_back(as_leg_ref(item));
+          }
+          std::vector<DirectSumSpace::SummandRef> cell_refs;
+          for (auto item : py::reinterpret_borrow<py::iterable>(cells)) {
+              cell_refs.push_back(as_summand_ref(item));
+          }
+          return grid_project(
+            tensor.cast<TensorCPtr>(), std::move(leg_refs), std::move(cell_refs), squeeze);
+      },
+      py::arg("tensor"),
+      py::arg("legs"),
+      py::arg("cells"),
+      py::arg("squeeze") = false,
+      doc_plus(DOC(cyten, grid_project),
+               R"pydoc(
+In Python, ``legs`` and ``cells`` are parallel sequences of ``str | int`` values.
+)pydoc"));
 }
 
 } // namespace cyten
