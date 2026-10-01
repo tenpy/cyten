@@ -26,7 +26,7 @@ namespace cyten {
 /// @param diagonal If true, return a diagonal identity.
 [[nodiscard]] TensorPtr eye(Space::Ptr leg,
                             TensorBackend::Ptr backend = nullptr,
-                            std::optional<LegLabels> labels = std::nullopt,
+                            std::optional<OptionalLabels> labels = std::nullopt,
                             Dtype dtype = Dtype::Float64,
                             std::optional<std::string> device = std::nullopt,
                             bool diagonal = true);
@@ -43,7 +43,7 @@ namespace cyten {
                                TensorProduct::Ptr codomain,
                                TensorProduct::Ptr domain = nullptr,
                                TensorBackend::Ptr backend = nullptr,
-                               std::optional<LegLabels> labels = std::nullopt,
+                               std::optional<OptionalLabels> labels = std::nullopt,
                                std::optional<Dtype> dtype = std::nullopt,
                                std::optional<std::string> device = std::nullopt);
 
@@ -60,7 +60,7 @@ namespace cyten {
                                         TensorProduct::Ptr codomain,
                                         TensorProduct::Ptr domain = nullptr,
                                         TensorBackend::Ptr backend = nullptr,
-                                        std::optional<LegLabels> labels = std::nullopt,
+                                        std::optional<OptionalLabels> labels = std::nullopt,
                                         std::optional<Dtype> dtype = std::nullopt,
                                         std::optional<std::string> device = std::nullopt,
                                         bool understood_braiding = false);
@@ -92,7 +92,7 @@ namespace cyten {
                                         std::optional<int64> legs_pos = std::nullopt,
                                         std::optional<int64> codomain_pos = std::nullopt,
                                         std::optional<int64> domain_pos = std::nullopt,
-                                        LegLabel label = std::nullopt,
+                                        OptionalLabel label = std::nullopt,
                                         bool is_dual = false);
 
 /// Return a zero tensor with the same type, dtype, legs, backend and labels.
@@ -135,9 +135,17 @@ namespace cyten {
 ///     first codomain leg, and tensors in the same column share the last domain leg.
 /// @param labels Optional labels for the result; `nullopt` means unlabeled.
 /// @param dtype Optional dtype; `nullopt` uses the common dtype of the grid.
+/// @param row_labels Optional label per grid row, stored as `DirectSumSpace::summand_labels`
+///     on the resulting codomain leg; `nullopt` means unlabeled. If given, must have one
+///     entry per row.
+/// @param col_labels Optional label per grid column, stored as `DirectSumSpace::summand_labels`
+///     on the resulting domain leg; `nullopt` means unlabeled. If given, must have one entry
+///     per column.
 [[nodiscard]] TensorPtr tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
-                                         std::optional<LegLabels> labels = std::nullopt,
-                                         std::optional<Dtype> dtype = std::nullopt);
+                                         std::optional<OptionalLabels> labels = std::nullopt,
+                                         std::optional<Dtype> dtype = std::nullopt,
+                                         std::optional<OptionalLabels> row_labels = std::nullopt,
+                                         std::optional<OptionalLabels> col_labels = std::nullopt);
 
 /// Extract cell ``(row, col)`` from a tensor stacked by `tensor_from_grid`.
 ///
@@ -146,18 +154,20 @@ namespace cyten {
 /// via @f$\mathrm{grid}[m][n] = p_m \circ \mathrm{res} \circ i_n@f$, implemented as
 /// `apply_mask` with `DirectSumSpace::projection_onto_summand` on the stacking legs.
 ///
-/// If a stacking leg is a plain `ElementarySpace` (1-row or 1-column grid), that side is
-/// treated as the identity. Recovered cell spaces are isomorphic to the original grid
-/// cells' stacking legs (same sectors/multiplicities), but need not be the same objects.
-/// Labels of `tensor` are preserved.
+/// If a stacking leg is a plain `ElementarySpace` (not a `DirectSumSpace`; possible for an
+/// isomorphic stacked tensor not produced by `tensor_from_grid`), that side is treated as the
+/// identity and only `row`/`col == 0` or `-1` (as an index, not a label) is valid. Recovered
+/// cell spaces are isomorphic to the original grid cells' stacking legs (same
+/// sectors/multiplicities), but need not be the same objects. Labels of `tensor` are preserved.
 ///
 /// @param tensor Result of `tensor_from_grid` (or an isomorphic stacked tensor).
-/// @param row,col Summand indices into the stacked codomain / domain legs (negative OK).
+/// @param row,col Summand index or label into the stacked codomain / domain legs (negative
+///     indices OK; labels resolved via `DirectSumSpace::get_summand_idx`).
 /// @param row_leg Leg of the row direct sum (default: first codomain leg).
 /// @param col_leg Leg of the column direct sum (default: last domain leg, ``-1``).
 [[nodiscard]] TensorPtr tensor_grid_cell(TensorCPtr tensor,
-                                         int64 row,
-                                         int64 col,
+                                         DirectSumSpace::SummandRef row,
+                                         DirectSumSpace::SummandRef col,
                                          LegRef row_leg = int64{ 0 },
                                          LegRef col_leg = int64{ -1 });
 

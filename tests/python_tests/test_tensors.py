@@ -3948,15 +3948,19 @@ def test_tensor_grid_cell_roundtrip(make_compatible_tensor, make_compatible_spac
     # zero cell
     grid[1][0] = None
 
-    res = tensors.tensor_from_grid(grid, labels=['wL', 'wR'])
+    res = tensors.tensor_from_grid(grid, labels=['wL', 'wR'], row_labels=['IdL', 'IdR'], col_labels=['IdL', 'IdR'])
     assert isinstance(res.codomain[0], DirectSumSpace)
     assert isinstance(res.domain[-1], DirectSumSpace)
+    assert res.codomain[0].summand_labels == ['IdL', 'IdR']
+    assert res.domain[-1].summand_labels == ['IdL', 'IdR']
 
     recovered = []
+    row_refs = [0, 'IdR']
+    col_refs = ['IdL', -1]
     for i in range(2):
         row = []
         for j in range(2):
-            cell = tensors.tensor_grid_cell(res, i, j, row_leg='wL', col_leg='wR')
+            cell = tensors.tensor_grid_cell(res, row_refs[i], col_refs[j], row_leg='wL', col_leg='wR')
             assert cell.labels == ['wL', 'wR']
             if grid[i][j] is None:
                 assert tensors.almost_equal(cell, tensors.zero_like(cell))

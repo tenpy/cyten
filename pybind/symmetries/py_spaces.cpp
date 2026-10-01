@@ -680,14 +680,18 @@ bind_elementary_space(py::module_& m)
         DOC(cyten, ElementarySpace, change_symmetry))
       .def(
         "direct_sum",
-        [](ElementarySpace const& self, py::args others_obj) {
+        [](ElementarySpace const& self,
+           py::args others_obj,
+           std::optional<OptionalLabels> summand_labels) {
             std::vector<ElementarySpace::Ptr> others;
             others.reserve(static_cast<std::size_t>(others_obj.size()));
             for (py::handle item : others_obj) {
                 others.push_back(item.cast<ElementarySpace::Ptr>());
             }
-            return self.direct_sum(others);
+            return self.direct_sum(others, std::move(summand_labels));
         },
+        py::kw_only(),
+        py::arg("summand_labels") = py::none(),
         doc_cpp_ref(DOC(cyten, ElementarySpace), "cyten::ElementarySpace::direct_sum()"))
       .def(
         "drop_symmetry",
@@ -740,33 +744,55 @@ bind_direct_sum_space(py::module_& m)
     py::class_<DirectSumSpace, ElementarySpace, PyDirectSumSpace, py::smart_holder> cls(
       m, "DirectSumSpace", DOC(cyten, DirectSumSpace));
 
-    cls.def(py::init([](py::sequence spaces_obj, bool is_dual) {
-                std::vector<ElementarySpace::Ptr> spaces;
-                spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
-                for (py::handle item : spaces_obj) {
-                    spaces.push_back(item.cast<ElementarySpace::Ptr>());
-                }
-                return std::make_shared<PyDirectSumSpace>(std::move(spaces), is_dual);
-            }),
-            py::arg("spaces"),
-            py::arg("is_dual") = false);
-
-    cls.def_property_readonly("spaces", [](DirectSumSpace const& self) { return self.spaces; });
-
-    cls
-      .def_static(
-        "from_spaces",
-        [](py::sequence spaces_obj, bool is_dual) {
+    cls.def(
+      py::init(
+        [](py::sequence spaces_obj, bool is_dual, std::optional<OptionalLabels> summand_labels) {
             std::vector<ElementarySpace::Ptr> spaces;
             spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
             for (py::handle item : spaces_obj) {
                 spaces.push_back(item.cast<ElementarySpace::Ptr>());
             }
-            return DirectSumSpace::from_spaces(std::move(spaces), is_dual);
+            return std::make_shared<PyDirectSumSpace>(
+              std::move(spaces), is_dual, std::move(summand_labels));
+        }),
+      py::arg("spaces"),
+      py::arg("is_dual") = false,
+      py::arg("summand_labels") = py::none());
+
+    cls.def_property_readonly("spaces", [](DirectSumSpace const& self) { return self.spaces; });
+    cls.def_property_readonly("summand_labels",
+                              [](DirectSumSpace const& self) { return self.summand_labels; });
+
+    cls
+      .def_static(
+        "from_spaces",
+        [](py::sequence spaces_obj, bool is_dual, std::optional<OptionalLabels> summand_labels) {
+            std::vector<ElementarySpace::Ptr> spaces;
+            spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
+            for (py::handle item : spaces_obj) {
+                spaces.push_back(item.cast<ElementarySpace::Ptr>());
+            }
+            return DirectSumSpace::from_spaces(
+              std::move(spaces), is_dual, std::move(summand_labels));
         },
         py::arg("spaces"),
         py::arg("is_dual") = false,
+        py::arg("summand_labels") = py::none(),
         DOC(cyten, DirectSumSpace, from_spaces))
+      .def(
+        "get_summand_idx",
+        [](DirectSumSpace const& self, py::object which) {
+            if (py::isinstance<py::str>(which)) {
+                return self.get_summand_idx(which.cast<std::string>());
+            }
+            return self.get_summand_idx(which.cast<int64>());
+        },
+        py::arg("which"),
+        DOC(cyten, DirectSumSpace, get_summand_idx))
+      .def("has_summand_label",
+           &DirectSumSpace::has_summand_label,
+           py::arg("label"),
+           DOC(cyten, DirectSumSpace, has_summand_label))
       .def("mult_slices", &DirectSumSpace::mult_slices, DOC(cyten, DirectSumSpace, mult_slices))
       .def("as_plain_ElementarySpace",
            &DirectSumSpace::as_plain_ElementarySpace,

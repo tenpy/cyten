@@ -62,7 +62,7 @@ class SymmetricTensor : public Tensor
                     TensorProduct::Ptr domain,
                     TensorBackend::Ptr backend,
                     Symmetry::Ptr symmetry,
-                    LegLabels labels,
+                    OptionalLabels labels,
                     bool check_complex_dtype = true);
 
     ~SymmetricTensor() override = default;
@@ -105,7 +105,7 @@ class SymmetricTensor : public Tensor
                                              TensorProduct::Ptr codomain,
                                              TensorProduct::Ptr domain = nullptr,
                                              TensorBackend::Ptr backend = nullptr,
-                                             std::optional<LegLabels> labels = std::nullopt,
+                                             std::optional<OptionalLabels> labels = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
@@ -114,7 +114,7 @@ class SymmetricTensor : public Tensor
                                               TensorProduct::Ptr codomain,
                                               TensorProduct::Ptr domain = nullptr,
                                               TensorBackend::Ptr backend = nullptr,
-                                              std::optional<LegLabels> labels = std::nullopt,
+                                              std::optional<OptionalLabels> labels = std::nullopt,
                                               std::optional<Dtype> dtype = std::nullopt,
                                               std::optional<std::string> device = std::nullopt,
                                               float64 tol = 1e-6,
@@ -126,7 +126,7 @@ class SymmetricTensor : public Tensor
       Leg::Ptr space,
       TensorBackend::Ptr backend = nullptr,
       std::optional<std::string> device = std::nullopt,
-      LegLabel label = std::nullopt);
+      OptionalLabel label = std::nullopt);
 
     /// The identity map as a SymmetricTensor.
     ///
@@ -141,19 +141,20 @@ class SymmetricTensor : public Tensor
     /// backend.
     [[nodiscard]] static Ptr from_eye(TensorProduct::Ptr co_domain,
                                       TensorBackend::Ptr backend = nullptr,
-                                      std::optional<LegLabels> labels = std::nullopt,
+                                      std::optional<OptionalLabels> labels = std::nullopt,
                                       Dtype dtype = Dtype::Complex128,
                                       std::optional<std::string> device = std::nullopt);
 
     /// Generate a sample from the normal distribution.
-    [[nodiscard]] static Ptr from_random_normal(TensorProduct::Ptr codomain,
-                                                TensorProduct::Ptr domain = nullptr,
-                                                TensorCPtr mean = nullptr,
-                                                float64 sigma = 1.0,
-                                                TensorBackend::Ptr backend = nullptr,
-                                                std::optional<LegLabels> labels = std::nullopt,
-                                                std::optional<Dtype> dtype = Dtype::Complex128,
-                                                std::optional<std::string> device = std::nullopt);
+    [[nodiscard]] static Ptr from_random_normal(
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr domain = nullptr,
+      TensorCPtr mean = nullptr,
+      float64 sigma = 1.0,
+      TensorBackend::Ptr backend = nullptr,
+      std::optional<OptionalLabels> labels = std::nullopt,
+      std::optional<Dtype> dtype = Dtype::Complex128,
+      std::optional<std::string> device = std::nullopt);
 
     /// Generate a tensor with uniformly random block-entries.
     ///
@@ -170,12 +171,13 @@ class SymmetricTensor : public Tensor
     /// `SymmetricTensor`.
     /// @param dtype The dtype for the tensor.
     /// @param device The device of the tensor. If omitted, use the default device of the backend.
-    [[nodiscard]] static Ptr from_random_uniform(TensorProduct::Ptr codomain,
-                                                 TensorProduct::Ptr domain = nullptr,
-                                                 TensorBackend::Ptr backend = nullptr,
-                                                 std::optional<LegLabels> labels = std::nullopt,
-                                                 Dtype dtype = Dtype::Complex128,
-                                                 std::optional<std::string> device = std::nullopt);
+    [[nodiscard]] static Ptr from_random_uniform(
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr domain = nullptr,
+      TensorBackend::Ptr backend = nullptr,
+      std::optional<OptionalLabels> labels = std::nullopt,
+      Dtype dtype = Dtype::Complex128,
+      std::optional<std::string> device = std::nullopt);
 
     /// Initialize a `SymmetricTensor` by generating its blocks from a function.
     ///
@@ -209,7 +211,7 @@ class SymmetricTensor : public Tensor
       TensorProduct::Ptr codomain,
       TensorProduct::Ptr domain = nullptr,
       TensorBackend::Ptr backend = nullptr,
-      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
@@ -218,7 +220,7 @@ class SymmetricTensor : public Tensor
       TensorProduct::Ptr co_domain,
       Sector sector,
       TensorBackend::Ptr backend = nullptr,
-      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
@@ -242,7 +244,7 @@ class SymmetricTensor : public Tensor
                                              TensorProduct::Ptr codomain,
                                              TensorProduct::Ptr domain = nullptr,
                                              TensorBackend::Ptr backend = nullptr,
-                                             std::optional<LegLabels> labels = std::nullopt,
+                                             std::optional<OptionalLabels> labels = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
@@ -256,7 +258,7 @@ class SymmetricTensor : public Tensor
     [[nodiscard]] static Ptr from_zero(TensorProduct::Ptr codomain,
                                        TensorProduct::Ptr domain = nullptr,
                                        TensorBackend::Ptr backend = nullptr,
-                                       std::optional<LegLabels> labels = std::nullopt,
+                                       std::optional<OptionalLabels> labels = std::nullopt,
                                        Dtype dtype = Dtype::Complex128,
                                        std::optional<std::string> device = std::nullopt);
 

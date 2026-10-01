@@ -14,7 +14,7 @@ namespace {
 
 /// Duplicate entries in ``seq``, ignoring unset (``nullopt``) labels.
 [[nodiscard]] std::unordered_set<std::string>
-duplicate_leg_labels(LegLabels const& seq)
+duplicate_leg_labels(OptionalLabels const& seq)
 {
     std::unordered_set<std::string> seen;
     std::unordered_set<std::string> dups;
@@ -30,13 +30,13 @@ duplicate_leg_labels(LegLabels const& seq)
 }
 
 [[nodiscard]] bool
-leg_labels_contain(LegLabels const& labels, LegLabel const& label)
+leg_labels_contain(OptionalLabels const& labels, OptionalLabel const& label)
 {
     return std::ranges::find(labels, label) != labels.end();
 }
 
 [[nodiscard]] std::string
-format_leg_labels(LegLabels const& labels)
+format_leg_labels(OptionalLabels const& labels)
 {
     std::ostringstream out;
     out << '[';
@@ -57,7 +57,7 @@ format_leg_labels(LegLabels const& labels)
 }
 
 [[nodiscard]] std::unordered_map<std::string, int64>
-build_labelmap(LegLabels const& labels)
+build_labelmap(OptionalLabels const& labels)
 {
     std::unordered_map<std::string, int64> map;
     for (int64 i = 0; i < static_cast<int64>(labels.size()); ++i) {
@@ -71,7 +71,7 @@ build_labelmap(LegLabels const& labels)
 } // namespace
 
 bool
-is_valid_leg_label(LegLabel const& label)
+is_valid_leg_label(OptionalLabel const& label)
 {
     if (!label) {
         return true;
@@ -86,7 +86,7 @@ is_valid_leg_label(LegLabel const& label)
 }
 
 std::string
-_combine_leg_labels(LegLabels const& labels, int64 offset)
+_combine_leg_labels(OptionalLabels const& labels, int64 offset)
 {
     std::string joined;
     for (std::size_t n = 0; n < labels.size(); ++n) {
@@ -102,18 +102,18 @@ _combine_leg_labels(LegLabels const& labels, int64 offset)
     return std::format("({})", joined);
 }
 
-LegLabels
-_split_leg_label(LegLabel const& label, std::optional<int64> num)
+OptionalLabels
+_split_leg_label(OptionalLabel const& label, std::optional<int64> num)
 {
     if (!label) {
         if (!num.has_value()) {
             throw std::invalid_argument("num is required when splitting an unset combined label");
         }
-        return LegLabels(static_cast<std::size_t>(*num), std::nullopt);
+        return OptionalLabels(static_cast<std::size_t>(*num), std::nullopt);
     }
     if (label->starts_with('(') && label->ends_with(')')) {
         std::string const inner = label->substr(1, label->size() - 2);
-        LegLabels labels;
+        OptionalLabels labels;
         // Match Python ``str.split('.')`` (keeps empty segments).
         std::size_t start = 0;
         while (true) {
@@ -139,10 +139,10 @@ _split_leg_label(LegLabel const& label, std::optional<int64> num)
     throw std::invalid_argument("Invalid format for a combined label");
 }
 
-LegLabels
-_dual_label_list(LegLabels const& labels)
+OptionalLabels
+_dual_label_list(OptionalLabels const& labels)
 {
-    LegLabels out;
+    OptionalLabels out;
     out.reserve(labels.size());
     for (auto const& l : labels | std::views::reverse) {
         out.push_back(_dual_leg_label(l));
@@ -150,8 +150,8 @@ _dual_label_list(LegLabels const& labels)
     return out;
 }
 
-LegLabel
-_dual_leg_label(LegLabel const& label)
+OptionalLabel
+_dual_leg_label(OptionalLabel const& label)
 {
     if (!label) {
         return std::nullopt;
@@ -165,10 +165,10 @@ _dual_leg_label(LegLabel const& label)
     return *label + '*';
 }
 
-LegLabels
-_get_matching_labels(LegLabels const& labels1, LegLabels const& labels2)
+OptionalLabels
+_get_matching_labels(OptionalLabels const& labels1, OptionalLabels const& labels2)
 {
-    LegLabels labels;
+    OptionalLabels labels;
     std::vector<int64> conflicts;
     auto const n = std::min(labels1.size(), labels2.size());
     labels.reserve(n);
@@ -204,7 +204,7 @@ _get_matching_labels(LegLabels const& labels1, LegLabels const& labels2)
     return labels;
 }
 
-LabelledLegs::LabelledLegs(LegLabels labels)
+LabelledLegs::LabelledLegs(OptionalLabels labels)
 {
     auto const dup = duplicate_leg_labels(labels);
     if (!dup.empty()) {
@@ -239,10 +239,10 @@ LabelledLegs::test_sanity() const
 bool
 LabelledLegs::is_fully_labelled() const
 {
-    return std::ranges::all_of(_labels, [](LegLabel const& l) { return l.has_value(); });
+    return std::ranges::all_of(_labels, [](OptionalLabel const& l) { return l.has_value(); });
 }
 
-LegLabels
+OptionalLabels
 LabelledLegs::labels() const
 {
     return _labels;
@@ -289,14 +289,15 @@ LabelledLegs::get_leg_idcs(std::vector<std::variant<int64, std::string>> const& 
 bool
 LabelledLegs::has_label(std::string const& label) const
 {
-    return leg_labels_contain(_labels, LegLabel{ label });
+    return leg_labels_contain(_labels, OptionalLabel{ label });
 }
 
 bool
 LabelledLegs::has_label(std::vector<std::string> const& more) const
 {
-    return std::ranges::all_of(
-      more, [this](std::string const& l) { return leg_labels_contain(_labels, LegLabel{ l }); });
+    return std::ranges::all_of(more, [this](std::string const& l) {
+        return leg_labels_contain(_labels, OptionalLabel{ l });
+    });
 }
 
 bool
@@ -337,12 +338,12 @@ LabelledLegs::labels_are(std::vector<std::string> const& want, bool planar) cons
 LabelledLegs&
 LabelledLegs::relabel(std::map<std::string, std::string> const& mapping)
 {
-    LegLabels next;
+    OptionalLabels next;
     next.reserve(_labels.size());
     for (auto const& l : _labels) {
         if (l) {
             auto it = mapping.find(*l);
-            next.push_back(it == mapping.end() ? l : LegLabel{ it->second });
+            next.push_back(it == mapping.end() ? l : OptionalLabel{ it->second });
         } else {
             next.push_back(std::nullopt);
         }
@@ -351,7 +352,7 @@ LabelledLegs::relabel(std::map<std::string, std::string> const& mapping)
 }
 
 LabelledLegs&
-LabelledLegs::set_label(int64 pos, LegLabel label)
+LabelledLegs::set_label(int64 pos, OptionalLabel label)
 {
     pos = to_valid_idx(pos, num_legs);
     auto const p = static_cast<std::size_t>(pos);
@@ -376,7 +377,7 @@ LabelledLegs::set_label(int64 pos, LegLabel label)
 }
 
 LabelledLegs&
-LabelledLegs::set_labels(LegLabels labels)
+LabelledLegs::set_labels(OptionalLabels labels)
 {
     auto const dups = duplicate_leg_labels(labels);
     if (!dups.empty()) {

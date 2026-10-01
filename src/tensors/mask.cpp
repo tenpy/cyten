@@ -95,7 +95,7 @@ make_mask(TensorBackend::DataPtr data,
           Space::Ptr space_out,
           bool is_projection,
           TensorBackend::Ptr backend,
-          std::optional<LegLabels> labels)
+          std::optional<OptionalLabels> labels)
 {
     as_elementary_space(space_in);
     as_elementary_space(space_out);
@@ -134,7 +134,7 @@ Mask::Mask(TensorBackend::DataPtr data_in,
            bool is_projection_in,
            TensorBackend::Ptr backend_in,
            Symmetry::Ptr symmetry_in,
-           LegLabels labels_in,
+           OptionalLabels labels_in,
            std::string device_in)
   : Tensor(std::make_shared<TensorProduct>(
              std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(space_out) }),
@@ -276,7 +276,7 @@ Mask::Ptr
 Mask::from_eye(Space::Ptr leg,
                bool is_projection_flag,
                TensorBackend::Ptr backend,
-               std::optional<LegLabels> labels,
+               std::optional<OptionalLabels> labels,
                std::optional<std::string> device)
 {
     auto diag = DiagonalTensor::from_eye(std::move(leg), backend, labels, Dtype::Bool, device);
@@ -291,7 +291,7 @@ Mask::Ptr
 Mask::from_block_mask(BlockBackend::BlockPtr block_mask,
                       Space::Ptr large_leg,
                       TensorBackend::Ptr backend,
-                      std::optional<LegLabels> labels,
+                      std::optional<OptionalLabels> labels,
                       std::optional<std::string> device)
 {
     if (!large_leg->symmetry->can_be_dropped()) {
@@ -331,7 +331,7 @@ Mask::Ptr
 Mask::from_indices(py::object indices,
                    Space::Ptr large_leg,
                    TensorBackend::Ptr backend,
-                   std::optional<LegLabels> labels,
+                   std::optional<OptionalLabels> labels,
                    std::optional<std::string> device)
 {
     auto np = py::module_::import("numpy");
@@ -349,7 +349,7 @@ Mask::from_random(Space::Ptr large_leg_in,
                   TensorBackend::Ptr backend,
                   float64 p_keep,
                   int64 min_keep,
-                  std::optional<LegLabels> labels,
+                  std::optional<OptionalLabels> labels,
                   std::optional<std::string> device,
                   py::object np_random)
 {
@@ -445,7 +445,7 @@ Mask::from_random(Space::Ptr large_leg_in,
 Mask::Ptr
 Mask::from_zero(Space::Ptr large_leg,
                 TensorBackend::Ptr backend,
-                std::optional<LegLabels> labels,
+                std::optional<OptionalLabels> labels,
                 std::optional<std::string> device)
 {
     backend = resolve_backend(std::move(backend), large_leg);
@@ -610,7 +610,7 @@ Tensor::Ptr
 Mask::dagger() const
 {
     auto labs = labels();
-    LegLabels dual_rev;
+    OptionalLabels dual_rev;
     dual_rev.reserve(labs.size());
     for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
         dual_rev.push_back(_dual_leg_label(*it));
@@ -826,7 +826,7 @@ Mask::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string co
                                    py::module_::import("numpy").attr("array")(
                                      py::cast(shape), py::module_::import("numpy").attr("intp")));
     cyten::hdf5::py_set_group_attr("is_projection", py::cast(is_projection));
-    if (std::ranges::all_of(_labels, [](LegLabel const& l) { return !l; })) {
+    if (std::ranges::all_of(_labels, [](OptionalLabel const& l) { return !l; })) {
         cyten::hdf5::py_set_group_attr("labels", py::list());
     } else {
         cyten::hdf5::py_set_group_attr("labels", py::cast(_labels));
@@ -855,9 +855,9 @@ Mask::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string 
         proj = space_dim(*space_in) >= space_dim(*space_out);
     }
 
-    LegLabels labels_in(2, std::nullopt);
+    OptionalLabels labels_in(2, std::nullopt);
     try {
-        labels_in = cyten::hdf5::py_get_attr(h5gr, "labels").cast<LegLabels>();
+        labels_in = cyten::hdf5::py_get_attr(h5gr, "labels").cast<OptionalLabels>();
         // Match Python save: all-None labels are stored as [].
         if (labels_in.empty()) {
             labels_in.assign(2, std::nullopt);

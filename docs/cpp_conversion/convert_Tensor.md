@@ -32,7 +32,7 @@ Keep original Python `Tensor` until all subclasses are converted. Export `cyten.
 - `ascii_diagram` / `__str__` / `__repr__`: port fully; subclass name map uses `dynamic_cast` / typeid once subclasses exist — for now map unknown → `"???"`.
 - `num_parameters`: use `SectorArray::iter_common_sorted` on (co)domain sector decompositions.
 - `_init_parse_args`: `get_backend` returns `py::object` → cast to `TensorBackend::Ptr`.
-- Labels input for ctor / `set_labels`: accept flexible formats in bindings via `py::object`; C++ API takes `LegLabels` or a dedicated parse helper that also accepts nested lists via overloads / `py::object` helper.
+- Labels input for ctor / `set_labels`: accept flexible formats in bindings via `py::object`; C++ API takes `OptionalLabels` or a dedicated parse helper that also accepts nested lists via overloads / `py::object` helper.
 - Override `test_sanity`, `set_labels` (virtual from `LabelledLegs`).
 - Carry full Python docstrings into pybind bindings (`R"pydoc(...)"`).
 - Preserve `# OPTIMIZE` / TODO comments from Python in C++ (`// OPTIMIZE`, `// TODO`).

@@ -13,9 +13,9 @@
 namespace cyten {
 
 /// Optional string label for a tensor leg (`nullopt` when unlabeled).
-using LegLabel = std::optional<std::string>;
+using OptionalLabel = std::optional<std::string>;
 /// Flat list of leg labels in `legs` order.
-using LegLabels = std::vector<LegLabel>;
+using OptionalLabels = std::vector<OptionalLabel>;
 
 /// Reserved character to indicate contractions in `cyten.planar` diagrams.
 inline constexpr char CONTRACT_SYMBOL = '@';
@@ -30,27 +30,27 @@ inline constexpr char const* FORBIDDEN_LEG_LABEL_CHARS[] = {
 };
 
 /// If the given string is a valid leg label.
-[[nodiscard]] bool is_valid_leg_label(LegLabel const& label);
+[[nodiscard]] bool is_valid_leg_label(OptionalLabel const& label);
 
 /// The label that a combined leg should have.
 ///
 /// @param labels Labels of the legs being combined.
 /// @param offset Added to the index used for anonymous `?n` placeholders.
 ///     Defaults to `0` (needed by `_dual_leg_label` for nested combined labels).
-[[nodiscard]] std::string _combine_leg_labels(LegLabels const& labels, int64 offset = 0);
+[[nodiscard]] std::string _combine_leg_labels(OptionalLabels const& labels, int64 offset = 0);
 
 /// Undo `_combine_leg_labels`, i.e. recover the original labels.
 ///
 /// @param label Combined label, or `nullopt` for an anonymous group.
 /// @param num Required length when `label` is `nullopt`; otherwise optional.
-[[nodiscard]] LegLabels _split_leg_label(LegLabel const& label,
-                                         std::optional<int64> num = std::nullopt);
+[[nodiscard]] OptionalLabels _split_leg_label(OptionalLabel const& label,
+                                              std::optional<int64> num = std::nullopt);
 
 /// The label that a leg should have after conjugation.
-[[nodiscard]] LegLabel _dual_leg_label(LegLabel const& label);
+[[nodiscard]] OptionalLabel _dual_leg_label(OptionalLabel const& label);
 
 /// Dual labels in reversed order (helper for conjugated combined labels).
-[[nodiscard]] LegLabels _dual_label_list(LegLabels const& labels);
+[[nodiscard]] OptionalLabels _dual_label_list(OptionalLabels const& labels);
 
 /// Utility function to combine two lists of labels that should match.
 ///
@@ -62,7 +62,8 @@ inline constexpr char const* FORBIDDEN_LEG_LABEL_CHARS[] = {
 ///
 /// @param labels1,labels2 Label lists that should match pairwise.
 /// @returns Combined labels (length of the shorter input).
-[[nodiscard]] LegLabels _get_matching_labels(LegLabels const& labels1, LegLabels const& labels2);
+[[nodiscard]] OptionalLabels _get_matching_labels(OptionalLabels const& labels1,
+                                                  OptionalLabels const& labels2);
 
 /// Base class that implements handling of labelled legs.
 class LabelledLegs
@@ -73,7 +74,7 @@ class LabelledLegs
     /// Number of legs (== `labels().size()`).
     int64 num_legs = 0;
 
-    explicit LabelledLegs(LegLabels labels);
+    explicit LabelledLegs(OptionalLabels labels);
     virtual ~LabelledLegs() = default;
 
     LabelledLegs(LabelledLegs const&) = default;
@@ -93,7 +94,7 @@ class LabelledLegs
     /// `domain_labels` where `K == num_codomain_legs`.
     ///
     /// @returns A copy of the internal label list.
-    [[nodiscard]] LegLabels labels() const;
+    [[nodiscard]] OptionalLabels labels() const;
 
     /// Parse leg indices or leg labels to leg indices (indices of the legs).
     [[nodiscard]] std::vector<int64> get_leg_idcs(int64 idx) const;
@@ -114,10 +115,10 @@ class LabelledLegs
     LabelledLegs& relabel(std::map<std::string, std::string> const& mapping);
 
     /// Set a single label at given position, in-place. Return the modified instance.
-    virtual LabelledLegs& set_label(int64 pos, LegLabel label);
+    virtual LabelledLegs& set_label(int64 pos, OptionalLabel label);
 
     /// Set the given labels, in-place. Return the modified instance.
-    virtual LabelledLegs& set_labels(LegLabels labels);
+    virtual LabelledLegs& set_labels(OptionalLabels labels);
 
     /// Label → leg-index map (excludes `nullopt` labels).
     [[nodiscard]] std::unordered_map<std::string, int64> const& labelmap() const
@@ -126,7 +127,7 @@ class LabelledLegs
     }
 
   protected:
-    LegLabels _labels;
+    OptionalLabels _labels;
     std::unordered_map<std::string, int64> _labelmap;
 };
 

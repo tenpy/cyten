@@ -540,7 +540,7 @@ class PlanarLinearOperator : public LinearOperator
   TensorCPtr tensor,
   int64 codomain_cut,
   int64 domain_cut,
-  std::optional<LegLabels> new_labels = std::nullopt,
+  std::optional<OptionalLabels> new_labels = std::nullopt,
   std::optional<float64> cutoff_singular_values = std::nullopt);
 
 /// Checks if two tensors are equal up to numerical tolerance and planar permutation.
@@ -678,7 +678,7 @@ class PlanarLinearOperator : public LinearOperator
   TensorCPtr tensor,
   int64 codomain_cut,
   int64 domain_cut,
-  std::optional<LegLabels> new_labels = std::nullopt,
+  std::optional<OptionalLabels> new_labels = std::nullopt,
   bool new_leg_dual = false,
   std::optional<std::string> sort = std::nullopt);
 
@@ -706,7 +706,7 @@ class PlanarLinearOperator : public LinearOperator
   TensorCPtr tensor,
   int64 codomain_cut,
   int64 domain_cut,
-  std::optional<LegLabels> new_labels = std::nullopt,
+  std::optional<OptionalLabels> new_labels = std::nullopt,
   bool new_leg_dual = false,
   std::optional<std::string> sort = std::nullopt);
 
@@ -720,12 +720,13 @@ class PlanarLinearOperator : public LinearOperator
 ///     `[b, c]` set `W.labels == [b, c]`. Unlabelled by default.
 /// @param new_leg_dual If the new leg should be a ket space (`false`) or bra space (`true`).
 /// @param sort How the eigenvalues are sorted *within* each charge block. See `argsort`.
-[[nodiscard]] DiagonalTensorPtr planar_eigvals(TensorCPtr tensor,
-                                               int64 codomain_cut,
-                                               int64 domain_cut,
-                                               std::optional<LegLabels> new_labels = std::nullopt,
-                                               bool new_leg_dual = false,
-                                               std::optional<std::string> sort = std::nullopt);
+[[nodiscard]] DiagonalTensorPtr planar_eigvals(
+  TensorCPtr tensor,
+  int64 codomain_cut,
+  int64 domain_cut,
+  std::optional<OptionalLabels> new_labels = std::nullopt,
+  bool new_leg_dual = false,
+  std::optional<std::string> sort = std::nullopt);
 
 /// Planar LQ decomposition of a tensor.
 ///
@@ -769,7 +770,7 @@ class PlanarLinearOperator : public LinearOperator
   TensorCPtr tensor,
   int64 codomain_cut,
   int64 domain_cut,
-  std::optional<LegLabels> new_labels = std::nullopt,
+  std::optional<OptionalLabels> new_labels = std::nullopt,
   bool new_leg_dual = false);
 
 /// Planar version of `partial_trace`.
@@ -862,7 +863,7 @@ class PlanarLinearOperator : public LinearOperator
   TensorCPtr tensor,
   int64 codomain_cut,
   int64 domain_cut,
-  std::optional<LegLabels> new_labels = std::nullopt,
+  std::optional<OptionalLabels> new_labels = std::nullopt,
   bool new_leg_dual = false);
 
 /// Planar singular value decomposition (SVD) of a tensor.
@@ -922,7 +923,7 @@ class PlanarLinearOperator : public LinearOperator
   TensorCPtr tensor,
   int64 codomain_cut,
   int64 domain_cut,
-  std::optional<LegLabels> new_labels = std::nullopt,
+  std::optional<OptionalLabels> new_labels = std::nullopt,
   bool new_leg_dual = false,
   std::optional<std::string> algorithm = std::nullopt);
 
@@ -931,7 +932,7 @@ class PlanarLinearOperator : public LinearOperator
 planar_truncated_svd(TensorCPtr tensor,
                      int64 codomain_cut,
                      int64 domain_cut,
-                     std::optional<LegLabels> new_labels = std::nullopt,
+                     std::optional<OptionalLabels> new_labels = std::nullopt,
                      bool new_leg_dual = false,
                      std::optional<std::string> algorithm = std::nullopt,
                      std::optional<float64> normalize_to = std::nullopt,

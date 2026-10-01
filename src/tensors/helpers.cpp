@@ -19,8 +19,9 @@ namespace cyten {
 
 namespace {
 
-LegLabels
-apply_relabel(LegLabels labels, std::optional<std::map<std::string, std::string>> const& relabel)
+OptionalLabels
+apply_relabel(OptionalLabels labels,
+              std::optional<std::map<std::string, std::string>> const& relabel)
 {
     if (!relabel.has_value()) {
         return labels;
@@ -38,7 +39,7 @@ apply_relabel(LegLabels labels, std::optional<std::map<std::string, std::string>
 }
 
 std::unordered_set<std::string>
-duplicate_label_entries(LegLabels const& labels)
+duplicate_label_entries(OptionalLabels const& labels)
 {
     std::unordered_set<std::string> seen;
     std::unordered_set<std::string> dups;
@@ -271,10 +272,10 @@ _compose_SymmetricTensors(SymmetricTensorCPtr tensor1,
         return backend->inner(tensor1, tensor2, /*do_dagger=*/false);
     }
 
-    LegLabels labels_codomain = apply_relabel(tensor1->codomain_labels(), relabel1);
-    LegLabels labels_domain = apply_relabel(tensor2->domain_labels(), relabel2);
+    OptionalLabels labels_codomain = apply_relabel(tensor1->codomain_labels(), relabel1);
+    OptionalLabels labels_domain = apply_relabel(tensor2->domain_labels(), relabel2);
 
-    LegLabels labels = labels_codomain;
+    OptionalLabels labels = labels_codomain;
     for (auto it = labels_domain.rbegin(); it != labels_domain.rend(); ++it) {
         labels.push_back(*it);
     }
@@ -644,11 +645,11 @@ _decomposition_prepare(TensorCPtr tensor, bool new_leg_dual)
     return { tens, new_co_domain, combine_codomain, combine_domain };
 }
 
-std::pair<LegLabel, LegLabel>
-_decomposition_labels(LegLabels const& new_labels)
+std::pair<OptionalLabel, OptionalLabel>
+_decomposition_labels(OptionalLabels const& new_labels)
 {
     if (new_labels.size() == 1) {
-        LegLabel a = new_labels[0];
+        OptionalLabel a = new_labels[0];
         return { a, _dual_leg_label(a) };
     }
     if (new_labels.size() == 2) {
@@ -657,14 +658,14 @@ _decomposition_labels(LegLabels const& new_labels)
     throw std::invalid_argument(std::format("Expected 1 or 2 labels. Got {}", new_labels.size()));
 }
 
-std::tuple<LegLabel, LegLabel, LegLabel, LegLabel>
-_svd_new_labels(std::optional<LegLabels> new_labels)
+std::tuple<OptionalLabel, OptionalLabel, OptionalLabel, OptionalLabel>
+_svd_new_labels(std::optional<OptionalLabels> new_labels)
 {
     if (!new_labels.has_value()) {
         return { std::nullopt, std::nullopt, std::nullopt, std::nullopt };
     }
-    LegLabels const& labels = *new_labels;
-    LegLabel a, b, c, d;
+    OptionalLabels const& labels = *new_labels;
+    OptionalLabel a, b, c, d;
     if (labels.size() == 1) {
         a = c = labels[0];
         b = d = _dual_leg_label(labels[0]);

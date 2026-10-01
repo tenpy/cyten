@@ -300,8 +300,9 @@ bind_tensors_charged_tensor(py::module_& m)
     cls.def(
       "set_label",
       [](ChargedTensor& self, int64 pos, py::object label) -> ChargedTensor& {
-          LegLabel lab = label.is_none() ? std::nullopt
-                                         : std::optional<std::string>{ label.cast<std::string>() };
+          OptionalLabel lab = label.is_none()
+                                ? std::nullopt
+                                : std::optional<std::string>{ label.cast<std::string>() };
           self.set_label(pos, lab);
           return self;
       },
