@@ -1,5 +1,6 @@
 # Copyright (C) TeNPy Developers, Apache license
 import os.path
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -1007,28 +1008,40 @@ def test_su2_symmetry(np_random):
     npt.assert_array_equal(sym.dual_sectors(np.stack([spin_1, spin_3_half])), np.stack([spin_1, spin_3_half]))
 
 
-def _locate_su_n_files(N, cg_h, f_h, r_h):
-    """Return (CGfile, Ffile, Rfile) paths for the given (N, hweights), or None if unavailable.
+_SUN_SYMBOLS_SUBMODULE_DIR = str(Path(__file__).resolve().parents[2] / 'external' / 'SUN_symbols')
 
-    Tries the standard, config-resolved convention first; falls back to the legacy hand-made test
-    file names (kept so existing local data still works).
+
+def _locate_su_n_files(N, cg_h, f_h, r_h):
+    """Locate (CGfile, Ffile, Rfile) for the given (N, hweights).
+
+    Tries, in order: the configured ``su_n_data_path`` (standard naming convention), the
+    ``external/SUN_symbols`` git submodule (same convention), then legacy hand-made test file
+    names (kept so existing local data still works).
+
+    Returns ``(files, path)`` where ``path`` is the directory to pass as
+    ``symmetries.SUN(..., path=path)`` -- ``None`` meaning "use the configured su_n_data_path" --
+    or ``False`` if only the legacy names were found (no path-based constructor available for
+    those). Returns ``(None, None)`` if nothing was found.
     """
-    standard = [symmetries.su_n_data_file_path(N, kind, h) for kind, h in [('CG', cg_h), ('F', f_h), ('R', r_h)]]
-    if all(os.path.exists(f) for f in standard):
-        return standard
+    for path in (None, _SUN_SYMBOLS_SUBMODULE_DIR):
+        standard = [
+            symmetries.su_n_data_file_path(N, kind, h, path=path) for kind, h in [('CG', cg_h), ('F', f_h), ('R', r_h)]
+        ]
+        if all(os.path.exists(f) for f in standard):
+            return standard, path
     legacy = [
         f'Test_N_{N}_HWeight_{cg_h}.hdf5',
         f'Test_Fsymb_{N}_HWeight_{f_h}.hdf5',
         f'Test_Rsymb_{N}_HWeight_{r_h}.hdf5',
     ]
     if all(os.path.exists(f) for f in legacy):
-        return legacy
-    return None
+        return legacy, False
+    return None, None
 
 
-@pytest.mark.parametrize('N, cg_h, f_h, r_h', [(3, 7, 4, 4)])
+@pytest.mark.parametrize('N, cg_h, f_h, r_h', [(2, 20, 6, 6), (3, 7, 4, 4)])
 def test_suN_symmetry(N, cg_h, f_h, r_h, np_random):
-    files = _locate_su_n_files(N, cg_h, f_h, r_h)
+    files, _ = _locate_su_n_files(N, cg_h, f_h, r_h)
     if files is None:
         pytest.skip(
             f'Need to provide files for SU(N) data! Expected e.g. {symmetries.su_n_data_file_path(N, "CG", cg_h)}'
@@ -1065,7 +1078,10 @@ def test_suN_symmetry(N, cg_h, f_h, r_h, np_random):
     # sym_with_name = symmetries.SU2Symmetry('foo')
 
     assert not sym.is_abelian
-    assert sym.has_unique_fusion
+    # SUN always uses FusionStyle::general (outer multiplicities can exceed 1 for N >= 3, via the
+    # "Outer Multiplicity" field in the CG data), so has_unique_fusion is False for every N,
+    # including N=2 even though SU(2) fusion itself has no multiplicities.
+    assert not sym.has_unique_fusion
     assert sym.has_trivial_braid
     assert sym.has_symmetric_braid
 
@@ -1085,16 +1101,13 @@ def test_suN_symmetry(N, cg_h, f_h, r_h, np_random):
     assert sym != fermion_parity
 
 
-@pytest.mark.parametrize('N, cg_h, f_h, r_h', [(3, 7, 4, 4)])
+@pytest.mark.parametrize('N, cg_h, f_h, r_h', [(2, 20, 6, 6), (3, 7, 4, 4)])
 def test_suN_from_config(N, cg_h, f_h, r_h):
-    files = _locate_su_n_files(N, cg_h, f_h, r_h)
-    if files is None:
-        pytest.skip('Need SU(N) data files following the standard naming convention!')
-    standard = [symmetries.su_n_data_file_path(N, kind, h) for kind, h in [('CG', cg_h), ('F', f_h), ('R', r_h)]]
-    if files != standard:
+    files, path = _locate_su_n_files(N, cg_h, f_h, r_h)
+    if files is None or path is False:
         pytest.skip('Need SU(N) data files following the standard naming convention!')
 
-    sym = symmetries.SUN(N, cg_h, f_hweight=f_h, r_hweight=r_h)
+    sym = symmetries.SUN(N, cg_h, f_hweight=f_h, r_hweight=r_h, path=path)
     assert sym.N == N
     assert sym.hweight_from_CG_hdf5() == cg_h
     assert sym.hweight_from_F_hdf5() == f_h
@@ -1103,7 +1116,7 @@ def test_suN_from_config(N, cg_h, f_h, r_h):
     handles = [h5py.File(f, 'r') for f in files]
     assert sym == symmetries.SUN(N, *handles)
 
-    named = symmetries.SUN(N, cg_h, f_hweight=f_h, r_hweight=r_h, descriptive_name='foo')
+    named = symmetries.SUN(N, cg_h, f_hweight=f_h, r_hweight=r_h, path=path, descriptive_name='foo')
     assert named != sym
 
 

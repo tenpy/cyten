@@ -287,7 +287,11 @@ SUN::can_fuse_to(Sector a, Sector b, Sector c) const
     auto grp = CGfile[py::str(key)];
     for (auto item : grp) {
         auto child = grp[item];
-        auto label = child.attr("attrs")["Irreplabel"];
+        // Same dangling-accessor hazard as `sanity_check_hdf5` above: `child.attr("attrs")` is an
+        // unnamed temporary AttributeManager; naming it and typing `label` as `py::object` (not
+        // `auto`) forces eager evaluation while it is still alive.
+        py::object attrs = child.attr("attrs");
+        py::object label = attrs["Irreplabel"];
         auto arr = py::array::ensure(label);
         Sector lab = sector_from_numpy(arr);
         if (lab == c) {
@@ -661,8 +665,14 @@ SUN::sanity_check_hdf5(py::object file) const
     // Contains all the keys up to the highest weight
     // Assert key for loop weight is non-empty
     // ---
-    auto H = file.attr("attrs")["Highest_Weight"];
-    auto Nattr = file.attr("attrs")["N"];
+    // NB: `attrs` must be a named, owning py::object (not `auto`/a chained temporary): the
+    // `["key"]` access below returns a lazy pybind11 accessor that holds a non-owning handle to
+    // its parent. If the AttributeManager from `file.attr("attrs")` is only a temporary, it can be
+    // destroyed before that accessor is evaluated, so `H`/`Nattr` must likewise be `py::object` to
+    // force eager evaluation while `attrs` is still alive.
+    py::object attrs = file.attr("attrs");
+    py::object H = attrs["Highest_Weight"];
+    py::object Nattr = attrs["N"];
     auto keys0 = py::list(file.attr("keys")());
     auto filetype = std::string(py::str(keys0[0]));
     char ft = filetype.empty() ? '?' : filetype[0];
@@ -704,8 +714,15 @@ SUN::sanity_check_hdf5(py::object file) const
             throw std::invalid_argument("Missing key for all-trivial-sector F-symbol: " +
                                         zero_key);
         }
-        auto h_key =
-          std::string("[") + std::string(py::str(H)) + ", " + std::string(py::str(H)) + ", 0]";
+        // Look for the highest-weight sector, e.g. "[H, 0]" for SU(2) or "[H, 0, 0]" for SU(3),
+        // appearing twice back to back (as it does for the F-symbol of two such irreps fusing to
+        // themselves) -- not a single bracket "[H, H, 0]", which is not a valid sector of any N.
+        std::string h_bracket = "[" + std::string(py::str(H));
+        for (int j = 0; j < commas / num_lists; ++j) {
+            h_bracket += ", 0";
+        }
+        h_bracket += "]";
+        auto h_key = h_bracket + h_bracket;
         bool found_h = false;
         for (auto key : keys) {
             if (std::string(py::str(key)).find(h_key) != std::string::npos) {
@@ -753,8 +770,14 @@ SUN::sanity_check_hdf5(py::object file) const
             throw std::invalid_argument("Missing key for all-trivial-sector R-symbol: " +
                                         zero_key);
         }
-        auto h_key =
-          std::string("[") + std::string(py::str(H)) + ", " + std::string(py::str(H)) + ", 0]";
+        // See the matching comment in the 'F' branch above: look for the highest-weight sector
+        // bracket (e.g. "[H, 0]" for SU(2), "[H, 0, 0]" for SU(3)) repeated back to back.
+        std::string h_bracket = "[" + std::string(py::str(H));
+        for (int j = 0; j < commas / num_lists; ++j) {
+            h_bracket += ", 0";
+        }
+        h_bracket += "]";
+        auto h_key = h_bracket + h_bracket;
         bool found_h = false;
         for (auto key : keys) {
             if (std::string(py::str(key)).find(h_key) != std::string::npos) {
@@ -770,12 +793,16 @@ SUN::sanity_check_hdf5(py::object file) const
         if (!file.contains(path)) {
             throw std::invalid_argument("HDF5 file does not contain " + path + " group.");
         }
-        auto keys = py::list(file[py::str(path)].attr("keys")());
+        // Same dangling-accessor hazard as `attrs` above: `parent` and `high`/`low` must be named,
+        // owning py::object's (not `auto`) so the `file[path]` Group outlives the `[key]` accessor
+        // chained off it.
+        py::object parent = file[py::str(path)];
+        auto keys = py::list(parent.attr("keys")());
         if (static_cast<int64>(py::len(keys)) != H.cast<int64>() + 1) {
             throw std::runtime_error("SUN sanity_check_hdf5: unexpected CG key count");
         }
-        auto high = file[py::str(path)][keys[py::len(keys) - 1]];
-        auto low = file[py::str(path)][keys[0]];
+        py::object high = parent[keys[py::len(keys) - 1]];
+        py::object low = parent[keys[0]];
         for (auto group : { high, low }) {
             if (py::len(group.attr("keys")()) == 0) {
                 throw std::runtime_error("SUN sanity_check_hdf5: empty weight group");
