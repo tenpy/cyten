@@ -143,8 +143,10 @@ make_tensor_product(std::vector<Leg::Ptr> factors,
 [[nodiscard]] OptionalLabels
 flat_labels(OptionalLabels const& codomain_labels, OptionalLabels const& domain_labels)
 {
+    // Flat leg labels are ``codomain_labels + reversed(domain_labels)``, matching
+    // ``parse_tensor_init_labels`` / ``nested_flat_labels`` and Python SymmetricTensor init.
     OptionalLabels out = codomain_labels;
-    out.insert(out.end(), domain_labels.begin(), domain_labels.end());
+    out.insert(out.end(), domain_labels.rbegin(), domain_labels.rend());
     return out;
 }
 

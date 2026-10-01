@@ -297,7 +297,7 @@ std::shared_ptr<HighFive::File>
 open_su_n_data_file(std::string const& full_path, char const* kind, int N, int64 hweight)
 {
     if (!std::filesystem::exists(std::filesystem::path(full_path))) {
-        throw std::runtime_error(std::format(
+        std::string msg = std::format(
           "SU(N) {} data file for N={}, hweight={} not found:\n"
           "    {}\n"
           "Generate it with the clebsch_gordan_coefficients package, or tell cyten where your "
@@ -311,7 +311,10 @@ open_su_n_data_file(std::string const& full_path, char const* kind, int N, int64
           kind,
           N,
           hweight,
-          full_path));
+          full_path);
+        // Match the historical Python API: missing SU(N) data is FileNotFoundError.
+        PyErr_SetString(PyExc_FileNotFoundError, msg.c_str());
+        throw py::error_already_set();
     }
     auto file = std::make_shared<HighFive::File>(full_path, HighFive::File::ReadOnly);
     auto stored = file_attr_int64(*file, "Highest_Weight");

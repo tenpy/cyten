@@ -139,9 +139,10 @@ class Site : public virtual std::enable_shared_from_this<Site>
                                 HighFive::Group& h5gr,
                                 std::string const& subpath);
 
-  protected:
     /// Constructor keyword arguments used by `save_hdf5` / `from_hdf5`.
     [[nodiscard]] virtual py::dict hdf5_init_kwargs() const;
+
+  protected:
     [[nodiscard]] py::dict hdf5_backend_kwargs() const;
 };
 

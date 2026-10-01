@@ -6,6 +6,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 namespace cyten {
 
@@ -203,6 +204,38 @@ split_lines(std::string s)
     return lines;
 }
 
+/// Unicode codepoint count (matches Python ``len`` on ``str``), not byte length.
+[[nodiscard]] std::size_t
+utf8_len(std::string_view s)
+{
+    std::size_t n = 0;
+    for (unsigned char c : s) {
+        if ((c & 0xC0) != 0x80) {
+            ++n;
+        }
+    }
+    return n;
+}
+
+/// Pad `line` with spaces to `width` codepoints (Python ``f'{line:{align}{width}}'``).
+[[nodiscard]] std::string
+pad_utf8(std::string const& line, std::size_t width, char halign)
+{
+    auto const len = utf8_len(line);
+    if (len >= width) {
+        return line;
+    }
+    auto const pad = width - len;
+    if (halign == 'r') {
+        return std::string(pad, ' ') + line;
+    }
+    if (halign == 'c') {
+        auto const left = pad / 2;
+        return std::string(left, ' ') + line + std::string(pad - left, ' ');
+    }
+    return line + std::string(pad, ' ');
+}
+
 } // namespace
 
 std::string
@@ -220,16 +253,15 @@ vert_join(std::vector<std::string> const& strlist,
         auto lines = split_lines(s);
         std::size_t w = 0;
         for (auto const& l : lines) {
-            w = std::max(w, l.size());
+            // Match Python ``len``: column width is in Unicode codepoints, not bytes.
+            // Box-drawing chars in ascii diagrams are multi-byte UTF-8.
+            w = std::max(w, utf8_len(l));
         }
         totallines = std::max(totallines, lines.size());
         numlines.push_back(lines.size());
         widths.push_back(w);
         cols.push_back(std::move(lines));
     }
-
-    char align = (halign == 'c') ? '^' : (halign == 'r') ? '>' : '<';
-    (void)align; // format manually below
 
     std::vector<std::vector<std::string>> res(totallines,
                                               std::vector<std::string>(strlist.size()));
@@ -246,17 +278,7 @@ vert_join(std::vector<std::string> const& strlist,
             throw std::invalid_argument("vert_join: invalid valign");
         }
         for (std::size_t i = 0; i < cols[j].size(); ++i) {
-            auto const& l = cols[j][i];
-            std::string padded(widths[j], ' ');
-            if (halign == 'r') {
-                padded.replace(widths[j] - l.size(), l.size(), l);
-            } else if (halign == 'c') {
-                std::size_t left = (widths[j] - l.size()) / 2;
-                padded.replace(left, l.size(), l);
-            } else {
-                padded.replace(0, l.size(), l);
-            }
-            res[i + voffset][j] = std::move(padded);
+            res[i + voffset][j] = pad_utf8(cols[j][i], widths[j], halign);
         }
     }
 

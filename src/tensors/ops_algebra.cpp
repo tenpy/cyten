@@ -187,21 +187,12 @@ implicit_hidden_contraction_pairs(TensorCPtr tensor1, TensorCPtr tensor2)
     return pairs;
 }
 
-[[nodiscard]] std::vector<Space::Ptr>
-spaces_from_tp(TensorProduct::Ptr const& tp)
-{
-    std::vector<Space::Ptr> out;
-    out.reserve(tp->factors.size());
-    for (auto const& f : tp->factors) {
-        out.push_back(std::dynamic_pointer_cast<Space>(f));
-    }
-    return out;
-}
-
 void
 check_spaces_tp(TensorProduct::Ptr const& a, TensorProduct::Ptr const& b, bool expect_equal = true)
 {
-    _check_compatible_legs(spaces_from_tp(a), spaces_from_tp(b), expect_equal);
+    // TensorProduct::factors are Legs (ElementarySpace is both Leg+Space; LegPipe is Leg-only).
+    // Never dynamic_cast factors to Space — that yields null for LegPipe and segfaults.
+    _check_compatible_legs(a->factors, b->factors, expect_equal);
 }
 
 void
@@ -340,14 +331,49 @@ make_charged_native(SymmetricTensorPtr inv_part, BlockBackend::BlockPtr charged_
     return std::make_shared<ChargedTensor>(std::move(inv_part), std::move(charged_state));
 }
 
+[[nodiscard]] std::variant<TensorPtr, BlockBackend::Scalar>
+from_invariant_part_variant(SymmetricTensorPtr inv_part, BlockBackend::BlockPtr charged_state)
+{
+    auto v = ChargedTensor::from_invariant_part(std::move(inv_part), std::move(charged_state));
+    return std::visit(
+      [](auto&& x) -> std::variant<TensorPtr, BlockBackend::Scalar> {
+          using T = std::decay_t<decltype(x)>;
+          if constexpr (std::is_same_v<T, BlockBackend::Scalar>) {
+              return std::forward<decltype(x)>(x);
+          } else {
+              return std::static_pointer_cast<Tensor>(std::forward<decltype(x)>(x));
+          }
+      },
+      std::move(v));
+}
+
 [[nodiscard]] ChargedTensorPtr
 from_invariant_part_native(SymmetricTensorPtr inv_part, BlockBackend::BlockPtr charged_state)
 {
-    auto v = ChargedTensor::from_invariant_part(std::move(inv_part), std::move(charged_state));
+    auto v = from_invariant_part_variant(std::move(inv_part), std::move(charged_state));
     if (std::holds_alternative<BlockBackend::Scalar>(v)) {
         throw std::invalid_argument("from_invariant_part returned scalar unexpectedly");
     }
-    return std::get<ChargedTensorPtr>(std::move(v));
+    return std::dynamic_pointer_cast<ChargedTensor>(std::get<TensorPtr>(std::move(v)));
+}
+
+[[nodiscard]] std::variant<TensorPtr, BlockBackend::Scalar>
+from_two_charge_legs_variant(SymmetricTensorPtr inv_part,
+                             BlockBackend::BlockPtr state1,
+                             BlockBackend::BlockPtr state2)
+{
+    auto v = ChargedTensor::from_two_charge_legs(
+      std::move(inv_part), std::move(state1), std::move(state2));
+    return std::visit(
+      [](auto&& x) -> std::variant<TensorPtr, BlockBackend::Scalar> {
+          using T = std::decay_t<decltype(x)>;
+          if constexpr (std::is_same_v<T, BlockBackend::Scalar>) {
+              return std::forward<decltype(x)>(x);
+          } else {
+              return std::static_pointer_cast<Tensor>(std::forward<decltype(x)>(x));
+          }
+      },
+      std::move(v));
 }
 
 [[nodiscard]] ChargedTensorPtr
@@ -355,12 +381,12 @@ from_two_charge_legs_native(SymmetricTensorPtr inv_part,
                             BlockBackend::BlockPtr state1,
                             BlockBackend::BlockPtr state2)
 {
-    auto v = ChargedTensor::from_two_charge_legs(
-      std::move(inv_part), std::move(state1), std::move(state2));
+    auto v =
+      from_two_charge_legs_variant(std::move(inv_part), std::move(state1), std::move(state2));
     if (std::holds_alternative<BlockBackend::Scalar>(v)) {
         throw std::invalid_argument("from_two_charge_legs returned scalar unexpectedly");
     }
-    return std::get<ChargedTensorPtr>(std::move(v));
+    return std::dynamic_pointer_cast<ChargedTensor>(std::get<TensorPtr>(std::move(v)));
 }
 
 [[nodiscard]] TensorPtr
@@ -1111,9 +1137,12 @@ linear_combination(BlockBackend::Scalar const& a,
         }
     }
 
+    // DiagonalTensor/Mask/Identity inherit SymmetricTensor, so as_Symmetric succeeds on them
+    // even though their blocks are 1D. Always expand those subclasses to full Symmetric data.
+    bool needs_expand = as_Diagonal(v) || as_Diagonal(w) || as_Mask(v) || as_Mask(w);
     SymmetricTensorCPtr vs = as_Symmetric(v);
     SymmetricTensorCPtr ws = as_Symmetric(w);
-    if (!vs || !ws) {
+    if (!vs || !ws || needs_expand) {
         vs = as_Symmetric(std::const_pointer_cast<Tensor>(v)->as_SymmetricTensor());
         ws = as_Symmetric(std::const_pointer_cast<Tensor>(w)->as_SymmetricTensor());
     }
@@ -1901,7 +1930,8 @@ tdot(TensorCPtr tensor1,
               require_tensor(std::move(inv_v), "tdot charged×charged"));
             inv_part = std::dynamic_pointer_cast<SymmetricTensor>(
               move_leg_wrap(inv_part, c + "1", std::nullopt, 0));
-            return from_two_charge_legs_native(inv_part, c1->charged_state, c2->charged_state);
+            // Full contraction of physical legs can leave only the charge leg → scalar.
+            return from_two_charge_legs_variant(inv_part, c1->charged_state, c2->charged_state);
         }
         auto inv_v =
           tdot(std::static_pointer_cast<Tensor const>(c1->invariant_part), work2, legs1, legs2);
@@ -1909,14 +1939,14 @@ tdot(TensorCPtr tensor1,
           require_tensor(std::move(inv_v), "tdot charged×sym"));
         inv_part = std::dynamic_pointer_cast<SymmetricTensor>(
           move_leg_wrap(inv_part, charge_leg_label(), std::nullopt, 0));
-        return from_invariant_part_native(inv_part, c1->charged_state);
+        return from_invariant_part_variant(inv_part, c1->charged_state);
     }
     if (auto c2 = as_Charged(work2)) {
         auto inv_v =
           tdot(work1, std::static_pointer_cast<Tensor const>(c2->invariant_part), legs1, legs2);
         SymmetricTensorPtr inv_part = std::dynamic_pointer_cast<SymmetricTensor>(
           require_tensor(std::move(inv_v), "tdot sym×charged"));
-        return from_invariant_part_native(inv_part, c2->charged_state);
+        return from_invariant_part_variant(inv_part, c2->charged_state);
     }
 
     // Remaining case: both are SymmetricTensor (including HiddenLegTensor)
