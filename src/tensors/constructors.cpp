@@ -588,23 +588,27 @@ DirectSumSpace::inclusion_of_summands(std::vector<int64> indices,
 }
 
 MaskPtr
-DirectSumSpace::projection_onto_summand(int64 i,
+DirectSumSpace::projection_onto_summand(SummandRef which,
                                         std::shared_ptr<TensorBackend> backend,
                                         std::optional<OptionalLabels> labels,
                                         std::optional<std::string> device) const
 {
-    return projection_onto_summands(
-      std::vector<int64>{ i }, std::move(backend), std::move(labels), std::move(device));
+    return projection_onto_summands(std::vector<int64>{ get_summand_idx(std::move(which)) },
+                                    std::move(backend),
+                                    std::move(labels),
+                                    std::move(device));
 }
 
 MaskPtr
-DirectSumSpace::inclusion_of_summand(int64 i,
+DirectSumSpace::inclusion_of_summand(SummandRef which,
                                      std::shared_ptr<TensorBackend> backend,
                                      std::optional<OptionalLabels> labels,
                                      std::optional<std::string> device) const
 {
-    return inclusion_of_summands(
-      std::vector<int64>{ i }, std::move(backend), std::move(labels), std::move(device));
+    return inclusion_of_summands(std::vector<int64>{ get_summand_idx(std::move(which)) },
+                                 std::move(backend),
+                                 std::move(labels),
+                                 std::move(device));
 }
 
 SymmetricTensorPtr

@@ -555,19 +555,19 @@ class DirectSumSpace : public ElementarySpace
       std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<std::string> device = std::nullopt) const;
 
-    /// Projection Mask onto summand ``i``.
+    /// Projection Mask onto summand ``which`` (index or label).
     ///
-    /// The large leg is this space; the small leg is isomorphic to ``spaces[i]``
-    /// (built from the kept multiplicities). Negative ``i`` indexes from the end.
+    /// The large leg is this space; the small leg is isomorphic to the selected summand
+    /// (built from the kept multiplicities). Negative indices count from the end.
     [[nodiscard]] MaskPtr projection_onto_summand(
-      int64 i,
+      SummandRef which,
       std::shared_ptr<TensorBackend> backend = nullptr,
       std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<std::string> device = std::nullopt) const;
 
-    /// Inclusion Mask of summand ``i`` (dagger of the projection).
+    /// Inclusion Mask of summand ``which`` (index or label; dagger of the projection).
     [[nodiscard]] MaskPtr inclusion_of_summand(
-      int64 i,
+      SummandRef which,
       std::shared_ptr<TensorBackend> backend = nullptr,
       std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<std::string> device = std::nullopt) const;
