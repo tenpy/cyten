@@ -97,8 +97,8 @@ std::optional<py::class_<VectorLike, PyVectorLike, py::smart_holder>> g_vector_l
 void
 declare_tensors_vector_like(py::module_& m)
 {
-    g_vector_like.emplace(m, "VectorLike");
-    g_vector_like->doc() = DOC(cyten, VectorLike);
+    g_vector_like = py::class_<VectorLike, PyVectorLike, py::smart_holder>(m, "VectorLike");
+    (*g_vector_like).doc() = DOC(cyten, VectorLike);
 }
 
 void

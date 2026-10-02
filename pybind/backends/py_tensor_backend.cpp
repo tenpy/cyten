@@ -27,12 +27,14 @@ std::optional<py::class_<TensorBackend, PyTensorBackend, py::smart_holder>> g_te
 void
 declare_tensor_backend(py::module_& m)
 {
-    g_tensor_backend_data.emplace(m, "TensorBackendData");
-    g_tensor_backend_data->doc() =
+    g_tensor_backend_data =
+      py::class_<TensorBackend::Data, py::smart_holder>(m, "TensorBackendData");
+    (*g_tensor_backend_data).doc() =
       "Backend-specific payload stored on a tensor (except symmetry data on legs).";
 
-    g_tensor_backend.emplace(m, "TensorBackend");
-    g_tensor_backend->doc() = DOC(cyten, TensorBackend);
+    g_tensor_backend =
+      py::class_<TensorBackend, PyTensorBackend, py::smart_holder>(m, "TensorBackend");
+    (*g_tensor_backend).doc() = DOC(cyten, TensorBackend);
 }
 
 void

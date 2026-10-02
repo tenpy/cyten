@@ -52,8 +52,8 @@ std::optional<py::class_<Mask, Tensor, py::smart_holder>> g_mask;
 void
 declare_tensors_mask(py::module_& m)
 {
-    g_mask.emplace(m, "Mask");
-    g_mask->doc() = DOC(cyten, Mask);
+    g_mask = py::class_<Mask, Tensor, py::smart_holder>(m, "Mask");
+    (*g_mask).doc() = DOC(cyten, Mask);
 }
 
 void

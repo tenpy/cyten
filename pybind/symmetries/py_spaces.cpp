@@ -248,8 +248,10 @@ bind_spaces(py::module_& m)
     py::class_<Leg, PyLeg, py::smart_holder> cls(m, "Leg", DOC(cyten, Leg));
 
     // Declare Space / ElementarySpace before Leg methods that return them (stubgen).
-    g_space.emplace(m, "Space", DOC(cyten, Space));
-    g_elementary_space.emplace(m, "ElementarySpace", DOC(cyten, ElementarySpace));
+    g_space = py::class_<Space, PySpace, py::smart_holder>(m, "Space", DOC(cyten, Space));
+    g_elementary_space =
+      py::class_<ElementarySpace, Space, Leg, PyElementarySpace, py::smart_holder>(
+        m, "ElementarySpace", DOC(cyten, ElementarySpace));
 
     cls.def(
       py::init(

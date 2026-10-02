@@ -54,8 +54,9 @@ std::optional<py::class_<Tensor, LabelledLegs, VectorLike, PyTensor, py::smart_h
 void
 declare_tensors_tensor(py::module_& m)
 {
-    g_tensor.emplace(m, "Tensor");
-    g_tensor->doc() = DOC(cyten, Tensor);
+    g_tensor =
+      py::class_<Tensor, LabelledLegs, VectorLike, PyTensor, py::smart_holder>(m, "Tensor");
+    (*g_tensor).doc() = DOC(cyten, Tensor);
 }
 
 void

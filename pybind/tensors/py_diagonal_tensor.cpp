@@ -168,8 +168,10 @@ std::optional<py::class_<DiagonalTensor, SymmetricTensor, PyDiagonalTensor, py::
 void
 declare_tensors_diagonal_tensor(py::module_& m)
 {
-    g_diagonal_tensor.emplace(m, "DiagonalTensor");
-    g_diagonal_tensor->doc() = DOC(cyten, DiagonalTensor);
+    g_diagonal_tensor =
+      py::class_<DiagonalTensor, SymmetricTensor, PyDiagonalTensor, py::smart_holder>(
+        m, "DiagonalTensor");
+    (*g_diagonal_tensor).doc() = DOC(cyten, DiagonalTensor);
 }
 
 void

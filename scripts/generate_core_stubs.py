@@ -433,14 +433,12 @@ class BindingParser:
 
     def _handle_at(self, name: str, pos: int) -> str | None:
         """Python class name bound to C++ ``name`` just before ``pos``."""
-        last: str | None = None
+        best: tuple[int, str] | None = None
         for off, h, py in self.mod.handle_history:
-            if off > pos:
-                break
-            if h == name:
-                last = py
-        if last is not None:
-            return last
+            if h == name and off <= pos and (best is None or off >= best[0]):
+                best = (off, py)
+        if best is not None:
+            return best[1]
         return self.mod.handles.get(name)
 
     def parse_file(self, path: Path) -> None:
@@ -451,6 +449,7 @@ class BindingParser:
         self._doc_vars: dict[str, str] = {}
         self._parse_doc_vars(text)
         self._parse_classes(text)
+        self._parse_handle_aliases(text)
         self._parse_native_enums(text)
         self._parse_exceptions(text)
         self._parse_module_defs(text)
@@ -459,6 +458,19 @@ class BindingParser:
         self._parse_chain_defs(text)
         self._parse_enum_post_attrs(text)
         self._parse_template_call_sites(text)
+
+    def _parse_handle_aliases(self, text: str) -> None:
+        """Bind ``auto& alias = *g_handle;`` used after declare-then-define shells."""
+        for m in re.finditer(
+            r'(?:auto\s*&|py::class_\s*<[^>]+>\s*&)\s*([A-Za-z_][\w]*)\s*=\s*\*\s*([A-Za-z_][\w]*)\s*;',
+            text,
+        ):
+            alias, source = m.group(1), m.group(2)
+            py = self._handle_at(source, m.start())
+            if py is None and source in self.mod.classes:
+                py = source
+            if py is not None:
+                self._bind_handle(alias, py, m.start())
 
     def _parse_doc_vars(self, text: str) -> None:
         """Capture ``char const* name = DOC(...)/doc_plus(...)/R"pydoc"`` locals."""
@@ -791,8 +803,9 @@ class BindingParser:
             self.mod.constants[name] = name
 
     def _parse_class_doc_assign(self, text: str) -> None:
+        # ``cls.doc() = …``, ``(*g_cls).doc() = …``, ``g_cls->doc() = …``
         for m in re.finditer(
-            r'([A-Za-z_][\w]*)\.doc\s*\(\s*\)\s*=\s*',
+            r'(?:\(\s*\*\s*)?([A-Za-z_][\w]*)\s*(?:\)\s*)?(?:\.|->)\s*doc\s*\(\s*\)\s*=\s*',
             text,
         ):
             handle = m.group(1)
@@ -806,6 +819,11 @@ class BindingParser:
                     depth -= 1
                 end += 1
             doc = self.resolver.resolve(text[start:end].strip())
+            # Plain string literals (not DOC/doc_plus) also appear on declare shells.
+            if not doc:
+                lit = _parse_string_literal(text[start:end].strip())
+                if lit is not None:
+                    doc = lit
             py_name = self._handle_at(handle, m.start())
             if py_name and '.' not in py_name and py_name in self.mod.classes:
                 if doc:

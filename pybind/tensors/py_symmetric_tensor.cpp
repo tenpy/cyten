@@ -53,8 +53,9 @@ std::optional<py::class_<SymmetricTensor, Tensor, PySymmetricTensor, py::smart_h
 void
 declare_tensors_symmetric_tensor(py::module_& m)
 {
-    g_symmetric_tensor.emplace(m, "SymmetricTensor");
-    g_symmetric_tensor->doc() = DOC(cyten, SymmetricTensor);
+    g_symmetric_tensor = py::class_<SymmetricTensor, Tensor, PySymmetricTensor, py::smart_holder>(
+      m, "SymmetricTensor");
+    (*g_symmetric_tensor).doc() = DOC(cyten, SymmetricTensor);
 }
 
 void

@@ -60,8 +60,8 @@ std::optional<py::class_<LabelledLegs, py::smart_holder>> g_labelled_legs;
 void
 declare_tensors_labels(py::module_& m)
 {
-    g_labelled_legs.emplace(m, "LabelledLegs");
-    g_labelled_legs->doc() = DOC(cyten, LabelledLegs);
+    g_labelled_legs = py::class_<LabelledLegs, py::smart_holder>(m, "LabelledLegs");
+    (*g_labelled_legs).doc() = DOC(cyten, LabelledLegs);
 }
 
 void

@@ -40,7 +40,8 @@ std::optional<py::class_<Symmetry, BaseSymmetry, py::smart_holder>> g_symmetry;
 void
 declare_symmetry(py::module_& m)
 {
-    g_symmetry.emplace(m, "Symmetry", DOC(cyten, Symmetry));
+    g_symmetry =
+      py::class_<Symmetry, BaseSymmetry, py::smart_holder>(m, "Symmetry", DOC(cyten, Symmetry));
 }
 
 void

@@ -144,7 +144,7 @@ std::optional<py::class_<BlockInds>> g_block_inds;
 void
 declare_block_inds(py::module_& m)
 {
-    g_block_inds.emplace(m, "BlockInds", DOC(cyten, BlockInds));
+    g_block_inds = py::class_<BlockInds>(m, "BlockInds", DOC(cyten, BlockInds));
 }
 
 void
