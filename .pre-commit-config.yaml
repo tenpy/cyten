@@ -72,8 +72,17 @@ repos:
         entry: tests/linting/cpp_docstring_indent.py
         language: unsupported_script
         files: ^pybind/.*\.cpp$
+      # Last and most expensive: only runs if earlier hooks passed (fail_fast)
+      # and a local editable build/ directory already exists.
+      - id: cmake-build
+        name: cmake --build build
+        language: unsupported_script
+        entry: tests/linting/run_local_cmake_build.py
+        pass_filenames: false
+        always_run: true
       - id: core-stub-parity
         name: check cyten._core stub parity
+        # note: this requires cyten to be installed
         language: unsupported_script
         entry: scripts/check_core_stub_parity.py
         args: [--generate]
@@ -83,13 +92,5 @@ repos:
         name: update re-export __all__ lists
         language: unsupported_script
         entry: scripts/generate_reexport_all.py
-        pass_filenames: false
-        always_run: true
-      # Last and most expensive: only runs if earlier hooks passed (fail_fast)
-      # and a local editable build/ directory already exists.
-      - id: cmake-build
-        name: cmake --build build
-        language: unsupported_script
-        entry: tests/linting/run_local_cmake_build.py
         pass_filenames: false
         always_run: true
