@@ -109,15 +109,6 @@ dims_to_python(std::vector<float64> const& dims)
     return out;
 }
 
-std::string
-rjust(std::string const& s, int width)
-{
-    if (static_cast<int>(s.size()) >= width) {
-        return s;
-    }
-    return std::string(width - s.size(), ' ') + s;
-}
-
 /// Number of Unicode code points in a UTF-8 string (matches Python ``len`` on str).
 int
 utf8_len(std::string const& s)
@@ -129,6 +120,16 @@ utf8_len(std::string const& s)
         }
     }
     return n;
+}
+
+std::string
+rjust(std::string const& s, int width)
+{
+    int const len = utf8_len(s);
+    if (len >= width) {
+        return s;
+    }
+    return std::string(width - len, ' ') + s;
 }
 
 std::string
