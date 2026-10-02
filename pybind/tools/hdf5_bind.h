@@ -2,7 +2,7 @@
 
 #include "py_hdf5_bridge.h"
 
-#include <cyten/tools/hdf5_py_bridge.h>
+#include "hdf5_py_bridge.h"
 
 #include <pybind11/pybind11.h>
 #include <string>

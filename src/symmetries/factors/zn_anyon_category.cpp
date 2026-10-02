@@ -4,7 +4,6 @@
 
 #include <cmath>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
 #include <numbers>
 #include <stdexcept>
 #include <string>
@@ -229,8 +228,8 @@ ZNAnyonCategory::save_hdf5(cyten::hdf5::Saver& saver,
                            std::string const& subpath) const
 {
     SymmetryFactor::save_hdf5(saver, h5gr, subpath);
-    cyten::hdf5::py_save(subpath + "N", N);
-    cyten::hdf5::py_save(subpath + "n", n);
+    saver.save_int64(subpath + "N", N);
+    saver.save_int64(subpath + "n", n);
 }
 
 ZNAnyonCategory::Ptr
@@ -238,11 +237,15 @@ ZNAnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
                            HighFive::Group& h5gr,
                            std::string const& subpath)
 {
-    int N = cyten::hdf5::py_load(subpath + "N").cast<int>();
-    int n = cyten::hdf5::py_load(subpath + "n").cast<int>();
+    hid_t id_N = loader.open(subpath + "N");
+    int N = static_cast<int>(loader.load_int64(id_N));
+    H5Idec_ref(id_N);
+    hid_t id_n = loader.open(subpath + "n");
+    int n = static_cast<int>(loader.load_int64(id_n));
+    H5Idec_ref(id_n);
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
     auto obj = std::make_shared<ZNAnyonCategory>(N, n, name);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

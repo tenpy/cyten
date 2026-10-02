@@ -2,6 +2,7 @@
 
 #include <cyten/tensors/ops_algebra.h>
 #include <cyten/tools.h>
+#include <cyten/tools/misc.h>
 
 #include <algorithm>
 #include <cassert>
@@ -938,12 +939,8 @@ Tensor::__str__() const
         right += '\n';
         right += line;
     }
-    // Call Python vert_join to preserve formatting.
-    return py::module_::import("cyten.tools.string")
-      .attr("vert_join")(py::make_tuple(ascii_diagram(), right),
-                         py::arg("valign") = "c",
-                         py::arg("delim") = "   |  ")
-      .cast<std::string>();
+    // Call C++ vert_join (ported from cyten.tools.string.vert_join).
+    return vert_join({ ascii_diagram(), right }, 'c', 'l', "   |  ");
 }
 
 VectorLike::Ptr

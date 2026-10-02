@@ -40,6 +40,9 @@ Dtype to_real(Dtype dtype);
 
 std::string repr(Dtype dtype);
 
+/// Parse ``repr`` output (``bool``, ``float64``, …).
+Dtype from_repr(std::string const& name);
+
 /// Epsilon: difference between 1.0 and next representable. Bool raises.
 float64 eps(Dtype dtype);
 

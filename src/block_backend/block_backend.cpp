@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
 #include <memory>
 #include <numeric>
 #include <ostream>
@@ -416,7 +416,7 @@ BlockBackend::Scalar::save_hdf5(cyten::hdf5::Saver& saver,
                                 HighFive::Group& /*h5gr*/,
                                 const std::string& subpath)
 {
-    cyten::hdf5::py_save(subpath + std::string("_block"), block_);
+    hdf5_export::save_block(saver, subpath + std::string("_block"), block_);
 }
 
 BlockBackend::Scalar
@@ -424,9 +424,10 @@ BlockBackend::Scalar::from_hdf5(cyten::hdf5::Loader& loader,
                                 HighFive::Group& h5gr,
                                 std::string const& subpath)
 {
-    auto block = cyten::hdf5::py_load(subpath + std::string("_block")).cast<BlockPtr>();
+    auto block = hdf5_export::load_block(loader, subpath + std::string("_block"));
     Scalar obj(block);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    // Scalar is not a shared_ptr; memorize the group id with a no-op owning marker via block.
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(block));
     return obj;
 }
 
@@ -1112,10 +1113,10 @@ BlockBackend::inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger)
 
 void
 BlockBackend::save_hdf5(cyten::hdf5::Saver& saver,
-                        HighFive::Group& h5gr,
+                        HighFive::Group& /*h5gr*/,
                         const std::string& subpath)
 {
-    cyten::hdf5::py_save(subpath + std::string("default_device"), default_device);
+    saver.save_string(subpath + std::string("default_device"), default_device);
 }
 
 std::shared_ptr<BlockBackend>

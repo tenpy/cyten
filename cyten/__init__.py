@@ -30,7 +30,7 @@ from .block_backends import Block, BlockBackend, Dtype, NumpyBlockBackend, Torch
 from .config import get_config, set_options, temporary_options
 from .models import Coupling, Site, couplings, sites
 from .symmetries._symmetries import (
-    SU2,
+    _SU2,
     SUN,
     U1,
     ZN,
@@ -162,7 +162,6 @@ __all__ = [
     'PlanarDiagram',
     'PlanarLinearOperator',
     'QuantumDoubleZNAnyonCategory',
-    'SU2',
     'SU2_kAnyonCategory',
     'SU3_3AnyonCategory',
     'SUN',

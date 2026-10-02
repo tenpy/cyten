@@ -85,7 +85,21 @@ bind_config(py::module_& m)
       .def("update", py::overload_cast<py::dict>(&CytenConfig::update), py::arg("options"))
       .def("update", py::overload_cast<const CytenConfig&>(&CytenConfig::update), py::arg("other"))
       .def("update_from_env", &CytenConfig::update_from_env)
-      .def("update_from_yaml", &CytenConfig::update_from_yaml, py::arg("yaml_text"))
+      .def(
+        "update_from_yaml",
+        [](CytenConfig& self, std::string const& yaml_text) {
+            // YAML parsing stays in the Python binding layer (PyYAML); C++ accepts mappings.
+            py::module_ yaml = py::module_::import("yaml");
+            py::object data = yaml.attr("safe_load")(yaml_text);
+            if (data.is_none()) {
+                return;
+            }
+            if (!py::isinstance<py::dict>(data)) {
+                throw py::type_error("Config must contain a mapping");
+            }
+            self.update_from_mapping(py::reinterpret_borrow<py::dict>(data));
+        },
+        py::arg("yaml_text"))
       .def("update_from_file", &CytenConfig::update_from_file, py::arg("filename"))
       .def("get_option", &CytenConfig::get_option, py::arg("key"))
       .def("str", &CytenConfig::str)

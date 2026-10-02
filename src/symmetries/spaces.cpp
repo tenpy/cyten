@@ -9,9 +9,13 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <complex>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
 #include <format>
+#include <functional>
+#include <hdf5_io/constants.h>
+#include <hdf5_io/h5_ops.h>
 #include <numeric>
 #include <ranges>
 #include <sstream>
@@ -234,10 +238,8 @@ Leg::apply_basis_perm(py::object arr, int64 axis, bool inverse, bool pre_compose
     // this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
     // perm is identity permutation
     // ---
-    // this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
     auto const& perm = inverse ? _inverse_basis_perm : _basis_perm;
     if (!perm) {
-        // perm is identity permutation
         return arr;
     }
     auto perm_arr = vector_to_array(*perm);
@@ -247,8 +249,28 @@ Leg::apply_basis_perm(py::object arr, int64 axis, bool inverse, bool pre_compose
         }
         return perm_arr[py::make_tuple(arr)];
     }
-    auto np = py::module_::import("numpy");
-    return np.attr("take")(arr, perm_arr, py::arg("axis") = axis);
+    // Native take along `axis` (replaces numpy.take).
+    py::array data = py::array::ensure(arr);
+    if (!data) {
+        throw std::invalid_argument("apply_basis_perm: expected array-like input");
+    }
+    auto info = data.request();
+    if (axis < 0) {
+        axis += static_cast<int64>(info.ndim);
+    }
+    if (axis < 0 || axis >= info.ndim) {
+        throw std::invalid_argument("apply_basis_perm: axis out of range");
+    }
+    // Use advanced indexing: arrange slices with perm on the chosen axis.
+    py::list idx;
+    for (py::ssize_t i = 0; i < info.ndim; ++i) {
+        if (i == axis) {
+            idx.append(perm_arr);
+        } else {
+            idx.append(py::slice(py::none(), py::none(), py::none()));
+        }
+    }
+    return data[py::tuple(idx)];
 }
 
 namespace {
@@ -1839,22 +1861,38 @@ ElementarySpace::save_hdf5(cyten::hdf5::Saver& saver,
                            HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
-    cyten::hdf5::py_save(subpath + "defining_sectors", py::cast(defining_sectors));
-    cyten::hdf5::py_save(subpath + "sector_decomposition", py::cast(sector_decomposition));
-    cyten::hdf5::py_save(subpath + "sector_order",
-                         sector_order ? py::cast(*sector_order) : py::none());
-    cyten::hdf5::py_save(subpath + "_basis_perm", optional_perm_to_py(_basis_perm));
-    cyten::hdf5::py_save(subpath + "_inverse_basis_perm",
-                         optional_perm_to_py(_inverse_basis_perm));
-    cyten::hdf5::py_save(subpath + "multiplicities", vector_to_array(multiplicities));
-    cyten::hdf5::py_save(subpath + "symmetry", py::cast(Space::symmetry));
-    cyten::hdf5::py_save(subpath + "dim", py::int_(static_cast<long long>(Space::dim)));
-    cyten::hdf5::py_save(subpath + "num_sectors", py::int_(num_sectors));
-    cyten::hdf5::py_save(subpath + "slices", slices_to_py(slices));
-    cyten::hdf5::py_save(subpath + "sector_dims",
-                         sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none());
-
-    cyten::hdf5::py_set_group_attr("is_dual", py::cast(is_dual));
+    hdf5_export::save_sector_array(saver, subpath + "defining_sectors", defining_sectors);
+    hdf5_export::save_sector_array(saver, subpath + "sector_decomposition", sector_decomposition);
+    if (sector_order) {
+        saver.save_string(subpath + "sector_order", *sector_order);
+    } else {
+        saver.save_none(subpath + "sector_order");
+    }
+    hdf5_export::save_optional_i64_vector(saver, subpath + "_basis_perm", _basis_perm);
+    hdf5_export::save_optional_i64_vector(
+      saver, subpath + "_inverse_basis_perm", _inverse_basis_perm);
+    hdf5_export::save_i64_vector(saver, subpath + "multiplicities", multiplicities);
+    hdf5_export::save_symmetry(saver, subpath + "symmetry", Space::symmetry);
+    saver.save_int64(subpath + "dim", static_cast<std::int64_t>(Space::dim));
+    saver.save_int64(subpath + "num_sectors", static_cast<std::int64_t>(num_sectors));
+    if (slices) {
+        std::vector<std::int64_t> flat;
+        flat.reserve(slices->size() * 2);
+        for (auto const& sl : *slices) {
+            flat.push_back(sl[0]);
+            flat.push_back(sl[1]);
+        }
+        saver.save_array(subpath + "slices",
+                         hdf5_export::i64_matrix_to_buffer(flat, slices->size(), 2));
+    } else {
+        saver.save_none(subpath + "slices");
+    }
+    if (sector_dims) {
+        hdf5_export::save_i64_vector(saver, subpath + "sector_dims", *sector_dims);
+    } else {
+        saver.save_none(subpath + "sector_dims");
+    }
+    hdf5_io::h5_set_attr(h5gr.getId(), "is_dual", is_dual);
 }
 
 ElementarySpace::Ptr
@@ -1862,19 +1900,18 @@ ElementarySpace::from_hdf5(cyten::hdf5::Loader& loader,
                            HighFive::Group& h5gr,
                            std::string const& subpath)
 {
-    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto defining_sectors = cyten::hdf5::py_load(subpath + "defining_sectors").cast<SectorArray>();
-    auto multiplicities =
-      py_array_to_i64(py::array::ensure(cyten::hdf5::py_load(subpath + "multiplicities")));
-    auto basis_perm = optional_perm_from_py(cyten::hdf5::py_load(subpath + "_basis_perm"));
-    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
+    auto symmetry = hdf5_export::load_symmetry(loader, subpath + "symmetry");
+    auto defining_sectors = hdf5_export::load_sector_array(loader, subpath + "defining_sectors");
+    auto multiplicities = hdf5_export::load_i64_vector(loader, subpath + "multiplicities");
+    auto basis_perm = hdf5_export::load_optional_i64_vector(loader, subpath + "_basis_perm");
+    auto const is_dual_attr = hdf5_io::h5_get_attr_int64(h5gr.getId(), "is_dual");
+    bool const is_dual = is_dual_attr.value_or(0) != 0;
     auto obj = std::make_shared<ElementarySpace>(std::move(symmetry),
                                                  std::move(defining_sectors),
                                                  std::move(multiplicities),
                                                  is_dual,
                                                  std::move(basis_perm));
-    py::object py_obj = py::cast(obj);
-    cyten::hdf5::py_memorize_load(h5gr, py_obj);
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 
@@ -2354,18 +2391,19 @@ DirectSumSpace::save_hdf5(cyten::hdf5::Saver& saver,
                           std::string const& subpath) const
 {
     ElementarySpace::save_hdf5(saver, h5gr, subpath);
-    py::list spaces_list;
-    for (auto const& s : spaces) {
-        spaces_list.append(py::cast(s));
+    HighFive::Group spaces_g;
+    std::string spaces_sub;
+    saver.save_sequence_begin(subpath + "spaces",
+                              hdf5_io::REPR_LIST,
+                              static_cast<std::int64_t>(spaces.size()),
+                              spaces_g,
+                              spaces_sub);
+    cyten::hdf5::Saver spaces_saver(spaces_g);
+    for (std::size_t i = 0; i < spaces.size(); ++i) {
+        hdf5_export::save_elementary_space(spaces_saver, std::to_string(i), spaces[i]);
     }
-    cyten::hdf5::py_save(subpath + "spaces", spaces_list);
-    cyten::hdf5::py_set_group_attr("is_direct_sum_space", py::cast(true));
-    // All-None labels are stored as [] (matches Tensor's hdf5 label convention).
-    if (std::ranges::all_of(summand_labels, [](OptionalLabel const& l) { return !l; })) {
-        cyten::hdf5::py_set_group_attr("summand_labels", py::list());
-    } else {
-        cyten::hdf5::py_set_group_attr("summand_labels", py::cast(summand_labels));
-    }
+    hdf5_io::h5_set_attr(h5gr.getId(), "is_direct_sum_space", true);
+    hdf5_export::save_optional_labels(saver, subpath + "summand_labels", summand_labels);
 }
 
 DirectSumSpace::Ptr
@@ -2373,24 +2411,26 @@ DirectSumSpace::from_hdf5(cyten::hdf5::Loader& loader,
                           HighFive::Group& h5gr,
                           std::string const& subpath)
 {
-    auto spaces_obj = cyten::hdf5::py_load(subpath + "spaces");
+    hid_t spaces_id = loader.open(subpath + "spaces");
+    auto const n = hdf5_io::h5_get_attr_int64(spaces_id, hdf5_io::ATTR_LEN).value_or(0);
+    HighFive::Group spaces_g = hdf5_io::group_from_hid(spaces_id);
+    cyten::hdf5::Loader spaces_loader(spaces_g);
     std::vector<ElementarySpace::Ptr> spaces_;
-    for (py::handle item : spaces_obj) {
-        spaces_.push_back(item.cast<ElementarySpace::Ptr>());
+    spaces_.reserve(static_cast<std::size_t>(n));
+    for (std::int64_t i = 0; i < n; ++i) {
+        spaces_.push_back(hdf5_export::load_elementary_space(spaces_loader, std::to_string(i)));
     }
-    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
+    auto const is_dual_attr = hdf5_io::h5_get_attr_int64(h5gr.getId(), "is_dual");
+    bool const is_dual = is_dual_attr.value_or(0) != 0;
     std::optional<OptionalLabels> summand_labels_;
-    try {
-        auto labs = cyten::hdf5::py_get_attr(h5gr, "summand_labels").cast<OptionalLabels>();
+    if (hdf5_io::h5_contains(loader.root(), subpath + "summand_labels")) {
+        auto labs = hdf5_export::load_optional_labels(loader, subpath + "summand_labels");
         summand_labels_ = labs.empty() && !spaces_.empty()
                             ? OptionalLabels(spaces_.size(), std::nullopt)
                             : std::move(labs);
-    } catch (py::error_already_set const&) {
-        // Older files predate `summand_labels`; leave unlabeled.
     }
     auto obj = from_spaces(std::move(spaces_), is_dual, std::move(summand_labels_));
-    py::object py_obj = py::cast(obj);
-    cyten::hdf5::py_memorize_load(h5gr, py_obj);
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 
@@ -3252,26 +3292,52 @@ TensorProduct::calc_sectors(std::vector<Leg::Ptr> const& factors_) const
 
 void
 TensorProduct::save_hdf5(cyten::hdf5::Saver& saver,
-                         HighFive::Group& h5gr,
+                         HighFive::Group& /*h5gr*/,
                          std::string const& subpath) const
 {
-    (void)h5gr;
-    py::list factor_list;
-    for (auto const& factor : factors) {
-        factor_list.append(py::cast(factor));
+    HighFive::Group factor_g;
+    std::string factor_sub;
+    saver.save_sequence_begin(subpath + "factors",
+                              hdf5_io::REPR_LIST,
+                              static_cast<std::int64_t>(factors.size()),
+                              factor_g,
+                              factor_sub);
+    cyten::hdf5::Saver factor_saver(factor_g);
+    for (std::size_t i = 0; i < factors.size(); ++i) {
+        hdf5_export::save_leg(factor_saver, std::to_string(i), factors[i]);
     }
-    cyten::hdf5::py_save(subpath + "factors", factor_list);
-    cyten::hdf5::py_save(subpath + "slices", slices_to_py(slices));
-    cyten::hdf5::py_save(subpath + "symmetry", py::cast(symmetry));
-    cyten::hdf5::py_save(subpath + "num_sectors", py::int_(num_sectors));
-    cyten::hdf5::py_save(subpath + "num_factors", py::int_(num_factors));
-    cyten::hdf5::py_save(subpath + "sector_decomposition", py::cast(sector_decomposition));
-    cyten::hdf5::py_save(subpath + "sector_order",
-                         sector_order ? py::cast(*sector_order) : py::none());
-    cyten::hdf5::py_save(subpath + "dim", dim_to_py(dim));
-    cyten::hdf5::py_save(subpath + "multiplicities", vector_to_array(multiplicities));
-    cyten::hdf5::py_save(subpath + "sector_dims",
-                         sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none());
+    if (slices) {
+        std::vector<std::int64_t> flat;
+        flat.reserve(slices->size() * 2);
+        for (auto const& sl : *slices) {
+            flat.push_back(sl[0]);
+            flat.push_back(sl[1]);
+        }
+        saver.save_array(subpath + "slices",
+                         hdf5_export::i64_matrix_to_buffer(flat, slices->size(), 2));
+    } else {
+        saver.save_none(subpath + "slices");
+    }
+    hdf5_export::save_symmetry(saver, subpath + "symmetry", symmetry);
+    saver.save_int64(subpath + "num_sectors", static_cast<std::int64_t>(num_sectors));
+    saver.save_int64(subpath + "num_factors", static_cast<std::int64_t>(num_factors));
+    hdf5_export::save_sector_array(saver, subpath + "sector_decomposition", sector_decomposition);
+    if (sector_order) {
+        saver.save_string(subpath + "sector_order", *sector_order);
+    } else {
+        saver.save_none(subpath + "sector_order");
+    }
+    if (std::floor(dim) == dim) {
+        saver.save_int64(subpath + "dim", static_cast<std::int64_t>(dim));
+    } else {
+        saver.save_float64(subpath + "dim", dim);
+    }
+    hdf5_export::save_i64_vector(saver, subpath + "multiplicities", multiplicities);
+    if (sector_dims) {
+        hdf5_export::save_i64_vector(saver, subpath + "sector_dims", *sector_dims);
+    } else {
+        saver.save_none(subpath + "sector_dims");
+    }
 }
 
 TensorProduct::Ptr
@@ -3279,20 +3345,24 @@ TensorProduct::from_hdf5(cyten::hdf5::Loader& loader,
                          HighFive::Group& h5gr,
                          std::string const& subpath)
 {
-    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    auto symmetry = hdf5_export::load_symmetry(loader, subpath + "symmetry");
+    hid_t factors_id = loader.open(subpath + "factors");
+    auto const n = hdf5_io::h5_get_attr_int64(factors_id, hdf5_io::ATTR_LEN).value_or(0);
+    HighFive::Group factors_g = hdf5_io::group_from_hid(factors_id);
+    cyten::hdf5::Loader factors_loader(factors_g);
     std::vector<Leg::Ptr> factors;
-    for (py::handle factor : cyten::hdf5::py_load(subpath + "factors")) {
-        factors.push_back(factor.cast<Leg::Ptr>());
+    factors.reserve(static_cast<std::size_t>(n));
+    for (std::int64_t i = 0; i < n; ++i) {
+        factors.push_back(hdf5_export::load_leg(factors_loader, std::to_string(i)));
     }
     auto sector_decomposition =
-      cyten::hdf5::py_load(subpath + "sector_decomposition").cast<SectorArray>();
-    auto multiplicities =
-      py_array_to_i64(py::array::ensure(cyten::hdf5::py_load(subpath + "multiplicities")));
+      hdf5_export::load_sector_array(loader, subpath + "sector_decomposition");
+    auto multiplicities = hdf5_export::load_i64_vector(loader, subpath + "multiplicities");
     auto obj = std::make_shared<TensorProduct>(std::move(factors),
                                                std::move(symmetry),
                                                std::move(sector_decomposition),
                                                std::move(multiplicities));
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 
@@ -4014,16 +4084,19 @@ AbelianLegPipe::save_hdf5(cyten::hdf5::Saver& saver,
                           HighFive::Group& h5gr,
                           std::string const& subpath) const
 {
-    // note: the Python class inherits ElementarySpace.save_hdf5, which does not store the pipe
-    // structure. We additionally store the legs and combine_cstyle, such that from_hdf5 can
-    // reconstruct the pipe.
     ElementarySpace::save_hdf5(saver, h5gr, subpath);
-    py::list leg_list;
-    for (auto const& leg : legs) {
-        leg_list.append(py::cast(leg));
+    HighFive::Group leg_g;
+    std::string leg_sub;
+    saver.save_sequence_begin(subpath + "legs",
+                              hdf5_io::REPR_LIST,
+                              static_cast<std::int64_t>(legs.size()),
+                              leg_g,
+                              leg_sub);
+    cyten::hdf5::Saver leg_saver(leg_g);
+    for (std::size_t i = 0; i < legs.size(); ++i) {
+        hdf5_export::save_leg(leg_saver, std::to_string(i), legs[i]);
     }
-    cyten::hdf5::py_save(subpath + "legs", leg_list);
-    cyten::hdf5::py_set_group_attr("combine_cstyle", py::cast(combine_cstyle));
+    hdf5_io::h5_set_attr(h5gr.getId(), "combine_cstyle", combine_cstyle);
 }
 
 AbelianLegPipe::Ptr
@@ -4031,14 +4104,21 @@ AbelianLegPipe::from_hdf5(cyten::hdf5::Loader& loader,
                           HighFive::Group& h5gr,
                           std::string const& subpath)
 {
+    hid_t legs_id = loader.open(subpath + "legs");
+    auto const n = hdf5_io::h5_get_attr_int64(legs_id, hdf5_io::ATTR_LEN).value_or(0);
+    HighFive::Group legs_g = hdf5_io::group_from_hid(legs_id);
+    cyten::hdf5::Loader legs_loader(legs_g);
     std::vector<ElementarySpace::Ptr> legs;
-    for (py::handle item : cyten::hdf5::py_load(subpath + "legs")) {
-        legs.push_back(item.cast<ElementarySpace::Ptr>());
+    legs.reserve(static_cast<std::size_t>(n));
+    for (std::int64_t i = 0; i < n; ++i) {
+        legs.push_back(hdf5_export::load_elementary_space(legs_loader, std::to_string(i)));
     }
-    auto const is_dual = cyten::hdf5::py_get_attr(h5gr, "is_dual").cast<bool>();
-    auto const combine_cstyle = cyten::hdf5::py_get_attr(h5gr, "combine_cstyle").cast<bool>();
+    auto const is_dual_attr = hdf5_io::h5_get_attr_int64(h5gr.getId(), "is_dual");
+    bool const is_dual = is_dual_attr.value_or(0) != 0;
+    auto const combine_attr = hdf5_io::h5_get_attr_int64(h5gr.getId(), "combine_cstyle");
+    bool const combine_cstyle = combine_attr.value_or(0) != 0;
     auto obj = std::make_shared<AbelianLegPipe>(std::move(legs), is_dual, combine_cstyle);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 
@@ -4061,6 +4141,279 @@ leg_dim_as_size(Leg const& leg)
           std::format("leg dimension must be a non-negative integer, got {}", leg.dim));
     }
     return static_cast<std::size_t>(leg.dim);
+}
+
+/// Dense ND complex buffer for LegPipe swap_gate composition (rank may exceed FusionSymbol's 4).
+struct NdComplex
+{
+    std::vector<std::size_t> shape;
+    std::vector<complex128> data; // C-order
+
+    [[nodiscard]] std::size_t size() const
+    {
+        std::size_t n = 1;
+        for (auto s : shape) {
+            n *= s;
+        }
+        return n;
+    }
+
+    [[nodiscard]] std::size_t offset(std::vector<std::size_t> const& idx) const
+    {
+        std::size_t off = 0;
+        for (std::size_t a = 0; a < shape.size(); ++a) {
+            off = off * shape[a] + idx[a];
+        }
+        return off;
+    }
+
+    [[nodiscard]] complex128 get(std::vector<std::size_t> const& idx) const
+    {
+        return data[offset(idx)];
+    }
+
+    void set(std::vector<std::size_t> const& idx, complex128 v) { data[offset(idx)] = v; }
+};
+
+[[nodiscard]] NdComplex
+fusion_symbol_to_nd(FusionSymbol const& src)
+{
+    NdComplex out;
+    out.shape.assign(src.shape().begin(), src.shape().begin() + src.rank());
+    out.data.resize(src.size());
+    auto c = src.as_complex();
+    auto span = c.as_complex128();
+    std::copy(span.begin(), span.end(), out.data.begin());
+    return out;
+}
+
+[[nodiscard]] FusionSymbol
+nd_to_fusion_symbol(NdComplex const& src)
+{
+    if (src.shape.size() < 1 || src.shape.size() > 4) {
+        throw std::invalid_argument("nd_to_fusion_symbol: rank must be 1..4");
+    }
+    FusionSymbol::Shape shape{ { 1, 1, 1, 1 } };
+    for (std::size_t i = 0; i < src.shape.size(); ++i) {
+        shape[i] = src.shape[i];
+    }
+    bool any_imag = false;
+    for (auto v : src.data) {
+        if (v.imag() != 0.) {
+            any_imag = true;
+            break;
+        }
+    }
+    if (any_imag) {
+        return FusionSymbol::from_complex128(
+          static_cast<std::uint8_t>(src.shape.size()), shape, src.data);
+    }
+    std::vector<float64> real(src.data.size());
+    for (std::size_t i = 0; i < src.data.size(); ++i) {
+        real[i] = src.data[i].real();
+    }
+    return FusionSymbol::from_float64(
+      static_cast<std::uint8_t>(src.shape.size()), shape, std::move(real));
+}
+
+[[nodiscard]] std::size_t
+norm_axis(int ax, std::size_t rank)
+{
+    if (ax < 0) {
+        ax += static_cast<int>(rank);
+    }
+    if (ax < 0 || static_cast<std::size_t>(ax) >= rank) {
+        throw std::out_of_range("axis out of range");
+    }
+    return static_cast<std::size_t>(ax);
+}
+
+[[nodiscard]] NdComplex
+nd_tensordot(NdComplex const& a, NdComplex const& b, std::size_t ax_a, std::size_t ax_b)
+{
+    if (ax_a >= a.shape.size() || ax_b >= b.shape.size()) {
+        throw std::out_of_range("nd_tensordot: axis out of range");
+    }
+    if (a.shape[ax_a] != b.shape[ax_b]) {
+        throw std::invalid_argument("nd_tensordot: contracted dimensions mismatch");
+    }
+    std::size_t const K = a.shape[ax_a];
+    NdComplex out;
+    out.shape.reserve(a.shape.size() + b.shape.size() - 2);
+    for (std::size_t i = 0; i < a.shape.size(); ++i) {
+        if (i != ax_a) {
+            out.shape.push_back(a.shape[i]);
+        }
+    }
+    for (std::size_t i = 0; i < b.shape.size(); ++i) {
+        if (i != ax_b) {
+            out.shape.push_back(b.shape[i]);
+        }
+    }
+    out.data.assign(out.size(), complex128{ 0., 0. });
+
+    std::vector<std::size_t> ia(a.shape.size()), ib(b.shape.size()), io(out.shape.size());
+    std::function<void(std::size_t, std::size_t, std::size_t)> rec =
+      [&](std::size_t pa, std::size_t pb, std::size_t po) {
+          if (pa == a.shape.size() && pb == b.shape.size()) {
+              complex128 sum{ 0., 0. };
+              for (std::size_t k = 0; k < K; ++k) {
+                  ia[ax_a] = k;
+                  ib[ax_b] = k;
+                  sum += a.get(ia) * b.get(ib);
+              }
+              out.set(io, sum);
+              return;
+          }
+          if (pa < a.shape.size()) {
+              if (pa == ax_a) {
+                  rec(pa + 1, pb, po);
+                  return;
+              }
+              for (std::size_t i = 0; i < a.shape[pa]; ++i) {
+                  ia[pa] = i;
+                  io[po] = i;
+                  rec(pa + 1, pb, po + 1);
+              }
+              return;
+          }
+          if (pb == ax_b) {
+              rec(pa, pb + 1, po);
+              return;
+          }
+          for (std::size_t i = 0; i < b.shape[pb]; ++i) {
+              ib[pb] = i;
+              io[po] = i;
+              rec(pa, pb + 1, po + 1);
+          }
+      };
+    rec(0, 0, 0);
+    return out;
+}
+
+[[nodiscard]] NdComplex
+nd_moveaxis(NdComplex const& src, int src_ax, int dst_ax)
+{
+    // Match NumPy moveaxis: normalize both axes on the original rank, remove sources
+    // from order, then insert each source at the (original) destination index.
+    auto const r = src.shape.size();
+    auto const s = norm_axis(src_ax, r);
+    auto const d = norm_axis(dst_ax, r);
+    if (s == d) {
+        return src;
+    }
+    std::vector<std::size_t> perm;
+    perm.reserve(r);
+    for (std::size_t n = 0; n < r; ++n) {
+        if (n != s) {
+            perm.push_back(n);
+        }
+    }
+    perm.insert(perm.begin() + static_cast<std::ptrdiff_t>(d), s);
+
+    NdComplex out;
+    out.shape.resize(r);
+    for (std::size_t i = 0; i < r; ++i) {
+        out.shape[i] = src.shape[perm[i]];
+    }
+    out.data.resize(src.data.size());
+    std::vector<std::size_t> idx_out(r), idx_in(r);
+    std::function<void(std::size_t)> rec = [&](std::size_t axis) {
+        if (axis == r) {
+            for (std::size_t i = 0; i < r; ++i) {
+                idx_in[perm[i]] = idx_out[i];
+            }
+            out.set(idx_out, src.get(idx_in));
+            return;
+        }
+        for (std::size_t i = 0; i < out.shape[axis]; ++i) {
+            idx_out[axis] = i;
+            rec(axis + 1);
+        }
+    };
+    rec(0);
+    return out;
+}
+
+[[nodiscard]] NdComplex
+nd_transpose(NdComplex const& src, std::vector<int> const& axes)
+{
+    auto const r = src.shape.size();
+    if (axes.size() != r) {
+        throw std::invalid_argument("nd_transpose: axes length mismatch");
+    }
+    std::vector<std::size_t> perm(r);
+    for (std::size_t i = 0; i < r; ++i) {
+        perm[i] = norm_axis(axes[i], r);
+    }
+    NdComplex out;
+    out.shape.resize(r);
+    for (std::size_t i = 0; i < r; ++i) {
+        out.shape[i] = src.shape[perm[i]];
+    }
+    out.data.resize(src.data.size());
+    std::vector<std::size_t> idx_out(r), idx_in(r);
+    std::function<void(std::size_t)> rec = [&](std::size_t axis) {
+        if (axis == r) {
+            for (std::size_t i = 0; i < r; ++i) {
+                idx_in[perm[i]] = idx_out[i];
+            }
+            out.set(idx_out, src.get(idx_in));
+            return;
+        }
+        for (std::size_t i = 0; i < out.shape[axis]; ++i) {
+            idx_out[axis] = i;
+            rec(axis + 1);
+        }
+    };
+    rec(0);
+    return out;
+}
+
+[[nodiscard]] NdComplex
+nd_reshape(NdComplex const& src, std::vector<std::size_t> new_shape, bool cstyle)
+{
+    std::size_t new_n = 1;
+    for (auto s : new_shape) {
+        new_n *= s;
+    }
+    if (new_n != src.size()) {
+        throw std::invalid_argument("nd_reshape: size mismatch");
+    }
+    NdComplex out;
+    out.shape = std::move(new_shape);
+    out.data.resize(new_n);
+
+    auto unravel = [](std::size_t flat, std::vector<std::size_t> const& shape, bool c_order) {
+        std::vector<std::size_t> idx(shape.size());
+        if (c_order) {
+            for (std::size_t a = shape.size(); a-- > 0;) {
+                idx[a] = flat % shape[a];
+                flat /= shape[a];
+            }
+        } else {
+            for (std::size_t a = 0; a < shape.size(); ++a) {
+                idx[a] = flat % shape[a];
+                flat /= shape[a];
+            }
+        }
+        return idx;
+    };
+    auto ravel_c = [](std::vector<std::size_t> const& idx, std::vector<std::size_t> const& shape) {
+        std::size_t flat = 0;
+        for (std::size_t a = 0; a < shape.size(); ++a) {
+            flat = flat * shape[a] + idx[a];
+        }
+        return flat;
+    };
+
+    // NumPy reshape(order=O): same element sequence when both arrays are traversed in order O.
+    for (std::size_t seq = 0; seq < new_n; ++seq) {
+        auto src_idx = unravel(seq, src.shape, cstyle);
+        auto dst_idx = unravel(seq, out.shape, cstyle);
+        out.data[ravel_c(dst_idx, out.shape)] = src.data[ravel_c(src_idx, src.shape)];
+    }
+    return out;
 }
 
 } // namespace
@@ -4091,49 +4444,45 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
         throw SymmetryError(
           std::format("braid can not be written as array for {}.", V->symmetry->str()));
     }
-    auto const dV = static_cast<py::ssize_t>(leg_dim_as_size(*V));
-    auto const dW = static_cast<py::ssize_t>(leg_dim_as_size(*W));
-    auto np = py::module_::import("numpy");
+    auto const dV = leg_dim_as_size(*V);
+    auto const dW = leg_dim_as_size(*W);
 
     if (is_plain_leg_pipe(V)) {
         auto pipe = std::dynamic_pointer_cast<LegPipe>(V);
         auto const& legs = pipe->legs;
-        py::object res = fusion_symbol_to_numpy(swap_gate(legs.back(), W));
+        NdComplex res = fusion_symbol_to_nd(swap_gate(legs.back(), W));
         int n = 0;
         for (auto it = legs.rbegin() + 1; it != legs.rend(); ++it, ++n) {
-            py::object sw = fusion_symbol_to_numpy(swap_gate(*it, W));
-            res = np.attr("tensordot")(sw, res, py::make_tuple(2, 0));
-            res = np.attr("moveaxis")(res, 2, -2 - n);
+            NdComplex sw = fusion_symbol_to_nd(swap_gate(*it, W));
+            res = nd_tensordot(sw, res, /*ax_a=*/2, /*ax_b=*/0);
+            res = nd_moveaxis(res, /*src=*/2, /*dst=*/-2 - n);
         }
-        char const* order = pipe->combine_cstyle ? "C" : "F";
-        return fusion_symbol_from_numpy(
-          np.attr("reshape")(res, py::make_tuple(dW, dV, dW, dV), py::arg("order") = order)
-            .cast<py::array>());
+        return nd_to_fusion_symbol(
+          nd_reshape(res, { dW, dV, dW, dV }, /*cstyle=*/pipe->combine_cstyle));
     }
     if (is_plain_leg_pipe(W)) {
         auto pipe = std::dynamic_pointer_cast<LegPipe>(W);
         auto const& legs = pipe->legs;
-        py::object res = fusion_symbol_to_numpy(swap_gate(V, legs.front()));
+        NdComplex res = fusion_symbol_to_nd(swap_gate(V, legs.front()));
         for (std::size_t n = 1; n < legs.size(); ++n) {
-            py::object sw = fusion_symbol_to_numpy(swap_gate(V, legs[n]));
-            res = np.attr("tensordot")(res, sw, py::make_tuple(static_cast<int>(n), -1));
-            py::list axes;
+            NdComplex sw = fusion_symbol_to_nd(swap_gate(V, legs[n]));
+            res = nd_tensordot(res, sw, /*ax_a=*/n, /*ax_b=*/sw.shape.size() - 1);
+            std::vector<int> axes;
+            axes.reserve(res.shape.size());
             for (std::size_t i = 0; i < n; ++i) {
-                axes.append(static_cast<int>(i));
+                axes.push_back(static_cast<int>(i));
             }
-            axes.append(-3);
-            axes.append(-2);
+            axes.push_back(-3);
+            axes.push_back(-2);
             for (std::size_t i = n; i < 2 * n; ++i) {
-                axes.append(static_cast<int>(i));
+                axes.push_back(static_cast<int>(i));
             }
-            axes.append(-1);
-            axes.append(-4);
-            res = np.attr("transpose")(res, axes);
+            axes.push_back(-1);
+            axes.push_back(-4);
+            res = nd_transpose(res, axes);
         }
-        char const* order = pipe->combine_cstyle ? "C" : "F";
-        return fusion_symbol_from_numpy(
-          np.attr("reshape")(res, py::make_tuple(dW, dV, dW, dV), py::arg("order") = order)
-            .cast<py::array>());
+        return nd_to_fusion_symbol(
+          nd_reshape(res, { dW, dV, dW, dV }, /*cstyle=*/pipe->combine_cstyle));
     }
 
     auto Ves = std::dynamic_pointer_cast<ElementarySpace>(V);
@@ -4142,7 +4491,45 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
         throw py::type_error("swap_gate expects ElementarySpace or LegPipe legs");
     }
 
-    py::object res = np.attr("zeros")(py::make_tuple(dW, dV, dW, dV));
+    bool any_complex = false;
+    for (std::size_t ia = 0; ia < Ves->defining_sectors.size() && !any_complex; ++ia) {
+        for (std::size_t ib = 0; ib < Wes->defining_sectors.size(); ++ib) {
+            if (!Ves->Space::symmetry
+                   ->swap_gate(Ves->defining_sectors[ia], Wes->defining_sectors[ib])
+                   .is_real()) {
+                any_complex = true;
+                break;
+            }
+        }
+    }
+    Dtype const dt = any_complex ? Dtype::Complex128 : Dtype::Float64;
+    FusionSymbol res = FusionSymbol::zeros(4,
+                                           FusionSymbol::Shape{ { static_cast<std::size_t>(dW),
+                                                                  static_cast<std::size_t>(dV),
+                                                                  static_cast<std::size_t>(dW),
+                                                                  static_cast<std::size_t>(dV) } },
+                                           dt);
+
+    auto copy_block = [&](FusionSymbol const& block, int64 j0, int64 i0, int64 db, int64 da) {
+        FusionSymbol b = any_complex ? block.as_complex() : block;
+        for (int64 j = 0; j < db; ++j) {
+            for (int64 i = 0; i < da; ++i) {
+                for (int64 j2 = 0; j2 < db; ++j2) {
+                    for (int64 i2 = 0; i2 < da; ++i2) {
+                        res.set(static_cast<std::size_t>(j0 + j),
+                                static_cast<std::size_t>(i0 + i),
+                                static_cast<std::size_t>(j0 + j2),
+                                static_cast<std::size_t>(i0 + i2),
+                                b.get_complex(static_cast<std::size_t>(j),
+                                              static_cast<std::size_t>(i),
+                                              static_cast<std::size_t>(j2),
+                                              static_cast<std::size_t>(i2)));
+                    }
+                }
+            }
+        }
+    };
+
     int64 i = 0;
     for (std::size_t ia = 0; ia < Ves->defining_sectors.size(); ++ia) {
         auto const& a = Ves->defining_sectors[ia];
@@ -4152,16 +4539,13 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
         for (std::size_t ib = 0; ib < Wes->defining_sectors.size(); ++ib) {
             auto const& b = Wes->defining_sectors[ib];
             auto const mb = Wes->multiplicities[ib];
-            py::array swap = fusion_symbol_to_numpy(Ves->Space::symmetry->swap_gate(a, b));
+            auto swap = Ves->Space::symmetry->swap_gate(a, b);
             auto const db = static_cast<int64>(Wes->Space::symmetry->sector_dim(b));
             int64 i2 = i;
             for (int64 na = 0; na < ma; ++na) {
                 int64 j2 = j;
                 for (int64 nb = 0; nb < mb; ++nb) {
-                    res[py::make_tuple(py::slice(j2, j2 + db, 1),
-                                       py::slice(i2, i2 + da, 1),
-                                       py::slice(j2, j2 + db, 1),
-                                       py::slice(i2, i2 + da, 1))] = swap;
+                    copy_block(swap, j2, i2, db, da);
                     j2 += db;
                 }
                 i2 += da;
@@ -4170,9 +4554,32 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
         }
         i += da * ma;
     }
-    auto Winv = vector_to_array(Wes->inverse_basis_perm());
-    auto Vinv = vector_to_array(Ves->inverse_basis_perm());
-    return fusion_symbol_from_numpy(res[np.attr("ix_")(Winv, Vinv, Winv, Vinv)].cast<py::array>());
+
+    auto const& Winv = Wes->inverse_basis_perm();
+    auto const& Vinv = Ves->inverse_basis_perm();
+    FusionSymbol out = FusionSymbol::zeros(4,
+                                           FusionSymbol::Shape{ { static_cast<std::size_t>(dW),
+                                                                  static_cast<std::size_t>(dV),
+                                                                  static_cast<std::size_t>(dW),
+                                                                  static_cast<std::size_t>(dV) } },
+                                           dt);
+    for (std::size_t i0 = 0; i0 < static_cast<std::size_t>(dW); ++i0) {
+        for (std::size_t i1 = 0; i1 < static_cast<std::size_t>(dV); ++i1) {
+            for (std::size_t i2 = 0; i2 < static_cast<std::size_t>(dW); ++i2) {
+                for (std::size_t i3 = 0; i3 < static_cast<std::size_t>(dV); ++i3) {
+                    out.set(i0,
+                            i1,
+                            i2,
+                            i3,
+                            res.get_complex(static_cast<std::size_t>(Winv[i0]),
+                                            static_cast<std::size_t>(Vinv[i1]),
+                                            static_cast<std::size_t>(Winv[i2]),
+                                            static_cast<std::size_t>(Vinv[i3])));
+                }
+            }
+        }
+    }
+    return out;
 }
 
 FusionSymbol
@@ -4185,21 +4592,51 @@ twist_gate_diag(Leg::Ptr V)
         throw SymmetryError(
           std::format("twist can not be written as array for {}.", V->symmetry->str()));
     }
-    auto np = py::module_::import("numpy");
-
     if (is_plain_leg_pipe(V)) {
         auto pipe = std::dynamic_pointer_cast<LegPipe>(V);
-        char const* order = pipe->combine_cstyle ? "C" : "F";
-        py::object res = fusion_symbol_to_numpy(twist_gate_diag(pipe->legs.front()));
-        auto newaxis = np.attr("newaxis");
+        FusionSymbol res = twist_gate_diag(pipe->legs.front());
         for (std::size_t n = 1; n < pipe->legs.size(); ++n) {
-            py::object next = fusion_symbol_to_numpy(twist_gate_diag(pipe->legs[n]));
-            res = np.attr("reshape")(res[py::make_tuple(py::slice(), newaxis)] *
-                                       next[py::make_tuple(newaxis, py::slice())],
-                                     -1,
-                                     py::arg("order") = order);
+            FusionSymbol next = twist_gate_diag(pipe->legs[n]);
+            auto ra = res.as_complex();
+            auto na = next.as_complex();
+            auto rs = ra.as_complex128();
+            auto ns = na.as_complex128();
+            std::size_t const nI = rs.size();
+            std::size_t const nJ = ns.size();
+            std::vector<complex128> out(nI * nJ);
+            if (pipe->combine_cstyle) {
+                for (std::size_t ii = 0; ii < nI; ++ii) {
+                    for (std::size_t jj = 0; jj < nJ; ++jj) {
+                        out[ii * nJ + jj] = rs[ii] * ns[jj];
+                    }
+                }
+            } else {
+                for (std::size_t jj = 0; jj < nJ; ++jj) {
+                    for (std::size_t ii = 0; ii < nI; ++ii) {
+                        out[jj * nI + ii] = rs[ii] * ns[jj];
+                    }
+                }
+            }
+            bool any_imag = false;
+            for (auto v : out) {
+                if (v.imag() != 0.0) {
+                    any_imag = true;
+                    break;
+                }
+            }
+            if (any_imag) {
+                res = FusionSymbol::from_complex128(
+                  1, FusionSymbol::Shape{ { out.size(), 1, 1, 1 } }, std::move(out));
+            } else {
+                std::vector<float64> real(out.size());
+                for (std::size_t k = 0; k < out.size(); ++k) {
+                    real[k] = out[k].real();
+                }
+                res = FusionSymbol::from_float64(
+                  1, FusionSymbol::Shape{ { real.size(), 1, 1, 1 } }, std::move(real));
+            }
         }
-        return fusion_symbol_from_numpy(res.cast<py::array>());
+        return res;
     }
 
     // ElementarySpace or AbelianLegPipe

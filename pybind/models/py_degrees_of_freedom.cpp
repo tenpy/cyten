@@ -107,22 +107,34 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def(
         "state_indices", &Site::state_indices, py::arg("labels"), DOC(cyten, Site, state_indices))
       .def("__repr__", &Site::repr)
-      .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<Site>(),
-           py::arg("hdf5_saver"),
-           py::arg("h5gr"),
-           py::arg("subpath"),
-           DOC(cyten, Site, save_hdf5));
+      .def(
+        "save_hdf5",
+        [](Site const& self, py::object py_saver, py::object py_h5gr, std::string subpath) {
+            // Use subclass hdf5_init_kwargs (S/conserve for SpinSite, etc.) rather than the
+            // base Site leg/state_labels format, which many site constructors do not accept.
+            cyten::hdf5::PyBridge bridge(py_saver, py::none(), py_h5gr);
+            cyten::hdf5::py_save(subpath + "init_kwargs", self.hdf5_init_kwargs());
+        },
+        py::arg("hdf5_saver"),
+        py::arg("h5gr"),
+        py::arg("subpath"),
+        DOC(cyten, Site, save_hdf5));
 
     py::object classmethod = py::module_::import("builtins").attr("classmethod");
-    site.attr("from_hdf5") =
-      classmethod(py::cpp_function(cyten::hdf5::wrap_from_hdf5_classmethod<Site>(),
-                                   py::name("from_hdf5"),
-                                   py::arg("cls"),
-                                   py::arg("hdf5_loader"),
-                                   py::arg("h5gr"),
-                                   py::arg("subpath"),
-                                   "Reconstruct a Site (or subclass) from HDF5."));
+    site.attr("from_hdf5") = classmethod(py::cpp_function(
+      [](py::object cls, py::object py_loader, py::object py_h5gr, std::string subpath) {
+          cyten::hdf5::PyBridge bridge(py::none(), py_loader, py_h5gr);
+          py::object kwargs = cyten::hdf5::py_load(subpath + "init_kwargs");
+          py::object obj = cls(**kwargs);
+          py_loader.attr("memorize_load")(py_h5gr, obj);
+          return obj;
+      },
+      py::name("from_hdf5"),
+      py::arg("cls"),
+      py::arg("hdf5_loader"),
+      py::arg("h5gr"),
+      py::arg("subpath"),
+      "Reconstruct a Site (or subclass) from HDF5."));
 
     py::class_<SpinDOF, Site, py::smart_holder> spin_dof(m, "SpinDOF");
     spin_dof.doc() = DOC(cyten, SpinDOF);
@@ -150,6 +162,7 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_static("conservation_law_to_symmetry",
                   &SpinDOF::conservation_law_to_symmetry,
                   py::arg("conserve"),
+                  py::arg("use_test_su2") = false,
                   DOC(cyten, SpinDOF, conservation_law_to_symmetry));
 
     py::class_<ClockDOF, Site, py::smart_holder> clock_dof(m, "ClockDOF");
@@ -173,6 +186,7 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_static("conservation_law_to_symmetry",
                   &ClockDOF::conservation_law_to_symmetry,
                   py::arg("conserve"),
+                  py::arg("use_test_su2") = false,
                   DOC(cyten, ClockDOF, conservation_law_to_symmetry));
 
     py::class_<AnyonDOF, Site, py::smart_holder> anyon_dof(m, "AnyonDOF");

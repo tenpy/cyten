@@ -4,7 +4,6 @@
 
 #include <cmath>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
 #include <numbers>
 #include <stdexcept>
 #include <string>
@@ -250,7 +249,7 @@ QuantumDoubleZNAnyonCategory::save_hdf5(cyten::hdf5::Saver& saver,
                                         std::string const& subpath) const
 {
     SymmetryFactor::save_hdf5(saver, h5gr, subpath);
-    cyten::hdf5::py_save(subpath + "N", N);
+    saver.save_int64(subpath + "N", N);
 }
 
 QuantumDoubleZNAnyonCategory::Ptr
@@ -258,10 +257,12 @@ QuantumDoubleZNAnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
                                         HighFive::Group& h5gr,
                                         std::string const& subpath)
 {
-    int N = cyten::hdf5::py_load(subpath + "N").cast<int>();
+    hid_t id = loader.open(subpath + "N");
+    int N = static_cast<int>(loader.load_int64(id));
+    H5Idec_ref(id);
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
     auto obj = std::make_shared<QuantumDoubleZNAnyonCategory>(N, name);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

@@ -3,7 +3,7 @@
 #include <cyten/symmetries/symmetry.h>
 
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <hdf5_io/h5_ops.h>
 #include <stdexcept>
 
 namespace cyten {
@@ -103,18 +103,23 @@ SymmetryFactor::save_hdf5(cyten::hdf5::Saver& saver,
                           HighFive::Group& h5gr,
                           std::string const& subpath) const
 {
-    cyten::hdf5::py_save(subpath + "group_name", group_name);
-    cyten::hdf5::py_save(subpath + "fusion_style", static_cast<int>(fusion_style));
-    cyten::hdf5::py_save(subpath + "braiding_style", static_cast<int>(braiding_style));
-    // Bound Sector so Hdf5Saver finds Sector.save_hdf5.
-    cyten::hdf5::py_save(subpath + "trivial_sector", py::cast(trivial_sector));
-    cyten::hdf5::py_save(subpath + "num_sectors", num_sectors);
-    cyten::hdf5::py_save(subpath + "sector_ind_len", static_cast<int>(sector_ind_len));
-    cyten::hdf5::py_save(subpath + "trivial_shift", trivial_shift);
+    saver.save_string(subpath + "group_name", group_name);
+    saver.save_int64(subpath + "fusion_style", static_cast<std::int64_t>(fusion_style));
+    saver.save_int64(subpath + "braiding_style", static_cast<std::int64_t>(braiding_style));
+    saver.save_instance(subpath + "trivial_sector",
+                        "cyten._core",
+                        "Sector",
+                        &trivial_sector,
+                        [&](cyten::hdf5::Saver& s, HighFive::Group& g, std::string const& sub) {
+                            trivial_sector.save_hdf5(s, g, sub);
+                        });
+    saver.save_float64(subpath + "num_sectors", num_sectors);
+    saver.save_int64(subpath + "sector_ind_len", static_cast<std::int64_t>(sector_ind_len));
+    saver.save_bool(subpath + "trivial_shift", trivial_shift);
     std::string descr = descriptive_name.has_value() ? *descriptive_name : "None";
-    cyten::hdf5::py_set_group_attr("descriptive_name", py::cast(descr));
-    cyten::hdf5::py_set_group_attr("has_complex_topological_data",
-                                   py::cast(has_complex_topological_data));
+    hdf5_io::h5_set_attr(h5gr.getId(), "descriptive_name", descr);
+    hdf5_io::h5_set_attr(
+      h5gr.getId(), "has_complex_topological_data", has_complex_topological_data);
 }
 
 void
@@ -122,38 +127,50 @@ SymmetryFactor::load_hdf5_common(cyten::hdf5::Loader& loader,
                                  HighFive::Group& h5gr,
                                  std::string const& subpath)
 {
-    group_name = cyten::hdf5::py_load(subpath + "group_name").cast<std::string>();
-    fusion_style =
-      static_cast<FusionStyle>(cyten::hdf5::py_load(subpath + "fusion_style").cast<int>());
-    braiding_style =
-      static_cast<BraidingStyle>(cyten::hdf5::py_load(subpath + "braiding_style").cast<int>());
-    trivial_sector = cyten::hdf5::py_load(subpath + "trivial_sector").cast<Sector>();
-    num_sectors = cyten::hdf5::py_load(subpath + "num_sectors").cast<float64>();
-    sector_ind_len =
-      static_cast<std::uint8_t>(cyten::hdf5::py_load(subpath + "sector_ind_len").cast<int>());
+    {
+        hid_t id = loader.open(subpath + "group_name");
+        group_name = loader.load_string(id);
+        H5Idec_ref(id);
+    }
+    {
+        hid_t id = loader.open(subpath + "fusion_style");
+        fusion_style = static_cast<FusionStyle>(loader.load_int64(id));
+        H5Idec_ref(id);
+    }
+    {
+        hid_t id = loader.open(subpath + "braiding_style");
+        braiding_style = static_cast<BraidingStyle>(loader.load_int64(id));
+        H5Idec_ref(id);
+    }
+    {
+        hid_t id = loader.open(subpath + "trivial_sector");
+        HighFive::Group sector_gr = hdf5_io::group_from_hid(id);
+        trivial_sector = Sector::from_hdf5(
+          loader, sector_gr, cyten::hdf5::ensure_slash(subpath + "trivial_sector"));
+    }
+    {
+        hid_t id = loader.open(subpath + "num_sectors");
+        num_sectors = loader.load_float64(id);
+        H5Idec_ref(id);
+    }
+    {
+        hid_t id = loader.open(subpath + "sector_ind_len");
+        sector_ind_len = static_cast<std::uint8_t>(loader.load_int64(id));
+        H5Idec_ref(id);
+    }
     empty_sector_array = SectorArray::empty(sector_ind_len);
     // trivial_shift was added later; default true if missing.
-    try {
-        trivial_shift = cyten::hdf5::py_load(subpath + "trivial_shift").cast<bool>();
-    } catch (py::error_already_set&) {
-        PyErr_Clear();
-        trivial_shift = true;
-    }
-    auto descr = cyten::hdf5::py_get_group_attr("descriptive_name").cast<std::string>();
-    if (descr == "None") {
-        descriptive_name = std::nullopt;
-    } else {
-        descriptive_name = descr;
-    }
-    has_complex_topological_data =
-      cyten::hdf5::py_get_group_attr("has_complex_topological_data").cast<bool>();
+    trivial_shift = trivial_shift_from_hdf5(loader, subpath);
+    descriptive_name = descriptive_name_from_hdf5_attrs(h5gr);
+    auto has_complex = hdf5_io::h5_get_attr_int64(h5gr.getId(), "has_complex_topological_data");
+    has_complex_topological_data = has_complex.value_or(0) != 0;
 }
 
 std::optional<std::string>
-descriptive_name_from_hdf5_attrs(HighFive::Group& /*h5gr*/)
+descriptive_name_from_hdf5_attrs(HighFive::Group& h5gr)
 {
-    auto descr = cyten::hdf5::py_get_group_attr("descriptive_name").cast<std::string>();
-    if (descr == "None") {
+    auto descr = hdf5_io::h5_get_attr_string(h5gr.getId(), "descriptive_name");
+    if (!descr || *descr == "None") {
         return std::nullopt;
     }
     return descr;
@@ -162,12 +179,13 @@ descriptive_name_from_hdf5_attrs(HighFive::Group& /*h5gr*/)
 bool
 trivial_shift_from_hdf5(cyten::hdf5::Loader& loader, std::string const& subpath)
 {
-    try {
-        return cyten::hdf5::py_load(subpath + "trivial_shift").cast<bool>();
-    } catch (py::error_already_set&) {
-        PyErr_Clear();
+    if (!hdf5_io::h5_contains(loader.root(), subpath + "trivial_shift")) {
         return true;
     }
+    hid_t id = loader.open(subpath + "trivial_shift");
+    bool v = loader.load_bool(id);
+    H5Idec_ref(id);
+    return v;
 }
 
 } // namespace cyten

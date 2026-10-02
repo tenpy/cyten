@@ -18,6 +18,16 @@ namespace cyten {
 
 namespace {
 
+[[nodiscard]] std::pair<int64, int64>
+parse_leg_index(std::shared_ptr<LegOrSpace> const& leg, int64 idx)
+{
+    auto es = std::dynamic_pointer_cast<ElementarySpace>(leg);
+    if (!es) {
+        throw std::invalid_argument("parse_index requires an ElementarySpace leg");
+    }
+    return es->parse_index(idx);
+}
+
 int64
 leg_dim_i64(py::object leg)
 {
@@ -65,9 +75,7 @@ rank_basis_perm_masked(py::object basis_perm, BlockBackend& bb, BlockBackend::Bl
     if (basis_perm.is_none())
         return std::nullopt;
     py::object indexed = basis_perm[bb.to_numpy(mask)];
-    auto np = py::module_::import("numpy");
-    auto arr =
-      np.attr("asarray")(indexed, py::arg("dtype") = np.attr("intp")).cast<py::array_t<int64>>();
+    auto arr = py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(indexed);
     auto buf = arr.unchecked<1>();
     std::vector<int64> vals(static_cast<std::size_t>(buf.shape(0)));
     for (py::ssize_t i = 0; i < buf.shape(0); ++i)
@@ -573,8 +581,7 @@ NoSymmetryBackend::get_element_diagonal(DiagonalTensorCPtr a, int64 idx)
     // a.data is a single 1D block
     // ---
     // a.data is a single 1D block
-    auto parsed = py::cast(a->leg()).attr("parse_index")(idx);
-    idx = parsed.attr("__getitem__")(1).cast<int64>();
+    idx = parse_leg_index(a->leg(), idx).second;
     return block_backend->get_block_element(block_from_tensor(a), { idx });
 }
 
@@ -585,8 +592,7 @@ NoSymmetryBackend::get_element_mask(MaskCPtr a, std::vector<int64> idcs)
     std::vector<int64> parsed;
     parsed.reserve(idcs.size());
     for (std::size_t i = 0; i < idcs.size(); ++i) {
-        parsed.push_back(
-          py::cast(legs[i]).attr("parse_index")(idcs[i]).attr("__getitem__")(1).cast<int64>());
+        parsed.push_back(parse_leg_index(legs[i], idcs[i]).second);
     }
     int64 large, small;
     if (a->is_projection) {
@@ -665,10 +671,10 @@ NoSymmetryBackend::mask_binary_operand(MaskCPtr mask1, MaskCPtr mask2, BlockBina
 std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
 NoSymmetryBackend::mask_contract_large_leg(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx)
 {
-    auto parsed = py::cast(tensor).attr("_parse_leg_idx")(leg_idx);
-    bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
-    int64 co_domain_idx = parsed.attr("__getitem__")(1).cast<int64>();
-    leg_idx = parsed.attr("__getitem__")(2).cast<int64>();
+    auto parsed = tensor->_parse_leg_idx(leg_idx);
+    bool in_domain = std::get<0>(parsed);
+    int64 co_domain_idx = std::get<1>(parsed);
+    leg_idx = std::get<2>(parsed);
     auto data =
       block_backend->apply_mask(block_from_tensor(tensor), block_from_tensor(mask), leg_idx);
     TensorProduct::Ptr codomain;
@@ -690,10 +696,10 @@ NoSymmetryBackend::mask_contract_large_leg(TensorCPtr tensor, MaskCPtr mask, int
 std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
 NoSymmetryBackend::mask_contract_small_leg(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx)
 {
-    auto parsed = py::cast(tensor).attr("_parse_leg_idx")(leg_idx);
-    bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
-    int64 co_domain_idx = parsed.attr("__getitem__")(1).cast<int64>();
-    leg_idx = parsed.attr("__getitem__")(2).cast<int64>();
+    auto parsed = tensor->_parse_leg_idx(leg_idx);
+    bool in_domain = std::get<0>(parsed);
+    int64 co_domain_idx = std::get<1>(parsed);
+    leg_idx = std::get<2>(parsed);
     auto data =
       block_backend->enlarge_leg(block_from_tensor(tensor), block_from_tensor(mask), leg_idx);
     TensorProduct::Ptr codomain;

@@ -3,6 +3,9 @@
 #include "../group.h"
 
 #include <cyten/tools/hdf5.h>
+#include <highfive/highfive.hpp>
+#include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -13,7 +16,8 @@ namespace cyten {
 /// ``"<base>_N{N}_{kind}_hweight{hweight}.hdf5"``.
 ///
 /// \param N  Rank of the group, ``SU(N)``.
-/// \param kind  One of ``"CG"``, ``"F"``, ``"R"`` (case-insensitive on input, normalized to upper
+/// \param kind  One of ``"CG"``, ``"F"`` or ``"R"`` (case-insensitive on input, normalized to
+/// upper
 ///              case in the result).
 /// \param hweight  Highest weight stored in the file.
 /// \param filename_base  Defaults to the ``su_n_data_filename_base`` config option.
@@ -25,7 +29,8 @@ std::string su_n_data_filename(int N,
 /// Full path to a standard SU(N) data file: ``{path}`` joined with ``su_n_data_filename(...)``.
 ///
 /// \param N  Rank of the group, ``SU(N)``.
-/// \param kind  One of ``"CG"``, ``"F"``, ``"R"`` (case-insensitive on input, normalized to upper
+/// \param kind  One of ``"CG"``, ``"F"`` or ``"R"`` (case-insensitive on input, normalized to
+/// upper
 ///              case in the result).
 /// \param hweight  Highest weight stored in the file.
 /// \param path  Defaults to the ``su_n_data_path`` config option. A leading ``~`` is expanded.
@@ -45,29 +50,17 @@ std::string su_n_data_file_path(int N,
 /// Clebsch-Gordan coefficients and F/R symbols need to be calculated with the
 /// clebsch_gordan_coefficients package and exported as HDF5 files.
 ///
-/// There are two ways to construct an SUN:
+/// Construct from filenames (or via :func:`from_config`, which resolves standard paths)::
 ///
-/// 1. From the standard data files, resolved from the config::
+///     SUN(N, cg_path, f_path, r_path, descriptive_name=None)
+///     SUN.from_config(N, hweight, *, cg_hweight=None, f_hweight=None, r_hweight=None,
+///                     path=None, filename_base=None, descriptive_name=None)
 ///
-///        SUN(N, hweight, *, cg_hweight=None, f_hweight=None, r_hweight=None,
-///            path=None, filename_base=None, descriptive_name=None)
-///
-///    The three files are looked up as
-///    ``{su_n_data_path}/{su_n_data_filename_base}_N{N}_{CG|F|R}_hweight{H}.hdf5``,
-///    with the two braced names taken from the cyten config (see :mod:`cyten.config`).
-///    ``hweight`` sets all three highest weights; ``cg_hweight`` / ``f_hweight`` /
-///    ``r_hweight`` override them individually. The CG highest weight must be >= the
-///    F and R highest weights (they are usually all equal).
-///    ``path`` and ``filename_base`` override the config options for this call only.
-///    Use :func:`su_n_data_file_path` to see where cyten will look.
-///
-/// 2. From open ``h5py.File`` handles::
-///
-///        SUN(N, CGfile, Ffile, Rfile, descriptive_name=None)
-///
-/// @param CGfile HDF5 file containing the Clebsch–Gordan coefficients.
-/// @param Ffile HDF5 file containing the F symbols.
-/// @param Rfile HDF5 file containing the R symbols.
+/// ``from_config`` looks up
+/// ``{su_n_data_path}/{su_n_data_filename_base}_N{N}_{CG|F|R}_hweight{H}.hdf5``.
+/// ``hweight`` sets all three highest weights; ``cg_hweight`` / ``f_hweight`` /
+/// ``r_hweight`` override them individually. The CG highest weight must be >= the
+/// F and R highest weights. Use :func:`su_n_data_file_path` to see where cyten will look.
 class SUN : public Group
 {
   public:
@@ -75,15 +68,16 @@ class SUN : public Group
     using CPtr = std::shared_ptr<const SUN>;
 
     int N;
-    /// HDF5 handles (``h5py.File``).
-    py::object CGfile;
-    py::object Ffile;
-    py::object Rfile;
+    /// Absolute / resolved paths of the CG / F / R data files.
+    std::string CGpath;
+    std::string Fpath;
+    std::string Rpath;
 
+    /// Construct from paths to the three SU(N) data files (opened read-only via HighFive).
     SUN(int N,
-        py::object CGfile,
-        py::object Ffile,
-        py::object Rfile,
+        std::string cg_path,
+        std::string f_path,
+        std::string r_path,
         std::optional<std::string> descriptive_name = std::nullopt);
     ~SUN() override = default;
 
@@ -121,14 +115,10 @@ class SUN : public Group
     Sector highest_irrep_in_decomp(Sector a, Sector b) const;
     SectorArray fusion_outcomes(Sector a, Sector b) const override;
 
-    /// Returns a dictionary with irreps as keys and their dimension as values.
-    ///
-    /// The irreps are the ones appearing in the decomposition of a x b.
-    /// Does not contain multiplicities!
-    py::dict dims_of_irreps(Sector a, Sector b) const;
-    /// Returns a dictionary with the outer multiplicities for the irreps in the decomposition of a
-    /// x b.
-    py::dict outer_multiplicity_from_CG(Sector a, Sector b) const;
+    /// Dimensions of irreps appearing in the decomposition of a x b (no multiplicities).
+    std::map<Sector, int64> dims_of_irreps(Sector a, Sector b) const;
+    /// Outer multiplicities for irreps in the decomposition of a x b.
+    std::map<Sector, int64> outer_multiplicity_from_CG(Sector a, Sector b) const;
 
     /// Evaluate a single Clebsch-Gordan coefficient.
     ///
@@ -158,15 +148,15 @@ class SUN : public Group
     FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const override;
     int64 frobenius_schur(Sector a) const override;
 
-    bool has_data_in_group(py::object group) const;
+    bool has_data_in_group(hid_t loc) const;
     /// Sanity check for Hdf5 files containing CG-coefficients, F-symbols or R-symbols.
     ///
-    /// This method takes a Hdf5 file and checks if it has the required structure and if
+    /// This method takes an open HighFive file and checks if it has the required structure and if
     /// the necessary data has been saved to it. This excludes the possibility of using
     /// incompletely generated files, but cannot guarantee completeness of the file and correctness
     /// of the data in the file. In particular, consistency of the data in the file should be
     /// checked by the cyten tests for SU(N) symmetry.
-    void sanity_check_hdf5(py::object file) const;
+    void sanity_check_hdf5(HighFive::File const& file) const;
 
     void save_hdf5(cyten::hdf5::Saver& saver,
                    HighFive::Group& h5gr,
@@ -174,6 +164,15 @@ class SUN : public Group
     static Ptr from_hdf5(cyten::hdf5::Loader& loader,
                          HighFive::Group& h5gr,
                          std::string const& subpath);
+
+  private:
+    std::shared_ptr<HighFive::File> CGfile_;
+    std::shared_ptr<HighFive::File> Ffile_;
+    std::shared_ptr<HighFive::File> Rfile_;
+
+    HighFive::Group cg_root() const;
+    HighFive::Group f_root() const;
+    HighFive::Group r_root() const;
 };
 
 } // namespace cyten

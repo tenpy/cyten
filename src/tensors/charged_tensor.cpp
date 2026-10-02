@@ -13,8 +13,9 @@
 #include <cassert>
 #include <cmath>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
 #include <format>
+#include <hdf5_io/h5_ops.h>
 #include <stdexcept>
 #include <utility>
 #include <variant>
@@ -593,19 +594,19 @@ ChargedTensor::save_hdf5(cyten::hdf5::Saver& saver,
                          HighFive::Group& h5gr,
                          std::string const& subpath) const
 {
-    cyten::hdf5::py_save(subpath + "invariant_part", py::cast(invariant_part));
-    cyten::hdf5::py_save(subpath + "charged_state", py::cast(charged_state));
-    cyten::hdf5::py_set_group_attr("has_charged_state", py::cast(true));
-    cyten::hdf5::py_set_group_attr("dtype", py::cast(dtype::repr(dtype)));
-    cyten::hdf5::py_set_group_attr("num_legs", py::cast(num_legs));
-    cyten::hdf5::py_set_group_attr("shape",
-                                   py::module_::import("numpy").attr("array")(
-                                     py::cast(shape), py::module_::import("numpy").attr("intp")));
-    if (std::ranges::all_of(_labels, [](OptionalLabel const& l) { return !l; })) {
-        cyten::hdf5::py_set_group_attr("labels", py::list());
-    } else {
-        cyten::hdf5::py_set_group_attr("labels", py::cast(_labels));
-    }
+    saver.save_instance(subpath + "invariant_part",
+                        hdf5_export::kModule,
+                        "SymmetricTensor",
+                        invariant_part.get(),
+                        [&](cyten::hdf5::Saver& s, HighFive::Group& g, std::string const& sub) {
+                            invariant_part->save_hdf5(s, g, sub);
+                        });
+    hdf5_export::save_block(saver, subpath + "charged_state", charged_state);
+    hdf5_io::h5_set_attr(h5gr.getId(), "has_charged_state", true);
+    hdf5_io::h5_set_attr(h5gr.getId(), "dtype", dtype::repr(dtype));
+    hdf5_io::h5_set_attr(h5gr.getId(), "num_legs", static_cast<std::int64_t>(num_legs));
+    hdf5_export::save_f64_vector(saver, subpath + "shape", shape);
+    hdf5_export::save_optional_labels(saver, subpath + "labels", _labels);
 }
 
 ChargedTensor::Ptr
@@ -613,22 +614,21 @@ ChargedTensor::from_hdf5(cyten::hdf5::Loader& loader,
                          HighFive::Group& h5gr,
                          std::string const& subpath)
 {
-    auto inv = cyten::hdf5::py_load(subpath + "invariant_part").cast<SymmetricTensor::Ptr>();
+    auto inv = hdf5_export::load_instance<SymmetricTensor>(
+      loader, subpath + "invariant_part", [&](HighFive::Group& g, std::string const& sub) {
+          return SymmetricTensor::from_hdf5(loader, g, sub);
+      });
     inv->allow_charge_leg_label = true;
-    bool has_cs = true;
-    try {
-        has_cs = cyten::hdf5::py_get_attr(h5gr, "has_charged_state").cast<bool>();
-    } catch (py::error_already_set&) {
-        has_cs = true;
-    }
+    auto has_cs_attr = hdf5_io::h5_get_attr_int64(h5gr.getId(), "has_charged_state");
+    bool has_cs = !has_cs_attr.has_value() || *has_cs_attr != 0;
     if (!has_cs) {
         throw std::invalid_argument(
           "HDF5 ChargedTensor without charged_state is no longer supported. "
           "Re-save or convert to HiddenLegTensor.");
     }
-    auto cs = cyten::hdf5::py_load(subpath + "charged_state").cast<BlockBackend::BlockPtr>();
+    auto cs = hdf5_export::load_block(loader, subpath + "charged_state");
     auto obj = std::make_shared<ChargedTensor>(inv, cs);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 

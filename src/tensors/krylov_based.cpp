@@ -11,25 +11,32 @@
 #include <complex>
 #include <cstddef>
 #include <format>
+#include <iostream>
 #include <limits>
 #include <numeric>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
 namespace {
 
-py::module_
-numpy_mod()
+// Eigen is not a project dependency; Krylov projected problems are small (N_max ~ 20),
+// so we use dense C++ helpers instead of numpy.linalg.
+
+void
+krylov_log_warning(std::string const& msg)
 {
-    return py::module_::import("numpy");
+    std::cerr << "WARNING:cyten.tensors.krylov_based: " << msg << '\n';
 }
 
-py::object
-krylov_logger()
+void
+krylov_log_debug(std::string const& msg)
 {
-    return py::module_::import("logging").attr("getLogger")("cyten.tensors.krylov_based");
+    // Mirror Python logging.getLogger(...).debug — keep quiet unless useful for tracing.
+    (void)msg;
 }
 
 py::dict
@@ -106,16 +113,6 @@ idx2(int64 i, int64 j, int64 cols)
     return static_cast<std::size_t>(i * cols + j);
 }
 
-std::vector<complex128>
-py_array_to_complex(py::object obj)
-{
-    py::array_t<complex128, py::array::c_style | py::array::forcecast> arr(obj);
-    auto req = arr.request();
-    auto n = static_cast<std::size_t>(req.size);
-    auto* ptr = static_cast<complex128*>(req.ptr);
-    return { ptr, ptr + n };
-}
-
 py::array
 vector_to_numpy_2d(std::vector<complex128> const& data, int64 rows, int64 cols, Dtype dt)
 {
@@ -139,27 +136,251 @@ vector_to_numpy_2d(std::vector<complex128> const& data, int64 rows, int64 cols, 
     return arr;
 }
 
-py::array
-submatrix_numpy(std::vector<complex128> const& data, int64 stride, int64 n, bool as_real)
+std::vector<complex128>
+extract_submatrix(std::vector<complex128> const& data, int64 stride, int64 n, bool as_real)
 {
-    if (as_real) {
-        py::array_t<float64> arr({ n, n });
-        auto r = arr.mutable_unchecked<2>();
-        for (int64 i = 0; i < n; ++i) {
-            for (int64 j = 0; j < n; ++j) {
-                r(i, j) = data[idx2(i, j, stride)].real();
-            }
-        }
-        return arr;
-    }
-    py::array_t<complex128> arr({ n, n });
-    auto r = arr.mutable_unchecked<2>();
+    std::vector<complex128> out(static_cast<std::size_t>(n * n));
     for (int64 i = 0; i < n; ++i) {
         for (int64 j = 0; j < n; ++j) {
-            r(i, j) = data[idx2(i, j, stride)];
+            complex128 z = data[idx2(i, j, stride)];
+            out[idx2(i, j, n)] = as_real ? complex128(z.real(), 0.0) : z;
         }
     }
-    return arr;
+    return out;
+}
+
+float64
+dense_norm(std::vector<complex128> const& v)
+{
+    float64 s = 0.0;
+    for (auto z : v) {
+        s += std::norm(z);
+    }
+    return std::sqrt(s);
+}
+
+std::vector<complex128>
+real_if_close_vec(std::vector<complex128> const& v, float64 tol = 100.)
+{
+    float64 max_abs = 0.0;
+    for (auto z : v) {
+        max_abs = std::max(max_abs, std::abs(z));
+    }
+    float64 thresh = tol * std::numeric_limits<float64>::epsilon() * std::max(max_abs, 1.0);
+    std::vector<complex128> out = v;
+    for (auto& z : out) {
+        if (std::abs(z.imag()) < thresh) {
+            z = complex128(z.real(), 0.0);
+        }
+    }
+    return out;
+}
+
+/// Dense linear solve A x = b (row-major A, length n). Partial pivoting.
+std::vector<complex128>
+dense_solve(std::vector<complex128> A, std::vector<complex128> b, int64 n)
+{
+    std::vector<int64> piv(static_cast<std::size_t>(n));
+    std::iota(piv.begin(), piv.end(), int64(0));
+    for (int64 k = 0; k < n; ++k) {
+        int64 pivrow = k;
+        float64 best = std::abs(A[idx2(k, k, n)]);
+        for (int64 i = k + 1; i < n; ++i) {
+            float64 a = std::abs(A[idx2(i, k, n)]);
+            if (a > best) {
+                best = a;
+                pivrow = i;
+            }
+        }
+        if (best == 0.0) {
+            throw std::runtime_error("dense_solve: singular matrix");
+        }
+        if (pivrow != k) {
+            for (int64 j = 0; j < n; ++j) {
+                std::swap(A[idx2(k, j, n)], A[idx2(pivrow, j, n)]);
+            }
+            std::swap(b[static_cast<std::size_t>(k)], b[static_cast<std::size_t>(pivrow)]);
+            std::swap(piv[static_cast<std::size_t>(k)], piv[static_cast<std::size_t>(pivrow)]);
+        }
+        for (int64 i = k + 1; i < n; ++i) {
+            complex128 f = A[idx2(i, k, n)] / A[idx2(k, k, n)];
+            A[idx2(i, k, n)] = f;
+            for (int64 j = k + 1; j < n; ++j) {
+                A[idx2(i, j, n)] -= f * A[idx2(k, j, n)];
+            }
+            b[static_cast<std::size_t>(i)] -= f * b[static_cast<std::size_t>(k)];
+        }
+    }
+    for (int64 i = n - 1; i >= 0; --i) {
+        complex128 s = b[static_cast<std::size_t>(i)];
+        for (int64 j = i + 1; j < n; ++j) {
+            s -= A[idx2(i, j, n)] * b[static_cast<std::size_t>(j)];
+        }
+        b[static_cast<std::size_t>(i)] = s / A[idx2(i, i, n)];
+    }
+    return b;
+}
+
+struct DenseEig
+{
+    std::vector<complex128> values;  // length n
+    std::vector<complex128> vectors; // n x n, column j is eigenvector j (row-major)
+};
+
+/// Classical Jacobi eigenvalue decomposition for real symmetric matrices.
+DenseEig
+dense_eigh(std::vector<complex128> const& A_in, int64 n)
+{
+    std::vector<float64> A(static_cast<std::size_t>(n * n));
+    for (int64 i = 0; i < n * n; ++i) {
+        A[static_cast<std::size_t>(i)] = A_in[static_cast<std::size_t>(i)].real();
+    }
+    std::vector<float64> V(static_cast<std::size_t>(n * n), 0.0);
+    for (int64 i = 0; i < n; ++i) {
+        V[idx2(i, i, n)] = 1.0;
+    }
+    constexpr int max_sweeps = 100;
+    for (int sweep = 0; sweep < max_sweeps; ++sweep) {
+        float64 off = 0.0;
+        for (int64 i = 0; i < n; ++i) {
+            for (int64 j = i + 1; j < n; ++j) {
+                off += std::abs(A[idx2(i, j, n)]);
+            }
+        }
+        if (off < 1e-15 * static_cast<float64>(n)) {
+            break;
+        }
+        for (int64 p = 0; p < n; ++p) {
+            for (int64 q = p + 1; q < n; ++q) {
+                float64 app = A[idx2(p, p, n)];
+                float64 aqq = A[idx2(q, q, n)];
+                float64 apq = A[idx2(p, q, n)];
+                if (std::abs(apq) < 1e-30) {
+                    continue;
+                }
+                float64 tau = (aqq - app) / (2.0 * apq);
+                float64 t = std::copysign(1.0 / (std::abs(tau) + std::sqrt(1.0 + tau * tau)), tau);
+                float64 c = 1.0 / std::sqrt(1.0 + t * t);
+                float64 s = t * c;
+                A[idx2(p, p, n)] = app - t * apq;
+                A[idx2(q, q, n)] = aqq + t * apq;
+                A[idx2(p, q, n)] = A[idx2(q, p, n)] = 0.0;
+                for (int64 r = 0; r < n; ++r) {
+                    if (r == p || r == q) {
+                        continue;
+                    }
+                    float64 arp = A[idx2(r, p, n)];
+                    float64 arq = A[idx2(r, q, n)];
+                    A[idx2(r, p, n)] = A[idx2(p, r, n)] = c * arp - s * arq;
+                    A[idx2(r, q, n)] = A[idx2(q, r, n)] = s * arp + c * arq;
+                }
+                for (int64 r = 0; r < n; ++r) {
+                    float64 vrp = V[idx2(r, p, n)];
+                    float64 vrq = V[idx2(r, q, n)];
+                    V[idx2(r, p, n)] = c * vrp - s * vrq;
+                    V[idx2(r, q, n)] = s * vrp + c * vrq;
+                }
+            }
+        }
+    }
+    // Sort eigenvalues ascending (numpy.linalg.eigh convention).
+    std::vector<int64> order(static_cast<std::size_t>(n));
+    std::iota(order.begin(), order.end(), int64(0));
+    std::ranges::sort(order,
+                      [&](int64 a, int64 b) { return A[idx2(a, a, n)] < A[idx2(b, b, n)]; });
+    DenseEig out;
+    out.values.resize(static_cast<std::size_t>(n));
+    out.vectors.assign(static_cast<std::size_t>(n * n), complex128(0.));
+    for (int64 j = 0; j < n; ++j) {
+        int64 src = order[static_cast<std::size_t>(j)];
+        out.values[static_cast<std::size_t>(j)] = A[idx2(src, src, n)];
+        for (int64 i = 0; i < n; ++i) {
+            out.vectors[idx2(i, j, n)] = V[idx2(i, src, n)];
+        }
+    }
+    return out;
+}
+
+/// Complex general eigendecomposition via QR algorithm with shifts (small n).
+DenseEig
+dense_eig(std::vector<complex128> A, int64 n)
+{
+    // Accumulate eigenvectors in V (start as identity).
+    std::vector<complex128> V(static_cast<std::size_t>(n * n), complex128(0.));
+    for (int64 i = 0; i < n; ++i) {
+        V[idx2(i, i, n)] = 1.0;
+    }
+    auto mat_mul = [&](std::vector<complex128> const& X, std::vector<complex128> const& Y) {
+        std::vector<complex128> Z(static_cast<std::size_t>(n * n), complex128(0.));
+        for (int64 i = 0; i < n; ++i) {
+            for (int64 k = 0; k < n; ++k) {
+                complex128 xik = X[idx2(i, k, n)];
+                for (int64 j = 0; j < n; ++j) {
+                    Z[idx2(i, j, n)] += xik * Y[idx2(k, j, n)];
+                }
+            }
+        }
+        return Z;
+    };
+    constexpr int max_iter = 500;
+    for (int iter = 0; iter < max_iter; ++iter) {
+        // Wilkinson-like shift: bottom-right entry
+        complex128 shift = A[idx2(n - 1, n - 1, n)];
+        for (int64 i = 0; i < n; ++i) {
+            A[idx2(i, i, n)] -= shift;
+        }
+        // QR via modified Gram-Schmidt
+        std::vector<complex128> Q(static_cast<std::size_t>(n * n), complex128(0.));
+        std::vector<complex128> R(static_cast<std::size_t>(n * n), complex128(0.));
+        for (int64 j = 0; j < n; ++j) {
+            std::vector<complex128> v(static_cast<std::size_t>(n));
+            for (int64 i = 0; i < n; ++i) {
+                v[static_cast<std::size_t>(i)] = A[idx2(i, j, n)];
+            }
+            for (int64 k = 0; k < j; ++k) {
+                complex128 r = 0.0;
+                for (int64 i = 0; i < n; ++i) {
+                    r += std::conj(Q[idx2(i, k, n)]) * v[static_cast<std::size_t>(i)];
+                }
+                R[idx2(k, j, n)] = r;
+                for (int64 i = 0; i < n; ++i) {
+                    v[static_cast<std::size_t>(i)] -= r * Q[idx2(i, k, n)];
+                }
+            }
+            float64 nrm = dense_norm(v);
+            R[idx2(j, j, n)] = nrm;
+            if (nrm < 1e-30) {
+                nrm = 1.0;
+            }
+            for (int64 i = 0; i < n; ++i) {
+                Q[idx2(i, j, n)] = v[static_cast<std::size_t>(i)] / nrm;
+            }
+        }
+        A = mat_mul(R, Q);
+        for (int64 i = 0; i < n; ++i) {
+            A[idx2(i, i, n)] += shift;
+        }
+        V = mat_mul(V, Q);
+        // Convergence: off-diagonal small
+        float64 off = 0.0;
+        for (int64 i = 0; i < n; ++i) {
+            for (int64 j = 0; j < n; ++j) {
+                if (i != j) {
+                    off += std::abs(A[idx2(i, j, n)]);
+                }
+            }
+        }
+        if (off < 1e-12 * static_cast<float64>(n)) {
+            break;
+        }
+    }
+    DenseEig out;
+    out.values.resize(static_cast<std::size_t>(n));
+    out.vectors = std::move(V);
+    for (int64 i = 0; i < n; ++i) {
+        out.values[static_cast<std::size_t>(i)] = A[idx2(i, i, n)];
+    }
+    return out;
 }
 
 std::vector<int64>
@@ -334,8 +555,8 @@ KrylovBased::_calc_result_full(int64 N)
         // Otherwise, the matrix (even if small) might be ill conditioned.
         // If you get this warning, you can try to set the parameters
         // `reortho`=True and `N_cache` >= `N_max`
-        krylov_logger().attr("warning")("poorly conditioned H matrix in KrylovBased! |psi_0| = %f",
-                                        psif_norm);
+        krylov_log_warning(
+          std::format("poorly conditioned H matrix in KrylovBased! |psi_0| = {}", psif_norm));
     }
     return scalar_multiply(as_scalar(*psif, 1.0 / psif_norm), psif);
 }
@@ -598,11 +819,10 @@ Arnoldi::_calc_result_krylov(int64 k)
         return;
     }
     auto n = k + 1;
-    auto np = numpy_mod();
-    auto h = submatrix_numpy(_h_krylov, h_stride(), n, /*as_real=*/false);
-    py::tuple ev = np.attr("linalg").attr("eig")(h);
-    auto E_kr = py_array_to_complex(ev[0]);
-    auto v_kr = py_array_to_complex(ev[1]);
+    auto h = extract_submatrix(_h_krylov, h_stride(), n, /*as_real=*/false);
+    auto ev = dense_eig(std::move(h), n);
+    auto const& E_kr = ev.values;
+    auto const& v_kr = ev.vectors;
     auto sort = argsort_which(E_kr, which);
     for (int64 j = 0; j < n; ++j) {
         set_Es(k, j, E_kr[static_cast<std::size_t>(sort[static_cast<std::size_t>(j)])]);
@@ -622,22 +842,19 @@ std::vector<VectorLike::Ptr>
 Arnoldi::_calc_result_full_multi(int64 N)
 {
     std::vector<VectorLike::Ptr> psis;
-    auto np = numpy_mod();
     auto n_ev = std::min(N, num_ev);
     psis.reserve(static_cast<std::size_t>(n_ev));
     for (int64 i = 0; i < n_ev; ++i) {
-        py::array_t<complex128> vf_arr(N);
-        {
-            auto r = vf_arr.mutable_unchecked<1>();
-            for (int64 row = 0; row < N; ++row) {
-                r(row) = _result_krylov[idx2(row, i, _result_krylov_cols)];
-            }
+        std::vector<complex128> vf_raw(static_cast<std::size_t>(N));
+        for (int64 row = 0; row < N; ++row) {
+            vf_raw[static_cast<std::size_t>(row)] =
+              _result_krylov[idx2(row, i, _result_krylov_cols)];
         }
         // try to convert to real:
         // e.g. the dominant eigenvectors of the MPS transfermatrix should be equivalent to
         // the power method, which will be purely real for H.dtype=float, even if there might
         // be other eigenvectors which are complex
-        auto vf = py_array_to_complex(np.attr("real_if_close")(vf_arr));
+        auto vf = real_if_close_vec(vf_raw);
         if (!(N == static_cast<int64>(vf.size()) && N > 1)) {
             throw std::runtime_error("Arnoldi._calc_result_full: expected N == len(vf) > 1");
         }
@@ -658,8 +875,8 @@ Arnoldi::_calc_result_full_multi(int64 N)
             // Otherwise, the matrix (even if small) might be ill conditioned.
             // If you get this warning, you can try to set the parameters
             // `reortho`=True and `N_cache` >= `N_max`
-            krylov_logger().attr("warning")("poorly conditioned H matrix in Arnoldi! |psi| = %f",
-                                            psi_norm);
+            krylov_log_warning(
+              std::format("poorly conditioned H matrix in Arnoldi! |psi| = {}", psi_norm));
         }
         psis.push_back(scalar_multiply(as_scalar(*psi, 1.0 / psi_norm), psi));
     }
@@ -717,11 +934,11 @@ ArnoldiEvolution::run(complex128 delta_, std::optional<bool> normalize)
     auto N = _build_krylov();
     if (N > 1) {
         auto last = _result_krylov[idx2(N - 1, 0, _result_krylov_cols)];
-        krylov_logger().attr("debug")(
-          "ArnoldiEvolution N=%d, |result[-1]|=%.3e", N, std::abs(last));
+        krylov_log_debug(
+          std::format("ArnoldiEvolution N={}, |result[-1]|={:.3e}", N, std::abs(last)));
     } else {
-        krylov_logger().attr("debug")("ArnoldiEvolution N=1, |h[0,0]|=%.3e",
-                                      std::abs(h_krylov(0, 0)));
+        krylov_log_debug(
+          std::format("ArnoldiEvolution N=1, |h[0,0]|={:.3e}", std::abs(h_krylov(0, 0))));
     }
     VectorLike::Ptr result_full;
     if (N == 1) {
@@ -740,7 +957,6 @@ ArnoldiEvolution::run(complex128 delta_, std::optional<bool> normalize)
 void
 ArnoldiEvolution::_calc_result_krylov(int64 k)
 {
-    auto np = numpy_mod();
     auto dlt = *delta;
     if (k == 0) {
         auto exp_dE = std::exp(dlt * h_krylov(0, 0));
@@ -751,24 +967,25 @@ ArnoldiEvolution::_calc_result_krylov(int64 k)
         return;
     }
     auto n = k + 1;
-    auto h = submatrix_numpy(_h_krylov, h_stride(), n, /*as_real=*/false);
-    py::tuple ev = np.attr("linalg").attr("eig")(h);
-    py::object v_kr = ev[1];
-    py::object E_kr = ev[0];
+    auto h = extract_submatrix(_h_krylov, h_stride(), n, /*as_real=*/false);
+    auto ev = dense_eig(h, n);
     // V^{-1} e0 = first column of V^{-1}; use solve for numerical stability
-    py::array_t<complex128> e0(n);
-    {
-        auto r = e0.mutable_unchecked<1>();
-        r(0) = 1.0;
-        for (int64 i = 1; i < n; ++i) {
-            r(i) = 0.0;
+    std::vector<complex128> e0(static_cast<std::size_t>(n), complex128(0.));
+    e0[0] = 1.0;
+    auto coeff = dense_solve(ev.vectors, std::move(e0), n);
+    std::vector<complex128> exp_dH_e0(static_cast<std::size_t>(n), complex128(0.));
+    for (int64 j = 0; j < n; ++j) {
+        complex128 scale = std::exp(ev.values[static_cast<std::size_t>(j)] * dlt) *
+                           coeff[static_cast<std::size_t>(j)];
+        for (int64 i = 0; i < n; ++i) {
+            exp_dH_e0[static_cast<std::size_t>(i)] += ev.vectors[idx2(i, j, n)] * scale;
         }
     }
-    auto coeff = np.attr("linalg").attr("solve")(v_kr, e0);
-    auto exp_dH_e0 = np.attr("dot")(v_kr, np.attr("exp")(E_kr * py::cast(dlt)) * coeff);
-    _result_norm = np.attr("linalg").attr("norm")(exp_dH_e0).cast<float64>();
-    auto vf = py_array_to_complex(exp_dH_e0 / py::cast(_result_norm));
-    _result_krylov = std::move(vf);
+    _result_norm = dense_norm(exp_dH_e0);
+    for (auto& z : exp_dH_e0) {
+        z /= _result_norm;
+    }
+    _result_krylov = std::move(exp_dH_e0);
     _result_krylov_rows = n;
     _result_krylov_cols = 1;
 }
@@ -794,8 +1011,8 @@ ArnoldiEvolution::_calc_result_full_evolution(int64 N)
     }
     auto psif_norm = abs_number(norm(VectorLikeCPtr(psif)));
     if (std::abs(1.0 - psif_norm) > 1.0e-5) {
-        krylov_logger().attr("warning")("poorly conditioned H in ArnoldiEvolution! |psi|=%f",
-                                        psif_norm);
+        krylov_log_warning(
+          std::format("poorly conditioned H in ArnoldiEvolution! |psi|={}", psif_norm));
     }
     return scalar_multiply(as_scalar(*psif, 1.0 / psif_norm), psif);
 }
@@ -818,17 +1035,17 @@ LanczosGroundState::run()
     auto N = _build_krylov();
     auto E0 = Es_at(N - 1, 0).real();
     if (N > 1) {
-        krylov_logger().attr("debug")(
-          "Lanczos N=%d, gap=%.3e, DeltaE0=%.3e, _result_krylov[-1]=%.3e",
-          N,
-          Es_at(N - 1, 1).real() - E0,
-          Es_at(N - 2, 0).real() - E0,
-          _result_krylov.back().real());
+        krylov_log_debug(
+          std::format("Lanczos N={}, gap={:.3e}, DeltaE0={:.3e}, _result_krylov[-1]={:.3e}",
+                      N,
+                      Es_at(N - 1, 1).real() - E0,
+                      Es_at(N - 2, 0).real() - E0,
+                      _result_krylov.back().real()));
     } else {
-        krylov_logger().attr("debug")("Lanczos N=%d, first alpha=%.3e, beta=%.3e",
-                                      N,
-                                      h_krylov(0, 0).real(),
-                                      h_krylov(0, 1).real());
+        krylov_log_debug(std::format("Lanczos N={}, first alpha={:.3e}, beta={:.3e}",
+                                     N,
+                                     h_krylov(0, 0).real(),
+                                     h_krylov(0, 1).real()));
     }
     if (E_shift.has_value()) {
         E0 -= *E_shift;
@@ -929,19 +1146,16 @@ LanczosGroundState::_calc_result_krylov(int64 k)
         return;
     }
     auto n = k + 1;
-    auto np = numpy_mod();
-    auto h = submatrix_numpy(_h_krylov, h_stride(), n, /*as_real=*/true);
-    py::tuple ev = np.attr("linalg").attr("eigh")(h);
-    auto E_kr = py_array_to_complex(ev[0]);
-    auto v_kr = py_array_to_complex(ev[1]);
+    auto h = extract_submatrix(_h_krylov, h_stride(), n, /*as_real=*/true);
+    auto ev = dense_eigh(h, n);
     for (int64 j = 0; j < n; ++j) {
-        set_Es(k, j, E_kr[static_cast<std::size_t>(j)]);
+        set_Es(k, j, ev.values[static_cast<std::size_t>(j)]);
     }
     _result_krylov.resize(static_cast<std::size_t>(n));
     _result_krylov_rows = n;
     _result_krylov_cols = 1;
     for (int64 row = 0; row < n; ++row) {
-        _result_krylov[static_cast<std::size_t>(row)] = v_kr[idx2(row, 0, n)];
+        _result_krylov[static_cast<std::size_t>(row)] = ev.vectors[idx2(row, 0, n)];
     }
 }
 
@@ -961,13 +1175,13 @@ LanczosEvolution::run(complex128 delta_, std::optional<bool> normalize)
     _reset_krylov_state();
     auto N = _build_krylov();
     if (N > 1) {
-        krylov_logger().attr("debug")(
-          "Lanczos N=%d, |result_krylov[-1]|=%.3e", N, std::abs(_result_krylov.back()));
+        krylov_log_debug(std::format(
+          "Lanczos N={}, |result_krylov[-1]|={:.3e}", N, std::abs(_result_krylov.back())));
     } else {
-        krylov_logger().attr("debug")("Lanczos N=%d, first alpha=%.3e, beta=%.3e",
-                                      N,
-                                      h_krylov(0, 0).real(),
-                                      h_krylov(0, 1).real());
+        krylov_log_debug(std::format("Lanczos N={}, first alpha={:.3e}, beta={:.3e}",
+                                     N,
+                                     h_krylov(0, 0).real(),
+                                     h_krylov(0, 1).real()));
     }
     VectorLike::Ptr result_full;
     if (N == 1) {
@@ -999,15 +1213,23 @@ LanczosEvolution::_calc_result_krylov(int64 k)
         return;
     }
     auto n = k + 1;
-    auto np = numpy_mod();
-    auto h = submatrix_numpy(_h_krylov, h_stride(), n, /*as_real=*/true);
-    py::tuple ev = np.attr("linalg").attr("eigh")(h);
-    py::object E_kr = ev[0];
-    py::object v_kr = ev[1];
-    auto exp_dH_e0 = np.attr("dot")(
-      v_kr, np.attr("exp")(E_kr * py::cast(dlt)) * np.attr("conj")(v_kr[py::int_(0)]));
-    _result_norm = np.attr("linalg").attr("norm")(exp_dH_e0).cast<float64>();
-    _result_krylov = py_array_to_complex(exp_dH_e0 / py::cast(_result_norm));
+    auto h = extract_submatrix(_h_krylov, h_stride(), n, /*as_real=*/true);
+    auto ev = dense_eigh(h, n);
+    // exp(delta * H) e0 = V * diag(exp(delta * E)) * V^H e0
+    // V^H e0 = conj(first row of V) for real orthonormal V: conj(V[0, :])
+    std::vector<complex128> exp_dH_e0(static_cast<std::size_t>(n), complex128(0.));
+    for (int64 j = 0; j < n; ++j) {
+        complex128 coeff = std::conj(ev.vectors[idx2(0, j, n)]);
+        complex128 scale = std::exp(ev.values[static_cast<std::size_t>(j)] * dlt) * coeff;
+        for (int64 i = 0; i < n; ++i) {
+            exp_dH_e0[static_cast<std::size_t>(i)] += ev.vectors[idx2(i, j, n)] * scale;
+        }
+    }
+    _result_norm = dense_norm(exp_dH_e0);
+    for (auto& z : exp_dH_e0) {
+        z /= _result_norm;
+    }
+    _result_krylov = std::move(exp_dH_e0);
     _result_krylov_rows = n;
     _result_krylov_cols = 1;
 }

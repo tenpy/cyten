@@ -58,11 +58,16 @@ entropy_numpy(py::object p, py::object n)
     p = np.attr("asarray")(p);
     p = np.attr("real_if_close")(p);
     p = p.attr("__getitem__")(p.attr("__gt__")(1e-30));
-    auto is_inf = py::module_::import("math").attr("isinf");
     if (n.equal(py::int_(1))) {
         return -np.attr("inner")(np.attr("log")(p), p);
     }
-    if (is_inf(n).cast<bool>()) {
+    bool inf = false;
+    try {
+        inf = std::isinf(n.cast<float64>());
+    } catch (...) {
+        inf = false;
+    }
+    if (inf) {
         return -np.attr("log")(np.attr("max")(p));
     }
     float64 n_f = n.cast<float64>();
@@ -141,8 +146,13 @@ bind_tensors_decompositions(py::module_& m)
       [](py::object p, py::object n) {
           if (py::isinstance<DiagonalTensor>(p)) {
               float64 n_f = 1.;
-              if (py::module_::import("math").attr("isinf")(n).cast<bool>()) {
-                  n_f = std::numeric_limits<float64>::infinity();
+              if (n.is(py::none())) {
+                  n_f = 1.;
+              } else if (py::isinstance<py::float_>(n) || py::isinstance<py::int_>(n)) {
+                  n_f = n.cast<float64>();
+                  if (std::isinf(n_f)) {
+                      n_f = std::numeric_limits<float64>::infinity();
+                  }
               } else {
                   n_f = n.cast<float64>();
               }

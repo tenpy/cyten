@@ -2,7 +2,7 @@
 
 # Copyright (C) TeNPy Developers, Apache license
 from ._symmetries import (
-    SU2,
+    _SU2,
     SUN,
     U1,
     ZN,
@@ -69,7 +69,6 @@ __all__ = [
     'LegPipe',
     'NoSymmetry',
     'QuantumDoubleZNAnyonCategory',
-    'SU2',
     'SU2_kAnyonCategory',
     'SU3_3AnyonCategory',
     'SUN',

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Done for monkey-patch.** C++ `Group` + `PyGroup` trampoline; imported from `_core` in `_symmetries.py`. `pytest tests/python_tests/test_symmetries.py`: 48 passed, 1 skipped. Python `AbelianGroup` / `SU2` / `SUN` subclass C++ `Group`.
+**Done for monkey-patch.** C++ `Group` + `PyGroup` trampoline; imported from `_core` in `_symmetries.py`. `pytest tests/python_tests/test_symmetries.py`: 48 passed, 1 skipped. Python `AbelianGroup` / `_SU2` / `SUN` subclass C++ `Group`.
 
 ### Codegen notes
 

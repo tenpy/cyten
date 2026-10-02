@@ -6,6 +6,7 @@
 #include <cyten/symmetries/factors/fermion_parity.h>
 #include <cyten/symmetries/factors/no_symmetry.h>
 #include <cyten/symmetries/factors/su2.h>
+#include <cyten/symmetries/factors/sun.h>
 #include <cyten/symmetries/factors/u1.h>
 #include <cyten/symmetries/factors/zn.h>
 #include <cyten/tensors/constructors.h>
@@ -19,9 +20,11 @@
 #include <cassert>
 #include <cmath>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
 #include <format>
 #include <functional>
+#include <hdf5_io/constants.h>
+#include <hdf5_io/h5_ops.h>
 #include <numeric>
 #include <stdexcept>
 #include <string>
@@ -559,7 +562,35 @@ Site::save_hdf5(cyten::hdf5::Saver& saver,
                 HighFive::Group& /*h5gr*/,
                 std::string const& subpath) const
 {
-    cyten::hdf5::py_save(subpath + "init_kwargs", hdf5_init_kwargs());
+    HighFive::Group kw_g;
+    std::string kw_sub;
+    saver.save_simple_dict_begin(subpath + "init_kwargs", kw_g, kw_sub);
+    cyten::hdf5::Saver kw_saver(kw_g);
+    hdf5_export::save_elementary_space(kw_saver, "leg", leg);
+    HighFive::Group labels_g;
+    std::string labels_sub;
+    kw_saver.save_simple_dict_begin("state_labels", labels_g, labels_sub);
+    cyten::hdf5::Saver labels_saver(labels_g);
+    for (auto const& [k, v] : state_labels) {
+        labels_saver.save_int64(k, v);
+    }
+    HighFive::Group ops_g;
+    std::string ops_sub;
+    kw_saver.save_simple_dict_begin("onsite_operators", ops_g, ops_sub);
+    cyten::hdf5::Saver ops_saver(ops_g);
+    for (auto const& [k, op] : onsite_operators) {
+        if (k == "Id")
+            continue;
+        ops_saver.save_instance(k,
+                                hdf5_export::kModule,
+                                "SymmetricTensor",
+                                op.get(),
+                                [&](cyten::hdf5::Saver& s,
+                                    HighFive::Group& g,
+                                    std::string const& sub) { op->save_hdf5(s, g, sub); });
+    }
+    hdf5_export::save_tensor_backend(kw_saver, "backend", backend);
+    kw_saver.save_string("default_device", default_device);
 }
 
 py::object
@@ -568,9 +599,45 @@ Site::from_hdf5(py::object cls,
                 HighFive::Group& h5gr,
                 std::string const& subpath)
 {
-    py::dict kwargs = cyten::hdf5::py_load(subpath + "init_kwargs").cast<py::dict>();
+    hid_t kw_id = loader.open(subpath + "init_kwargs");
+    HighFive::Group kw_g = hdf5_io::group_from_hid(kw_id);
+    cyten::hdf5::Loader kw_loader(kw_g);
+    py::dict kwargs;
+    kwargs["leg"] = hdf5_export::load_elementary_space(kw_loader, "leg");
+    {
+        hid_t labels_id = kw_loader.open("state_labels");
+        HighFive::Group labels_g = hdf5_io::group_from_hid(labels_id);
+        cyten::hdf5::Loader labels_loader(labels_g);
+        std::map<std::string, int64> state_labels;
+        for (auto const& name : hdf5_io::h5_link_names(labels_g.getId())) {
+            hid_t id = labels_loader.open(name);
+            state_labels[name] = labels_loader.load_int64(id);
+            H5Idec_ref(id);
+        }
+        kwargs["state_labels"] = py::cast(state_labels);
+    }
+    {
+        hid_t ops_id = kw_loader.open("onsite_operators");
+        HighFive::Group ops_g = hdf5_io::group_from_hid(ops_id);
+        cyten::hdf5::Loader ops_loader(ops_g);
+        std::map<std::string, SymmetricTensorPtr> ops;
+        for (auto const& name : hdf5_io::h5_link_names(ops_g.getId())) {
+            ops[name] = hdf5_export::load_instance<SymmetricTensor>(
+              ops_loader, name, [&](HighFive::Group& g, std::string const& sub) {
+                  return SymmetricTensor::from_hdf5(ops_loader, g, sub);
+              });
+        }
+        kwargs["onsite_operators"] = py::cast(ops);
+    }
+    kwargs["backend"] = hdf5_export::load_tensor_backend(kw_loader, "backend");
+    {
+        hid_t id = kw_loader.open("default_device");
+        kwargs["default_device"] = kw_loader.load_string(id);
+        H5Idec_ref(id);
+    }
     py::object obj = cls(**kwargs);
-    cyten::hdf5::py_memorize_load(h5gr, obj);
+    // Python memo still needs the bound object (wrap_from_hdf5_classmethod also memorizes).
+    (void)h5gr;
     return obj;
 }
 
@@ -623,13 +690,27 @@ SpinDOF::spin_vector_from_Sp(py::array Sz, py::array Sp)
 }
 
 Symmetry::Ptr
-SpinDOF::conservation_law_to_symmetry(std::optional<std::string> conserve)
+SpinDOF::conservation_law_to_symmetry(std::optional<std::string> conserve, bool use_test_su2)
 {
     if (!conserve.has_value() || *conserve == "None" || *conserve == "none") {
         return symmetry_from_factor(std::make_shared<NoSymmetry>());
     }
     if (*conserve == "SU(2)" || *conserve == "SU2" || *conserve == "Stot") {
-        return symmetry_from_factor(std::make_shared<SU2>("spin"));
+        if (use_test_su2) {
+            return symmetry_from_factor(std::make_shared<_SU2>("spin"));
+        }
+        // Production SU(2): SUN(N=2) with the same default hweights as tests / benchmarks.
+        constexpr int64 k_cg_hweight = 20;
+        constexpr int64 k_f_hweight = 6;
+        constexpr int64 k_r_hweight = 6;
+        return symmetry_from_factor(SUN::from_config(2,
+                                                     k_cg_hweight,
+                                                     /*cg_hweight=*/std::nullopt,
+                                                     k_f_hweight,
+                                                     k_r_hweight,
+                                                     /*path=*/std::nullopt,
+                                                     /*filename_base=*/std::nullopt,
+                                                     "spin"));
     }
     if (*conserve == "Sz" || *conserve == "U(1)" || *conserve == "U1") {
         return symmetry_from_factor(std::make_shared<U1>("2*Sz"));
@@ -684,9 +765,9 @@ ClockDOF::test_sanity()
 }
 
 Symmetry::Ptr
-ClockDOF::conservation_law_to_symmetry(std::optional<std::string> conserve)
+ClockDOF::conservation_law_to_symmetry(std::optional<std::string> conserve, bool use_test_su2)
 {
-    return SpinDOF::conservation_law_to_symmetry(conserve);
+    return SpinDOF::conservation_law_to_symmetry(conserve, use_test_su2);
 }
 
 AnyonDOF::AnyonDOF(ElementarySpace::Ptr leg,

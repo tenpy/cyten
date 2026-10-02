@@ -22,6 +22,7 @@ htmlcov
 coverage.*
 .ipynb_checkpoints
 *.ipynb
+!benchmark/*.ipynb
 *.pkl
 docs/build_docs
 .conda

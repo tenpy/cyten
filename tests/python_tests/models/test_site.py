@@ -117,7 +117,7 @@ def test_spin_site(any_backend, spin):
     site_list = []
     for conserve in all_conserve:
         print('conserve = ', conserve)
-        site = sites.SpinSite(spin, conserve, backend=any_backend)
+        site = sites.SpinSite(spin, conserve, backend=any_backend, use_test_su2=(conserve == 'SU(2)'))
         site.test_sanity()
 
         sz = site.spin_vector[:, :, 2]
@@ -153,6 +153,72 @@ def test_spin_site(any_backend, spin):
 
         site_list.append(site)
     check_same_operators(site_list)
+
+
+_SUN_SYMBOLS_SUBMODULE_DIR = str(__import__('pathlib').Path(__file__).resolve().parents[3] / 'external' / 'SUN_symbols')
+
+
+def _su2_sun_data_available():
+    """Return True if default N=2 SUN symbol files can be resolved."""
+    import os
+
+    from cyten import symmetries
+
+    for path in (None, _SUN_SYMBOLS_SUBMODULE_DIR):
+        files = [symmetries.su_n_data_file_path(2, kind, h, path=path) for kind, h in [('CG', 20), ('F', 6), ('R', 6)]]
+        if all(os.path.exists(f) for f in files):
+            return True, path
+    return False, None
+
+
+def test_spin_conservation_law_to_symmetry_test_su2():
+    sym = degrees_of_freedom.SpinDOF.conservation_law_to_symmetry('SU(2)', use_test_su2=True)
+    assert isinstance(sym.factors[0], cyten._SU2)
+    assert sym.sector_ind_len == 1
+
+
+def test_spin_site_default_su2_uses_sun():
+    available, path = _su2_sun_data_available()
+    if not available:
+        pytest.skip('Need SU(N=2) HDF5 symbol files for default SpinSite SU(2)')
+
+    with cyten.temporary_options(**({} if path is None else {'su_n_data_path': path})):
+        sym = degrees_of_freedom.SpinDOF.conservation_law_to_symmetry('SU(2)')
+        assert isinstance(sym.factors[0], cyten.SUN)
+        assert sym.factors[0].N == 2
+        assert sym.sector_ind_len == 2
+
+        backend = backends.get_backend('fusion_tree', 'numpy')
+        site = sites.SpinSite(0.5, 'SU(2)', backend=backend)
+        assert isinstance(site.symmetry.factors[0], cyten.SUN)
+        assert site.symmetry.factors[0].N == 2
+        assert not site.use_test_su2
+        npt.assert_array_equal(np.asarray(site.leg.defining_sectors), [[1, 0]])
+        site.test_sanity()
+
+        site_s1 = sites.SpinSite(1.0, 'SU(2)', backend=backend)
+        npt.assert_array_equal(np.asarray(site_s1.leg.defining_sectors), [[2, 0]])
+
+
+def test_spin_half_fermion_site_default_su2_uses_sun():
+    available, path = _su2_sun_data_available()
+    if not available:
+        pytest.skip('Need SU(N=2) HDF5 symbol files for default SpinHalfFermionSite SU(2)')
+
+    with cyten.temporary_options(**({} if path is None else {'su_n_data_path': path})):
+        backend = backends.get_backend('fusion_tree', 'numpy')
+        site = sites.SpinHalfFermionSite('parity', 'SU(2)', backend=backend)
+        assert isinstance(site.symmetry.factors[0], cyten.SUN)
+        assert site.symmetry.factors[0].N == 2
+        assert not site.use_test_su2
+        # empty/full: [0,0,...]; down/up: [1,0,...] (basis order)
+        sectors = np.asarray(site.leg.sectors_of_basis)
+        assert sectors.shape == (4, 3)  # SUN(N=2) GT + fermion parity
+        npt.assert_array_equal(sectors[0, :2], [0, 0])
+        npt.assert_array_equal(sectors[1, :2], [1, 0])
+        npt.assert_array_equal(sectors[2, :2], [1, 0])
+        npt.assert_array_equal(sectors[3, :2], [0, 0])
+        site.test_sanity()
 
 
 @pytest.mark.parametrize('Nmax', [1, 2, 5, 8])
@@ -279,7 +345,13 @@ def test_spin_half_fermion_site(block_backend, np_random):
     site_list = []
     for conserve_N, conserve_S in it.product(all_conserve_N, all_conserve_S):
         print(f'{conserve_N=}, {conserve_S=}')
-        site = sites.SpinHalfFermionSite(conserve_N, conserve_S, backend=backend, filling=filling)
+        site = sites.SpinHalfFermionSite(
+            conserve_N,
+            conserve_S,
+            backend=backend,
+            filling=filling,
+            use_test_su2=(conserve_S == 'SU(2)'),
+        )
         site.test_sanity()
 
         assert site.state_labels['empty'] == site.state_labels['(0, 0)'] == site.state_labels['vac']
@@ -307,7 +379,7 @@ def test_spin_half_fermion_site(block_backend, np_random):
 
     for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
         with pytest.raises(ValueError):
-            _ = sites.SpinHalfFermionSite(all_conserve_N[0], all_conserve_S[0], backend=backend)
+            _ = sites.SpinHalfFermionSite(all_conserve_N[0], all_conserve_S[0], backend=backend, use_test_su2=True)
 
 
 @pytest.mark.parametrize('q', [2, 3, 4, 5, 10])

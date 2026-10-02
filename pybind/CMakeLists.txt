@@ -11,6 +11,7 @@ target_sources(_core
   tools/py_cost_polynomials.cpp
   tools/py_mappings.cpp
   tools/py_hdf5_bridge.cpp
+  tools/hdf5_py_bridge.cpp
   symmetries/py_symmetries.cpp
   symmetries/py_exceptions.cpp
   symmetries/py_styles.cpp

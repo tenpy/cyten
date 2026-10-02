@@ -15,7 +15,7 @@ from cyten.backends import conventional_leg_order, get_backend
 from cyten.block_backends import NumpyBlockBackend, Scalar
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
-    SU2,
+    _SU2,
     U1,
     ZN,
     AbelianLegPipe,
@@ -36,7 +36,7 @@ from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common
 fermion_parity = FermionParity().as_Symmetry()
 fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left').as_Symmetry()
 no_symmetry = NoSymmetry().as_Symmetry()
-su2_symmetry = SU2().as_Symmetry()
+su2_symmetry = _SU2().as_Symmetry()
 u1_symmetry = U1().as_Symmetry()
 z3_symmetry = ZN(N=3).as_Symmetry()
 z4_symmetry = ZN(N=4).as_Symmetry()
@@ -235,7 +235,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
 
 @pytest.mark.parametrize('leg_num', [1, 2, 3])
 def test_SymmetricTensor_from_eye(make_compatible_space, make_compatible_tensor, compatible_backend, leg_num):
-    # Shrink spaces for multi-leg eye: dense checks scale poorly with FusionTree/SU2.
+    # Shrink spaces for multi-leg eye: dense checks scale poorly with FusionTree/_SU2.
     max_sectors = 3 if leg_num < 3 else 2
     max_mult = 3 if leg_num < 3 else 2
     legs = [make_compatible_space(max_sectors=max_sectors, max_mult=max_mult) for _ in range(leg_num)]
@@ -472,7 +472,7 @@ def test_SymmetricTensor_tofrom_dense_block_trivial_sector(make_compatible_tenso
 
 def test_fixes_124(np_random):
     """Check if the bug discussed in PR #124 is fixed"""
-    symm = SU2().as_Symmetry()
+    symm = _SU2().as_Symmetry()
     backend = get_backend(symm, 'numpy')
     a = ElementarySpace(symm, [[1]], [1])
     b = ElementarySpace(symm, [[1]], [1])
@@ -514,8 +514,8 @@ def test_fixes_124(np_random):
 
 def test_fixes_23():
     # See PR #23
-    sym = SU2().as_Symmetry()
-    site = ElementarySpace(sym, SectorArray.from_sector(SU2.spin_half))
+    sym = _SU2().as_Symmetry()
+    site = ElementarySpace(sym, SectorArray.from_sector(_SU2.spin_half))
     block = np.zeros((2,) * 6, float)
     tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
     tens.test_sanity()
@@ -1218,7 +1218,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
 @pytest.mark.parametrize('symmetry_backend', [pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
 def test_from_block_su2_symm(symmetry_backend, block_backend):
     backend = get_backend(symmetry_backend, block_backend)
-    sym = SU2().as_Symmetry()
+    sym = _SU2().as_Symmetry()
     spin_half = ElementarySpace(sym, [[1]])
 
     # basis order: [down, up]  ->  might look unusual
@@ -2458,7 +2458,7 @@ def test_horizontal_factorization(trunc, make_compatible_tensor, compatible_symm
     cod_cut = 2
     dom = 3
     dom_cut = 1
-    if compatible_symmetry.is_equivalent_to(SU2()):
+    if compatible_symmetry.is_equivalent_to(_SU2()):
         # use fewer legs, to make it not super slow
         cod = 3
         dom = 2
@@ -2840,7 +2840,7 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
     ],
 )
 def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_symmetry):
-    if compatible_symmetry.has_factor(SU2):
+    if compatible_symmetry.has_factor(_SU2):
         # need to make the test case smaller, so this does not need to many resources
         kwargs = dict(use_pipes=False, max_blocks=3)
         cA = dA = cB = dB = 1
@@ -3181,7 +3181,7 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 def test_permute_legs(
     cls, num_cod, num_dom, codomain, domain, levels, bend_right, make_compatible_tensor, compatible_symmetry, np_random
 ):
-    if compatible_symmetry.has_factor(SU2) and (num_cod + num_dom) > 4:
+    if compatible_symmetry.has_factor(_SU2) and (num_cod + num_dom) > 4:
         # make sure we dont need symmetry data for too large sectors
         sectors = [[0], [1], [2]]
         legs = []
@@ -4294,7 +4294,7 @@ def test_bug_linear_combinations(make_compatible_tensor):
         pytest.param(no_symmetry, 'fusion_tree', id='NoSymmetry-FT'),
         pytest.param(u1_symmetry, 'abelian', id='U1-AB'),
         pytest.param(u1_symmetry, 'fusion_tree', id='U1-FT'),
-        pytest.param(su2_symmetry, 'fusion_tree', id='SU2-FT'),
+        pytest.param(su2_symmetry, 'fusion_tree', id='_SU2-FT'),
         pytest.param(fibonacci_anyon_category, 'fusion_tree', id='Fib-FT'),
     ],
 )
@@ -4681,7 +4681,7 @@ def test_move_hidden_leg_domain_pos(make_compatible_tensor, compatible_symmetry)
 
 
 def test_move_hidden_leg_dim_gt_one_keeps_pipes(make_compatible_tensor, compatible_symmetry):
-    # Keep the hidden space tiny: default make_compatible_space() is far too large for SU2/FusionTree.
+    # Keep the hidden space tiny: default make_compatible_space() is far too large for _SU2/FusionTree.
     h = ElementarySpace.from_trivial_sector(2, symmetry=compatible_symmetry)
     A, B = _move_hidden_leg_pair(make_compatible_tensor, h, max_blocks=2, max_block_size=2)
     try:

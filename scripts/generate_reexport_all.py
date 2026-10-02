@@ -13,8 +13,9 @@ Usage::
     python scripts/generate_reexport_all.py             # write updates in place
     python scripts/generate_reexport_all.py --check     # exit non-zero if stale, no writes
 
-Also invoked as a local pre-commit hook and in CI (see ``.pre-commit-config.yaml`` /
-``.github/workflows/pytest_numpy.yml``).
+Pre-commit runs the write mode so stale ``__all__`` lists are refreshed automatically
+(see ``.pre-commit-config.yaml``). CI uses ``--check`` (see ``.github/workflows/linting.yml``
+and ``.github/workflows/pytest_numpy.yml``).
 """
 
 from __future__ import annotations

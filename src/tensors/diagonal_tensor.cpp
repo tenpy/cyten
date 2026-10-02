@@ -12,8 +12,9 @@
 #include <algorithm>
 #include <cassert>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
 #include <format>
+#include <hdf5_io/h5_ops.h>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -645,9 +646,19 @@ DiagonalTensor::max() const
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
       [bb](BlockBackend::BlockPtr const& block) { return bb->max(block); },
       [](std::vector<BlockBackend::Scalar> const& xs) {
-          return py::module_::import("builtins")
-            .attr("max")(py::cast(xs))
-            .cast<BlockBackend::Scalar>();
+          if (xs.empty()) {
+              throw std::invalid_argument("max of empty sequence");
+          }
+          BlockBackend::Scalar best = xs[0];
+          float64 best_v = best.as_float64();
+          for (std::size_t i = 1; i < xs.size(); ++i) {
+              float64 v = xs[i].as_float64();
+              if (v > best_v) {
+                  best = xs[i];
+                  best_v = v;
+              }
+          }
+          return best;
       });
 }
 
@@ -662,9 +673,19 @@ DiagonalTensor::min() const
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
       [bb](BlockBackend::BlockPtr const& block) { return bb->min(block); },
       [](std::vector<BlockBackend::Scalar> const& xs) {
-          return py::module_::import("builtins")
-            .attr("min")(py::cast(xs))
-            .cast<BlockBackend::Scalar>();
+          if (xs.empty()) {
+              throw std::invalid_argument("min of empty sequence");
+          }
+          BlockBackend::Scalar best = xs[0];
+          float64 best_v = best.as_float64();
+          for (std::size_t i = 1; i < xs.size(); ++i) {
+              float64 v = xs[i].as_float64();
+              if (v < best_v) {
+                  best = xs[i];
+                  best_v = v;
+              }
+          }
+          return best;
       });
 }
 
@@ -729,20 +750,23 @@ DiagonalTensor::sector_argmin(std::optional<Sector> s) const
     assert(winning_sector);
     auto selected_sector = sectors[*winning_sector];
     auto selected_local_argmin = winning_local_argmin;
-    auto np = py::module_::import("numpy");
     auto device_s = device;
-    // TODO Consider optimizing this, by not going via numpy
     auto mask_labels = labels();
     mask_labels.resize(1);
     mask_labels.push_back(_dual_leg_label(mask_labels[0]));
     auto diagonal = from_sector_block_func(
-      [bb, np, selected_sector, selected_local_argmin, device_s](std::vector<int64> const& shape,
-                                                                 Sector const& coupled) {
-          py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
+      [bb, selected_sector, selected_local_argmin, device_s](std::vector<int64> const& shape,
+                                                             Sector const& coupled) {
           if (coupled == selected_sector) {
-              block.attr("__setitem__")(selected_local_argmin, true);
+              py::array_t<bool> arr(static_cast<py::ssize_t>(shape[0]));
+              auto buf = arr.mutable_unchecked<1>();
+              for (py::ssize_t i = 0; i < buf.shape(0); ++i) {
+                  buf(i) = false;
+              }
+              buf(static_cast<py::ssize_t>(selected_local_argmin)) = true;
+              return bb->as_block(arr, Dtype::Bool, device_s);
           }
-          return bb->as_block(block, Dtype::Bool, device_s);
+          return bb->zeros(shape, Dtype::Bool, device_s);
       },
       space,
       backend,
@@ -901,15 +925,18 @@ DiagonalTensor::from_hdf5(cyten::hdf5::Loader& loader,
                           HighFive::Group& h5gr,
                           std::string const& subpath)
 {
-    /// Import DiagonalTensor from hdf5
-    auto domain = cyten::hdf5::py_load(subpath + "domain").cast<TensorProduct::Ptr>();
-    auto codomain = cyten::hdf5::py_load(subpath + "codomain").cast<TensorProduct::Ptr>();
-    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto backend = cyten::hdf5::py_load(subpath + "backend").cast<TensorBackend::Ptr>();
-    auto data = cyten::hdf5::py_load(subpath + "data").cast<TensorBackend::DataPtr>();
-    (void)cyten::hdf5::py_load(subpath + "device"); // device follows loaded blocks / fallback
-    auto dt = dtype::from_numpy_dtype(cyten::hdf5::py_load(subpath + "dtype"));
-    auto labels = cyten::hdf5::py_get_attr(h5gr, "labels").cast<OptionalLabels>();
+    auto domain = hdf5_export::load_tensor_product(loader, subpath + "domain");
+    auto codomain = hdf5_export::load_tensor_product(loader, subpath + "codomain");
+    auto symmetry = hdf5_export::load_symmetry(loader, subpath + "symmetry");
+    auto backend = hdf5_export::load_tensor_backend(loader, subpath + "backend");
+    auto data = hdf5_export::load_tensor_backend_data(loader, subpath + "data");
+    if (hdf5_io::h5_contains(loader.root(), subpath + "device")) {
+        hid_t id = loader.open(subpath + "device");
+        (void)loader.load_string(id);
+        H5Idec_ref(id);
+    }
+    auto dt = hdf5_export::load_dtype_string(loader, subpath + "dtype");
+    auto labels = hdf5_export::load_optional_labels(loader, subpath + "labels");
     int64 nlegs = codomain->num_factors + domain->num_factors;
     if (labels.empty() && nlegs > 0) {
         labels.assign(static_cast<std::size_t>(nlegs), std::nullopt);
@@ -918,7 +945,6 @@ DiagonalTensor::from_hdf5(cyten::hdf5::Loader& loader,
     auto obj = std::make_shared<DiagonalTensor>(
       data, as_space(codomain->factors[0]), backend, symmetry, std::move(labels));
     obj->dtype = dt;
-    // Device follows the loaded blocks, with Torch falling back if unavailable.
     obj->device = backend->get_device_from_data(data);
     if (dynamic_cast<TorchBlockBackend*>(backend->block_backend.get()) != nullptr) {
         obj->device = TorchBlockBackend::device_for_hdf5_load(
@@ -929,7 +955,7 @@ DiagonalTensor::from_hdf5(cyten::hdf5::Loader& loader,
             ftd->device = obj->device;
         }
     }
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 
@@ -1003,19 +1029,20 @@ Identity::from_eye(Space::Ptr leg,
 Identity::Ptr
 Identity::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
-    auto domain = cyten::hdf5::py_load(subpath + "domain").cast<TensorProduct::Ptr>();
-    (void)cyten::hdf5::py_load(subpath + "codomain");
-    auto symmetry = cyten::hdf5::py_load(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto backend = cyten::hdf5::py_load(subpath + "backend").cast<TensorBackend::Ptr>();
-    (void)cyten::hdf5::py_load(subpath + "data");
-    auto device = cyten::hdf5::py_load(subpath + "device").cast<std::string>();
-    auto dt = dtype::from_numpy_dtype(cyten::hdf5::py_load(subpath + "dtype"));
-    auto labels = cyten::hdf5::py_get_attr(h5gr, "labels").cast<OptionalLabels>();
+    auto domain = hdf5_export::load_tensor_product(loader, subpath + "domain");
+    (void)hdf5_export::load_tensor_product(loader, subpath + "codomain");
+    auto symmetry = hdf5_export::load_symmetry(loader, subpath + "symmetry");
+    auto backend = hdf5_export::load_tensor_backend(loader, subpath + "backend");
+    (void)hdf5_export::load_tensor_backend_data(loader, subpath + "data");
+    hid_t device_id = loader.open(subpath + "device");
+    auto device = loader.load_string(device_id);
+    H5Idec_ref(device_id);
+    auto dt = hdf5_export::load_dtype_string(loader, subpath + "dtype");
+    auto labels = hdf5_export::load_optional_labels(loader, subpath + "labels");
     if (labels.empty()) {
         labels.assign(2, std::nullopt);
     }
 
-    // Resolve via the block backend when possible (Torch falls back if device missing).
     if (dynamic_cast<TorchBlockBackend*>(backend->block_backend.get()) != nullptr) {
         device =
           TorchBlockBackend::device_for_hdf5_load(device, backend->block_backend->default_device);
@@ -1025,7 +1052,7 @@ Identity::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::str
 
     auto obj = std::make_shared<Identity>(
       as_space(domain->factors[0]), backend, symmetry, std::move(labels), dt, std::move(device));
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
 
@@ -1109,7 +1136,9 @@ Identity::diagonal_as_numpy(py::object numpy_dtype)
     if (numpy_dtype.is_none()) {
         numpy_dtype = dtype::to_numpy_dtype(dtype);
     }
-    return py::module_::import("numpy").attr("ones")(static_cast<int64>(leg()->dim), numpy_dtype);
+    auto block =
+      backend->block_backend->ones_block({ static_cast<int64>(leg()->dim) }, dtype, device);
+    return backend->block_backend->to_numpy(block, numpy_dtype);
 }
 
 DiagonalTensor::Ptr

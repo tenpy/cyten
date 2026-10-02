@@ -39,6 +39,7 @@ repos:
     rev: v21.1.8
     hooks:
     - id: clang-format
+      exclude: \.ipynb$
   #- repo: https://github.com/Takishima/cmake-pre-commit-hooks
   #  rev: v1.9.6
   #  hooks:
@@ -81,15 +82,15 @@ repos:
         always_run: true
       - id: core-stub-parity
         name: check cyten._core stub parity
+        # note: this requires cyten to be installed
         language: unsupported_script
         entry: scripts/check_core_stub_parity.py
         args: [--generate]
         pass_filenames: false
         always_run: true
       - id: reexport-all-parity
-        name: check re-export __all__ lists
+        name: update re-export __all__ lists
         language: unsupported_script
         entry: scripts/generate_reexport_all.py
-        args: [--check]
         pass_filenames: false
         always_run: true

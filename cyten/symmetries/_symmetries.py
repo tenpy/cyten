@@ -7,7 +7,7 @@ import numpy as np
 
 # implemented in C++
 from .._core import (
-    SU2,  # noqa: F401
+    _SU2,  # noqa: F401
     SUN,  # noqa: F401
     U1,  # noqa: F401
     ZN,  # noqa: F401
@@ -59,7 +59,6 @@ __all__ = [
     'IsingAnyonCategory',
     'NoSymmetry',
     'QuantumDoubleZNAnyonCategory',
-    'SU2',
     'SU2_kAnyonCategory',
     'SU3_3AnyonCategory',
     'SUN',

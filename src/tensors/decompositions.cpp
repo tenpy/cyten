@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cmath>
 #include <format>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -196,21 +197,25 @@ nested_labels_one_and_domain(py::object one_label, py::object domain_labels)
     return out;
 }
 
-py::object
-charge_leg_label_py(py::object tensor)
+char const*
+charge_leg_label()
 {
-    return tensor.attr("_CHARGE_LEG_LABEL");
+    return ChargedTensor::_CHARGE_LEG_LABEL;
 }
 
 bool
-is_inf(py::object n)
+is_inf_number(py::object n)
 {
     try {
-        return py::module_::import("math").attr("isinf")(n).cast<bool>() ||
-               (py::hasattr(n, "__float__") && std::isinf(n.cast<float64>()));
+        if (py::isinstance<py::float_>(n) || py::isinstance<py::int_>(n)) {
+            return std::isinf(n.cast<float64>());
+        }
+        if (py::hasattr(n, "__float__")) {
+            return std::isinf(n.cast<float64>());
+        }
     } catch (...) {
-        return false;
     }
+    return false;
 }
 
 std::string
@@ -347,16 +352,12 @@ std::tuple<py::object, py::object, py::object, float64, float64> truncated_svd_p
 
 py::object
 move_charge_leg(py::object tensor_part,
-                py::object which,
+                std::string const& which,
                 std::optional<int64> cpos,
                 std::optional<int64> dpos)
 {
-    return py::cast(move_leg(tensor_part.cast<TensorCPtr>(),
-                             which.cast<std::string>(),
-                             cpos,
-                             dpos,
-                             std::nullopt,
-                             BendRight{ false }));
+    return py::cast(move_leg(
+      tensor_part.cast<TensorCPtr>(), which, cpos, dpos, std::nullopt, BendRight{ false }));
 }
 
 py::object
@@ -705,51 +706,65 @@ entropy_py(py::object p, py::object n)
           "entropy_py does not support Identity. It is never a normalized distribution.");
     }
     if (is_DiagonalTensor(p)) {
-        if (!p.attr("dtype").attr("is_real").cast<bool>()) {
-            throw std::invalid_argument("entropy requires a real dtype");
+        float64 n_f = 1.;
+        if (is_inf_number(n)) {
+            n_f = std::numeric_limits<float64>::infinity();
+        } else {
+            n_f = n.cast<float64>();
         }
-        if (py_eq(n, py::int_(1))) {
-            py::object logged = py::cast(stable_log(p.cast<DiagonalTensorCPtr>(), 1e-30));
-            py::object prod = p.attr("__mul__")(logged);
-            return (-py::cast(trace(prod.cast<TensorCPtr>()))).attr("to_numpy")();
-        }
-        if (is_inf(n)) {
-            return (-py::module_::import("numpy").attr("log")(p.attr("max")().attr("to_numpy")()));
-        }
-        float64 n_f = n.cast<float64>();
-        py::object logged = py::module_::import("numpy").attr("log")(
-          py::cast(trace(p.attr("__pow__")(n).cast<TensorCPtr>())).attr("to_numpy")());
-        return logged.attr("__truediv__")(1.0 - n_f);
+        return py::cast(entropy(p.cast<DiagonalTensorCPtr>(), n_f));
     }
-    // else: sequence of floats
-    auto np = py::module_::import("numpy");
-    p = np.attr("asarray")(p);
-    p = np.attr("real_if_close")(p);
-    p = p.attr("__getitem__")(p.attr("__gt__")(1e-30)); // for stability of log
+    // else: sequence of floats (kept for internal callers; pybind has its own path)
+    auto arr = py::array_t<float64, py::array::c_style | py::array::forcecast>::ensure(p);
+    if (!arr) {
+        throw std::invalid_argument("entropy_py: expected array-like of floats");
+    }
+    auto info = arr.request();
+    auto const* ptr = static_cast<float64 const*>(info.ptr);
+    std::vector<float64> vals;
+    vals.reserve(static_cast<std::size_t>(info.size));
+    for (py::ssize_t i = 0; i < info.size; ++i) {
+        if (ptr[i] > 1e-30) { // for stability of log
+            vals.push_back(ptr[i]);
+        }
+    }
+    if (vals.empty()) {
+        return py::float_(0.);
+    }
     if (py_eq(n, py::int_(1))) {
-        return -np.attr("inner")(np.attr("log")(p), p);
+        float64 s = 0.;
+        for (float64 x : vals) {
+            s += std::log(x) * x;
+        }
+        return py::float_(-s);
     }
-    if (is_inf(n)) {
-        return -np.attr("log")(np.attr("max")(p));
+    if (is_inf_number(n)) {
+        float64 mx = *std::max_element(vals.begin(), vals.end());
+        return py::float_(-std::log(mx));
     }
     float64 n_f = n.cast<float64>();
-    return np.attr("log")(np.attr("sum")(p.attr("__pow__")(n))).attr("__truediv__")(1.0 - n_f);
+    float64 sum = 0.;
+    for (float64 x : vals) {
+        sum += std::pow(x, n_f);
+    }
+    return py::float_(std::log(sum) / (1.0 - n_f));
 }
 
 std::tuple<py::object, py::object>
 qr_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_top)
 {
     if (is_ChargedTensor(tensor)) {
-        py::object inv_part = tensor.attr("invariant_part");
+        auto charged = tensor.cast<std::shared_ptr<ChargedTensor const>>();
+        py::object inv_part = py::cast(charged->invariant_part);
         if (!charge_leg_top) {
-            inv_part = move_charge_leg(inv_part, charge_leg_label_py(tensor), 0, std::nullopt);
+            inv_part = move_charge_leg(inv_part, charge_leg_label(), 0, std::nullopt);
         }
         auto [Q, R] = qr_py(inv_part, new_labels, new_leg_dual, true);
         if (charge_leg_top) {
-            R = make_python_charged_tensor(R, tensor.attr("charged_state"));
+            R = make_python_charged_tensor(R, py::cast(charged->charged_state));
         } else {
-            Q = move_charge_leg(Q, charge_leg_label_py(tensor), std::nullopt, 0);
-            Q = make_python_charged_tensor(Q, tensor.attr("charged_state"));
+            Q = move_charge_leg(Q, charge_leg_label(), std::nullopt, 0);
+            Q = make_python_charged_tensor(Q, py::cast(charged->charged_state));
         }
         return { Q, R };
     }
@@ -787,16 +802,17 @@ std::tuple<py::object, py::object>
 lq_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_top)
 {
     if (is_ChargedTensor(tensor)) {
-        py::object inv_part = tensor.attr("invariant_part");
+        auto charged = tensor.cast<std::shared_ptr<ChargedTensor const>>();
+        py::object inv_part = py::cast(charged->invariant_part);
         if (!charge_leg_top) {
-            inv_part = move_charge_leg(inv_part, charge_leg_label_py(tensor), 0, std::nullopt);
+            inv_part = move_charge_leg(inv_part, charge_leg_label(), 0, std::nullopt);
         }
         auto [L, Q] = lq_py(inv_part, new_labels, new_leg_dual, true);
         if (charge_leg_top) {
-            Q = make_python_charged_tensor(Q, tensor.attr("charged_state"));
+            Q = make_python_charged_tensor(Q, py::cast(charged->charged_state));
         } else {
-            L = move_charge_leg(L, charge_leg_label_py(tensor), std::nullopt, 0);
-            L = make_python_charged_tensor(L, tensor.attr("charged_state"));
+            L = move_charge_leg(L, charge_leg_label(), std::nullopt, 0);
+            L = make_python_charged_tensor(L, py::cast(charged->charged_state));
         }
         return { L, Q };
     }
@@ -841,17 +857,18 @@ svd_py(py::object tensor,
     // split legs, if they were previously combined
     // ---
     if (is_ChargedTensor(tensor)) {
-        py::object inv_part = tensor.attr("invariant_part");
+        auto charged = tensor.cast<std::shared_ptr<ChargedTensor const>>();
+        py::object inv_part = py::cast(charged->invariant_part);
         if (!charge_leg_top) {
-            inv_part = move_charge_leg(inv_part, charge_leg_label_py(tensor), 0, std::nullopt);
+            inv_part = move_charge_leg(inv_part, charge_leg_label(), 0, std::nullopt);
         }
         // Intentional: pass algorithm by keyword (Python positional call was ambiguous).
         auto [U, S, Vh] = svd_py(inv_part, new_labels, new_leg_dual, true, algorithm);
         if (charge_leg_top) {
-            Vh = make_python_charged_tensor(Vh, tensor.attr("charged_state"));
+            Vh = make_python_charged_tensor(Vh, py::cast(charged->charged_state));
         } else {
-            U = move_charge_leg(U, charge_leg_label_py(tensor), std::nullopt, 0);
-            U = make_python_charged_tensor(U, tensor.attr("charged_state"));
+            U = move_charge_leg(U, charge_leg_label(), std::nullopt, 0);
+            U = make_python_charged_tensor(U, py::cast(charged->charged_state));
         }
         return { U, S, Vh };
     }
@@ -1096,7 +1113,30 @@ eigvals(TensorCPtr tensor,
 BlockBackend::Scalar
 entropy(DiagonalTensorCPtr p, float64 n)
 {
-    return coerce_scalar_decomp(entropy_py(py::cast(p), py::cast(n)), p);
+    if (std::dynamic_pointer_cast<Identity const>(p)) {
+        throw py::type_error(
+          "entropy does not support Identity. It is never a normalized distribution.");
+    }
+    if (!dtype::is_real(p->dtype)) {
+        throw std::invalid_argument("entropy requires a real dtype");
+    }
+    auto mut = std::const_pointer_cast<DiagonalTensor>(p);
+    auto mul = [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+        return (*a) * (*b);
+    };
+    auto pow = [](BlockBackend::BlockPtr const& a, BlockBackend::BlockPtr const& b) {
+        return a->pow(*b);
+    };
+    if (n == 1.0) {
+        auto logged = stable_log(p, 1e-30);
+        auto prod = mut->_binary_operand(DiagonalTensorCPtr(logged), mul, "mul");
+        return -trace(prod);
+    }
+    if (std::isinf(n)) {
+        return -p->max().log();
+    }
+    auto powered = mut->_binary_operand(p->backend->block_backend->as_scalar(n), pow, "pow");
+    return trace(powered).log() / (1.0 - n);
 }
 
 std::tuple<TensorPtr, TensorPtr>

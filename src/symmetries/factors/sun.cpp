@@ -3,15 +3,17 @@
 #include <cyten/block_backend/numpy.h>
 #include <cyten/config.h>
 #include <cyten/symmetries/fusion_symbol.h>
-#include <cyten/symmetries/sector_numpy.h>
+
+#include <hdf5_io/h5_ops.h>
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cctype>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
 #include <filesystem>
 #include <format>
 #include <limits>
@@ -24,12 +26,6 @@
 namespace cyten {
 
 namespace {
-
-py::module_
-numpy()
-{
-    return py::module_::import("numpy");
-}
 
 std::string
 sector_slash_path(Sector const& a)
@@ -72,13 +68,57 @@ sector_bracket(Sector const& a)
 std::string
 cg_key(int N, Sector const& a, Sector const& b)
 {
-    return "/N_" + std::to_string(N) + "/" + sector_slash_path(a) + sector_slash_path(b);
+    // Absolute-style path without leading slash (hdf5_io::normalized_path strips it).
+    return "N_" + std::to_string(N) + "/" + sector_slash_path(a) + sector_slash_path(b);
+}
+
+HighFive::Group
+file_root(HighFive::File& file)
+{
+    return file.getGroup("/");
 }
 
 bool
-cg_key_usable(py::object CGfile, std::string const& key)
+cg_key_usable(HighFive::File& CGfile, std::string const& key)
 {
-    return CGfile.contains(key) && py::len(CGfile[py::str(key)]) > 0;
+    auto root = file_root(CGfile);
+    if (!hdf5_io::h5_contains(root, key)) {
+        return false;
+    }
+    hid_t loc = hdf5_io::h5_open(root, key);
+    auto names = hdf5_io::h5_link_names(loc);
+    H5Idec_ref(loc);
+    return !names.empty();
+}
+
+int64
+file_attr_int64(HighFive::File& file, char const* name)
+{
+    auto v = hdf5_io::h5_get_attr_int64(file.getId(), name);
+    if (!v) {
+        throw std::runtime_error(std::string("SUN HDF5 file missing attribute '") + name + "'");
+    }
+    return *v;
+}
+
+Sector
+zeros_sector(int N)
+{
+    std::array<int16_t, max_sector_ind_len> z{};
+    return Sector::from_span(std::span<const int16_t>(z.data(), static_cast<std::size_t>(N)));
+}
+
+std::string
+normalize_su_n_data_kind(std::string const& kind)
+{
+    std::string up = kind;
+    for (char& c : up)
+        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    if (up != "CG" && up != "F" && up != "R") {
+        throw std::invalid_argument("SU(N) data kind must be one of 'CG', 'F', 'R'; got '" + kind +
+                                    "'");
+    }
+    return up;
 }
 
 int64
@@ -101,24 +141,210 @@ binomial(int n, int k)
 }
 
 Sector
-zeros_sector(int N)
+sector_from_int_buffer(void const* data, std::size_t n, char kind, int itemsize)
 {
-    std::array<int16_t, max_sector_ind_len> z{};
-    return Sector::from_span(std::span<const int16_t>(z.data(), static_cast<std::size_t>(N)));
+    std::vector<int16_t> vals(n);
+    if (kind == 'i' || kind == 'u') {
+        if (itemsize == 1) {
+            auto const* p = static_cast<std::int8_t const*>(data);
+            for (std::size_t i = 0; i < n; ++i)
+                vals[i] = static_cast<int16_t>(p[i]);
+        } else if (itemsize == 2) {
+            auto const* p = static_cast<std::int16_t const*>(data);
+            for (std::size_t i = 0; i < n; ++i)
+                vals[i] = p[i];
+        } else if (itemsize == 4) {
+            auto const* p = static_cast<std::int32_t const*>(data);
+            for (std::size_t i = 0; i < n; ++i)
+                vals[i] = static_cast<int16_t>(p[i]);
+        } else if (itemsize == 8) {
+            auto const* p = static_cast<std::int64_t const*>(data);
+            for (std::size_t i = 0; i < n; ++i)
+                vals[i] = static_cast<int16_t>(p[i]);
+        } else {
+            throw std::runtime_error("SUN: unsupported integer itemsize for Irreplabel");
+        }
+    } else if (kind == 'f') {
+        if (itemsize == 8) {
+            auto const* p = static_cast<double const*>(data);
+            for (std::size_t i = 0; i < n; ++i)
+                vals[i] = static_cast<int16_t>(p[i]);
+        } else if (itemsize == 4) {
+            auto const* p = static_cast<float const*>(data);
+            for (std::size_t i = 0; i < n; ++i)
+                vals[i] = static_cast<int16_t>(p[i]);
+        } else {
+            throw std::runtime_error("SUN: unsupported float itemsize for Irreplabel");
+        }
+    } else {
+        throw std::runtime_error("SUN: unsupported Irreplabel dtype kind");
+    }
+    return Sector::from_span(vals);
 }
 
-/// Normalize an SU(N) data ``kind`` (``"CG"``, ``"F"`` or ``"R"``, case-insensitive) to upper
-/// case.
-std::string
-normalize_su_n_data_kind(std::string const& kind)
+Sector
+read_irrep_label_attr(hid_t loc)
 {
-    std::string up = kind;
-    for (char& c : up)
-        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    if (up != "CG" && up != "F" && up != "R") {
-        throw py::value_error("SU(N) data kind must be one of 'CG', 'F', 'R'; got '" + kind + "'");
+    if (H5Aexists(loc, "Irreplabel") <= 0) {
+        throw std::runtime_error("SUN: dataset missing Irreplabel attribute");
     }
-    return up;
+    hid_t attr = H5Aopen(loc, "Irreplabel", H5P_DEFAULT);
+    hdf5_io::check_hdf5(attr < 0 ? -1 : 0, "H5Aopen Irreplabel");
+    hid_t type = H5Aget_type(attr);
+    hid_t space = H5Aget_space(attr);
+    int ndims = H5Sget_simple_extent_ndims(space);
+    std::vector<hsize_t> dims(static_cast<std::size_t>(std::max(ndims, 0)));
+    if (ndims > 0) {
+        H5Sget_simple_extent_dims(space, dims.data(), nullptr);
+    }
+    std::size_t n = 1;
+    if (ndims <= 0) {
+        n = 1;
+    } else {
+        for (auto d : dims)
+            n *= static_cast<std::size_t>(d);
+    }
+
+    H5T_class_t cls = H5Tget_class(type);
+    size_t sz = H5Tget_size(type);
+    char kind = 'i';
+    if (cls == H5T_FLOAT)
+        kind = 'f';
+    else if (cls == H5T_INTEGER)
+        kind = H5Tget_sign(type) == H5T_SGN_NONE ? 'u' : 'i';
+    else
+        throw std::runtime_error("SUN: Irreplabel has unsupported HDF5 type");
+
+    std::vector<std::uint8_t> storage(n * sz);
+    hid_t ntype = H5Tget_native_type(type, H5T_DIR_ASCEND);
+    hdf5_io::check_hdf5(H5Aread(attr, ntype, storage.data()), "H5Aread Irreplabel");
+    H5Tclose(ntype);
+    H5Sclose(space);
+    H5Tclose(type);
+    H5Aclose(attr);
+    return sector_from_int_buffer(storage.data(), n, kind, static_cast<int>(sz));
+}
+
+FusionSymbol
+fusion_symbol_from_hdf5_buffer(hdf5_io::Hdf5Buffer const& buf)
+{
+    if (buf.shape.size() > 4) {
+        throw std::invalid_argument("fusion_symbol_from_hdf5_buffer: rank must be <= 4");
+    }
+    FusionSymbol::Shape shape{ { 1, 1, 1, 1 } };
+    auto rank = static_cast<std::uint8_t>(buf.shape.empty() ? 1 : buf.shape.size());
+    for (std::size_t i = 0; i < buf.shape.size(); ++i) {
+        shape[i] = buf.shape[i];
+    }
+    std::size_t n = 1;
+    for (std::size_t i = 0; i < rank; ++i)
+        n *= shape[i];
+
+    if (buf.kind == 'f' && buf.itemsize == 8) {
+        auto const* p = static_cast<double const*>(buf.data());
+        std::vector<float64> data(p, p + n);
+        return FusionSymbol::from_float64(rank, shape, std::move(data));
+    }
+    if (buf.kind == 'c' && buf.itemsize == 16) {
+        auto const* p = static_cast<complex128 const*>(buf.data());
+        std::vector<complex128> data(p, p + n);
+        return FusionSymbol::from_complex128(rank, shape, std::move(data));
+    }
+    if (buf.kind == 'f' && buf.itemsize == 4) {
+        auto const* p = static_cast<float const*>(buf.data());
+        std::vector<float64> data(n);
+        for (std::size_t i = 0; i < n; ++i)
+            data[i] = static_cast<float64>(p[i]);
+        return FusionSymbol::from_float64(rank, shape, std::move(data));
+    }
+    throw std::runtime_error("SUN: unsupported dataset dtype for FusionSymbol");
+}
+
+/// Read CG coefficient table as rows of [q_a, q_b, q_c, coeff] (float64).
+std::vector<std::array<double, 4>>
+read_cg_rows(HighFive::File& file, std::string const& group_key, std::string const& dset_name)
+{
+    auto root = file_root(file);
+    hid_t grp = hdf5_io::h5_open(root, group_key);
+    hid_t dset = hdf5_io::h5_open(grp, dset_name);
+    auto buf = hdf5_io::h5_read_buffer(dset);
+    H5Idec_ref(dset);
+    H5Idec_ref(grp);
+
+    if (buf.kind != 'f' || buf.itemsize != 8) {
+        throw std::runtime_error("SUN: CG dataset must be float64");
+    }
+    auto const* p = static_cast<double const*>(buf.data());
+    // Accept (nrows, 4) or (1, nrows, 4) as produced by some exporters.
+    std::size_t nrows = 0;
+    if (buf.shape.size() == 2 && buf.shape[1] == 4) {
+        nrows = buf.shape[0];
+    } else if (buf.shape.size() == 3 && buf.shape[0] == 1 && buf.shape[2] == 4) {
+        nrows = buf.shape[1];
+    } else if (buf.shape.size() == 1 && buf.shape[0] % 4 == 0) {
+        nrows = buf.shape[0] / 4;
+    } else {
+        throw std::runtime_error("SUN: unexpected CG dataset shape");
+    }
+    std::vector<std::array<double, 4>> rows(nrows);
+    for (std::size_t i = 0; i < nrows; ++i) {
+        rows[i] = { p[4 * i], p[4 * i + 1], p[4 * i + 2], p[4 * i + 3] };
+    }
+    return rows;
+}
+
+std::shared_ptr<HighFive::File>
+open_su_n_data_file(std::string const& full_path, char const* kind, int N, int64 hweight)
+{
+    if (!std::filesystem::exists(std::filesystem::path(full_path))) {
+        std::string msg = std::format(
+          "SU(N) {} data file for N={}, hweight={} not found:\n"
+          "    {}\n"
+          "Generate it with the clebsch_gordan_coefficients package, or tell cyten where your "
+          "files are:\n"
+          "    cyten.set_options(su_n_data_path='/path/to/dir')\n"
+          "    cyten.set_options(su_n_data_filename_base='my_base')\n"
+          "or set the environment variables CYTEN_SU_N_DATA_PATH / "
+          "CYTEN_SU_N_DATA_FILENAME_BASE, or add the keys to ~/.cytenconfig.yaml.\n"
+          "The default location is the literal POSIX path "
+          "'/home/<login-name>/.tenpy/su_n_symmetry_data' on all platforms.",
+          kind,
+          N,
+          hweight,
+          full_path);
+        // Match the historical Python API: missing SU(N) data is FileNotFoundError.
+        PyErr_SetString(PyExc_FileNotFoundError, msg.c_str());
+        throw py::error_already_set();
+    }
+    auto file = std::make_shared<HighFive::File>(full_path, HighFive::File::ReadOnly);
+    auto stored = file_attr_int64(*file, "Highest_Weight");
+    if (stored != hweight) {
+        throw std::invalid_argument(std::format(
+          "SU(N) {} data file '{}' is named for hweight {} but has attrs['Highest_Weight'] = {}.",
+          kind,
+          full_path,
+          hweight,
+          stored));
+    }
+    return file;
+}
+
+std::string
+load_string_child(cyten::hdf5::Loader& loader, std::string const& path)
+{
+    hid_t id = loader.open(path);
+    auto s = loader.load_string(id);
+    H5Idec_ref(id);
+    return s;
+}
+
+int64
+load_int64_child(cyten::hdf5::Loader& loader, std::string const& path)
+{
+    hid_t id = loader.open(path);
+    auto v = loader.load_int64(id);
+    H5Idec_ref(id);
+    return v;
 }
 
 } // namespace
@@ -150,10 +376,28 @@ su_n_data_file_path(int N,
     return dir + name;
 }
 
+HighFive::Group
+SUN::cg_root() const
+{
+    return file_root(*CGfile_);
+}
+
+HighFive::Group
+SUN::f_root() const
+{
+    return file_root(*Ffile_);
+}
+
+HighFive::Group
+SUN::r_root() const
+{
+    return file_root(*Rfile_);
+}
+
 SUN::SUN(int N_,
-         py::object CGfile_,
-         py::object Ffile_,
-         py::object Rfile_,
+         std::string cg_path,
+         std::string f_path,
+         std::string r_path,
          std::optional<std::string> descriptive_name)
   : Group(FusionStyle::general,
           zeros_sector(N_),
@@ -163,9 +407,9 @@ SUN::SUN(int N_,
           std::move(descriptive_name),
           /*trivial_shift=*/true)
   , N(N_)
-  , CGfile(std::move(CGfile_))
-  , Ffile(std::move(Ffile_))
-  , Rfile(std::move(Rfile_))
+  , CGpath(std::move(cg_path))
+  , Fpath(std::move(f_path))
+  , Rpath(std::move(r_path))
 {
     if (N <= 1) {
         throw std::invalid_argument("Invalid N!");
@@ -173,25 +417,25 @@ SUN::SUN(int N_,
     if (static_cast<std::size_t>(N) > max_sector_ind_len) {
         throw std::invalid_argument("SUN: N exceeds max_sector_ind_len");
     }
-    auto n_cg = CGfile.attr("attrs")["N"].cast<int>();
-    auto n_f = Ffile.attr("attrs")["N"].cast<int>();
-    auto n_r = Rfile.attr("attrs")["N"].cast<int>();
+    CGfile_ = std::make_shared<HighFive::File>(CGpath, HighFive::File::ReadOnly);
+    Ffile_ = std::make_shared<HighFive::File>(Fpath, HighFive::File::ReadOnly);
+    Rfile_ = std::make_shared<HighFive::File>(Rpath, HighFive::File::ReadOnly);
+
+    auto n_cg = file_attr_int64(*CGfile_, "N");
+    auto n_f = file_attr_int64(*Ffile_, "N");
+    auto n_r = file_attr_int64(*Rfile_, "N");
     if (N != n_cg || N != n_f || N != n_r) {
         throw std::invalid_argument("Files must contain data for same N!");
     }
-    sanity_check_hdf5(CGfile);
-    sanity_check_hdf5(Ffile);
-    sanity_check_hdf5(Rfile);
+    sanity_check_hdf5(*CGfile_);
+    sanity_check_hdf5(*Ffile_);
+    sanity_check_hdf5(*Rfile_);
     fusion_tensor_dtype = Dtype::Float64;
 }
 
 bool
 SUN::is_valid_sector(Sector a) const
 {
-    // --- hints from Python SUN.is_valid_sector ---
-    // check for negative entries
-    // check that integer numbers in GT sequence are non increasing
-    // ---
     if (a.len() != static_cast<std::uint8_t>(N)) {
         return false;
     }
@@ -254,19 +498,19 @@ SUN::dual_sector(Sector a) const
 int64
 SUN::hweight_from_CG_hdf5() const
 {
-    return CGfile.attr("attrs")["Highest_Weight"].cast<int64>();
+    return file_attr_int64(*CGfile_, "Highest_Weight");
 }
 
 int64
 SUN::hweight_from_F_hdf5() const
 {
-    return Ffile.attr("attrs")["Highest_Weight"].cast<int64>();
+    return file_attr_int64(*Ffile_, "Highest_Weight");
 }
 
 int64
 SUN::hweight_from_R_hdf5() const
 {
-    return Rfile.attr("attrs")["Highest_Weight"].cast<int64>();
+    return file_attr_int64(*Rfile_, "Highest_Weight");
 }
 
 bool
@@ -281,23 +525,21 @@ SUN::can_fuse_to(Sector a, Sector b, Sector c) const
         return false;
     }
     auto key = cg_key(N, a, b);
-    if (!cg_key_usable(CGfile, key)) {
+    if (!cg_key_usable(*CGfile_, key)) {
         key = cg_key(N, b, a);
     }
-    auto grp = CGfile[py::str(key)];
-    for (auto item : grp) {
-        auto child = grp[item];
-        // Same dangling-accessor hazard as `sanity_check_hdf5` above: `child.attr("attrs")` is an
-        // unnamed temporary AttributeManager; naming it and typing `label` as `py::object` (not
-        // `auto`) forces eager evaluation while it is still alive.
-        py::object attrs = child.attr("attrs");
-        py::object label = attrs["Irreplabel"];
-        auto arr = py::array::ensure(label);
-        Sector lab = sector_from_numpy(arr);
+    auto root = cg_root();
+    hid_t grp = hdf5_io::h5_open(root, key);
+    for (auto const& name : hdf5_io::h5_link_names(grp)) {
+        hid_t child = hdf5_io::h5_open(grp, name);
+        Sector lab = read_irrep_label_attr(child);
+        H5Idec_ref(child);
         if (lab == c) {
+            H5Idec_ref(grp);
             return true;
         }
     }
+    H5Idec_ref(grp);
     return false;
 }
 
@@ -305,15 +547,24 @@ int64
 SUN::_n_symbol(Sector a, Sector b, Sector c) const
 {
     auto key = cg_key(N, a, b);
-    if (!cg_key_usable(CGfile, key)) {
+    if (!cg_key_usable(*CGfile_, key)) {
         key = cg_key(N, b, a);
     }
-    auto grp = CGfile[py::str(key)];
+    auto root = cg_root();
     auto ckey = std::string("Irrep") + sector_concat(c) + "a1";
-    if (!grp.contains(ckey)) {
+    hid_t grp = hdf5_io::h5_open(root, key);
+    if (!hdf5_io::h5_contains(grp, ckey)) {
+        H5Idec_ref(grp);
         return 0;
     }
-    return grp[py::str(ckey)].attr("attrs")["Outer Multiplicity"].cast<int64>();
+    hid_t dset = hdf5_io::h5_open(grp, ckey);
+    auto mult = hdf5_io::h5_get_attr_int64(dset, "Outer Multiplicity");
+    H5Idec_ref(dset);
+    H5Idec_ref(grp);
+    if (!mult) {
+        throw std::runtime_error("SUN: missing Outer Multiplicity attribute");
+    }
+    return *mult;
 }
 
 int64
@@ -346,69 +597,72 @@ SUN::fusion_outcomes(Sector a, Sector b) const
           "Input irreps have higher weight than highest weight irrep in HDF5-file");
     }
     auto key = cg_key(N, a, b);
-    if (!cg_key_usable(CGfile, key)) {
+    if (!cg_key_usable(*CGfile_, key)) {
         key = cg_key(N, b, a);
     }
-    auto grp = CGfile[py::str(key)];
-    py::list dec;
-    for (auto item : grp) {
-        auto child = grp[item];
-        dec.append(child.attr("attrs")["Irreplabel"]);
+    auto root = cg_root();
+    hid_t grp = hdf5_io::h5_open(root, key);
+    std::vector<Sector> dec;
+    for (auto const& name : hdf5_io::h5_link_names(grp)) {
+        hid_t child = hdf5_io::h5_open(grp, name);
+        dec.push_back(read_irrep_label_attr(child));
+        H5Idec_ref(child);
     }
-    return sector_array_from_numpy(numpy().attr("array")(dec));
+    H5Idec_ref(grp);
+    return SectorArray(std::move(dec));
 }
 
-py::dict
+std::map<Sector, int64>
 SUN::dims_of_irreps(Sector a, Sector b) const
 {
     auto outcomes = fusion_outcomes(a, b);
     auto key = cg_key(N, a, b);
-    // Python uses key without swap fallback for lookup after fusion_outcomes resolved order.
-    if (!cg_key_usable(CGfile, key)) {
-        key = cg_key(N, b, a);
-    }
-    // Match Python: always N+a+b (not swapped) for dims_of_irreps.
-    key = cg_key(N, a, b);
-    auto grp = CGfile[py::str(key)];
-    py::dict C;
+    auto root = cg_root();
+    hid_t grp = hdf5_io::h5_open(root, key);
+    std::map<Sector, int64> C;
     for (std::size_t i = 0; i < outcomes.size(); ++i) {
         Sector ir = outcomes[i];
-        py::tuple k(ir.len());
-        for (std::uint8_t j = 0; j < ir.len(); ++j) {
-            k[j] = ir.q[j];
-        }
         auto obj = std::string("Irrep") + sector_concat(ir) + "a1";
-        C[k] = grp[py::str(obj)].attr("attrs")["Dimension"].cast<int64>();
+        hid_t dset = hdf5_io::h5_open(grp, obj);
+        auto dim = hdf5_io::h5_get_attr_int64(dset, "Dimension");
+        H5Idec_ref(dset);
+        if (!dim) {
+            H5Idec_ref(grp);
+            throw std::runtime_error("SUN: missing Dimension attribute");
+        }
+        C[ir] = *dim;
     }
+    H5Idec_ref(grp);
     return C;
 }
 
-py::dict
+std::map<Sector, int64>
 SUN::outer_multiplicity_from_CG(Sector a, Sector b) const
 {
     auto outcomes = fusion_outcomes(a, b);
     auto key = cg_key(N, a, b);
-    auto grp = CGfile[py::str(key)];
-    py::dict C;
+    auto root = cg_root();
+    hid_t grp = hdf5_io::h5_open(root, key);
+    std::map<Sector, int64> C;
     for (std::size_t i = 0; i < outcomes.size(); ++i) {
         Sector ir = outcomes[i];
-        py::tuple k(ir.len());
-        for (std::uint8_t j = 0; j < ir.len(); ++j) {
-            k[j] = ir.q[j];
-        }
         auto obj = std::string("Irrep") + sector_concat(ir) + "a1";
-        C[k] = grp[py::str(obj)].attr("attrs")["Outer Multiplicity"].cast<int64>();
+        hid_t dset = hdf5_io::h5_open(grp, obj);
+        auto mult = hdf5_io::h5_get_attr_int64(dset, "Outer Multiplicity");
+        H5Idec_ref(dset);
+        if (!mult) {
+            H5Idec_ref(grp);
+            throw std::runtime_error("SUN: missing Outer Multiplicity attribute");
+        }
+        C[ir] = *mult;
     }
+    H5Idec_ref(grp);
     return C;
 }
 
 float64
 SUN::clebschgordan(Sector a, int64 q_a, Sector b, int64 q_b, Sector c, int64 q_c, int64 mu) const
 {
-    // --- hints from Python SUN.clebschgordan ---
-    // we only save a x b  and not also b x a since the clebsch gordan coefficients are
-    // the same in both cases
-    // ---
     auto const hw = hweight_from_CG_hdf5();
     if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw) {
         throw std::invalid_argument(
@@ -416,28 +670,17 @@ SUN::clebschgordan(Sector a, int64 q_a, Sector b, int64 q_b, Sector c, int64 q_c
     }
     auto key1 = cg_key(N, a, b);
     auto key2 = std::string("Irrep") + sector_concat(c) + "a" + std::to_string(mu);
-    py::array arr;
-    py::list ms;
-    if (cg_key_usable(CGfile, key1)) {
-        arr = py::array(CGfile[py::str(key1)][py::str(key2)])[py::int_(0)].cast<py::array>();
-        ms.append(static_cast<float64>(q_a));
-        ms.append(static_cast<float64>(q_b));
-        ms.append(static_cast<float64>(q_c));
-    } else {
+    double qa = static_cast<double>(q_a);
+    double qb = static_cast<double>(q_b);
+    double qc = static_cast<double>(q_c);
+    if (!cg_key_usable(*CGfile_, key1)) {
         key1 = cg_key(N, b, a);
-        arr = py::array(CGfile[py::str(key1)][py::str(key2)])[py::int_(0)].cast<py::array>();
-        ms.append(static_cast<float64>(q_b));
-        ms.append(static_cast<float64>(q_a));
-        ms.append(static_cast<float64>(q_c));
+        std::swap(qa, qb);
     }
-    auto np = numpy();
-    auto ms_arr = np.attr("array")(ms);
-    auto n = arr.attr("shape").attr("__getitem__")(0).cast<py::ssize_t>();
-    for (py::ssize_t i = 0; i < n; ++i) {
-        auto row = arr[py::int_(i)];
-        auto head = row[py::slice(0, 3, 1)];
-        if (py::bool_(np.attr("array_equal")(head, ms_arr))) {
-            return row[py::int_(3)].cast<float64>();
+    auto rows = read_cg_rows(*CGfile_, key1, key2);
+    for (auto const& row : rows) {
+        if (row[0] == qa && row[1] == qb && row[2] == qc) {
+            return row[3];
         }
     }
     return 0.0;
@@ -447,8 +690,7 @@ FusionSymbol
 SUN::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 {
     if (Z_a || Z_b) {
-        PyErr_SetString(PyExc_NotImplementedError, "");
-        throw py::error_already_set();
+        throw std::runtime_error("SUN::_fusion_tensor: Z_a/Z_b not implemented");
     }
     auto const hw = hweight_from_CG_hdf5();
     if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw) {
@@ -463,7 +705,6 @@ SUN::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
         return FusionSymbol::zeros(
           4, FusionSymbol::Shape{ { dim_Sa, dim_Sb, dim_Sc, 1 } }, Dtype::Float64);
     }
-    // Build in (Sa, Sb, Sc, mu) then transpose to (mu, Sa, Sb, Sc).
     FusionSymbol X(
       4,
       FusionSymbol::Shape{ { dim_Sa, dim_Sb, dim_Sc, static_cast<std::size_t>(dim_mu) } },
@@ -488,18 +729,6 @@ SUN::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 FusionSymbol
 SUN::_f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
-    // --- hints from Python SUN._f_symbol_from_CG ---
-    // [a,b,f, kappa]
-    // [f,c,d, lambda]
-    // [b,c,e, mu]
-    // [a,e,d, nu]
-    // [a,b,[f], kappa] ; [[f],c,d, lambda] --> [a,b,kappa,c,d, lambda]
-    // [a,b,c,d,kappa,lambda]
-    // [b,c,[e], mu] ; [a,[e],d, nu] --> [b,c,mu,a,d,nu]
-    // [a,b,c,d,mu,nu]
-    // [a,b,c,d,kappa,lambda] ; [a,b,c,d,mu,nu] --> [kappa,lambda,mu,nu]
-    // [mu, nu, kappa, lambda]
-    // ---
     auto const hw = hweight_from_CG_hdf5();
     if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw || d.q[0] > hw || e.q[0] > hw || f.q[0] > hw) {
         throw std::invalid_argument(
@@ -532,7 +761,6 @@ SUN::_f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector 
     auto F = be.tdot(X12, be.conj(X34), { 0, 1, 2, 3 }, { 0, 1, 2, 3 });
     F = be.permute_axes(F, { 2, 3, 0, 1 });
     auto out = fusion_symbol_from_block(F).as_complex();
-    // Zero tiny entries (match np.where(abs(F) < 1e-12, 0, F)).
     auto span = out.as_complex128();
     for (auto& v : span) {
         if (std::abs(v) < 1e-12) {
@@ -560,12 +788,23 @@ SUN::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
     for (Sector const& s : { a, b, c, d, e, f }) {
         keybar += sector_bracket(dual_sector(s));
     }
-    auto fsym = Ffile[py::str("/F_sym/")];
-    if (fsym.contains(key)) {
-        return fusion_symbol_from_numpy(py::array(fsym[py::str(key)]));
+    auto root = f_root();
+    auto open_sym = [&](std::string const& k) -> std::optional<FusionSymbol> {
+        if (!hdf5_io::h5_contains(root, std::string("F_sym/") + k)) {
+            return std::nullopt;
+        }
+        hid_t fsym = hdf5_io::h5_open(root, "F_sym");
+        hid_t dset = hdf5_io::h5_open(fsym, k);
+        auto buf = hdf5_io::h5_read_buffer(dset);
+        H5Idec_ref(dset);
+        H5Idec_ref(fsym);
+        return fusion_symbol_from_hdf5_buffer(buf);
+    };
+    if (auto out = open_sym(key)) {
+        return *out;
     }
-    if (fsym.contains(keybar)) {
-        return fusion_symbol_from_numpy(py::array(fsym[py::str(keybar)]));
+    if (auto out = open_sym(keybar)) {
+        return *out;
     }
     return FusionSymbol::zeros(4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, Dtype::Complex128);
 }
@@ -573,13 +812,6 @@ SUN::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 FusionSymbol
 SUN::_r_symbol_from_CG(Sector a, Sector b, Sector c) const
 {
-    // --- hints from Python SUN._r_symbol_from_CG ---
-    // [a,b,c, nu]
-    // [b,a,c,mu]
-    // OPTIMIZE (JU) I think this case is impossible (should never be called this way)
-    // and can be removed?
-    // [[a],(b),{c}, nu] , [(b),[a],{c},mu] --> [nu,mu]
-    // ---
     auto const hw = hweight_from_CG_hdf5();
     if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw) {
         throw std::invalid_argument(
@@ -610,11 +842,16 @@ SUN::_r_symbol(Sector a, Sector b, Sector c) const
     for (Sector const& s : { a, b, c }) {
         key += sector_bracket(s);
     }
-    auto rsym = Rfile[py::str("/R_sym/")];
-    if (rsym.contains(key)) {
-        return fusion_symbol_from_numpy(py::array(rsym[py::str(key)]));
+    auto root = r_root();
+    if (!hdf5_io::h5_contains(root, std::string("R_sym/") + key)) {
+        return FusionSymbol::zeros(1, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, Dtype::Complex128);
     }
-    return FusionSymbol::zeros(1, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, Dtype::Complex128);
+    hid_t rsym = hdf5_io::h5_open(root, "R_sym");
+    hid_t dset = hdf5_io::h5_open(rsym, key);
+    auto buf = hdf5_io::h5_read_buffer(dset);
+    H5Idec_ref(dset);
+    H5Idec_ref(rsym);
+    return fusion_symbol_from_hdf5_buffer(buf);
 }
 
 int64
@@ -625,25 +862,29 @@ SUN::frobenius_schur(Sector a) const
     }
     auto F = _f_symbol(a, dual_sector(a), a, a, trivial_sector, trivial_sector);
     auto const val = F.get_complex(0, 0, 0, 0);
-    // Match Python ``int(np.sign(F))`` for real-valued F symbols.
     float64 const r = val.real();
     return static_cast<int64>((r > 0.0) - (r < 0.0));
 }
 
 bool
-SUN::has_data_in_group(py::object group) const
+SUN::has_data_in_group(hid_t loc) const
 {
-    // --- hints from Python SUN.has_data_in_group ---
-    // Dataset is not empty
-    // Iterate through all items in the group and check if any of them has data
-    // ---
-    auto h5py = py::module_::import("h5py");
-    if (py::isinstance(group, h5py.attr("Dataset"))) {
-        return group.attr("size").cast<py::ssize_t>() > 0;
+    H5O_info2_t info{};
+    if (H5Oget_info3(loc, &info, H5O_INFO_BASIC) < 0) {
+        return false;
     }
-    if (py::isinstance(group, h5py.attr("Group"))) {
-        for (auto key : group) {
-            if (has_data_in_group(group[key])) {
+    if (info.type == H5O_TYPE_DATASET) {
+        hid_t space = H5Dget_space(loc);
+        hssize_t n = H5Sget_simple_extent_npoints(space);
+        H5Sclose(space);
+        return n > 0;
+    }
+    if (info.type == H5O_TYPE_GROUP) {
+        for (auto const& name : hdf5_io::h5_link_names(loc)) {
+            hid_t child = hdf5_io::h5_open(loc, name);
+            bool ok = has_data_in_group(child);
+            H5Idec_ref(child);
+            if (ok) {
                 return true;
             }
         }
@@ -652,47 +893,36 @@ SUN::has_data_in_group(py::object group) const
 }
 
 void
-SUN::sanity_check_hdf5(py::object file) const
+SUN::sanity_check_hdf5(HighFive::File const& file) const
 {
-    // --- hints from Python SUN.sanity_check_hdf5 ---
-    // Check if /F_sym/ group exists
-    // Ensure all keys start with 'F['
-    // Determine list length
-    // Check for all-zero key
-    // Check for at least one entry containing [H, H, 0]
-    // Check if /R_sym/ group exists
-    // Ensure all keys start with 'R['
-    // Contains all the keys up to the highest weight
-    // Assert key for loop weight is non-empty
-    // ---
-    // NB: `attrs` must be a named, owning py::object (not `auto`/a chained temporary): the
-    // `["key"]` access below returns a lazy pybind11 accessor that holds a non-owning handle to
-    // its parent. If the AttributeManager from `file.attr("attrs")` is only a temporary, it can be
-    // destroyed before that accessor is evaluated, so `H`/`Nattr` must likewise be `py::object` to
-    // force eager evaluation while `attrs` is still alive.
-    py::object attrs = file.attr("attrs");
-    py::object H = attrs["Highest_Weight"];
-    py::object Nattr = attrs["N"];
-    auto keys0 = py::list(file.attr("keys")());
-    auto filetype = std::string(py::str(keys0[0]));
-    char ft = filetype.empty() ? '?' : filetype[0];
+    // HighFive::File::getId is non-const; cast away for read-only attr/group access.
+    auto& f = const_cast<HighFive::File&>(file);
+    auto H = file_attr_int64(f, "Highest_Weight");
+    auto Nattr = file_attr_int64(f, "N");
+    auto root = file_root(f);
+    auto keys0 = hdf5_io::h5_link_names(root.getId());
+    if (keys0.empty()) {
+        throw std::invalid_argument("SUN sanity_check_hdf5: empty HDF5 file");
+    }
+    char ft = keys0[0].empty() ? '?' : keys0[0][0];
 
     if (ft == 'F') {
-        if (!file.contains("/F_sym/")) {
+        if (!hdf5_io::h5_contains(root, "F_sym")) {
             throw std::invalid_argument("HDF5 file does not contain '/F_sym/' group.");
         }
-        auto keys = py::list(file[py::str("/F_sym/")].attr("keys")());
-        py::list valid_keys;
-        for (auto key : keys) {
-            auto ks = std::string(py::str(key));
+        hid_t fsym = hdf5_io::h5_open(root, "F_sym");
+        auto keys = hdf5_io::h5_link_names(fsym);
+        std::vector<std::string> valid_keys;
+        for (auto const& ks : keys) {
             if (ks.rfind("F[", 0) == 0) {
-                valid_keys.append(key);
+                valid_keys.push_back(ks);
             }
         }
-        if (py::len(valid_keys) == 0) {
+        if (valid_keys.empty()) {
+            H5Idec_ref(fsym);
             throw std::invalid_argument("No valid F-symbol keys found in '/F_sym/'.");
         }
-        auto first_key = std::string(py::str(valid_keys[0]));
+        auto const& first_key = valid_keys[0];
         auto num_lists = static_cast<int>(std::count(first_key.begin(), first_key.end(), '['));
         auto commas = static_cast<int>(std::count(first_key.begin(), first_key.end(), ','));
         std::string zero_key = "F";
@@ -703,52 +933,46 @@ SUN::sanity_check_hdf5(py::object file) const
             }
             zero_key += "]";
         }
-        bool found_zero = false;
-        for (auto key : keys) {
-            if (std::string(py::str(key)) == zero_key) {
-                found_zero = true;
-                break;
-            }
-        }
+        bool found_zero = std::find(keys.begin(), keys.end(), zero_key) != keys.end();
         if (!found_zero) {
+            H5Idec_ref(fsym);
             throw std::invalid_argument("Missing key for all-trivial-sector F-symbol: " +
                                         zero_key);
         }
-        // Look for the highest-weight sector, e.g. "[H, 0]" for SU(2) or "[H, 0, 0]" for SU(3),
-        // appearing twice back to back (as it does for the F-symbol of two such irreps fusing to
-        // themselves) -- not a single bracket "[H, H, 0]", which is not a valid sector of any N.
-        std::string h_bracket = "[" + std::string(py::str(H));
+        std::string h_bracket = "[" + std::to_string(H);
         for (int j = 0; j < commas / num_lists; ++j) {
             h_bracket += ", 0";
         }
         h_bracket += "]";
         auto h_key = h_bracket + h_bracket;
         bool found_h = false;
-        for (auto key : keys) {
-            if (std::string(py::str(key)).find(h_key) != std::string::npos) {
+        for (auto const& key : keys) {
+            if (key.find(h_key) != std::string::npos) {
                 found_h = true;
                 break;
             }
         }
+        H5Idec_ref(fsym);
         if (!found_h) {
             throw std::invalid_argument("No key found containing " + h_key + ".");
         }
     } else if (ft == 'R') {
-        if (!file.contains("/R_sym/")) {
+        if (!hdf5_io::h5_contains(root, "R_sym")) {
             throw std::invalid_argument("HDF5 file does not contain '/R_sym/' group.");
         }
-        auto keys = py::list(file[py::str("/R_sym/")].attr("keys")());
-        py::list valid_keys;
-        for (auto key : keys) {
-            auto ks = std::string(py::str(key));
+        hid_t rsym = hdf5_io::h5_open(root, "R_sym");
+        auto keys = hdf5_io::h5_link_names(rsym);
+        std::vector<std::string> valid_keys;
+        for (auto const& ks : keys) {
             if (ks.rfind("R[", 0) == 0) {
-                valid_keys.append(key);
+                valid_keys.push_back(ks);
             }
         }
-        if (py::len(valid_keys) == 0) {
+        if (valid_keys.empty()) {
+            H5Idec_ref(rsym);
             throw std::invalid_argument("No valid R-symbol keys found in '/R_sym/'.");
         }
-        auto first_key = std::string(py::str(valid_keys[0]));
+        auto const& first_key = valid_keys[0];
         auto num_lists = static_cast<int>(std::count(first_key.begin(), first_key.end(), '['));
         auto commas = static_cast<int>(std::count(first_key.begin(), first_key.end(), ','));
         std::string zero_key = "R";
@@ -759,134 +983,83 @@ SUN::sanity_check_hdf5(py::object file) const
             }
             zero_key += "]";
         }
-        bool found_zero = false;
-        for (auto key : keys) {
-            if (std::string(py::str(key)) == zero_key) {
-                found_zero = true;
-                break;
-            }
-        }
+        bool found_zero = std::find(keys.begin(), keys.end(), zero_key) != keys.end();
         if (!found_zero) {
+            H5Idec_ref(rsym);
             throw std::invalid_argument("Missing key for all-trivial-sector R-symbol: " +
                                         zero_key);
         }
-        // See the matching comment in the 'F' branch above: look for the highest-weight sector
-        // bracket (e.g. "[H, 0]" for SU(2), "[H, 0, 0]" for SU(3)) repeated back to back.
-        std::string h_bracket = "[" + std::string(py::str(H));
+        std::string h_bracket = "[" + std::to_string(H);
         for (int j = 0; j < commas / num_lists; ++j) {
             h_bracket += ", 0";
         }
         h_bracket += "]";
         auto h_key = h_bracket + h_bracket;
         bool found_h = false;
-        for (auto key : keys) {
-            if (std::string(py::str(key)).find(h_key) != std::string::npos) {
+        for (auto const& key : keys) {
+            if (key.find(h_key) != std::string::npos) {
                 found_h = true;
                 break;
             }
         }
+        H5Idec_ref(rsym);
         if (!found_h) {
             throw std::invalid_argument("No key found containing " + h_key + ".");
         }
     } else if (ft == 'N') {
-        auto path = std::string("/N_") + std::string(py::str(Nattr)) + "/";
-        if (!file.contains(path)) {
-            throw std::invalid_argument("HDF5 file does not contain " + path + " group.");
+        auto path = std::string("N_") + std::to_string(Nattr);
+        if (!hdf5_io::h5_contains(root, path)) {
+            throw std::invalid_argument("HDF5 file does not contain /" + path + "/ group.");
         }
-        // Same dangling-accessor hazard as `attrs` above: `parent` and `high`/`low` must be named,
-        // owning py::object's (not `auto`) so the `file[path]` Group outlives the `[key]` accessor
-        // chained off it.
-        py::object parent = file[py::str(path)];
-        auto keys = py::list(parent.attr("keys")());
-        if (static_cast<int64>(py::len(keys)) != H.cast<int64>() + 1) {
+        hid_t parent = hdf5_io::h5_open(root, path);
+        auto keys = hdf5_io::h5_link_names(parent);
+        if (static_cast<int64>(keys.size()) != H + 1) {
+            H5Idec_ref(parent);
             throw std::runtime_error("SUN sanity_check_hdf5: unexpected CG key count");
         }
-        py::object high = parent[keys[py::len(keys) - 1]];
-        py::object low = parent[keys[0]];
-        for (auto group : { high, low }) {
-            if (py::len(group.attr("keys")()) == 0) {
+        for (auto const& idx : { keys.back(), keys.front() }) {
+            hid_t group = hdf5_io::h5_open(parent, idx);
+            if (hdf5_io::h5_link_names(group).empty()) {
+                H5Idec_ref(group);
+                H5Idec_ref(parent);
                 throw std::runtime_error("SUN sanity_check_hdf5: empty weight group");
             }
             if (!has_data_in_group(group)) {
+                H5Idec_ref(group);
+                H5Idec_ref(parent);
                 throw std::invalid_argument("Key exists but contains no data.");
             }
+            H5Idec_ref(group);
         }
+        H5Idec_ref(parent);
     }
-    (void)Nattr;
 }
 
 void
 SUN::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
 {
     SymmetryFactor::save_hdf5(saver, h5gr, subpath);
-    cyten::hdf5::py_save(subpath + "N", N);
-    // Persist paths so from_hdf5 can reopen (h5py.File is not Hdf5Exportable).
-    // TODO(su_n_paths): this makes saved tensors non-portable across machines that don't share
-    // the exact same absolute path. Now that SU(N) data has a standard, config-resolvable
-    // location (su_n_data_file_path), consider also saving the three hweights (available via
-    // hweight_from_{CG,F,R}_hdf5()) and having from_hdf5 fall back to su_n_data_file_path(N, kind,
-    // hweight) when the stored absolute path no longer exists -- guarded so files saved before
-    // this TODO (without the hweight keys) still load.
-    cyten::hdf5::py_save(subpath + "CGfile", py::str(CGfile.attr("filename")));
-    cyten::hdf5::py_save(subpath + "Ffile", py::str(Ffile.attr("filename")));
-    cyten::hdf5::py_save(subpath + "Rfile", py::str(Rfile.attr("filename")));
+    // Persist paths so from_hdf5 can reopen.
+    // Prefer saver rooted at the instance group when possible; fall back to full paths.
+    (void)h5gr;
+    saver.save_int64(subpath + "N", N);
+    saver.save_string(subpath + "CGfile", CGpath);
+    saver.save_string(subpath + "Ffile", Fpath);
+    saver.save_string(subpath + "Rfile", Rpath);
 }
 
 SUN::Ptr
 SUN::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
-    int N = cyten::hdf5::py_load(subpath + "N").cast<int>();
+    int N = static_cast<int>(load_int64_child(loader, subpath + "N"));
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
-    auto h5py = py::module_::import("h5py");
-    py::object CGfile = h5py.attr("File")(cyten::hdf5::py_load(subpath + "CGfile"), "r");
-    py::object Ffile = h5py.attr("File")(cyten::hdf5::py_load(subpath + "Ffile"), "r");
-    py::object Rfile = h5py.attr("File")(cyten::hdf5::py_load(subpath + "Rfile"), "r");
-    auto obj = std::make_shared<SUN>(N, CGfile, Ffile, Rfile, name);
-    cyten::hdf5::py_memorize_load(h5gr, py::cast(obj));
+    auto cg = load_string_child(loader, subpath + "CGfile");
+    auto ff = load_string_child(loader, subpath + "Ffile");
+    auto rr = load_string_child(loader, subpath + "Rfile");
+    auto obj = std::make_shared<SUN>(N, std::move(cg), std::move(ff), std::move(rr), name);
+    loader.memorize_load(h5gr.getId(), std::static_pointer_cast<void>(obj));
     return obj;
 }
-
-namespace {
-
-/// Open one SU(N) data file at ``full_path``, raising a ``FileNotFoundError`` naming the expected
-/// path and every way to override it if it does not exist, and cross-checking
-/// ``attrs['Highest_Weight']`` against the ``hweight`` the file name claims.
-py::object
-open_su_n_data_file(std::string const& full_path, char const* kind, int N, int64 hweight)
-{
-    if (!std::filesystem::exists(std::filesystem::path(full_path))) {
-        std::string msg = std::format(
-          "SU(N) {} data file for N={}, hweight={} not found:\n"
-          "    {}\n"
-          "Generate it with the clebsch_gordan_coefficients package, or tell cyten where your "
-          "files are:\n"
-          "    cyten.set_options(su_n_data_path='/path/to/dir')\n"
-          "    cyten.set_options(su_n_data_filename_base='my_base')\n"
-          "or set the environment variables CYTEN_SU_N_DATA_PATH / "
-          "CYTEN_SU_N_DATA_FILENAME_BASE, or add the keys to ~/.cytenconfig.yaml.\n"
-          "The default location is the literal POSIX path "
-          "'/home/<login-name>/.tenpy/su_n_symmetry_data' on all platforms.",
-          kind,
-          N,
-          hweight,
-          full_path);
-        PyErr_SetString(PyExc_FileNotFoundError, msg.c_str());
-        throw py::error_already_set();
-    }
-    py::object file = py::module_::import("h5py").attr("File")(full_path, "r");
-    auto stored = file.attr("attrs")["Highest_Weight"].cast<int64>();
-    if (stored != hweight) {
-        throw py::value_error(std::format(
-          "SU(N) {} data file '{}' is named for hweight {} but has attrs['Highest_Weight'] = {}.",
-          kind,
-          full_path,
-          hweight,
-          stored));
-    }
-    return file;
-}
-
-} // namespace
 
 SUN::Ptr
 SUN::from_config(int N,
@@ -905,20 +1078,22 @@ SUN::from_config(int N,
                             std::pair{ h_f, "f_hweight" },
                             std::pair{ h_r, "r_hweight" } }) {
         if (h < 0) {
-            throw py::value_error(std::string("SUN: ") + what + " must be >= 0");
+            throw std::invalid_argument(std::string("SUN: ") + what + " must be >= 0");
         }
     }
     if (h_cg < h_f || h_cg < h_r) {
-        throw py::value_error(std::format(
+        throw std::invalid_argument(std::format(
           "SUN: the CG hweight ({}) must be >= the F ({}) and R ({}) hweights.", h_cg, h_f, h_r));
     }
-    py::object CGfile = open_su_n_data_file(
-      su_n_data_file_path(N, "CG", h_cg, path, filename_base), "Clebsch-Gordan", N, h_cg);
-    py::object Ffile = open_su_n_data_file(
-      su_n_data_file_path(N, "F", h_f, path, filename_base), "F-symbol", N, h_f);
-    py::object Rfile = open_su_n_data_file(
-      su_n_data_file_path(N, "R", h_r, path, filename_base), "R-symbol", N, h_r);
-    return std::make_shared<SUN>(N, CGfile, Ffile, Rfile, std::move(descriptive_name));
+    auto CGpath = su_n_data_file_path(N, "CG", h_cg, path, filename_base);
+    auto Fpath = su_n_data_file_path(N, "F", h_f, path, filename_base);
+    auto Rpath = su_n_data_file_path(N, "R", h_r, path, filename_base);
+    // Validate files exist and attrs match before constructing.
+    (void)open_su_n_data_file(CGpath, "Clebsch-Gordan", N, h_cg);
+    (void)open_su_n_data_file(Fpath, "F-symbol", N, h_f);
+    (void)open_su_n_data_file(Rpath, "R-symbol", N, h_r);
+    return std::make_shared<SUN>(
+      N, std::move(CGpath), std::move(Fpath), std::move(Rpath), std::move(descriptive_name));
 }
 
 } // namespace cyten

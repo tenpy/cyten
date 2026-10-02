@@ -21,12 +21,15 @@ namespace cyten {
 /// conserve : Literal['SU(2)', 'Sz', 'parity', 'None']
 ///     The symmetry to be conserved. We can conserve::
 ///
-///         - SU(2), the full spin rotation symmetry.
+///         - SU(2), the full spin rotation symmetry (production ``SUN(N=2)`` by default;
+///           pass ``use_test_su2=True`` for the test-only ``_SU2`` factor).
 ///         - Sz (= U(1) symmetry), with sector labels corresponding to ``2 * Sz``.
 ///         - Sz parity (= Z_2 symmetry), with sector labels corresponding to ``(Sz + S_tot) % 2``.
 ///         - nothing.
 ///
 ///     Conserves nothing by default.
+/// use_test_su2 : bool
+///     If True and ``conserve`` is SU(2), use test-only ``_SU2`` instead of ``SUN(N=2)``.
 class SpinSite : public SpinDOF
 {
   public:
@@ -35,11 +38,13 @@ class SpinSite : public SpinDOF
     float64 S{};
     int64 double_total_spin{};
     std::optional<std::string> conserve;
+    bool use_test_su2{ false };
 
     SpinSite(float64 S = 0.5,
              std::optional<std::string> conserve = std::nullopt,
              TensorBackend::Ptr backend = nullptr,
-             std::optional<std::string> default_device = std::nullopt);
+             std::optional<std::string> default_device = std::nullopt,
+             bool use_test_su2 = false);
 
     /// Perform sanity checks.
     void test_sanity() override;
@@ -57,12 +62,15 @@ class SpinSite : public SpinDOF
         Symmetry::Ptr sym;
         int64 two_S;
     };
-    static Prepared prepare(float64 S, std::optional<std::string> conserve);
+    static Prepared prepare(float64 S,
+                            std::optional<std::string> conserve,
+                            bool use_test_su2 = false);
     SpinSite(Prepared&& prepared,
              float64 S,
              std::optional<std::string> conserve,
              TensorBackend::Ptr backend,
-             std::optional<std::string> default_device);
+             std::optional<std::string> default_device,
+             bool use_test_su2);
 };
 
 /// Site for (possibly multiple) spinless bosons.
@@ -208,11 +216,14 @@ class SpinlessFermionSite : public FermionicDOF
 /// always part of the total symmetry. Hence, ``conserve == 'None'`` is not a valid choice.
 /// Conserves total fermion parity by default.
 /// @param conserve_S The spin symmetry to be conserved. We can conserve::  - SU(2), the full spin
-/// rotation symmetry. - Sz (= U(1) symmetry), with sector labels corresponding to ``2 * Sz``. - Sz
-/// parity (= Z_2 symmetry), with sector labels corresponding to ``(Sz + S_tot) % 2``. - nothing.
-/// Conserves nothing by default.
+/// rotation symmetry (production ``SUN(N=2)`` by default; pass ``use_test_su2=True`` for
+/// test-only ``_SU2``). - Sz (= U(1) symmetry), with sector labels corresponding to ``2 * Sz``.
+/// - Sz parity (= Z_2 symmetry), with sector labels corresponding to ``(Sz + S_tot) % 2``. -
+/// nothing. Conserves nothing by default.
 /// @param filling Average total filling (that is, filling of spin up and spin down fermions
 /// together). Used to define the on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
+/// @param use_test_su2 If True and ``conserve_S`` is SU(2), use test-only ``_SU2`` instead of
+/// ``SUN(N=2)``.
 ///
 /// Attributes:
 ///
@@ -222,6 +233,8 @@ class SpinlessFermionSite : public FermionicDOF
 ///     The conserved spin symmetry, see above.
 /// filling : float, optional
 ///     Average total filling.
+/// use_test_su2 : bool
+///     If True and ``conserve_S`` is SU(2), use test-only ``_SU2`` instead of ``SUN(N=2)``.
 /// creators, annihilators
 ///     see `FermionicDOF`
 /// spin_vector
@@ -236,12 +249,14 @@ class SpinHalfFermionSite
     std::string conserve_N;
     std::optional<std::string> conserve_S;
     std::optional<float64> filling;
+    bool use_test_su2{ false };
 
     SpinHalfFermionSite(std::string conserve_N = "parity",
                         std::optional<std::string> conserve_S = std::nullopt,
                         std::optional<float64> filling = std::nullopt,
                         TensorBackend::Ptr backend = nullptr,
-                        std::optional<std::string> default_device = std::nullopt);
+                        std::optional<std::string> default_device = std::nullopt,
+                        bool use_test_su2 = false);
 
     void test_sanity() override;
 
@@ -260,13 +275,15 @@ class SpinHalfFermionSite
         SymmetryFactor::Ptr sym_S_factor;
     };
     static Prepared prepare(std::string const& conserve_N,
-                            std::optional<std::string> const& conserve_S);
+                            std::optional<std::string> const& conserve_S,
+                            bool use_test_su2 = false);
     SpinHalfFermionSite(Prepared&& prepared,
                         std::string conserve_N,
                         std::optional<std::string> conserve_S,
                         std::optional<float64> filling,
                         TensorBackend::Ptr backend,
-                        std::optional<std::string> default_device);
+                        std::optional<std::string> default_device,
+                        bool use_test_su2);
 };
 
 /// Class for sites that have a single quantum clock degree of freedom.

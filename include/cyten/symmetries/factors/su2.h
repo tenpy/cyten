@@ -9,24 +9,28 @@
 
 namespace cyten {
 
-/// SU(2) symmetry.
+/// Test-only SU(2) symmetry factor (``_SU2``).
+///
+/// **Not for production.** Prefer :class:`SUN` with ``N=2`` for real SU(2).
+/// This class exists for testing / symbol checks only; F / fusion / Z data still
+/// come from ``cyten.symmetries._su2data``.
 ///
 /// Allowed sectors are 1D arrays ``[jj]`` of non-negative integers ``jj = 0, 1, 2, …``
 /// which label the spin ``jj/2`` irrep of SU(2).
 /// E.g. a spin-1/2 degree of freedom is represented by the sector ``[1]``.
-class SU2 : public Group
+class _SU2 : public Group
 {
   public:
-    using Ptr = std::shared_ptr<SU2>;
-    using CPtr = std::shared_ptr<const SU2>;
+    using Ptr = std::shared_ptr<_SU2>;
+    using CPtr = std::shared_ptr<const _SU2>;
 
     /// Convenience sector labels (``jj`` = ``2J``).
     static Sector const spin_zero;
     static Sector const spin_half;
     static Sector const spin_one;
 
-    explicit SU2(std::optional<std::string> descriptive_name = std::nullopt);
-    ~SU2() override = default;
+    explicit _SU2(std::optional<std::string> descriptive_name = std::nullopt);
+    ~_SU2() override = default;
 
     bool is_valid_sector(Sector a) const override;
     bool are_valid_sectors(SectorArray const& sectors) const override;

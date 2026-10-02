@@ -9,6 +9,7 @@
 #include <cyten/tools.h>
 
 #include <cmath>
+#include <complex>
 #include <format>
 #include <memory>
 #include <stdexcept>
@@ -18,12 +19,6 @@ namespace cyten {
 
 namespace {
 
-py::object
-numpy()
-{
-    return py::module_::import("numpy");
-}
-
 DiagonalTensorPtr
 elementwise_on_diagonal(DiagonalTensorCPtr x, BlockUnaryFn func, bool maps_zero_to_zero)
 {
@@ -31,10 +26,10 @@ elementwise_on_diagonal(DiagonalTensorCPtr x, BlockUnaryFn func, bool maps_zero_
     return mut->_elementwise_unary(std::move(func), maps_zero_to_zero);
 }
 
-BlockBackend::Scalar
-numpy_unary_scalar(BlockBackend::Scalar const& x, char const* name)
+BlockBackend*
+scalar_backend(BlockBackend::Scalar const& x)
 {
-    return numpy().attr(name)(py::cast(x)).cast<BlockBackend::Scalar>();
+    return x._block()->get_backend();
 }
 
 } // namespace
@@ -50,7 +45,9 @@ angle(DiagonalTensorCPtr x)
 BlockBackend::Scalar
 angle(BlockBackend::Scalar const& x)
 {
-    return numpy_unary_scalar(x, "angle");
+    complex128 const z = x.as_complex128();
+    float64 const a = (z.real() == 0.0 && z.imag() == 0.0) ? 0.0 : std::arg(z);
+    return scalar_backend(x)->as_scalar(a);
 }
 
 DiagonalTensorPtr
@@ -66,12 +63,10 @@ cutoff_inverse(DiagonalTensorCPtr x, float64 cutoff)
 BlockBackend::Scalar
 cutoff_inverse(BlockBackend::Scalar const& x, float64 cutoff)
 {
-    py::object pyx = py::cast(x);
-    py::object abs_x = py::module_::import("builtins").attr("abs")(pyx);
-    if (abs_x.cast<float64>() < cutoff) {
-        return py::int_(0).cast<BlockBackend::Scalar>();
+    if (x.abs().as_float64() < cutoff) {
+        return scalar_backend(x)->as_scalar(int64{ 0 });
     }
-    return (py::float_(1.0) / pyx).cast<BlockBackend::Scalar>();
+    return x.inverse();
 }
 
 DiagonalTensorPtr
@@ -99,7 +94,7 @@ imag(DiagonalTensorCPtr x)
 BlockBackend::Scalar
 imag(BlockBackend::Scalar const& x)
 {
-    return numpy_unary_scalar(x, "imag");
+    return x.imag();
 }
 
 DiagonalTensorPtr
@@ -113,7 +108,7 @@ real(DiagonalTensorCPtr x)
 BlockBackend::Scalar
 real(BlockBackend::Scalar const& x)
 {
-    return numpy_unary_scalar(x, "real");
+    return x.real();
 }
 
 DiagonalTensorPtr
@@ -141,7 +136,7 @@ sqrt(DiagonalTensorCPtr x)
 BlockBackend::Scalar
 sqrt(BlockBackend::Scalar const& x)
 {
-    return numpy_unary_scalar(x, "sqrt");
+    return x.sqrt();
 }
 
 DiagonalTensorPtr
@@ -163,10 +158,11 @@ stable_log(BlockBackend::Scalar const& x, float64 cutoff)
     if (!(cutoff > 0)) {
         throw std::runtime_error("cutoff must be > 0");
     }
-    auto np = numpy();
-    py::object pyx = py::cast(x);
-    return np.attr("where")(np.attr("greater")(pyx, cutoff), np.attr("log")(pyx), 0.0)
-      .cast<BlockBackend::Scalar>();
+    // Match numpy.where(x > cutoff, log(x), 0) for real scalars.
+    if (x.as_complex128().real() > cutoff) {
+        return x.log();
+    }
+    return scalar_backend(x)->as_scalar(0.0);
 }
 
 TensorPtr

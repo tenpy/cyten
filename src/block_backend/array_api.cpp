@@ -6,7 +6,7 @@
 #include <complex>
 #include <cstdint>
 #include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_py_bridge.h>
+#include <cyten/tools/hdf5_export.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
@@ -362,7 +362,7 @@ ArrayApiBlockBackend::Block::save_hdf5(cyten::hdf5::Saver& saver,
                                        HighFive::Group& /*h5gr*/,
                                        const std::string& subpath)
 {
-    cyten::hdf5::py_save(subpath + std::string("arr"), to_numpy());
+    saver.save_array(subpath + std::string("arr"), hdf5_export::buffer_from_numpy(to_numpy()));
 }
 
 std::shared_ptr<ArrayApiBlockBackend::Block>

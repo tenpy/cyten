@@ -30,4 +30,4 @@ Hand-written after codegen declaration drafts (types were placeholders).
 ## TODO checklist
 
 - [x] setup / plan / declaration / definitions / bindings / monkey-patch / pytest
-- [ ] wrap up / merge or continue with next concretes (`SU2`, …)
+- [ ] wrap up / merge or continue with next concretes (`_SU2`, …)

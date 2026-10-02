@@ -40,7 +40,7 @@ def gen_example_data(version=cyten.__version__):
     if '+' in version:
         version = version.split('+')[0]  # discard '+GITHASH' from version
 
-    SU2_SpinSite = cyten.models.SpinSite(conserve='SU2')
+    SU2_SpinSite = cyten.models.SpinSite(conserve='SU2', use_test_su2=True)
     FermionSite = cyten.models.SpinlessFermionSite(num_species=1, conserve='N')
     leg = FermionSite.leg
     n_op = FermionSite.get_op('N')  # DiagonalTensor

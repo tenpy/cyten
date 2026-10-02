@@ -99,10 +99,13 @@ cyten.symmetries.U1
    :undoc-members:
    :show-inheritance:
 
-cyten.symmetries.SU2
---------------------
+cyten.symmetries._SU2 (test-only)
+--------------------------------
 
-.. autoclass:: cyten.symmetries.SU2
+Test-only / symbol-check API. Prefer :class:`~cyten.symmetries.SUN` with ``N=2``
+for production SU(2).
+
+.. autoclass:: cyten.symmetries._SU2
    :members:
    :undoc-members:
    :show-inheritance:

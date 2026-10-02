@@ -885,7 +885,7 @@ DOC_BASE_CLASSES: dict[str, list[str]] = {
     'Group': ['SymmetryFactor', 'BaseSymmetry'],
     'AbelianGroup': ['Group', 'SymmetryFactor', 'BaseSymmetry'],
     'SUN': ['Group', 'SymmetryFactor', 'BaseSymmetry'],
-    'SU2': ['Group', 'SymmetryFactor', 'BaseSymmetry'],
+    '_SU2': ['Group', 'SymmetryFactor', 'BaseSymmetry'],
     'U1': ['AbelianGroup', 'Group', 'SymmetryFactor', 'BaseSymmetry'],
     'ZN': ['AbelianGroup', 'Group', 'SymmetryFactor', 'BaseSymmetry'],
     'NoSymmetry': ['AbelianGroup', 'Group', 'SymmetryFactor', 'BaseSymmetry'],

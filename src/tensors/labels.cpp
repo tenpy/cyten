@@ -1,4 +1,5 @@
 #include <cyten/tensors/labels.h>
+#include <iostream>
 
 #include <cassert>
 #include <format>
@@ -197,9 +198,8 @@ _get_matching_labels(OptionalLabels const& labels1, OptionalLabels const& labels
                       positions,
                       format_leg_labels(labels1),
                       format_leg_labels(labels2));
-        py::module_::import("logging")
-          .attr("getLogger")("cyten.tensors._tensors")
-          .attr("debug")(msg);
+        // C++ debug log (was Python logging.getLogger(...).debug).
+        std::cerr << "cyten.tensors._tensors DEBUG: " << msg << '\n';
     }
     return labels;
 }

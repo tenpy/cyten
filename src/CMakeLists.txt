@@ -2,6 +2,8 @@
 # ## ADD SUB-DIRECTORIES
 # #####################################################################
 
+# Sources that do not *own* a Python-only backend implementation.
+# Many still compile against py:: APIs via public headers (see CYTEN_WITH_PYTHON).
 target_sources(cyten
   PRIVATE
   backends/tensor_backend.cpp
@@ -13,11 +15,8 @@ target_sources(cyten
   backends/fusion_tree_mapping.cpp
   backends/fusion_tree_permute.cpp
   backends/backend_factory.cpp
-  block_backend/array_api.cpp
   block_backend/block_backend.cpp
   block_backend/dtypes.cpp
-  block_backend/numpy.cpp
-  block_backend/torch.cpp
   config.cpp
   symmetries/base_symmetry.cpp
   symmetries/symmetry_factor.cpp
@@ -30,7 +29,6 @@ target_sources(cyten
   symmetries/factors/no_symmetry.cpp
   symmetries/factors/u1.cpp
   symmetries/factors/zn.cpp
-  symmetries/factors/su2.cpp
   symmetries/factors/sun.cpp
   symmetries/factors/fermion_number.cpp
   symmetries/factors/fermion_parity.cpp
@@ -66,8 +64,21 @@ target_sources(cyten
   tools/cost_polynomials.cpp
   tools/mappings.cpp
   tools/misc.cpp
-  tools/hdf5_py_bridge.cpp
-  models/degrees_of_freedom.cpp
-  models/sites.cpp
-  models/couplings.cpp
+  tools/hdf5_export.cpp
 )
+
+# Python / pybind11-dependent TUs: NumpyBlockBackend (requires a Python
+# interpreter for numpy arrays), Torch/Array-API backends that expose py::array,
+# test-only _SU2 (pulls numpy), and models that store py::array / py::object.
+if(CYTEN_WITH_PYTHON)
+  target_sources(cyten
+    PRIVATE
+    block_backend/array_api.cpp
+    block_backend/numpy.cpp
+    block_backend/torch.cpp
+    symmetries/factors/su2.cpp
+    models/degrees_of_freedom.cpp
+    models/sites.cpp
+    models/couplings.cpp
+  )
+endif()
