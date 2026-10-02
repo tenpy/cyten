@@ -303,11 +303,11 @@ dense_eigh(std::vector<complex128> const& A_in, int64 n)
 
 /// General (non-hermitian) eigendecomposition of a dense complex matrix (small n).
 ///
-/// Reduces `A` to upper Hessenberg form with Householder reflections, then to complex Schur form
-/// ``A = Z T Z^H`` with the shifted QR algorithm (Wilkinson shifts, deflation, exceptional shifts),
-/// and finally computes the eigenvectors of the triangular `T` by back-substitution.
-/// The eigenvectors are normalized and their phase is fixed such that the largest entry is real and
-/// positive. In particular, eigenvectors of a real matrix for real eigenvalues are real.
+/// Reduces `A` to upper Hessenberg form with Householder reflections, then to complex Schur
+/// form ``A = Z T Z^H`` with the shifted QR algorithm (Wilkinson shifts, deflation, exceptional
+/// shifts), and finally computes the eigenvectors of the triangular `T` by back-substitution.
+/// The eigenvectors are normalized and their phase is fixed such that the largest entry is real
+/// and positive. In particular, eigenvectors of a real matrix for real eigenvalues are real.
 DenseEig
 dense_eig(std::vector<complex128> A, int64 n)
 {
