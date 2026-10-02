@@ -92,7 +92,8 @@ class HeisenbergModel:
         backend: ct.backends.TensorBackend | None = None,
     ):
         assert bc in ['finite', 'infinite']
-        self.site = ct.sites.SpinSite(S=0.5, conserve=conserve, backend=backend)
+        use_test_su2 = conserve in ('SU2', 'SU(2)', 'Stot')
+        self.site = ct.sites.SpinSite(S=0.5, conserve=conserve, backend=backend, use_test_su2=use_test_su2)
         self.backend = backend
         self.symmetry = self.site.symmetry
         self.L = L

@@ -6,6 +6,7 @@
 #include <cyten/symmetries/factors/fermion_parity.h>
 #include <cyten/symmetries/factors/no_symmetry.h>
 #include <cyten/symmetries/factors/su2.h>
+#include <cyten/symmetries/factors/sun.h>
 #include <cyten/symmetries/factors/u1.h>
 #include <cyten/symmetries/factors/zn.h>
 #include <cyten/tensors/constructors.h>
@@ -689,13 +690,27 @@ SpinDOF::spin_vector_from_Sp(py::array Sz, py::array Sp)
 }
 
 Symmetry::Ptr
-SpinDOF::conservation_law_to_symmetry(std::optional<std::string> conserve)
+SpinDOF::conservation_law_to_symmetry(std::optional<std::string> conserve, bool use_test_su2)
 {
     if (!conserve.has_value() || *conserve == "None" || *conserve == "none") {
         return symmetry_from_factor(std::make_shared<NoSymmetry>());
     }
     if (*conserve == "SU(2)" || *conserve == "SU2" || *conserve == "Stot") {
-        return symmetry_from_factor(std::make_shared<_SU2>("spin"));
+        if (use_test_su2) {
+            return symmetry_from_factor(std::make_shared<_SU2>("spin"));
+        }
+        // Production SU(2): SUN(N=2) with the same default hweights as tests / benchmarks.
+        constexpr int64 k_cg_hweight = 20;
+        constexpr int64 k_f_hweight = 6;
+        constexpr int64 k_r_hweight = 6;
+        return symmetry_from_factor(SUN::from_config(2,
+                                                     k_cg_hweight,
+                                                     /*cg_hweight=*/std::nullopt,
+                                                     k_f_hweight,
+                                                     k_r_hweight,
+                                                     /*path=*/std::nullopt,
+                                                     /*filename_base=*/std::nullopt,
+                                                     "spin"));
     }
     if (*conserve == "Sz" || *conserve == "U(1)" || *conserve == "U1") {
         return symmetry_from_factor(std::make_shared<U1>("2*Sz"));
@@ -750,9 +765,9 @@ ClockDOF::test_sanity()
 }
 
 Symmetry::Ptr
-ClockDOF::conservation_law_to_symmetry(std::optional<std::string> conserve)
+ClockDOF::conservation_law_to_symmetry(std::optional<std::string> conserve, bool use_test_su2)
 {
-    return SpinDOF::conservation_law_to_symmetry(conserve);
+    return SpinDOF::conservation_law_to_symmetry(conserve, use_test_su2);
 }
 
 AnyonDOF::AnyonDOF(ElementarySpace::Ptr leg,

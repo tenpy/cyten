@@ -162,6 +162,7 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_static("conservation_law_to_symmetry",
                   &SpinDOF::conservation_law_to_symmetry,
                   py::arg("conserve"),
+                  py::arg("use_test_su2") = false,
                   DOC(cyten, SpinDOF, conservation_law_to_symmetry));
 
     py::class_<ClockDOF, Site, py::smart_holder> clock_dof(m, "ClockDOF");
@@ -185,6 +186,7 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_static("conservation_law_to_symmetry",
                   &ClockDOF::conservation_law_to_symmetry,
                   py::arg("conserve"),
+                  py::arg("use_test_su2") = false,
                   DOC(cyten, ClockDOF, conservation_law_to_symmetry));
 
     py::class_<AnyonDOF, Site, py::smart_holder> anyon_dof(m, "AnyonDOF");

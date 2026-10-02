@@ -6,6 +6,7 @@
 #include <cyten/symmetries/factors/no_symmetry.h>
 #include <cyten/symmetries/factors/su2.h>
 #include <cyten/symmetries/factors/su2_k_anyon_category.h>
+#include <cyten/symmetries/factors/sun.h>
 #include <cyten/symmetries/factors/u1.h>
 #include <cyten/symmetries/factors/zn.h>
 #include <cyten/symmetries/sector_numpy.h>
@@ -79,9 +80,22 @@ first_factor(Symmetry::Ptr const& sym)
 }
 
 bool
-factor_is_su2(SymmetryFactor::Ptr const& factor)
+factor_is_test_su2(SymmetryFactor::Ptr const& factor)
 {
     return dynamic_cast<_SU2 const*>(factor.get()) != nullptr;
+}
+
+bool
+factor_is_sun2(SymmetryFactor::Ptr const& factor)
+{
+    auto const* sun = dynamic_cast<SUN const*>(factor.get());
+    return sun != nullptr && sun->N == 2;
+}
+
+bool
+factor_is_su2(SymmetryFactor::Ptr const& factor)
+{
+    return factor_is_test_su2(factor) || factor_is_sun2(factor);
 }
 
 bool
@@ -160,9 +174,15 @@ ElementarySpace::Ptr
 leg_from_spin_symmetry(Symmetry::Ptr sym, int64 two_S, int64 dim)
 {
     auto const factor = first_factor(sym);
-    if (factor_is_su2(factor)) {
+    if (factor_is_test_su2(factor)) {
         SectorArray defining = SectorArray::empty(sym->sector_ind_len);
         defining.push_back(Sector{ static_cast<int16_t>(two_S) });
+        return ElementarySpace::from_defining_sectors(sym, defining);
+    }
+    if (factor_is_sun2(factor)) {
+        // SUN(N=2) GT pattern for spin S is [2S, 0].
+        SectorArray defining = SectorArray::empty(sym->sector_ind_len);
+        defining.push_back(Sector{ static_cast<int16_t>(two_S), static_cast<int16_t>(0) });
         return ElementarySpace::from_defining_sectors(sym, defining);
     }
     if (factor_is_u1(factor)) {
@@ -271,7 +291,7 @@ format_string_list(std::vector<std::string> const& items)
 } // namespace
 
 SpinSite::Prepared
-SpinSite::prepare(float64 S, std::optional<std::string> conserve)
+SpinSite::prepare(float64 S, std::optional<std::string> conserve, bool use_test_su2)
 {
     auto np = numpy_module();
     float64 const spin_S = S;
@@ -292,7 +312,7 @@ SpinSite::prepare(float64 S, std::optional<std::string> conserve)
         Sp.attr("__setitem__")(py::make_tuple(n + 1, n), coeff);
     }
     auto spin_vector = SpinDOF::spin_vector_from_Sp(Sz, Sp);
-    auto sym = SpinDOF::conservation_law_to_symmetry(conserve);
+    auto sym = SpinDOF::conservation_law_to_symmetry(conserve, use_test_su2);
     auto leg = leg_from_spin_symmetry(sym, two_S, dim);
 
     std::map<std::string, int64> state_labels;
@@ -536,7 +556,8 @@ SpinlessFermionSite::prepare(int64 num_species, py::object conserve)
 
 SpinHalfFermionSite::Prepared
 SpinHalfFermionSite::prepare(std::string const& conserve_N,
-                             std::optional<std::string> const& conserve_S)
+                             std::optional<std::string> const& conserve_S,
+                             bool use_test_su2)
 {
     auto np = numpy_module();
     auto sym_N = FermionicDOF::conservation_law_to_symmetry(conserve_N);
@@ -561,15 +582,28 @@ SpinHalfFermionSite::prepare(std::string const& conserve_N,
           std::format("`conserve_N` invalid for `SpinHalfFermionSite`: {}", conserve_N));
     }
 
-    auto sym_S = SpinDOF::conservation_law_to_symmetry(conserve_S);
+    auto sym_S = SpinDOF::conservation_law_to_symmetry(conserve_S, use_test_su2);
     auto sym_S_factor = first_factor(sym_S);
     if (factor_is_u1(sym_S_factor)) {
     } else if (factor_is_zn(sym_S_factor)) {
         sectors.attr("__setitem__")(
           py::make_tuple(py::slice(), 0),
           np.attr("mod")(sectors.attr("__getitem__")(py::make_tuple(py::slice(), 0)), 2));
-    } else if (factor_is_su2(sym_S_factor)) {
+    } else if (factor_is_test_su2(sym_S_factor)) {
+        // _SU2: empty/full jj=0, down/up jj=1 (patch down from -1 to 1).
         sectors.attr("__setitem__")(py::make_tuple(1, 0), 1);
+    } else if (factor_is_sun2(sym_S_factor)) {
+        // SUN(N=2): replace leading spin column with GT patterns [0,0] / [1,0].
+        auto rest = sectors.attr("__getitem__")(
+          py::make_tuple(py::slice(), py::slice(py::int_(1), py::none(), py::none())));
+        py::list spin_gt;
+        spin_gt.append(py::make_tuple(0, 0)); // empty
+        spin_gt.append(py::make_tuple(1, 0)); // down
+        spin_gt.append(py::make_tuple(1, 0)); // up
+        spin_gt.append(py::make_tuple(0, 0)); // full
+        auto spin_arr = np.attr("asarray")(spin_gt, py::arg("dtype") = "int")
+                          .attr("reshape")(py::make_tuple(4, 2));
+        sectors = np.attr("hstack")(py::make_tuple(spin_arr, rest));
     } else if (factor_is_no_symmetry(sym_S_factor)) {
         sectors = sectors.attr("__getitem__")(
           py::make_tuple(py::slice(), py::slice(py::int_(1), py::none(), py::none())));
@@ -695,8 +729,14 @@ IsingAnyonSite::prepare(int nu)
 SpinSite::SpinSite(float64 S,
                    std::optional<std::string> conserve,
                    TensorBackend::Ptr backend,
-                   std::optional<std::string> default_device)
-  : SpinSite(prepare(S, conserve), S, conserve, std::move(backend), std::move(default_device))
+                   std::optional<std::string> default_device,
+                   bool use_test_su2)
+  : SpinSite(prepare(S, conserve, use_test_su2),
+             S,
+             conserve,
+             std::move(backend),
+             std::move(default_device),
+             use_test_su2)
 {
 }
 
@@ -704,13 +744,15 @@ SpinSite::SpinSite(Prepared&& prepared,
                    float64 S,
                    std::optional<std::string> conserve,
                    TensorBackend::Ptr backend,
-                   std::optional<std::string> default_device)
+                   std::optional<std::string> default_device,
+                   bool use_test_su2)
   : Site(prepared.leg, std::move(prepared.state_labels), {}, backend, default_device)
   , SpinDOF(prepared.leg, std::move(prepared.spin_vector), {}, {}, backend, default_device)
 {
     this->S = S;
     this->double_total_spin = prepared.two_S;
     this->conserve = std::move(conserve);
+    this->use_test_su2 = use_test_su2;
     auto const factor = first_factor(prepared.sym);
     auto np = numpy_module();
     if (!factor_is_su2(factor)) {
@@ -874,13 +916,15 @@ SpinHalfFermionSite::SpinHalfFermionSite(std::string conserve_N,
                                          std::optional<std::string> conserve_S,
                                          std::optional<float64> filling,
                                          TensorBackend::Ptr backend,
-                                         std::optional<std::string> default_device)
-  : SpinHalfFermionSite(prepare(conserve_N, conserve_S),
+                                         std::optional<std::string> default_device,
+                                         bool use_test_su2)
+  : SpinHalfFermionSite(prepare(conserve_N, conserve_S, use_test_su2),
                         conserve_N,
                         conserve_S,
                         filling,
                         std::move(backend),
-                        std::move(default_device))
+                        std::move(default_device),
+                        use_test_su2)
 {
 }
 
@@ -889,7 +933,8 @@ SpinHalfFermionSite::SpinHalfFermionSite(Prepared&& prepared,
                                          std::optional<std::string> conserve_S,
                                          std::optional<float64> filling,
                                          TensorBackend::Ptr backend,
-                                         std::optional<std::string> default_device)
+                                         std::optional<std::string> default_device,
+                                         bool use_test_su2)
   : Site(prepared.leg, std::move(prepared.state_labels), {}, backend, default_device)
   , SpinDOF(prepared.leg, std::move(prepared.spin_vector), {}, {}, backend, default_device)
   , FermionicDOF(prepared.leg,
@@ -905,6 +950,7 @@ SpinHalfFermionSite::SpinHalfFermionSite(Prepared&& prepared,
     this->conserve_N = std::move(conserve_N);
     this->conserve_S = std::move(conserve_S);
     this->filling = filling;
+    this->use_test_su2 = use_test_su2;
     auto const& sym_S_factor = prepared.sym_S_factor;
     auto np = numpy_module();
 
@@ -1174,6 +1220,7 @@ SpinSite::hdf5_init_kwargs() const
     py::dict d = hdf5_backend_kwargs();
     d["S"] = S;
     d["conserve"] = optional_str_to_py(conserve);
+    d["use_test_su2"] = use_test_su2;
     return d;
 }
 
@@ -1204,6 +1251,7 @@ SpinHalfFermionSite::hdf5_init_kwargs() const
     d["conserve_N"] = py::str(conserve_N);
     d["conserve_S"] = optional_str_to_py(conserve_S);
     d["filling"] = optional_float_to_py(filling);
+    d["use_test_su2"] = use_test_su2;
     return d;
 }
 

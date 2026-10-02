@@ -19,14 +19,17 @@ bind_models_sites(py::module_& m)
       .def(py::init<float64,
                     std::optional<std::string>,
                     TensorBackend::Ptr,
-                    std::optional<std::string>>(),
+                    std::optional<std::string>,
+                    bool>(),
            py::arg("S") = 0.5,
            py::arg("conserve") = py::none(),
            py::arg("backend") = nullptr,
-           py::arg("default_device") = py::none())
+           py::arg("default_device") = py::none(),
+           py::arg("use_test_su2") = false)
       .def_readwrite("S", &SpinSite::S)
       .def_readwrite("double_total_spin", &SpinSite::double_total_spin)
       .def_readwrite("conserve", &SpinSite::conserve)
+      .def_readwrite("use_test_su2", &SpinSite::use_test_su2)
       .def("test_sanity", &SpinSite::test_sanity, DOC(cyten, SpinSite, test_sanity))
       .def("__repr__", &SpinSite::repr);
 
@@ -78,15 +81,18 @@ bind_models_sites(py::module_& m)
                     std::optional<std::string>,
                     std::optional<float64>,
                     TensorBackend::Ptr,
-                    std::optional<std::string>>(),
+                    std::optional<std::string>,
+                    bool>(),
            py::arg("conserve_N") = "parity",
            py::arg("conserve_S") = py::none(),
            py::arg("filling") = py::none(),
            py::arg("backend") = nullptr,
-           py::arg("default_device") = py::none())
+           py::arg("default_device") = py::none(),
+           py::arg("use_test_su2") = false)
       .def_readwrite("conserve_N", &SpinHalfFermionSite::conserve_N)
       .def_readwrite("conserve_S", &SpinHalfFermionSite::conserve_S)
       .def_readwrite("filling", &SpinHalfFermionSite::filling)
+      .def_readwrite("use_test_su2", &SpinHalfFermionSite::use_test_su2)
       .def("test_sanity",
            &SpinHalfFermionSite::test_sanity,
            doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::SpinHalfFermionSite::test_sanity()"))

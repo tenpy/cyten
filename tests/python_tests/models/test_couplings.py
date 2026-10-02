@@ -42,12 +42,19 @@ def generate_spin_dofs(backend: backends.TensorBackend) -> list[degrees_of_freed
             site_list.append(sites.SpinSite(S=spin, conserve='parity', backend=backend))
             site_list.append(sites.SpinSite(S=spin, conserve='Sz', backend=backend))
         if isinstance(backend, backends.FusionTreeBackend):
-            site_list.append(sites.SpinSite(S=spin, conserve='SU(2)', backend=backend))
+            site_list.append(sites.SpinSite(S=spin, conserve='SU(2)', backend=backend, use_test_su2=True))
     if isinstance(backend, backends.FusionTreeBackend):
         all_conserve_N = ['N', 'parity']
         all_conserve_S = ['SU(2)', 'Sz', 'parity', 'None']
         for conserve_N, conserve_S in it.product(all_conserve_N, all_conserve_S):
-            site_list.append(sites.SpinHalfFermionSite(conserve_N, conserve_S, backend=backend))
+            site_list.append(
+                sites.SpinHalfFermionSite(
+                    conserve_N,
+                    conserve_S,
+                    backend=backend,
+                    use_test_su2=(conserve_S == 'SU(2)'),
+                )
+            )
     return site_list
 
 
@@ -92,7 +99,14 @@ def generate_fermionic_dofs(
     if isinstance(backend, backends.FusionTreeBackend):
         all_conserve_S.append('SU(2)')
     for conserve_N, conserve_S in it.product(all_conserve_N, all_conserve_S):
-        site_list.append(sites.SpinHalfFermionSite(conserve_N, conserve_S, backend=backend))
+        site_list.append(
+            sites.SpinHalfFermionSite(
+                conserve_N,
+                conserve_S,
+                backend=backend,
+                use_test_su2=(conserve_S == 'SU(2)'),
+            )
+        )
     return site_list
 
 

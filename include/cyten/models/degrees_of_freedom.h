@@ -174,10 +174,13 @@ class SpinDOF : public virtual Site
     /// Build the spin_vector from ``Sz`` and ``Sp = Sx + i Sy``
     [[nodiscard]] static py::array spin_vector_from_Sp(py::array Sz, py::array Sp);
     /// Translate conservation law for a spin to a symmetry.
-    /// Translate conservation law for individual / all bosons to a symmetry.
-    /// Translate conservation law for individual / all fermions to a symmetry.
+    ///
+    /// For ``'SU(2)'`` / ``'SU2'`` / ``'Stot'``, builds production ``SUN(N=2, ...)`` by default
+    /// (via ``SUN::from_config`` and ``su_n_data_path``). Pass ``use_test_su2=True`` to fall
+    /// back to the test-only ``_SU2`` factor.
     [[nodiscard]] static Symmetry::Ptr conservation_law_to_symmetry(
-      std::optional<std::string> conserve);
+      std::optional<std::string> conserve,
+      bool use_test_su2 = false);
 };
 
 /// Common base class for sites that have a quantum clock degree of freedom.
@@ -199,8 +202,11 @@ class ClockDOF : public virtual Site
     void test_sanity() override;
 
     /// Translate conservation law for a clock to a symmetry.
+    ///
+    /// Forwards to ``SpinDOF::conservation_law_to_symmetry`` (including ``use_test_su2``).
     [[nodiscard]] static Symmetry::Ptr conservation_law_to_symmetry(
-      std::optional<std::string> conserve);
+      std::optional<std::string> conserve,
+      bool use_test_su2 = false);
 };
 
 /// Common base class for sites that have an anyonic degree of freedom.
