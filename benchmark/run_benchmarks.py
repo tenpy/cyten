@@ -13,6 +13,7 @@ Run from the repository root (cyten must be importable)::
         --devices cpu \\
         --dims 16,32,64,128 \\
         --numpy-ref \\
+        --max-ram 5GB \\
         --output benchmark/results/run.json
 
 Or equivalently::
@@ -42,12 +43,18 @@ from benchmark.common import (  # noqa: E402
     BLOCK_BACKENDS,
     SYMMETRY_BACKENDS,
     BenchmarkRecord,
+    apply_ram_limit,
     collect_run_metadata,
     device_available,
     device_compatible,
+    format_ram_limit,
+    is_memory_limit_error,
     normalize_block_backend,
     parse_csv_list,
     parse_int_list,
+    parse_ram_limit,
+    process_address_space_bytes,
+    release_allocator_caches,
     save_results,
 )
 
@@ -65,6 +72,7 @@ DEFAULT_SYMMETRY_BACKENDS = 'no_symmetry,abelian,fusion_tree'
 DEFAULT_BLOCK_BACKENDS = 'numpy,torch'
 DEFAULT_DEVICES = 'cpu'
 DEFAULT_DIMS = '16,32,64,128,256'
+DEFAULT_MAX_RAM = '5GB'
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -109,6 +117,16 @@ def _build_parser() -> argparse.ArgumentParser:
         '--numpy-ref',
         action='store_true',
         help='Also time dense NumPy analogues once per (op, case, dim, dtype).',
+    )
+    p.add_argument(
+        '--max-ram',
+        default=DEFAULT_MAX_RAM,
+        help=(
+            'Cap this process address space (default: 5GB = 5*1024**3 bytes). '
+            'Allocations past the cap fail and that configuration is skipped, '
+            'instead of exhausting RAM. Examples: 512MB, 2GB, 1.5GB. '
+            'Use 0 or none to disable.'
+        ),
     )
     p.add_argument(
         '--output',
@@ -176,6 +194,34 @@ def _iter_configs(args) -> tuple[list[dict], list[str]]:
     return configs, skipped
 
 
+def _install_ram_limit(requested: int | None) -> int | None:
+    """Apply ``requested`` bytes, or leave the process uncapped when it is None."""
+    if requested is None:
+        print('RAM limit: none')
+        return None
+    try:
+        installed = apply_ram_limit(requested)
+    except RuntimeError as exc:
+        print(exc, file=sys.stderr)
+        raise SystemExit(2) from exc
+    if installed != requested:
+        print(
+            f'RAM limit: requested {format_ram_limit(requested)}, '
+            f'using existing hard cap {format_ram_limit(installed)}',
+            file=sys.stderr,
+        )
+    else:
+        print(f'RAM limit: {format_ram_limit(installed)}')
+    in_use = process_address_space_bytes()
+    if in_use is not None and in_use > installed:
+        print(
+            f'warning: address space is already {format_ram_limit(in_use)}, '
+            f'above the {format_ram_limit(installed)} cap; further allocations may fail',
+            file=sys.stderr,
+        )
+    return installed
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
@@ -186,6 +232,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f'{device}: {status}')
         return 0
 
+    try:
+        requested_ram = parse_ram_limit(args.max_ram)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    installed_ram = _install_ram_limit(requested_ram)
+
     configs, skipped = _iter_configs(args)
     for msg in skipped:
         print(f'skip: {msg}', file=sys.stderr)
@@ -195,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     metadata = collect_run_metadata(cli_args=vars(args))
+    metadata['max_ram_bytes'] = installed_ram
     print(
         f'cyten {metadata.get("cyten_version")} '
         f'(commit {metadata.get("cyten_commit_id")}) '
@@ -236,8 +290,14 @@ def main(argv: list[str] | None = None) -> int:
                 numpy_ref=want_numpy,
             )
         except Exception as exc:  # noqa: BLE001 - keep suite running
-            print(f'  FAILED: {exc}', file=sys.stderr)
+            if is_memory_limit_error(exc):
+                cap = format_ram_limit(installed_ram) if installed_ram is not None else 'system'
+                print(f'  skipped: memory limit ({cap}) exceeded: {exc}', file=sys.stderr)
+            else:
+                print(f'  FAILED: {exc}', file=sys.stderr)
             continue
+        finally:
+            release_allocator_caches()
         if not out:
             print('  skipped (runtime filter)')
             continue

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import statistics
 import time
 from collections.abc import Callable, Sequence
@@ -75,6 +76,146 @@ def parse_csv_list(value: str | None) -> list[str]:
 def parse_int_list(value: str) -> list[int]:
     """Parse a comma-separated list of integers."""
     return [int(x) for x in parse_csv_list(value)]
+
+
+# Byte sizes are powers of 1024, matching ``ulimit -v`` / ``RLIMIT_AS``.
+_RAM_LIMIT_RE = re.compile(r'^(\d+(?:\.\d+)?)([a-z]*)$')
+_RAM_LIMIT_UNITS = {
+    '': 1,
+    'b': 1,
+    'k': 1024,
+    'kb': 1024,
+    'ki': 1024,
+    'kib': 1024,
+    'm': 1024**2,
+    'mb': 1024**2,
+    'mi': 1024**2,
+    'mib': 1024**2,
+    'g': 1024**3,
+    'gb': 1024**3,
+    'gi': 1024**3,
+    'gib': 1024**3,
+    't': 1024**4,
+    'tb': 1024**4,
+    'ti': 1024**4,
+    'tib': 1024**4,
+}
+_RAM_LIMIT_UNLIMITED = frozenset({'0', 'none', 'unlimited', 'inf', 'infinity'})
+
+
+def parse_ram_limit(value: str) -> int | None:
+    """Parse a memory cap into bytes.
+
+    ``0``, ``none``, and ``unlimited`` mean no cap. ``KB`` / ``MB`` / ``GB`` / ``TB``
+    (and the short forms ``K`` / ``M`` / ``G`` / ``T``) are powers of 1024.
+    """
+    text = value.strip().lower().replace(' ', '').replace('_', '')
+    if text in _RAM_LIMIT_UNLIMITED:
+        return None
+    match = _RAM_LIMIT_RE.match(text)
+    if match is None:
+        raise ValueError(f'Invalid RAM limit {value!r}; expected a size such as 5GB or 512MB, or 0/none for no limit')
+    number = float(match.group(1))
+    unit = match.group(2)
+    if unit not in _RAM_LIMIT_UNITS:
+        raise ValueError(f'Invalid RAM limit unit {unit!r} in {value!r}; choose from B, KB, MB, GB, TB')
+    nbytes = round(number * _RAM_LIMIT_UNITS[unit])
+    if nbytes < 1:
+        return None
+    return nbytes
+
+
+def format_ram_limit(num_bytes: int) -> str:
+    """Format a byte count with the same 1024-based units as ``parse_ram_limit``."""
+    if num_bytes < 0:
+        raise ValueError(f'byte count must be >= 0, got {num_bytes}')
+    for size, suffix in ((1024**4, 'TB'), (1024**3, 'GB'), (1024**2, 'MB'), (1024, 'KB')):
+        if num_bytes < size:
+            continue
+        whole, rem = divmod(num_bytes, size)
+        if rem == 0:
+            return f'{whole}{suffix}'
+        return f'{num_bytes / size:.2f}{suffix}'
+    return f'{num_bytes}B'
+
+
+def apply_ram_limit(num_bytes: int) -> int:
+    """Cap this process's address space at ``num_bytes`` bytes.
+
+    Uses ``resource.RLIMIT_AS`` (the same limit as ``ulimit -v``). Further
+    allocations that would pass the cap fail, instead of growing until the OS
+    OOM-kills the process. Returns the cap actually installed, which can be
+    lower when a hard limit is already set.
+    """
+    if num_bytes < 1:
+        raise ValueError('RAM limit must be a positive number of bytes')
+    try:
+        import resource
+    except ImportError as exc:  # pragma: no cover - non-Unix
+        raise RuntimeError('Cannot apply a RAM limit: the resource module is unavailable') from exc
+    if not hasattr(resource, 'RLIMIT_AS'):
+        raise RuntimeError('Cannot apply a RAM limit: RLIMIT_AS is not supported on this platform')
+    _soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    if hard != resource.RLIM_INFINITY and hard > 0 and num_bytes > hard:
+        num_bytes = int(hard)
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (num_bytes, num_bytes))
+    except (ValueError, OSError) as exc:  # fmt: skip
+        raise RuntimeError(f'Cannot apply RAM limit of {num_bytes} bytes: {exc}') from exc
+    return num_bytes
+
+
+def process_address_space_bytes() -> int | None:
+    """Current virtual address space in bytes (Linux ``VmSize``), or None if unknown."""
+    try:
+        text = Path('/proc/self/status').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return None
+    for line in text.splitlines():
+        if line.startswith('VmSize:'):
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                return int(parts[1]) * 1024
+    return None
+
+
+def release_allocator_caches() -> None:
+    """Drop unreachable objects and return free heap pages to the OS.
+
+    Large tensor buffers are released when the benchmark function returns.
+    ``malloc_trim`` hands leftover glibc arenas back so the address-space cap
+    tracks live data across configurations.
+    """
+    import gc
+
+    gc.collect()
+    try:
+        import ctypes
+
+        ctypes.CDLL('libc.so.6').malloc_trim(0)
+    except (OSError, AttributeError):  # fmt: skip
+        pass
+
+
+def is_memory_limit_error(exc: BaseException) -> bool:
+    """Whether ``exc`` is an allocation failure (RAM cap or genuine OOM)."""
+    import errno
+
+    if isinstance(exc, MemoryError):
+        return True
+    if isinstance(exc, OSError) and exc.errno == errno.ENOMEM:
+        return True
+    message = str(exc).lower()
+    return any(
+        phrase in message
+        for phrase in (
+            'not enough memory',
+            'out of memory',
+            'cannot allocate memory',
+            "can't allocate memory",
+            'unable to allocate',
+        )
+    )
 
 
 def resolve_dtype(name: str):
