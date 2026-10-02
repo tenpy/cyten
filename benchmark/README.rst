@@ -31,10 +31,11 @@ Or as a module::
     python -m benchmark.run_benchmarks --devices cpu --dims 32,64 --numpy-ref
 
 ``--max-ram`` defaults to ``5GB`` (``5 * 1024**3`` bytes). It caps the process address
-space, the same limit as ``ulimit -v``. A configuration that cannot allocate
-within the cap is skipped, so a size sweep does not exhaust laptop RAM.
-Pass ``--max-ram none`` to disable the cap, or a larger value such as
-``--max-ram 16GB`` when the machine can spare it.
+space, the same limit as ``ulimit -v``. If a cyten configuration cannot allocate
+within the cap it is skipped. If only the dense ``--numpy-ref`` path fails, the
+cyten timing is kept and that NumPy reference is skipped. Pass ``--max-ram none``
+to disable the cap, or a larger value such as ``--max-ram 16GB`` when the machine
+can spare it.
 
 Then open ``benchmark/plot_results.ipynb`` and point ``RESULT_PATHS`` at the JSON file.
 
@@ -95,7 +96,8 @@ Flag                          Meaning
 ``--warmup`` / ``--repeats``  Timing iterations
 ``--numpy-ref``               Also time dense NumPy analogues (deduped)
 ``--max-ram``                 Address-space cap (default ``5GB``). ``0`` or ``none`` disables it.
-                              Configurations that would exceed the cap are skipped.
+                              Oversized cyten configs are skipped; oversized
+                              ``--numpy-ref`` densifies are skipped while keeping cyten.
 ``--output``                  JSON path (default ``benchmark/results/run.json``)
 ``--list-devices``            Print availability of requested devices and exit
 ============================  ===================================================================

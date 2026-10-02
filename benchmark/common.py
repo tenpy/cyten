@@ -218,6 +218,22 @@ def is_memory_limit_error(exc: BaseException) -> bool:
     )
 
 
+def run_numpy_ref(factory: Callable[[], BenchmarkRecord]) -> BenchmarkRecord | None:
+    """Build a dense NumPy reference record, or return ``None`` if it OOMs.
+
+    Cyten timings should already be finished before calling this. A memory
+    failure here drops only the NumPy reference, not the cyten result.
+    """
+    release_allocator_caches()
+    try:
+        return factory()
+    except Exception as exc:
+        if is_memory_limit_error(exc):
+            release_allocator_caches()
+            return None
+        raise
+
+
 def resolve_dtype(name: str):
     """Map a dtype name string to a cyten ``Dtype``."""
     key = name.lower()

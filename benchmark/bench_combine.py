@@ -13,6 +13,7 @@ from .common import (
     normalize_block_backend,
     num_blocks_of,
     resolve_dtype,
+    run_numpy_ref,
     time_call,
 )
 from .dense_numpy import numpy_combine_legs, to_numpy
@@ -69,15 +70,15 @@ def run_combine_legs_benchmark(
     ]
 
     if numpy_ref:
-        arr = to_numpy(T)
-        axes = ([0, 1], [2, 3])
 
-        def _numpy():
-            return numpy_combine_legs(arr, axes)
+        def _numpy_record():
+            arr = to_numpy(T)
+            axes = ([0, 1], [2, 3])
 
-        np_timing = time_call(_numpy, warmup=warmup, repeats=repeats, device='cpu')
-        records.append(
-            make_numpy_record(
+            def _numpy():
+                return numpy_combine_legs(arr, axes)
+
+            return make_numpy_record(
                 op='combine_legs',
                 case=case,
                 symmetry=CASES[case].symmetry_name,
@@ -85,7 +86,10 @@ def run_combine_legs_benchmark(
                 actual_dim=actual_dim,
                 num_blocks=num_blocks_of(T),
                 dtype=dtype,
-                timing=np_timing,
+                timing=time_call(_numpy, warmup=warmup, repeats=repeats, device='cpu'),
             )
-        )
+
+        np_record = run_numpy_ref(_numpy_record)
+        if np_record is not None:
+            records.append(np_record)
     return records

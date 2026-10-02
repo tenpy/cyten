@@ -301,6 +301,7 @@ def main(argv: list[str] | None = None) -> int:
         if not out:
             print('  skipped (runtime filter)')
             continue
+        got_numpy = False
         for record in out:
             tag = 'numpy' if record.impl == 'numpy' else 'cyten'
             print(
@@ -309,7 +310,17 @@ def main(argv: list[str] | None = None) -> int:
             )
             records.append(record)
             if record.impl == 'numpy':
-                numpy_done.add(numpy_key)
+                got_numpy = True
+        if want_numpy:
+            # Mark this (op, case, dim, dtype) done either way so later backends
+            # do not retry a densify that already exceeded the RAM cap.
+            numpy_done.add(numpy_key)
+            if not got_numpy:
+                cap = format_ram_limit(installed_ram) if installed_ram is not None else 'system'
+                print(
+                    f'  skipped numpy-ref: memory limit ({cap}) exceeded (cyten result kept)',
+                    file=sys.stderr,
+                )
 
     out_path = Path(args.output)
     if not out_path.is_absolute():

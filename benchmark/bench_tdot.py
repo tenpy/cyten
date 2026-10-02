@@ -15,6 +15,7 @@ from .common import (
     normalize_block_backend,
     num_blocks_of,
     resolve_dtype,
+    run_numpy_ref,
     time_call,
 )
 from .dense_numpy import to_numpy
@@ -71,17 +72,17 @@ def run_tdot_benchmark(
     ]
 
     if numpy_ref:
-        a_np = to_numpy(A)
-        b_np = to_numpy(B)
-        # A legs [i, j], B legs [i, j]; contract A's j (axis 1) with B's i (axis 0).
-        axes = ([1], [0])
 
-        def _numpy():
-            return np.tensordot(a_np, b_np, axes)
+        def _numpy_record():
+            a_np = to_numpy(A)
+            b_np = to_numpy(B)
+            # A legs [i, j], B legs [i, j]; contract A's j (axis 1) with B's i (axis 0).
+            axes = ([1], [0])
 
-        np_timing = time_call(_numpy, warmup=warmup, repeats=repeats, device='cpu')
-        records.append(
-            make_numpy_record(
+            def _numpy():
+                return np.tensordot(a_np, b_np, axes)
+
+            return make_numpy_record(
                 op='tdot',
                 case=case,
                 symmetry=CASES[case].symmetry_name,
@@ -89,7 +90,10 @@ def run_tdot_benchmark(
                 actual_dim=actual_dim,
                 num_blocks=num_blocks_of(A),
                 dtype=dtype,
-                timing=np_timing,
+                timing=time_call(_numpy, warmup=warmup, repeats=repeats, device='cpu'),
             )
-        )
+
+        np_record = run_numpy_ref(_numpy_record)
+        if np_record is not None:
+            records.append(np_record)
     return records
