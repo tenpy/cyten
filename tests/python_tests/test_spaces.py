@@ -654,12 +654,14 @@ def test_DirectSumSpace_inclusion_unit_vector(compatible_symmetry, compatible_ba
     sym = compatible_symmetry
     backend = compatible_backend
     I = spaces.ElementarySpace.from_trivial_sector(1, symmetry=sym)
-    d = spaces.DirectSumSpace([I, I, I])
+    d = spaces.DirectSumSpace([I, I, I], summand_labels=['left', 'middle', 'right'])
     d.test_sanity()
 
-    for i in (0, 1, -1):
+    for i, label in ((0, 'left'), (1, 'middle'), (-1, 'right')):
         proj = d.projection_onto_summand(i, backend=backend)
         incl = d.inclusion_of_summand(i, backend=backend)
+        assert (d.projection_onto_summand(label, backend=backend) == proj).all()
+        assert (d.inclusion_of_summand(label, backend=backend) == incl).all()
         proj.test_sanity()
         incl.test_sanity()
         assert proj.is_projection

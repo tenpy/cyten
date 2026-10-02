@@ -846,20 +846,44 @@ bind_direct_sum_space(py::module_& m)
            py::arg("labels") = py::none(),
            py::arg("device") = py::none(),
            DOC(cyten, DirectSumSpace, inclusion_of_summands))
-      .def("projection_onto_summand",
-           &DirectSumSpace::projection_onto_summand,
-           py::arg("i"),
-           py::arg("backend") = nullptr,
-           py::arg("labels") = py::none(),
-           py::arg("device") = py::none(),
-           DOC(cyten, DirectSumSpace, projection_onto_summand))
-      .def("inclusion_of_summand",
-           &DirectSumSpace::inclusion_of_summand,
-           py::arg("i"),
-           py::arg("backend") = nullptr,
-           py::arg("labels") = py::none(),
-           py::arg("device") = py::none(),
-           DOC(cyten, DirectSumSpace, inclusion_of_summand))
+      .def(
+        "projection_onto_summand",
+        [](DirectSumSpace const& self,
+           py::object which,
+           std::shared_ptr<TensorBackend> backend,
+           std::optional<OptionalLabels> labels,
+           std::optional<std::string> device) {
+            DirectSumSpace::SummandRef ref =
+              py::isinstance<py::str>(which)
+                ? DirectSumSpace::SummandRef{ which.cast<std::string>() }
+                : DirectSumSpace::SummandRef{ which.cast<int64>() };
+            return self.projection_onto_summand(
+              std::move(ref), std::move(backend), std::move(labels), std::move(device));
+        },
+        py::arg("which"),
+        py::arg("backend") = nullptr,
+        py::arg("labels") = py::none(),
+        py::arg("device") = py::none(),
+        DOC(cyten, DirectSumSpace, projection_onto_summand))
+      .def(
+        "inclusion_of_summand",
+        [](DirectSumSpace const& self,
+           py::object which,
+           std::shared_ptr<TensorBackend> backend,
+           std::optional<OptionalLabels> labels,
+           std::optional<std::string> device) {
+            DirectSumSpace::SummandRef ref =
+              py::isinstance<py::str>(which)
+                ? DirectSumSpace::SummandRef{ which.cast<std::string>() }
+                : DirectSumSpace::SummandRef{ which.cast<int64>() };
+            return self.inclusion_of_summand(
+              std::move(ref), std::move(backend), std::move(labels), std::move(device));
+        },
+        py::arg("which"),
+        py::arg("backend") = nullptr,
+        py::arg("labels") = py::none(),
+        py::arg("device") = py::none(),
+        DOC(cyten, DirectSumSpace, inclusion_of_summand))
       .def("unit_vector_of_summand",
            &DirectSumSpace::unit_vector_of_summand,
            py::arg("i"),

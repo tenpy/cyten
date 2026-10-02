@@ -632,11 +632,11 @@ bind_tensors_planar(py::module_& m)
         DOC(cyten, PlanarDiagram, remove_tensor))
       .def(
         "evaluate",
-        [](PlanarDiagram const& self, py::object tensors) {
+        [](PlanarDiagram const& self, py::dict tensors) {
             return evaluate_diagram(self, tensors);
         },
         py::arg("tensors"),
-        "Do the contractions defined by the planar diagram for given concrete `tensors`.")
+        DOC(cyten, PlanarDiagram, evaluate))
       .def("__call__",
            [](PlanarDiagram const& self, py::kwargs kwargs) {
                return evaluate_diagram(self, kwargs);

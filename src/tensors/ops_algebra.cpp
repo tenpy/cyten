@@ -1204,8 +1204,9 @@ scale_axis(TensorCPtr tensor, DiagonalTensorCPtr diag, LegRef leg)
     }
     auto backend = get_same_backend({ tensor, diag_use });
     auto data = backend->scale_axis(tensor, diag_use, leg_idx);
-    return make_symmetric_native(
-      std::move(data), tensor->codomain, tensor->domain, backend, tensor->labels());
+    // the labels of a HiddenLegTensor keep the hidden prefix -> wrap the result again
+    return HiddenLegTensor::maybe_wrap(make_symmetric_native(
+      std::move(data), tensor->codomain, tensor->domain, backend, tensor->labels()));
 }
 
 [[nodiscard]] TensorPtr

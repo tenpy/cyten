@@ -253,12 +253,13 @@ add_trivial_leg(TensorCPtr tens,
     new_labels.push_back(label);
     new_labels.insert(new_labels.end(), labels.begin() + legs_pos, labels.end());
 
-    return std::make_shared<SymmetricTensor>(std::move(data),
-                                             std::move(codomain),
-                                             std::move(domain),
-                                             backend,
-                                             tens->symmetry,
-                                             new_labels);
+    // a HiddenLegTensor keeps the hidden prefix in its labels -> wrap the result again
+    return HiddenLegTensor::maybe_wrap(std::make_shared<SymmetricTensor>(std::move(data),
+                                                                         std::move(codomain),
+                                                                         std::move(domain),
+                                                                         backend,
+                                                                         tens->symmetry,
+                                                                         new_labels));
 }
 
 TensorPtr
@@ -286,8 +287,9 @@ zero_like(TensorCPtr tensor)
                                         charged->device);
     }
     if (auto sym = std::dynamic_pointer_cast<SymmetricTensor const>(tensor)) {
-        return SymmetricTensor::from_zero(
-          sym->codomain, sym->domain, sym->backend, sym->labels(), sym->dtype, sym->device);
+        // a HiddenLegTensor keeps the hidden prefix in its labels -> wrap the result again
+        return HiddenLegTensor::maybe_wrap(SymmetricTensor::from_zero(
+          sym->codomain, sym->domain, sym->backend, sym->labels(), sym->dtype, sym->device));
     }
     throw py::type_error("Invalid type for tensor.");
 }
@@ -591,23 +593,27 @@ DirectSumSpace::inclusion_of_summands(std::vector<int64> indices,
 }
 
 MaskPtr
-DirectSumSpace::projection_onto_summand(int64 i,
+DirectSumSpace::projection_onto_summand(SummandRef which,
                                         std::shared_ptr<TensorBackend> backend,
                                         std::optional<OptionalLabels> labels,
                                         std::optional<std::string> device) const
 {
-    return projection_onto_summands(
-      std::vector<int64>{ i }, std::move(backend), std::move(labels), std::move(device));
+    return projection_onto_summands(std::vector<int64>{ get_summand_idx(std::move(which)) },
+                                    std::move(backend),
+                                    std::move(labels),
+                                    std::move(device));
 }
 
 MaskPtr
-DirectSumSpace::inclusion_of_summand(int64 i,
+DirectSumSpace::inclusion_of_summand(SummandRef which,
                                      std::shared_ptr<TensorBackend> backend,
                                      std::optional<OptionalLabels> labels,
                                      std::optional<std::string> device) const
 {
-    return inclusion_of_summands(
-      std::vector<int64>{ i }, std::move(backend), std::move(labels), std::move(device));
+    return inclusion_of_summands(std::vector<int64>{ get_summand_idx(std::move(which)) },
+                                 std::move(backend),
+                                 std::move(labels),
+                                 std::move(device));
 }
 
 SymmetricTensorPtr

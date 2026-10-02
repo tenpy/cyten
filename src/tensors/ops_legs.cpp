@@ -1133,8 +1133,9 @@ squeeze_legs(TensorCPtr tensor, std::optional<std::vector<LegRef>> legs)
     for (auto n : remaining) {
         labels.push_back(all_labels[static_cast<std::size_t>(n)]);
     }
-    return make_symmetric_native(
-      std::move(data), std::move(codomain_tp), std::move(domain_tp), backend, std::move(labels));
+    // a HiddenLegTensor keeps the hidden prefix in its labels -> wrap the result again
+    return HiddenLegTensor::maybe_wrap(make_symmetric_native(
+      std::move(data), std::move(codomain_tp), std::move(domain_tp), backend, std::move(labels)));
 }
 
 namespace {
