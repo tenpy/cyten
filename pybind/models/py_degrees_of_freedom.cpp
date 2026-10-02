@@ -241,7 +241,7 @@ bind_models_degrees_of_freedom(py::module_& m)
            DOC(cyten, OccupationDOF, get_creator_numpy))
       .def("get_occupation_numpy",
            &OccupationDOF::get_occupation_numpy,
-           py::arg("species") = all_species_sentinel(),
+           py::arg_v("species", all_species_sentinel(), "ALL_SPECIES"),
            DOC(cyten, OccupationDOF, get_occupation_numpy))
       .def("get_species_idx", &OccupationDOF::get_species_idx, py::arg("species"));
 

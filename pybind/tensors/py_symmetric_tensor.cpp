@@ -43,12 +43,24 @@ optional_leg_order(py::object obj)
 
 } // namespace
 
+namespace {
+
+std::optional<py::class_<SymmetricTensor, Tensor, PySymmetricTensor, py::smart_holder>>
+  g_symmetric_tensor;
+
+} // namespace
+
+void
+declare_tensors_symmetric_tensor(py::module_& m)
+{
+    g_symmetric_tensor.emplace(m, "SymmetricTensor");
+    g_symmetric_tensor->doc() = DOC(cyten, SymmetricTensor);
+}
+
 void
 bind_tensors_symmetric_tensor(py::module_& m)
 {
-    py::class_<SymmetricTensor, Tensor, PySymmetricTensor, py::smart_holder> cls(
-      m, "SymmetricTensor");
-    cls.doc() = DOC(cyten, SymmetricTensor);
+    auto& cls = *g_symmetric_tensor;
 
     cls.def(
       py::init([](TensorBackend::DataPtr data,

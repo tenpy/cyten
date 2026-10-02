@@ -160,14 +160,22 @@ py_diagonal_binary_operand(DiagonalTensor& self,
                                             py::str(py::type::of(other)).cast<std::string>()));
 }
 
+std::optional<py::class_<DiagonalTensor, SymmetricTensor, PyDiagonalTensor, py::smart_holder>>
+  g_diagonal_tensor;
+
 } // namespace
+
+void
+declare_tensors_diagonal_tensor(py::module_& m)
+{
+    g_diagonal_tensor.emplace(m, "DiagonalTensor");
+    g_diagonal_tensor->doc() = DOC(cyten, DiagonalTensor);
+}
 
 void
 bind_tensors_diagonal_tensor(py::module_& m)
 {
-    py::class_<DiagonalTensor, SymmetricTensor, PyDiagonalTensor, py::smart_holder> cls(
-      m, "DiagonalTensor");
-    cls.doc() = DOC(cyten, DiagonalTensor);
+    auto& cls = *g_diagonal_tensor;
 
     cls.def(py::init([](TensorBackend::DataPtr data,
                         py::object leg,

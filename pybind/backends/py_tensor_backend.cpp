@@ -17,15 +17,29 @@
 
 namespace cyten {
 
+namespace {
+
+std::optional<py::class_<TensorBackend::Data, py::smart_holder>> g_tensor_backend_data;
+std::optional<py::class_<TensorBackend, PyTensorBackend, py::smart_holder>> g_tensor_backend;
+
+} // namespace
+
+void
+declare_tensor_backend(py::module_& m)
+{
+    g_tensor_backend_data.emplace(m, "TensorBackendData");
+    g_tensor_backend_data->doc() =
+      "Backend-specific payload stored on a tensor (except symmetry data on legs).";
+
+    g_tensor_backend.emplace(m, "TensorBackend");
+    g_tensor_backend->doc() = DOC(cyten, TensorBackend);
+}
+
 void
 bind_tensor_backend(py::module_& m)
 {
-    py::class_<TensorBackend::Data, py::smart_holder> data_cls(m, "TensorBackendData");
-    data_cls.doc() = "Backend-specific payload stored on a tensor (except symmetry data on legs).";
-
-    py::class_<TensorBackend, PyTensorBackend, py::smart_holder> tensor_backend(m,
-                                                                                "TensorBackend");
-    tensor_backend.doc() = DOC(cyten, TensorBackend);
+    auto& data_cls = *g_tensor_backend_data;
+    auto& tensor_backend = *g_tensor_backend;
 
     tensor_backend.def(py::init<std::shared_ptr<BlockBackend>>(), py::arg("block_backend"))
       .def_property_readonly("can_decompose_tensors", &TensorBackend::can_decompose_tensors)

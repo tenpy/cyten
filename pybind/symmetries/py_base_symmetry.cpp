@@ -12,11 +12,16 @@
 
 namespace cyten {
 
+void declare_symmetry(py::module_& m);
+
 void
 bind_base_symmetry(py::module_& m)
 {
     py::class_<BaseSymmetry, PyBaseSymmetry, py::smart_holder> cls(
       m, "BaseSymmetry", DOC(cyten, BaseSymmetry));
+
+    // Register Symmetry before methods that return it (signatures / stubgen).
+    declare_symmetry(m);
 
     cls.def(py::init<FusionStyle, BraidingStyle, Sector, float64, bool, bool>(),
             py::arg("fusion_style"),

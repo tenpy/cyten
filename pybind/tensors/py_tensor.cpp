@@ -47,13 +47,21 @@ as_leg_ref(py::handle obj)
     return obj.cast<int64>();
 }
 
+std::optional<py::class_<Tensor, LabelledLegs, VectorLike, PyTensor, py::smart_holder>> g_tensor;
+
 } // namespace
+
+void
+declare_tensors_tensor(py::module_& m)
+{
+    g_tensor.emplace(m, "Tensor");
+    g_tensor->doc() = DOC(cyten, Tensor);
+}
 
 void
 bind_tensors_tensor(py::module_& m)
 {
-    py::class_<Tensor, LabelledLegs, VectorLike, PyTensor, py::smart_holder> cls(m, "Tensor");
-    cls.doc() = DOC(cyten, Tensor);
+    auto& cls = *g_tensor;
 
     cls.def(py::init([](py::object codomain,
                         py::object domain,

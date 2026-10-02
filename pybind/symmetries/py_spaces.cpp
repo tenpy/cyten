@@ -228,6 +228,10 @@ objects_to_python(std::vector<py::object> const& objects)
     return out;
 }
 
+std::optional<py::class_<Space, PySpace, py::smart_holder>> g_space;
+std::optional<py::class_<ElementarySpace, Space, Leg, PyElementarySpace, py::smart_holder>>
+  g_elementary_space;
+
 void bind_elementary_space(py::module_& m);
 
 void bind_direct_sum_space(py::module_& m);
@@ -242,6 +246,10 @@ void
 bind_spaces(py::module_& m)
 {
     py::class_<Leg, PyLeg, py::smart_holder> cls(m, "Leg", DOC(cyten, Leg));
+
+    // Declare Space / ElementarySpace before Leg methods that return them (stubgen).
+    g_space.emplace(m, "Space", DOC(cyten, Space));
+    g_elementary_space.emplace(m, "ElementarySpace", DOC(cyten, ElementarySpace));
 
     cls.def(
       py::init(
@@ -325,7 +333,7 @@ bind_spaces(py::module_& m)
            py::arg("pre_compose") = false,
            DOC(cyten, Leg, apply_basis_perm));
 
-    py::class_<Space, PySpace, py::smart_holder> space(m, "Space", DOC(cyten, Space));
+    auto& space = *g_space;
 
     space.def(py::init([](py::object symmetry_obj,
                           py::object sector_decomposition,
@@ -474,8 +482,8 @@ namespace {
 void
 bind_elementary_space(py::module_& m)
 {
-    py::class_<ElementarySpace, Space, Leg, PyElementarySpace, py::smart_holder> cls(
-      m, "ElementarySpace", DOC(cyten, ElementarySpace));
+    (void)m;
+    auto& cls = *g_elementary_space;
 
     cls.def(py::init([](py::object symmetry_obj,
                         py::object defining_sectors,

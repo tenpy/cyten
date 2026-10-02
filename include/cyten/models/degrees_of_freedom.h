@@ -23,6 +23,8 @@ namespace cyten {
 /// Sentinel for summing over all species in fermion/boson couplings.
 /// Python exposes ``ALL_SPECIES = object()``; `all_species_sentinel` is the unique
 /// identity used for ``is`` comparison and pybind default arguments (process-lifetime).
+/// Binding sites use ``py::arg_v(..., "ALL_SPECIES")`` so signatures / stubgen show a
+/// valid expression instead of ``<object object at 0x...>``.
 struct AllSpeciesTag
 {};
 inline AllSpeciesTag const ALL_SPECIES{};

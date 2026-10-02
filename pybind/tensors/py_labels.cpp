@@ -5,6 +5,7 @@
 
 #include "docstrings/tensors/labels.h"
 
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -52,7 +53,16 @@ args_as_strings(py::args const& args)
     return out;
 }
 
+std::optional<py::class_<LabelledLegs, py::smart_holder>> g_labelled_legs;
+
 } // namespace
+
+void
+declare_tensors_labels(py::module_& m)
+{
+    g_labelled_legs.emplace(m, "LabelledLegs");
+    g_labelled_legs->doc() = DOC(cyten, LabelledLegs);
+}
 
 void
 bind_tensors_labels(py::module_& m)
@@ -123,8 +133,7 @@ The ``stacklevel`` argument is Python-only (accepted for API compatibility; unus
 In Python, ``None`` labels correspond to C++ ``nullopt``.
 )pydoc"));
 
-    py::class_<LabelledLegs, py::smart_holder> labelled_legs(m, "LabelledLegs");
-    labelled_legs.doc() = DOC(cyten, LabelledLegs);
+    auto& labelled_legs = *g_labelled_legs;
 
     labelled_legs.def(py::init<OptionalLabels>(), py::arg("labels"))
       .def_readwrite("num_legs", &LabelledLegs::num_legs)

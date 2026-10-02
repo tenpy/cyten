@@ -10,6 +10,7 @@
 
 #include "tools/hdf5_bind.h"
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace cyten {
@@ -32,12 +33,21 @@ flatten_factors_from_python(py::sequence seq)
     return out;
 }
 
+std::optional<py::class_<Symmetry, BaseSymmetry, py::smart_holder>> g_symmetry;
+
 } // namespace
+
+void
+declare_symmetry(py::module_& m)
+{
+    g_symmetry.emplace(m, "Symmetry", DOC(cyten, Symmetry));
+}
 
 void
 bind_symmetry(py::module_& m)
 {
-    py::class_<Symmetry, BaseSymmetry, py::smart_holder> cls(m, "Symmetry", DOC(cyten, Symmetry));
+    (void)m;
+    auto& cls = *g_symmetry;
 
     cls.def(py::init([](py::sequence factors) {
                 return std::make_shared<Symmetry>(flatten_factors_from_python(factors));

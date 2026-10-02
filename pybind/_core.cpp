@@ -10,8 +10,20 @@ PYBIND11_MODULE(_core, m)
     bind_cost_polynomials(m);
     bind_config(m);
     bind_block_backend(m);
+
+    // Declare shells for types that appear in earlier binders' signatures (stubgen).
+    declare_block_inds(m);
+    declare_tensor_backend(m);
+    declare_tensors_labels(m);
+    declare_tensors_vector_like(m);
+    declare_tensors_tensor(m);
+    declare_tensors_symmetric_tensor(m);
+    declare_tensors_diagonal_tensor(m);
+    declare_tensors_mask(m);
+
     bind_symmetries(m);
     bind_mappings(m); // after FusionTree registration
+
     bind_tensor_backend(m);
     bind_no_symmetry_backend(m);
     bind_block_inds(m);
@@ -21,6 +33,7 @@ PYBIND11_MODULE(_core, m)
     bind_fusion_tree_backend(m);
     bind_fusion_tree_mapping(m);
     bind_backend_factory(m);
+
     bind_tensors_labels(m);
     bind_tensors_vector_like(m);
     bind_tensors_tensor(m);

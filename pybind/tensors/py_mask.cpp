@@ -43,11 +43,23 @@ optional_leg_order(py::object obj)
 
 } // namespace
 
+namespace {
+
+std::optional<py::class_<Mask, Tensor, py::smart_holder>> g_mask;
+
+} // namespace
+
+void
+declare_tensors_mask(py::module_& m)
+{
+    g_mask.emplace(m, "Mask");
+    g_mask->doc() = DOC(cyten, Mask);
+}
+
 void
 bind_tensors_mask(py::module_& m)
 {
-    py::class_<Mask, Tensor, py::smart_holder> cls(m, "Mask");
-    cls.doc() = DOC(cyten, Mask);
+    auto& cls = *g_mask;
 
     cls.def(py::init([](TensorBackend::DataPtr data,
                         py::object space_in_obj,

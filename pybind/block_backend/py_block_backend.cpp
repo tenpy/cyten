@@ -93,8 +93,286 @@ bind_block_backend(py::module_& m)
     py::class_<BlockBackend, PyBlockBackend, py::smart_holder> block_backend(m, "BlockBackend");
     block_backend.doc() = "Abstract base class that defines the operation on dense blocks.";
 
-    py::class_<BlockBackend::Block, PyBlock, py::smart_holder>(
-      block_backend, "BlockCls", "Abstract base for dense blocks.")
+    // Declare nested shells before methods so signatures resolve Python type names (stubgen).
+    py::class_<BlockBackend::Block, PyBlock, py::smart_holder> block_cls(
+      block_backend, "BlockCls", "Abstract base for dense blocks.");
+    py::class_<BlockBackend::Scalar, py::smart_holder> scalar(
+      block_backend,
+      "Scalar",
+      "Scalar value with a Dtype, stored as a 0-d Block (may live on GPU).\n\n"
+      "Explicit conversion: as_float64(), as_complex128(), as_int64(), as_bool(), to_numpy().\n"
+      "Implicit Python conversion (float(), complex(), np.asarray()) is gated by the config\n"
+      "option implicit_scalar_conversion (default True; tests force False).");
+
+    // Define Scalar methods before BlockCls ops that take Scalar.
+    scalar
+      .def(py::init<std::shared_ptr<BlockBackend::Block>>(),
+           py::arg("block"),
+           "Construct from a 0-d block (ndim == 0). Raises if block is null or ndim != 0.")
+      .def_property_readonly("dtype", &BlockBackend::Scalar::dtype)
+      .def(
+        "__str__",
+        [](const BlockBackend::Scalar& self) {
+            std::ostringstream oss;
+            oss << self;
+            return oss.str();
+        },
+        "String representation of the scalar.")
+      .def(
+        "__repr__",
+        [](const BlockBackend::Scalar& self) {
+            std::ostringstream oss;
+            oss << self;
+            return oss.str();
+        },
+        "String representation of the scalar.")
+      .def("as_float64",
+           &BlockBackend::Scalar::as_float64,
+           "As float; raises if dtype is not Float32/Float64.")
+      .def("as_complex128",
+           &BlockBackend::Scalar::as_complex128,
+           "As complex (real/bool have zero imaginary part).")
+      .def("as_int64", &BlockBackend::Scalar::as_int64, "As int64; raises if dtype is not Int64.")
+      .def("as_bool", &BlockBackend::Scalar::as_bool, "As bool; raises if dtype is not Bool.")
+      .def("to_numpy", &BlockBackend::Scalar::to_numpy, DOC(cyten, BlockBackend, Scalar, to_numpy))
+      .def(
+        "__float__",
+        [](const BlockBackend::Scalar& self) {
+            require_implicit_scalar_conversion("float");
+            return self.as_float64();
+        },
+        "Convert to Python float. Gated by implicit_scalar_conversion; raises if dtype is "
+        "complex or bool.")
+      .def(
+        "__complex__",
+        [](const BlockBackend::Scalar& self) {
+            require_implicit_scalar_conversion("complex");
+            return self.as_complex128();
+        },
+        "Convert to Python complex. Gated by implicit_scalar_conversion.")
+      .def(
+        "__array__",
+        [](const BlockBackend::Scalar& self, py::object dtype, py::object /*copy*/) {
+            require_implicit_scalar_conversion("numpy");
+            py::object val = self.to_numpy();
+            auto np = py::module_::import("numpy");
+            if (dtype.is_none())
+                return np.attr("asarray")(val);
+            return np.attr("asarray")(val, py::arg("dtype") = dtype);
+        },
+        py::arg("dtype") = py::none(),
+        py::arg("copy") = py::none(),
+        "NumPy array protocol. Gated by implicit_scalar_conversion.")
+      .def(
+        "__bool__",
+        [](const BlockBackend::Scalar& self) {
+            return self.as_bool(); // throws if dtype is not Bool!
+        },
+        "Return value of boolean scalar. Raises if dtype != bool.")
+      .def(
+        "__neg__", [](const BlockBackend::Scalar& self) { return -self; }, "Unary negation.")
+      .def("real", &BlockBackend::Scalar::real, "Real part as a Scalar (valid for any dtype).")
+      .def(
+        "imag", &BlockBackend::Scalar::imag, "Imaginary part as a Scalar (valid for any dtype).")
+      .def("conj",
+           &BlockBackend::Scalar::conj,
+           "Complex conjugate as a Scalar. Real dtypes are unchanged.")
+      .def("real_if_close",
+           &BlockBackend::Scalar::real_if_close,
+           py::arg("tol") = 100.,
+           "If close to real, return the real part; otherwise return this Scalar. "
+           "`tol` is in multiples of machine epsilon (numpy.real_if_close convention).")
+      .def("__abs__", &BlockBackend::Scalar::abs, "Absolute value.")
+      .def("sqrt", &BlockBackend::Scalar::sqrt, "Square root.")
+      .def("exp", &BlockBackend::Scalar::exp, "Elementwise / scalar exponential.")
+      .def("log", &BlockBackend::Scalar::log, "Natural logarithm.")
+      .def("pow", &BlockBackend::Scalar::pow, py::arg("exponent"), "Raise to a scalar power.")
+      .def(
+        "__pow__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& exponent) {
+            return self.pow(exponent);
+        },
+        py::arg("exponent"),
+        "Raise to a scalar power.")
+      .def(
+        "__pow__",
+        [](const BlockBackend::Scalar& self, float64 exponent) {
+            return self.pow(self._block()->get_backend()->as_scalar(exponent));
+        },
+        py::arg("exponent"))
+      .def(
+        "__pow__",
+        [](const BlockBackend::Scalar& self, complex128 exponent) {
+            return self.pow(self._block()->get_backend()->as_scalar(exponent));
+        },
+        py::arg("exponent"))
+      .def(
+        "__add__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self + other;
+        },
+        py::arg("other"),
+        "Addition with another scalar.")
+      .def(
+        "__add__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self + other; },
+        py::arg("other"))
+      .def(
+        "__add__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return self + other; },
+        py::arg("other"))
+      .def(
+        "__radd__",
+        [](const BlockBackend::Scalar& self, float64 other) { return other + self; },
+        py::arg("other"))
+      .def(
+        "__radd__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return other + self; },
+        py::arg("other"))
+      .def(
+        "__sub__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self - other;
+        },
+        py::arg("other"),
+        "Subtraction with another scalar.")
+      .def(
+        "__sub__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self - other; },
+        py::arg("other"))
+      .def(
+        "__sub__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return self - other; },
+        py::arg("other"))
+      .def(
+        "__rsub__",
+        [](const BlockBackend::Scalar& self, float64 other) { return other - self; }, // reversed!
+        py::arg("other"))
+      .def(
+        "__rsub__",
+        [](const BlockBackend::Scalar& self, complex128 other) {
+            return other - self;
+        }, // reversed!
+        py::arg("other"))
+      .def(
+        "__mul__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self * other;
+        },
+        py::arg("other"),
+        "Multiplication with another scalar.")
+      .def(
+        "__mul__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Block& other) {
+            return other * self;
+        },
+        py::arg("other"),
+        "Multiplication with another scalar.")
+      .def(
+        "__mul__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self * other; },
+        py::arg("other"))
+      .def(
+        "__mul__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return self * other; },
+        py::arg("other"))
+      .def(
+        "__mul__",
+        [](const BlockBackend::Scalar&, py::object) -> py::object {
+            return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+        },
+        py::arg("other"))
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Scalar& self, float64 other) { return other * self; },
+        py::arg("other"))
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return other * self; },
+        py::arg("other"))
+      .def(
+        "__truediv__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self / other;
+        },
+        py::arg("other"))
+      .def(
+        "__truediv__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self / other; },
+        py::arg("other"))
+      .def(
+        "__truediv__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return self / other; },
+        py::arg("other"))
+      .def(
+        "__rtruediv__",
+        [](const BlockBackend::Scalar& self, float64 other) {
+            return other / self; // reversed!
+        },
+        py::arg("other"))
+      .def(
+        "__rtruediv__",
+        [](const BlockBackend::Scalar& self, complex128 other) {
+            return other / self; // reversed!
+        },
+        py::arg("other"))
+      .def(
+        "__lt__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self < other;
+        },
+        py::arg("other"))
+      .def(
+        "__lt__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self < other; },
+        py::arg("other"))
+      .def(
+        "__gt__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self > other;
+        },
+        py::arg("other"))
+      .def(
+        "__gt__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self > other; },
+        py::arg("other"))
+      .def(
+        "__le__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self <= other;
+        },
+        py::arg("other"))
+      .def(
+        "__le__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self <= other; },
+        py::arg("other"))
+      .def(
+        "__ge__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self >= other;
+        },
+        py::arg("other"))
+      .def(
+        "__ge__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self >= other; },
+        py::arg("other"))
+      .def("inverse", &BlockBackend::Scalar::inverse, "The inverse of the scalar, 1./self")
+      .def_property_readonly(
+        "_block", &BlockBackend::Scalar::_block, "Return the underlying block.")
+      .def("save_hdf5",
+           cyten::hdf5::wrap_save_hdf5<BlockBackend::Scalar>(),
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"),
+           "Save scalar to HDF5.")
+      .def_static("from_hdf5",
+                  cyten::hdf5::wrap_from_hdf5<BlockBackend::Scalar>(),
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"),
+                  "Load scalar from HDF5.");
+
+    block_cls
       .def_property_readonly(
         "shape",
         [&](const BlockBackend::Block& self) {
@@ -372,279 +650,6 @@ bind_block_backend(py::module_& m)
             return oss.str();
         },
         "String representation of the block.");
-
-    py::class_<BlockBackend::Scalar, py::smart_holder>(
-      block_backend,
-      "Scalar",
-      "Scalar value with a Dtype, stored as a 0-d Block (may live on GPU).\n\n"
-      "Explicit conversion: as_float64(), as_complex128(), as_int64(), as_bool(), to_numpy().\n"
-      "Implicit Python conversion (float(), complex(), np.asarray()) is gated by the config\n"
-      "option implicit_scalar_conversion (default True; tests force False).")
-      .def(py::init<std::shared_ptr<BlockBackend::Block>>(),
-           py::arg("block"),
-           "Construct from a 0-d block (ndim == 0). Raises if block is null or ndim != 0.")
-      .def_property_readonly("dtype", &BlockBackend::Scalar::dtype)
-      .def(
-        "__str__",
-        [](const BlockBackend::Scalar& self) {
-            std::ostringstream oss;
-            oss << self;
-            return oss.str();
-        },
-        "String representation of the scalar.")
-      .def(
-        "__repr__",
-        [](const BlockBackend::Scalar& self) {
-            std::ostringstream oss;
-            oss << self;
-            return oss.str();
-        },
-        "String representation of the scalar.")
-      .def("as_float64",
-           &BlockBackend::Scalar::as_float64,
-           "As float; raises if dtype is not Float32/Float64.")
-      .def("as_complex128",
-           &BlockBackend::Scalar::as_complex128,
-           "As complex (real/bool have zero imaginary part).")
-      .def("as_int64", &BlockBackend::Scalar::as_int64, "As int64; raises if dtype is not Int64.")
-      .def("as_bool", &BlockBackend::Scalar::as_bool, "As bool; raises if dtype is not Bool.")
-      .def("to_numpy", &BlockBackend::Scalar::to_numpy, DOC(cyten, BlockBackend, Scalar, to_numpy))
-      .def(
-        "__float__",
-        [](const BlockBackend::Scalar& self) {
-            require_implicit_scalar_conversion("float");
-            return self.as_float64();
-        },
-        "Convert to Python float. Gated by implicit_scalar_conversion; raises if dtype is "
-        "complex or bool.")
-      .def(
-        "__complex__",
-        [](const BlockBackend::Scalar& self) {
-            require_implicit_scalar_conversion("complex");
-            return self.as_complex128();
-        },
-        "Convert to Python complex. Gated by implicit_scalar_conversion.")
-      .def(
-        "__array__",
-        [](const BlockBackend::Scalar& self, py::object dtype, py::object /*copy*/) {
-            require_implicit_scalar_conversion("numpy");
-            py::object val = self.to_numpy();
-            auto np = py::module_::import("numpy");
-            if (dtype.is_none())
-                return np.attr("asarray")(val);
-            return np.attr("asarray")(val, py::arg("dtype") = dtype);
-        },
-        py::arg("dtype") = py::none(),
-        py::arg("copy") = py::none(),
-        "NumPy array protocol. Gated by implicit_scalar_conversion.")
-      .def(
-        "__bool__",
-        [](const BlockBackend::Scalar& self) {
-            return self.as_bool(); // throws if dtype is not Bool!
-        },
-        "Return value of boolean scalar. Raises if dtype != bool.")
-      .def(
-        "__neg__", [](const BlockBackend::Scalar& self) { return -self; }, "Unary negation.")
-      .def("real", &BlockBackend::Scalar::real, "Real part as a Scalar (valid for any dtype).")
-      .def(
-        "imag", &BlockBackend::Scalar::imag, "Imaginary part as a Scalar (valid for any dtype).")
-      .def("conj",
-           &BlockBackend::Scalar::conj,
-           "Complex conjugate as a Scalar. Real dtypes are unchanged.")
-      .def("real_if_close",
-           &BlockBackend::Scalar::real_if_close,
-           py::arg("tol") = 100.,
-           "If close to real, return the real part; otherwise return this Scalar. "
-           "`tol` is in multiples of machine epsilon (numpy.real_if_close convention).")
-      .def("__abs__", &BlockBackend::Scalar::abs, "Absolute value.")
-      .def("sqrt", &BlockBackend::Scalar::sqrt, "Square root.")
-      .def("exp", &BlockBackend::Scalar::exp, "Elementwise / scalar exponential.")
-      .def("log", &BlockBackend::Scalar::log, "Natural logarithm.")
-      .def("pow", &BlockBackend::Scalar::pow, py::arg("exponent"), "Raise to a scalar power.")
-      .def(
-        "__pow__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& exponent) {
-            return self.pow(exponent);
-        },
-        py::arg("exponent"),
-        "Raise to a scalar power.")
-      .def(
-        "__pow__",
-        [](const BlockBackend::Scalar& self, float64 exponent) {
-            return self.pow(self._block()->get_backend()->as_scalar(exponent));
-        },
-        py::arg("exponent"))
-      .def(
-        "__pow__",
-        [](const BlockBackend::Scalar& self, complex128 exponent) {
-            return self.pow(self._block()->get_backend()->as_scalar(exponent));
-        },
-        py::arg("exponent"))
-      .def(
-        "__add__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
-            return self + other;
-        },
-        py::arg("other"),
-        "Addition with another scalar.")
-      .def(
-        "__add__",
-        [](const BlockBackend::Scalar& self, float64 other) { return self + other; },
-        py::arg("other"))
-      .def(
-        "__add__",
-        [](const BlockBackend::Scalar& self, complex128 other) { return self + other; },
-        py::arg("other"))
-      .def(
-        "__radd__",
-        [](const BlockBackend::Scalar& self, float64 other) { return other + self; },
-        py::arg("other"))
-      .def(
-        "__radd__",
-        [](const BlockBackend::Scalar& self, complex128 other) { return other + self; },
-        py::arg("other"))
-      .def(
-        "__sub__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
-            return self - other;
-        },
-        py::arg("other"),
-        "Subtraction with another scalar.")
-      .def(
-        "__sub__",
-        [](const BlockBackend::Scalar& self, float64 other) { return self - other; },
-        py::arg("other"))
-      .def(
-        "__sub__",
-        [](const BlockBackend::Scalar& self, complex128 other) { return self - other; },
-        py::arg("other"))
-      .def(
-        "__rsub__",
-        [](const BlockBackend::Scalar& self, float64 other) { return other - self; }, // reversed!
-        py::arg("other"))
-      .def(
-        "__rsub__",
-        [](const BlockBackend::Scalar& self, complex128 other) {
-            return other - self;
-        }, // reversed!
-        py::arg("other"))
-      .def(
-        "__mul__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
-            return self * other;
-        },
-        py::arg("other"),
-        "Multiplication with another scalar.")
-      .def(
-        "__mul__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Block& other) {
-            return other * self;
-        },
-        py::arg("other"),
-        "Multiplication with another scalar.")
-      .def(
-        "__mul__",
-        [](const BlockBackend::Scalar& self, float64 other) { return self * other; },
-        py::arg("other"))
-      .def(
-        "__mul__",
-        [](const BlockBackend::Scalar& self, complex128 other) { return self * other; },
-        py::arg("other"))
-      .def(
-        "__mul__",
-        [](const BlockBackend::Scalar&, py::object) -> py::object {
-            return py::reinterpret_borrow<py::object>(Py_NotImplemented);
-        },
-        py::arg("other"))
-      .def(
-        "__rmul__",
-        [](const BlockBackend::Scalar& self, float64 other) { return other * self; },
-        py::arg("other"))
-      .def(
-        "__rmul__",
-        [](const BlockBackend::Scalar& self, complex128 other) { return other * self; },
-        py::arg("other"))
-      .def(
-        "__truediv__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
-            return self / other;
-        },
-        py::arg("other"))
-      .def(
-        "__truediv__",
-        [](const BlockBackend::Scalar& self, float64 other) { return self / other; },
-        py::arg("other"))
-      .def(
-        "__truediv__",
-        [](const BlockBackend::Scalar& self, complex128 other) { return self / other; },
-        py::arg("other"))
-      .def(
-        "__rtruediv__",
-        [](const BlockBackend::Scalar& self, float64 other) {
-            return other / self; // reversed!
-        },
-        py::arg("other"))
-      .def(
-        "__rtruediv__",
-        [](const BlockBackend::Scalar& self, complex128 other) {
-            return other / self; // reversed!
-        },
-        py::arg("other"))
-      .def(
-        "__lt__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
-            return self < other;
-        },
-        py::arg("other"))
-      .def(
-        "__lt__",
-        [](const BlockBackend::Scalar& self, float64 other) { return self < other; },
-        py::arg("other"))
-      .def(
-        "__gt__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
-            return self > other;
-        },
-        py::arg("other"))
-      .def(
-        "__gt__",
-        [](const BlockBackend::Scalar& self, float64 other) { return self > other; },
-        py::arg("other"))
-      .def(
-        "__le__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
-            return self <= other;
-        },
-        py::arg("other"))
-      .def(
-        "__le__",
-        [](const BlockBackend::Scalar& self, float64 other) { return self <= other; },
-        py::arg("other"))
-      .def(
-        "__ge__",
-        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
-            return self >= other;
-        },
-        py::arg("other"))
-      .def(
-        "__ge__",
-        [](const BlockBackend::Scalar& self, float64 other) { return self >= other; },
-        py::arg("other"))
-      .def("inverse", &BlockBackend::Scalar::inverse, "The inverse of the scalar, 1./self")
-      .def_property_readonly(
-        "_block", &BlockBackend::Scalar::_block, "Return the underlying block.")
-      .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5<BlockBackend::Scalar>(),
-           py::arg("hdf5_saver"),
-           py::arg("h5gr"),
-           py::arg("subpath"),
-           "Save scalar to HDF5.")
-      .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<BlockBackend::Scalar>(),
-                  py::arg("hdf5_loader"),
-                  py::arg("h5gr"),
-                  py::arg("subpath"),
-                  "Load scalar from HDF5.");
 
     block_backend // init and attributes
       .def(py::init<std::string>(), py::arg("device") = "cpu")

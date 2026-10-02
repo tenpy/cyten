@@ -10,6 +10,7 @@
 
 #include "docstrings/tensors/vector_like.h"
 
+#include <optional>
 #include <string>
 
 namespace cyten {
@@ -89,13 +90,21 @@ py_cast_vector_like(VectorLike::Ptr p)
     return py::cast(std::move(p));
 }
 
+std::optional<py::class_<VectorLike, PyVectorLike, py::smart_holder>> g_vector_like;
+
 } // namespace
+
+void
+declare_tensors_vector_like(py::module_& m)
+{
+    g_vector_like.emplace(m, "VectorLike");
+    g_vector_like->doc() = DOC(cyten, VectorLike);
+}
 
 void
 bind_tensors_vector_like(py::module_& m)
 {
-    py::class_<VectorLike, PyVectorLike, py::smart_holder> cls(m, "VectorLike");
-    cls.doc() = DOC(cyten, VectorLike);
+    auto& cls = *g_vector_like;
 
     cls.attr("__array_ufunc__") = py::none();
     cls.def(py::init<>());

@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 
+// g_block_inds is defined below (declare_block_inds / bind_block_inds).
+
 namespace cyten {
 
 namespace {
@@ -135,13 +137,22 @@ block_inds_repr(BlockInds const& a)
     return oss.str();
 }
 
+std::optional<py::class_<BlockInds>> g_block_inds;
+
 } // namespace
+
+void
+declare_block_inds(py::module_& m)
+{
+    g_block_inds.emplace(m, "BlockInds", DOC(cyten, BlockInds));
+}
 
 void
 bind_block_inds(py::module_& m)
 {
-    py::class_<BlockInds>(m, "BlockInds", DOC(cyten, BlockInds))
-      .def(py::init<>())
+    (void)m;
+    auto& cls = *g_block_inds;
+    cls.def(py::init<>())
       .def(py::init([](py::object values) { return block_inds_from_numpy(values); }),
            py::arg("values"),
            "Construct from a 2D integer sequence or ndarray.")
