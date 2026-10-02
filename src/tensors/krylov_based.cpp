@@ -301,84 +301,218 @@ dense_eigh(std::vector<complex128> const& A_in, int64 n)
     return out;
 }
 
-/// Complex general eigendecomposition via QR algorithm with shifts (small n).
+/// General (non-hermitian) eigendecomposition of a dense complex matrix (small n).
+///
+/// Reduces `A` to upper Hessenberg form with Householder reflections, then to complex Schur form
+/// ``A = Z T Z^H`` with the shifted QR algorithm (Wilkinson shifts, deflation, exceptional shifts),
+/// and finally computes the eigenvectors of the triangular `T` by back-substitution.
+/// The eigenvectors are normalized and their phase is fixed such that the largest entry is real and
+/// positive. In particular, eigenvectors of a real matrix for real eigenvalues are real.
 DenseEig
 dense_eig(std::vector<complex128> A, int64 n)
 {
-    // Accumulate eigenvectors in V (start as identity).
-    std::vector<complex128> V(static_cast<std::size_t>(n * n), complex128(0.));
+    constexpr float64 eps = std::numeric_limits<float64>::epsilon();
+    auto const N = static_cast<std::size_t>(n);
+    std::vector<complex128> Z(N * N, complex128(0.));
     for (int64 i = 0; i < n; ++i) {
-        V[idx2(i, i, n)] = 1.0;
+        Z[idx2(i, i, n)] = 1.0;
     }
-    auto mat_mul = [&](std::vector<complex128> const& X, std::vector<complex128> const& Y) {
-        std::vector<complex128> Z(static_cast<std::size_t>(n * n), complex128(0.));
-        for (int64 i = 0; i < n; ++i) {
-            for (int64 k = 0; k < n; ++k) {
-                complex128 xik = X[idx2(i, k, n)];
-                for (int64 j = 0; j < n; ++j) {
-                    Z[idx2(i, j, n)] += xik * Y[idx2(k, j, n)];
-                }
+    // 1) Householder reduction to upper Hessenberg form: A = Z H Z^H
+    std::vector<complex128> v(N);
+    for (int64 k = 0; k + 2 < n; ++k) {
+        float64 xnorm = 0.0;
+        for (int64 i = k + 1; i < n; ++i) {
+            xnorm += std::norm(A[idx2(i, k, n)]);
+        }
+        xnorm = std::sqrt(xnorm);
+        if (xnorm == 0.0) {
+            continue;
+        }
+        complex128 x0 = A[idx2(k + 1, k, n)];
+        complex128 phase = (x0 == complex128(0.)) ? complex128(1.) : x0 / std::abs(x0);
+        float64 vnorm = 0.0;
+        for (int64 i = k + 1; i < n; ++i) {
+            v[static_cast<std::size_t>(i)] = A[idx2(i, k, n)];
+        }
+        v[static_cast<std::size_t>(k + 1)] += phase * xnorm;
+        for (int64 i = k + 1; i < n; ++i) {
+            vnorm += std::norm(v[static_cast<std::size_t>(i)]);
+        }
+        vnorm = std::sqrt(vnorm);
+        for (int64 i = k + 1; i < n; ++i) {
+            v[static_cast<std::size_t>(i)] /= vnorm;
+        }
+        // A[k+1:, k:] -= 2 v (v^H A[k+1:, k:])
+        for (int64 j = k; j < n; ++j) {
+            complex128 s = 0.;
+            for (int64 i = k + 1; i < n; ++i) {
+                s += std::conj(v[static_cast<std::size_t>(i)]) * A[idx2(i, j, n)];
+            }
+            for (int64 i = k + 1; i < n; ++i) {
+                A[idx2(i, j, n)] -= 2.0 * v[static_cast<std::size_t>(i)] * s;
             }
         }
-        return Z;
-    };
-    constexpr int max_iter = 500;
-    for (int iter = 0; iter < max_iter; ++iter) {
-        // Wilkinson-like shift: bottom-right entry
-        complex128 shift = A[idx2(n - 1, n - 1, n)];
-        for (int64 i = 0; i < n; ++i) {
-            A[idx2(i, i, n)] -= shift;
-        }
-        // QR via modified Gram-Schmidt
-        std::vector<complex128> Q(static_cast<std::size_t>(n * n), complex128(0.));
-        std::vector<complex128> R(static_cast<std::size_t>(n * n), complex128(0.));
-        for (int64 j = 0; j < n; ++j) {
-            std::vector<complex128> v(static_cast<std::size_t>(n));
+        // A[:, k+1:] -= 2 (A[:, k+1:] v) v^H, and the same for Z
+        for (auto* M : { &A, &Z }) {
             for (int64 i = 0; i < n; ++i) {
-                v[static_cast<std::size_t>(i)] = A[idx2(i, j, n)];
-            }
-            for (int64 k = 0; k < j; ++k) {
-                complex128 r = 0.0;
-                for (int64 i = 0; i < n; ++i) {
-                    r += std::conj(Q[idx2(i, k, n)]) * v[static_cast<std::size_t>(i)];
+                complex128 s = 0.;
+                for (int64 j = k + 1; j < n; ++j) {
+                    s += (*M)[idx2(i, j, n)] * v[static_cast<std::size_t>(j)];
                 }
-                R[idx2(k, j, n)] = r;
-                for (int64 i = 0; i < n; ++i) {
-                    v[static_cast<std::size_t>(i)] -= r * Q[idx2(i, k, n)];
-                }
-            }
-            float64 nrm = dense_norm(v);
-            R[idx2(j, j, n)] = nrm;
-            if (nrm < 1e-30) {
-                nrm = 1.0;
-            }
-            for (int64 i = 0; i < n; ++i) {
-                Q[idx2(i, j, n)] = v[static_cast<std::size_t>(i)] / nrm;
-            }
-        }
-        A = mat_mul(R, Q);
-        for (int64 i = 0; i < n; ++i) {
-            A[idx2(i, i, n)] += shift;
-        }
-        V = mat_mul(V, Q);
-        // Convergence: off-diagonal small
-        float64 off = 0.0;
-        for (int64 i = 0; i < n; ++i) {
-            for (int64 j = 0; j < n; ++j) {
-                if (i != j) {
-                    off += std::abs(A[idx2(i, j, n)]);
+                for (int64 j = k + 1; j < n; ++j) {
+                    (*M)[idx2(i, j, n)] -= 2.0 * s * std::conj(v[static_cast<std::size_t>(j)]);
                 }
             }
         }
-        if (off < 1e-12 * static_cast<float64>(n)) {
-            break;
+        for (int64 i = k + 2; i < n; ++i) {
+            A[idx2(i, k, n)] = 0.;
         }
     }
+    auto& H = A;
+    float64 norm_H = 0.0;
+    for (auto z : H) {
+        norm_H += std::abs(z);
+    }
+    norm_H = std::max(norm_H, std::numeric_limits<float64>::min());
+    // 2) complex QR iteration on the Hessenberg matrix -> upper triangular (Schur form) T
+    std::vector<float64> rot_c(N);
+    std::vector<complex128> rot_s(N);
+    int64 hi = n - 1;
+    int64 iter = 0;
+    int64 total_iter = 0;
+    while (hi > 0) {
+        // find the start `l` of the active (unreduced) block ending at `hi`
+        int64 l = hi;
+        for (; l > 0; --l) {
+            float64 s = std::abs(H[idx2(l - 1, l - 1, n)]) + std::abs(H[idx2(l, l, n)]);
+            if (s == 0.0) {
+                s = norm_H;
+            }
+            if (std::abs(H[idx2(l, l - 1, n)]) <= eps * s) {
+                H[idx2(l, l - 1, n)] = 0.;
+                break;
+            }
+        }
+        if (l == hi) {
+            // eigenvalue H[hi, hi] converged
+            --hi;
+            iter = 0;
+            continue;
+        }
+        ++iter;
+        if (++total_iter > 100 * n) {
+            throw std::runtime_error("dense_eig: QR iteration did not converge");
+        }
+        complex128 mu;
+        complex128 d = H[idx2(hi, hi, n)];
+        if (iter % 10 == 0) {
+            // exceptional shift to break possible cycles
+            mu = d + std::abs(H[idx2(hi, hi - 1, n)]) * complex128(0.75, 0.5);
+        } else {
+            // Wilkinson shift: eigenvalue of the trailing 2x2 block closer to H[hi, hi]
+            complex128 a = H[idx2(hi - 1, hi - 1, n)];
+            complex128 b = H[idx2(hi - 1, hi, n)];
+            complex128 c = H[idx2(hi, hi - 1, n)];
+            complex128 half_tr = 0.5 * (a + d);
+            complex128 disc = std::sqrt(0.25 * (a - d) * (a - d) + b * c);
+            complex128 mu1 = half_tr + disc;
+            complex128 mu2 = half_tr - disc;
+            mu = (std::abs(mu1 - d) < std::abs(mu2 - d)) ? mu1 : mu2;
+        }
+        for (int64 k = l; k <= hi; ++k) {
+            H[idx2(k, k, n)] -= mu;
+        }
+        // QR decomposition of the active block with Givens rotations, applied from the left ...
+        for (int64 k = l; k < hi; ++k) {
+            complex128 x = H[idx2(k, k, n)];
+            complex128 y = H[idx2(k + 1, k, n)];
+            float64 r = std::hypot(std::abs(x), std::abs(y));
+            float64 cs;
+            complex128 sn;
+            if (r == 0.0) {
+                cs = 1.0;
+                sn = 0.;
+            } else if (x == complex128(0.)) {
+                cs = 0.0;
+                sn = std::conj(y) / std::abs(y);
+            } else {
+                cs = std::abs(x) / r;
+                sn = (x / std::abs(x)) * std::conj(y) / r;
+            }
+            rot_c[static_cast<std::size_t>(k)] = cs;
+            rot_s[static_cast<std::size_t>(k)] = sn;
+            for (int64 j = k; j < n; ++j) {
+                complex128 t1 = H[idx2(k, j, n)];
+                complex128 t2 = H[idx2(k + 1, j, n)];
+                H[idx2(k, j, n)] = cs * t1 + sn * t2;
+                H[idx2(k + 1, j, n)] = -std::conj(sn) * t1 + cs * t2;
+            }
+        }
+        // ... and their adjoints from the right (also accumulated into Z), giving R Q
+        for (int64 k = l; k < hi; ++k) {
+            float64 cs = rot_c[static_cast<std::size_t>(k)];
+            complex128 sn = rot_s[static_cast<std::size_t>(k)];
+            int64 top = std::min(k + 2, hi);
+            for (int64 i = 0; i <= top; ++i) {
+                complex128 t1 = H[idx2(i, k, n)];
+                complex128 t2 = H[idx2(i, k + 1, n)];
+                H[idx2(i, k, n)] = cs * t1 + std::conj(sn) * t2;
+                H[idx2(i, k + 1, n)] = -sn * t1 + cs * t2;
+            }
+            for (int64 i = 0; i < n; ++i) {
+                complex128 t1 = Z[idx2(i, k, n)];
+                complex128 t2 = Z[idx2(i, k + 1, n)];
+                Z[idx2(i, k, n)] = cs * t1 + std::conj(sn) * t2;
+                Z[idx2(i, k + 1, n)] = -sn * t1 + cs * t2;
+            }
+        }
+        for (int64 k = l; k <= hi; ++k) {
+            H[idx2(k, k, n)] += mu;
+        }
+    }
+    // 3) eigenvectors of the triangular T = H by back-substitution, then transform with Z
     DenseEig out;
-    out.values.resize(static_cast<std::size_t>(n));
-    out.vectors = std::move(V);
+    out.values.resize(N);
+    out.vectors.assign(N * N, complex128(0.));
     for (int64 i = 0; i < n; ++i) {
-        out.values[static_cast<std::size_t>(i)] = A[idx2(i, i, n)];
+        out.values[static_cast<std::size_t>(i)] = H[idx2(i, i, n)];
+    }
+    float64 small = std::max(eps * norm_H, std::numeric_limits<float64>::min());
+    std::vector<complex128> y(N);
+    std::vector<complex128> x(N);
+    for (int64 k = 0; k < n; ++k) {
+        complex128 lambda = out.values[static_cast<std::size_t>(k)];
+        y[static_cast<std::size_t>(k)] = 1.0;
+        for (int64 j = k - 1; j >= 0; --j) {
+            complex128 s = 0.;
+            for (int64 m = j + 1; m <= k; ++m) {
+                s += H[idx2(j, m, n)] * y[static_cast<std::size_t>(m)];
+            }
+            complex128 denom = H[idx2(j, j, n)] - lambda;
+            if (std::abs(denom) < small) {
+                denom = small;
+            }
+            y[static_cast<std::size_t>(j)] = -s / denom;
+        }
+        float64 max_abs = -1.0;
+        int64 i_max = 0;
+        for (int64 i = 0; i < n; ++i) {
+            complex128 s = 0.;
+            for (int64 j = 0; j <= k; ++j) {
+                s += Z[idx2(i, j, n)] * y[static_cast<std::size_t>(j)];
+            }
+            x[static_cast<std::size_t>(i)] = s;
+            if (std::abs(s) > max_abs) {
+                max_abs = std::abs(s);
+                i_max = i;
+            }
+        }
+        // fix the phase (largest entry real and positive) and normalize
+        complex128 phase = std::conj(x[static_cast<std::size_t>(i_max)]) / max_abs;
+        float64 xnorm = dense_norm(x) * std::abs(phase);
+        for (int64 i = 0; i < n; ++i) {
+            out.vectors[idx2(i, k, n)] = x[static_cast<std::size_t>(i)] * phase / xnorm;
+        }
     }
     return out;
 }
