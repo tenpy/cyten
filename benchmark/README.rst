@@ -45,16 +45,20 @@ What is compared
 
 Cases (deterministic legs, total dimension near ``--dims``):
 
-======= ============ ================================ ========================================
-Case    Symmetry     Allowed symmetry backends        Leg construction
-======= ============ ================================ ========================================
-nosym   NoSymmetry   no_symmetry                      ``from_trivial_sector(dim)``
-u1      U1           abelian, fusion_tree             charges ``-2..2``, equal multiplicities
-su2     _SU2          fusion_tree                      sectors ``0,1,2`` (j=0,½,1), equal mults
-======= ============ ================================ ========================================
+===== ========== ========================= =======================================================
+Case  Symmetry   Allowed symmetry backends Leg construction
+===== ========== ========================= =======================================================
+nosym NoSymmetry no_symmetry               ``from_trivial_sector(dim)``
+u1    U1         abelian, fusion_tree      charges ``-2..2``, equal multiplicities
+su2   SUN(N=2)   fusion_tree               GT sectors ``[0,0],[1,0],[2,0]`` (j=0,½,1), equal mults
+===== ========== ========================= =======================================================
 
 Comparing ``u1`` + ``abelian`` vs ``u1`` + ``fusion_tree`` isolates symmetry-backend
 overhead on the same block structure. ``nosym`` is the dense cyten baseline.
+
+The ``su2`` case uses ``cyten.SUN(N=2, ...)`` (not the deprecated ``_SU2``).
+It needs the standard SU(N) HDF5 symbol files for N=2 (CG hweight 20, F/R hweight 6),
+from ``su_n_data_path`` or the ``external/SUN_symbols`` git submodule.
 
 Operations:
 

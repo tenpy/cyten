@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 import cyten as ct
+from cyten.symmetries import su_n_data_file_path, su_n_data_filename
 
 from .common import get_tensor_backend
+
+# Highest weights matching the N=2 files shipped under ``external/SUN_symbols``.
+_SUN2_CG_HWEIGHT = 20
+_SUN2_F_HWEIGHT = 6
+_SUN2_R_HWEIGHT = 6
 
 
 @dataclass(frozen=True)
@@ -31,10 +39,53 @@ CASES: dict[str, CaseSpec] = {
     ),
     'su2': CaseSpec(
         name='su2',
-        symmetry_name='_SU2',
+        symmetry_name='SUN',
         allowed_symmetry_backends=('fusion_tree',),
     ),
 }
+
+
+def _repo_sun_symbols_path() -> Path | None:
+    """``external/SUN_symbols`` next to the repo root, if present."""
+    cand = Path(__file__).resolve().parent.parent / 'external' / 'SUN_symbols'
+    if not cand.is_dir():
+        return None
+    # Require the three N=2 files the benchmark uses.
+    needed = [
+        su_n_data_filename(2, kind, h)
+        for kind, h in (
+            ('CG', _SUN2_CG_HWEIGHT),
+            ('F', _SUN2_F_HWEIGHT),
+            ('R', _SUN2_R_HWEIGHT),
+        )
+    ]
+    if all((cand / name).is_file() for name in needed):
+        return cand
+    return None
+
+
+@lru_cache(maxsize=1)
+def _sun2_symmetry():
+    """SU(2) via ``SUN(N=2, ...)``, not the deprecated test-only ``_SU2``."""
+    kwargs = dict(
+        f_hweight=_SUN2_F_HWEIGHT,
+        r_hweight=_SUN2_R_HWEIGHT,
+        descriptive_name='SU(2)',
+    )
+    try:
+        return ct.SUN(2, _SUN2_CG_HWEIGHT, **kwargs).as_Symmetry()
+    except FileNotFoundError as first_exc:
+        fallback = _repo_sun_symbols_path()
+        if fallback is None:
+            raise RuntimeError(
+                'SU(2) benchmarks need SUN(N=2) Clebsch-Gordan / F / R data. '
+                'Install files for N=2 with hweights '
+                f'CG={_SUN2_CG_HWEIGHT}, F={_SUN2_F_HWEIGHT}, R={_SUN2_R_HWEIGHT}, e.g. '
+                f'{su_n_data_file_path(2, "CG", _SUN2_CG_HWEIGHT)!r}, '
+                "or set cyten.set_options(su_n_data_path='...'), or check out "
+                'the external/SUN_symbols submodule in this repository.'
+            ) from first_exc
+        return ct.SUN(2, _SUN2_CG_HWEIGHT, path=str(fallback), **kwargs).as_Symmetry()
 
 
 def get_symmetry(case: str):
@@ -44,7 +95,7 @@ def get_symmetry(case: str):
     if case == 'u1':
         return ct.U1().as_Symmetry()
     if case == 'su2':
-        return ct._SU2().as_Symmetry()
+        return _sun2_symmetry()
     raise ValueError(f'Unknown case {case!r}; choose from {sorted(CASES)}')
 
 
@@ -66,9 +117,11 @@ def _u1_leg(symmetry, dim: int):
 
 
 def _su2_leg(symmetry, dim: int):
-    """SU(2) leg with sectors ``0,1,2`` (j=0,1/2,1); total dim ≈ ``6 * mult``."""
-    # sector label n has quantum dimension n+1
-    sectors = [[0], [1], [2]]
+    """SU(2) leg via ``SUN(N=2)`` GT sectors ``[0,0]``, ``[1,0]``, ``[2,0]`` (j=0,½,1).
+
+    Quantum dimensions are ``1, 2, 3``; total dim ≈ ``6 * mult``.
+    """
+    sectors = [[0, 0], [1, 0], [2, 0]]
     qdims = [1, 2, 3]
     unit = sum(qdims)
     mult = max(1, int(dim) // unit)
