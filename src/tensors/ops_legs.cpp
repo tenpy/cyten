@@ -1350,8 +1350,10 @@ squeeze_legs_py(py::object tensor, py::object legs)
     for (auto n : remaining) {
         labels.push_back(all_labels[static_cast<std::size_t>(n)]);
     }
-    return make_python_symmetric_tensor(
-      std::move(data), codomain, domain, backend, labels_to_py(labels));
+    // a HiddenLegTensor keeps the hidden prefix in its labels -> wrap the result again
+    py::object res =
+      make_python_symmetric_tensor(std::move(data), codomain, domain, backend, labels_to_py(labels));
+    return py::cast(HiddenLegTensor::maybe_wrap(res.cast<SymmetricTensor::Ptr>()));
 }
 
 namespace {

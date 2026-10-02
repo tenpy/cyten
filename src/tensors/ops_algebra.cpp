@@ -1905,11 +1905,13 @@ scale_axis_py(py::object tensor, py::object diag, py::object leg)
     auto backend = get_same_backend({ tensor, diag });
     auto data =
       backend->scale_axis(tensor.cast<TensorCPtr>(), diag.cast<DiagonalTensorCPtr>(), leg_idx);
-    return make_python_symmetric_tensor(std::move(data),
-                                        tensor.attr("codomain"),
-                                        tensor.attr("domain"),
-                                        backend,
-                                        tensor.attr("_labels"));
+    // the labels of a HiddenLegTensor keep the hidden prefix -> wrap the result again
+    return maybe_wrap_hidden(make_python_symmetric_tensor(std::move(data),
+                                                          tensor.attr("codomain"),
+                                                          tensor.attr("domain"),
+                                                          backend,
+                                                          tensor.attr("_labels")),
+                             true);
 }
 
 py::object

@@ -4390,6 +4390,55 @@ def test_HiddenLegTensor_implicit_dual_contraction(make_compatible_tensor):
         assert not res.hidden_leg_idcs()
 
 
+@pytest.mark.parametrize('which_leg', [0, 1, 3])
+def test_HiddenLegTensor_scale_axis_keeps_hidden(which_leg, make_compatible_tensor):
+    # labels a, b | (domain) c, h -> leg 2 is the hidden leg, we scale the public legs
+    D = make_compatible_tensor(cls=DiagonalTensor, labels=['x', 'y'])
+    codom, dom = [None, None], [None, None]
+    if which_leg < 2:
+        codom[which_leg] = D.leg
+    else:
+        dom[3 - which_leg] = D.leg
+    T: SymmetricTensor = make_compatible_tensor(codom, dom, labels=['a', 'b', 'h', 'c'])
+    H = HiddenLegTensor(T, ['h'])
+    res = tensors.scale_axis(H, D, which_leg)
+    res.test_sanity()
+    assert isinstance(res, HiddenLegTensor)
+    assert res.labels == H.labels
+    assert res.hidden_leg_idcs() == H.hidden_leg_idcs()
+    assert tensors.almost_equal(res.unhide_legs(), tensors.scale_axis(T, D, which_leg))
+
+
+def test_HiddenLegTensor_zero_like_keeps_hidden(make_compatible_tensor):
+    T: SymmetricTensor = make_compatible_tensor(codomain=2, domain=2, labels=['a', 'b', 'h', 'c'])
+    H = HiddenLegTensor(T, ['h'])
+    res = tensors.zero_like(H)
+    res.test_sanity()
+    assert isinstance(res, HiddenLegTensor)
+    assert res.labels == H.labels
+    assert res.hidden_leg_idcs() == H.hidden_leg_idcs()
+    assert tensors.norm(res).to_numpy() == 0
+
+
+@pytest.mark.parametrize('pos', [dict(codomain_pos=0), dict(codomain_pos=2), dict(domain_pos=0), dict(domain_pos=2)])
+def test_HiddenLegTensor_add_squeeze_trivial_leg_keeps_hidden(pos, make_compatible_tensor):
+    T: SymmetricTensor = make_compatible_tensor(codomain=2, domain=2, labels=['a', 'b', 'h', 'c'])
+    H = HiddenLegTensor(T, ['h'])
+    res = tensors.add_trivial_leg(H, label='t', **pos)
+    res.test_sanity()
+    assert isinstance(res, HiddenLegTensor)
+    assert [l for l in res.labels if l != 't'] == H.labels
+    assert [res.labels[i] for i in res.hidden_leg_idcs()] == ['!h']
+    assert tensors.almost_equal(res.unhide_legs(), tensors.add_trivial_leg(T, label='t', **pos))
+
+    squeezed = tensors.squeeze_legs(res, 't')
+    squeezed.test_sanity()
+    assert isinstance(squeezed, HiddenLegTensor)
+    assert squeezed.labels == H.labels
+    assert squeezed.hidden_leg_idcs() == H.hidden_leg_idcs()
+    assert tensors.almost_equal(squeezed.unhide_legs(), T)
+
+
 def test_HiddenLegTensor_equal_hidden_label_error(make_compatible_tensor):
     T: SymmetricTensor = make_compatible_tensor(codomain=3, labels=['a', 'b', 'h'])
     A = HiddenLegTensor(T, ['h'])
