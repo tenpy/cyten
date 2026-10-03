@@ -505,19 +505,45 @@ normalize_summand_index(DirectSumSpace const& space, int64 i)
 }
 
 [[nodiscard]] std::vector<int64>
-normalize_summand_indices(DirectSumSpace const& space, std::vector<int64> indices)
+normalize_summand_indices(DirectSumSpace const& space,
+                          std::vector<DirectSumSpace::SummandRef> indices,
+                          bool require_nonempty)
 {
-    if (indices.empty()) {
-        throw std::invalid_argument("projection_onto_summands requires at least one index");
+    if (require_nonempty && indices.empty()) {
+        throw std::invalid_argument("keep_indices requires at least one summand reference");
     }
     std::vector<int64> normalized;
     normalized.reserve(indices.size());
-    for (auto i : indices) {
-        normalized.push_back(normalize_summand_index(space, i));
+    for (auto& index : indices) {
+        normalized.push_back(space.get_summand_idx(std::move(index)));
     }
     std::sort(normalized.begin(), normalized.end());
     normalized.erase(std::unique(normalized.begin(), normalized.end()), normalized.end());
     return normalized;
+}
+
+[[nodiscard]] std::vector<int64>
+select_summand_indices(DirectSumSpace const& space,
+                       std::optional<std::vector<DirectSumSpace::SummandRef>> keep_indices,
+                       std::optional<std::vector<DirectSumSpace::SummandRef>> discard_indices)
+{
+    if (keep_indices.has_value() == discard_indices.has_value()) {
+        throw std::invalid_argument(
+          "exactly one of keep_indices or discard_indices must be provided");
+    }
+    if (keep_indices) {
+        return normalize_summand_indices(space, std::move(*keep_indices), true);
+    }
+
+    auto discarded = normalize_summand_indices(space, std::move(*discard_indices), false);
+    std::vector<int64> kept;
+    kept.reserve(space.spaces.size() - discarded.size());
+    for (int64 i = 0; i < static_cast<int64>(space.spaces.size()); ++i) {
+        if (!std::binary_search(discarded.begin(), discarded.end(), i)) {
+            kept.push_back(i);
+        }
+    }
+    return kept;
 }
 
 [[nodiscard]] TensorBackend::Ptr
@@ -532,12 +558,13 @@ resolve_backend_for_space(TensorBackend::Ptr backend, Space::Ptr const& space)
 } // namespace
 
 MaskPtr
-DirectSumSpace::projection_onto_summands(std::vector<int64> indices,
+DirectSumSpace::projection_onto_summands(std::optional<std::vector<SummandRef>> keep_indices,
+                                         std::optional<std::vector<SummandRef>> discard_indices,
                                          std::shared_ptr<TensorBackend> backend,
                                          std::optional<OptionalLabels> labels,
                                          std::optional<std::string> device) const
 {
-    auto kept = normalize_summand_indices(*this, std::move(indices));
+    auto kept = select_summand_indices(*this, std::move(keep_indices), std::move(discard_indices));
     backend = resolve_backend_for_space(std::move(backend), shared_es());
 
     auto const slices = mult_slices();
@@ -578,13 +605,17 @@ DirectSumSpace::projection_onto_summands(std::vector<int64> indices,
 }
 
 MaskPtr
-DirectSumSpace::inclusion_of_summands(std::vector<int64> indices,
+DirectSumSpace::inclusion_of_summands(std::optional<std::vector<SummandRef>> keep_indices,
+                                      std::optional<std::vector<SummandRef>> discard_indices,
                                       std::shared_ptr<TensorBackend> backend,
                                       std::optional<OptionalLabels> labels,
                                       std::optional<std::string> device) const
 {
-    auto proj = projection_onto_summands(
-      std::move(indices), std::move(backend), std::move(labels), std::move(device));
+    auto proj = projection_onto_summands(std::move(keep_indices),
+                                         std::move(discard_indices),
+                                         std::move(backend),
+                                         std::move(labels),
+                                         std::move(device));
     auto incl = std::dynamic_pointer_cast<Mask>(proj->dagger());
     if (!incl) {
         throw std::runtime_error("Mask::dagger did not return a Mask");
@@ -598,7 +629,8 @@ DirectSumSpace::projection_onto_summand(SummandRef which,
                                         std::optional<OptionalLabels> labels,
                                         std::optional<std::string> device) const
 {
-    return projection_onto_summands(std::vector<int64>{ get_summand_idx(std::move(which)) },
+    return projection_onto_summands(std::vector<SummandRef>{ std::move(which) },
+                                    std::nullopt,
                                     std::move(backend),
                                     std::move(labels),
                                     std::move(device));
@@ -610,7 +642,8 @@ DirectSumSpace::inclusion_of_summand(SummandRef which,
                                      std::optional<OptionalLabels> labels,
                                      std::optional<std::string> device) const
 {
-    return inclusion_of_summands(std::vector<int64>{ get_summand_idx(std::move(which)) },
+    return inclusion_of_summands(std::vector<SummandRef>{ std::move(which) },
+                                 std::nullopt,
                                  std::move(backend),
                                  std::move(labels),
                                  std::move(device));

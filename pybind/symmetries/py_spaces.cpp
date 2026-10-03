@@ -844,14 +844,16 @@ bind_direct_sum_space(py::module_& m)
            DOC(cyten, ElementarySpace, with_opposite_duality))
       .def("projection_onto_summands",
            &DirectSumSpace::projection_onto_summands,
-           py::arg("indices"),
+           py::arg("keep_indices") = py::none(),
+           py::arg("discard_indices") = py::none(),
            py::arg("backend") = nullptr,
            py::arg("labels") = py::none(),
            py::arg("device") = py::none(),
            DOC(cyten, DirectSumSpace, projection_onto_summands))
       .def("inclusion_of_summands",
            &DirectSumSpace::inclusion_of_summands,
-           py::arg("indices"),
+           py::arg("keep_indices") = py::none(),
+           py::arg("discard_indices") = py::none(),
            py::arg("backend") = nullptr,
            py::arg("labels") = py::none(),
            py::arg("device") = py::none(),

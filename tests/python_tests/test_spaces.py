@@ -688,24 +688,38 @@ def test_DirectSumSpace_projection_onto_summands(compatible_symmetry, compatible
     backend = compatible_backend
     I = spaces.ElementarySpace.from_trivial_sector(1, symmetry=sym)
     other = spaces.ElementarySpace.from_trivial_sector(2, symmetry=sym)
-    d = spaces.DirectSumSpace([I, other, I])  # IdL ⊕ other ⊕ IdR
+    d = spaces.DirectSumSpace([I, other, I], summand_labels=['left', 'middle', 'right'])  # IdL ⊕ other ⊕ IdR
     d.test_sanity()
 
     # complement of IdL/IdR = middle summand only
-    proj_other = d.projection_onto_summands([1], backend=backend)
-    proj_ends = d.projection_onto_summands([0, -1], backend=backend)
-    proj_all = d.projection_onto_summands([0, 1, 2], backend=backend)
+    proj_other = d.projection_onto_summands(keep_indices=[1], backend=backend)
+    proj_ends = d.projection_onto_summands(keep_indices=[0, -1], backend=backend)
+    proj_all = d.projection_onto_summands(keep_indices=[0, 1, 2], backend=backend)
+    proj_other_by_discard = d.projection_onto_summands(discard_indices=['left', 'right'], backend=backend)
+    proj_all_by_empty_discard = d.projection_onto_summands(discard_indices=[], backend=backend)
+    proj_right_by_mixed_refs = d.projection_onto_summands(discard_indices=['left', 1], backend=backend)
     assert proj_other.is_projection
     assert proj_ends.is_projection
     assert (proj_ends.dagger.dagger == proj_ends).all()
+    assert (proj_other_by_discard == proj_other).all()
+    assert (proj_all_by_empty_discard == proj_all).all()
+    assert (proj_right_by_mixed_refs == d.projection_onto_summand('right', backend=backend)).all()
 
     # single-summand wrappers match multi-summand
     assert (d.projection_onto_summand(1, backend=backend) == proj_other).all()
-    assert (d.inclusion_of_summands([1], backend=backend).dagger == proj_other).all()
+    assert (d.inclusion_of_summands(keep_indices=[1], backend=backend).dagger == proj_other).all()
+    assert (d.inclusion_of_summands(discard_indices=['left', 'right'], backend=backend).dagger == proj_other).all()
 
     # projecting onto all summands is the identity Mask on d
     eye = Mask.from_eye(d, is_projection=True, backend=backend)
     assert (proj_all == eye).all()
+
+    with pytest.raises(ValueError, match='exactly one'):
+        d.projection_onto_summands(backend=backend)
+    with pytest.raises(ValueError, match='exactly one'):
+        d.inclusion_of_summands(keep_indices=[0], discard_indices=[1], backend=backend)
+    with pytest.raises(ValueError, match='at least one'):
+        d.projection_onto_summands(keep_indices=[], backend=backend)
 
     with pytest.raises(TypeError, match='basis_perm'):
         d.set_basis_perm([0, 1, 2, 3])

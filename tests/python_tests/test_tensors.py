@@ -4086,17 +4086,17 @@ def test_mpo_partition_and_make_U_I_pattern(compatible_symmetry, compatible_back
     )
     C = tensors.apply_mask(
         tensors.apply_mask(W, left_leg.projection_onto_summand(IdL, backend=backend), 'wL'),
-        right_leg.projection_onto_summands(other_idx, backend=backend),
+        right_leg.projection_onto_summands(keep_indices=other_idx, backend=backend),
         'wR',
     )
     B = tensors.apply_mask(
-        tensors.apply_mask(W, left_leg.projection_onto_summands(other_idx, backend=backend), 'wL'),
+        tensors.apply_mask(W, left_leg.projection_onto_summands(keep_indices=other_idx, backend=backend), 'wL'),
         right_leg.projection_onto_summand(IdR, backend=backend),
         'wR',
     )
     A = tensors.apply_mask(
-        tensors.apply_mask(W, left_leg.projection_onto_summands(other_idx, backend=backend), 'wL'),
-        right_leg.projection_onto_summands(other_idx, backend=backend),
+        tensors.apply_mask(W, left_leg.projection_onto_summands(keep_indices=other_idx, backend=backend), 'wL'),
+        right_leg.projection_onto_summands(keep_indices=other_idx, backend=backend),
         'wR',
     )
 
@@ -4121,7 +4121,7 @@ def test_mpo_partition_and_make_U_I_pattern(compatible_symmetry, compatible_back
     col_IdR = tensors.apply_mask(W, right_leg.projection_onto_summand(IdR, backend=backend), 'wR')
     col_on_IdL = tensors.enlarge_leg(col_IdR, right_leg.inclusion_of_summand(IdL, backend=backend), 'wR')
     U = tensors.linear_combination(1.0, W, dt, col_on_IdL)
-    keep = right_leg.projection_onto_summands([0, 1], backend=backend)
+    keep = right_leg.projection_onto_summands(keep_indices=[0, 1], backend=backend)
     U_kept = tensors.apply_mask(U, keep, 'wR')
 
     expect = Wflat.copy()

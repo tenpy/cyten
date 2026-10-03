@@ -537,26 +537,34 @@ class DirectSumSpace : public ElementarySpace
 
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
 
-    /// Projection Mask onto the union of summands ``indices``.
+    /// Projection Mask onto the union of selected summands.
     ///
     /// Kept multiplicity blocks appear in ascending summand-index order (duplicates ignored).
-    /// Negative indices count from the end. The large leg is this space; the small leg is the
-    /// plain `ElementarySpace` spanned by the kept multiplicities.
+    /// Specify exactly one of ``keep_indices`` or ``discard_indices``; entries may be indices
+    /// (negative indices count from the end) or summand labels. ``discard_indices`` keeps all
+    /// summands not listed. The large leg is this space; the small leg is the plain
+    /// `ElementarySpace` spanned by the kept multiplicities.
     ///
     /// For the labels, if the parent `DirectSumSpace` has a label `a`, usually it makes sense
     /// to set ``labels=[a, a*]``, or e.g. on a `wR` of an MPO, to use ``['wR', 'wL']``
     [[nodiscard]] MaskPtr projection_onto_summands(
-      std::vector<int64> indices,
+      std::optional<std::vector<SummandRef>> keep_indices = std::nullopt,
+      std::optional<std::vector<SummandRef>> discard_indices = std::nullopt,
       std::shared_ptr<TensorBackend> backend = nullptr,
       std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<std::string> device = std::nullopt) const;
 
-    /// Inclusion Mask of the union of summands ``indices`` (dagger of the projection).
+    /// Inclusion Mask onto the union of selected summands (dagger of the projection).
+    ///
+    /// Specify exactly one of ``keep_indices`` or ``discard_indices``; entries may be indices
+    /// (negative indices count from the end) or summand labels. ``discard_indices`` keeps all
+    /// summands not listed.
     ///
     /// For the labels, if the parent `DirectSumSpace` has a label `a`, usually it makes sense
     /// to set ``labels=[a, a*]``, or e.g. on a `wR` of an MPO, to use ``['wR', 'wL']``
     [[nodiscard]] MaskPtr inclusion_of_summands(
-      std::vector<int64> indices,
+      std::optional<std::vector<SummandRef>> keep_indices = std::nullopt,
+      std::optional<std::vector<SummandRef>> discard_indices = std::nullopt,
       std::shared_ptr<TensorBackend> backend = nullptr,
       std::optional<OptionalLabels> labels = std::nullopt,
       std::optional<std::string> device = std::nullopt) const;
