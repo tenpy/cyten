@@ -542,6 +542,9 @@ class DirectSumSpace : public ElementarySpace
     /// Kept multiplicity blocks appear in ascending summand-index order (duplicates ignored).
     /// Negative indices count from the end. The large leg is this space; the small leg is the
     /// plain `ElementarySpace` spanned by the kept multiplicities.
+    ///
+    /// For the labels, if the parent `DirectSumSpace` has a label `a`, usually it makes sense
+    /// to set ``labels=[a, a*]``, or e.g. on a `wR` of an MPO, to use ``['wR', 'wL']``
     [[nodiscard]] MaskPtr projection_onto_summands(
       std::vector<int64> indices,
       std::shared_ptr<TensorBackend> backend = nullptr,
@@ -549,6 +552,9 @@ class DirectSumSpace : public ElementarySpace
       std::optional<std::string> device = std::nullopt) const;
 
     /// Inclusion Mask of the union of summands ``indices`` (dagger of the projection).
+    ///
+    /// For the labels, if the parent `DirectSumSpace` has a label `a`, usually it makes sense
+    /// to set ``labels=[a, a*]``, or e.g. on a `wR` of an MPO, to use ``['wR', 'wL']``
     [[nodiscard]] MaskPtr inclusion_of_summands(
       std::vector<int64> indices,
       std::shared_ptr<TensorBackend> backend = nullptr,
@@ -559,6 +565,9 @@ class DirectSumSpace : public ElementarySpace
     ///
     /// The large leg is this space; the small leg is isomorphic to the selected summand
     /// (built from the kept multiplicities). Negative indices count from the end.
+    ///
+    /// For the labels, if the parent `DirectSumSpace` has a label `a`, usually it makes sense
+    /// to set ``labels=[a, a*]``, or e.g. on a `wR` of an MPO, to use ``['wR', 'wL']``
     [[nodiscard]] MaskPtr projection_onto_summand(
       SummandRef which,
       std::shared_ptr<TensorBackend> backend = nullptr,
@@ -566,6 +575,9 @@ class DirectSumSpace : public ElementarySpace
       std::optional<std::string> device = std::nullopt) const;
 
     /// Inclusion Mask of summand ``which`` (index or label; dagger of the projection).
+    ///
+    /// For the labels, if the parent `DirectSumSpace` has a label `a`, usually it makes sense
+    /// to set ``labels=[a, a*]``, or e.g. on a `wR` of an MPO, to use ``['wR', 'wL']``
     [[nodiscard]] MaskPtr inclusion_of_summand(
       SummandRef which,
       std::shared_ptr<TensorBackend> backend = nullptr,
