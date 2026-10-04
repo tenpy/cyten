@@ -1418,6 +1418,21 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
         npt.assert_array_almost_equal_nulp(res_np, expect, 100)
 
 
+def test_add_trivial_leg_rejects_duplicate_label(make_compatible_tensor):
+    tens = make_compatible_tensor(codomain=1, domain=1, labels=['existing', None])
+
+    with pytest.raises(ValueError, match='already has label'):
+        tensors.add_trivial_leg(tens, label='existing')
+
+    res = tensors.add_trivial_leg(tens, label='new')
+    assert res.labels == ['new', 'existing', None]
+
+
+def test_tensor_constructor_rejects_duplicate_labels(make_compatible_tensor):
+    with pytest.raises(ValueError, match='Duplicate leg labels'):
+        make_compatible_tensor(codomain=1, domain=1, labels=['duplicate', 'duplicate'])
+
+
 @pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize('cls', [DiagonalTensor, SymmetricTensor, ChargedTensor])
 def test_almost_equal(cls, make_compatible_tensor):

@@ -145,6 +145,10 @@ add_trivial_leg(TensorCPtr tens,
                 OptionalLabel label,
                 bool is_dual)
 {
+    if (label && tens->has_label(*label)) {
+        throw std::invalid_argument(std::format("Tensor already has label '{}'", *label));
+    }
+
     // --- hints from Python add_trivial_leg ---
     // parse position to format:
     // - leg_pos: int,  0 <= leg_pos < res_num_legs

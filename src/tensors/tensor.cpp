@@ -163,7 +163,7 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
                OptionalLabels labels,
                Dtype dtype_,
                std::string device_)
-  : LabelledLegs(OptionalLabels{})
+  : LabelledLegs(std::move(labels))
   , codomain(std::move(codomain_))
   , domain(std::move(domain_))
   , backend(std::move(backend_))
@@ -199,18 +199,9 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
         shape.push_back((*it)->dim);
     }
 
-    if (static_cast<int64>(labels.size()) != codomain->num_factors + domain->num_factors) {
-        throw std::invalid_argument(std::format("expected {} labels, got {}",
-                                                codomain->num_factors + domain->num_factors,
-                                                labels.size()));
-    }
-    num_legs = static_cast<int64>(labels.size());
-    _labels = std::move(labels);
-    _labelmap.clear();
-    for (int64 i = 0; i < num_legs; ++i) {
-        if (_labels[static_cast<std::size_t>(i)]) {
-            _labelmap[*_labels[static_cast<std::size_t>(i)]] = i;
-        }
+    if (num_legs != codomain->num_factors + domain->num_factors) {
+        throw std::invalid_argument(std::format(
+          "expected {} labels, got {}", codomain->num_factors + domain->num_factors, num_legs));
     }
 }
 
