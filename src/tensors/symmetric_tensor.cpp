@@ -782,8 +782,8 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
             throw std::runtime_error("Unexpected backend combination");
         }
     } else {
-        throw std::invalid_argument(
-          std::format("Unexpected backend type {}", typeid(*new_backend).name()));
+        const auto& obj = *new_backend;
+        throw std::invalid_argument(std::format("Unexpected backend type {}", typeid(obj).name()));
     }
 
     return std::make_shared<SymmetricTensor>(

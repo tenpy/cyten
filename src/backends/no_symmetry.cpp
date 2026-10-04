@@ -121,9 +121,11 @@ NoSymmetryBackend::unwrap(DataPtr d)
     if (!d)
         throw std::invalid_argument("NoSymmetryBackend::unwrap: null DataPtr");
     auto* bd = dynamic_cast<BlockData*>(d.get());
-    if (!bd)
-        throw std::invalid_argument(
-          std::format("NoSymmetryBackend::unwrap: expected BlockData, got {}", typeid(*d).name()));
+    if (!bd) {
+        const auto& obj = *d;
+        throw std::invalid_argument(std::format(
+          "NoSymmetryBackend::unwrap: expected BlockData, got {}", typeid(obj).name()));
+    }
     return bd->block;
 }
 

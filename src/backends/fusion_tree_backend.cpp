@@ -486,9 +486,11 @@ FusionTreeBackend::unwrap(DataPtr d)
     if (!d)
         throw std::invalid_argument("FusionTreeBackend::unwrap: null DataPtr");
     auto* p = dynamic_cast<FusionTreeData*>(d.get());
-    if (!p)
+    if (!p) {
+        const auto& obj = *d;
         throw std::invalid_argument(std::format(
-          "FusionTreeBackend::unwrap: expected FusionTreeData, got {}", typeid(*d).name()));
+          "FusionTreeBackend::unwrap: expected FusionTreeData, got {}", typeid(obj).name()));
+    }
     return std::static_pointer_cast<FusionTreeData>(d);
 }
 
