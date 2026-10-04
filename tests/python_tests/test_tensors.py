@@ -2143,7 +2143,8 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     T.set_labels(list('efghijk')[: 2 * dom])
     T.test_sanity()
 
-    W, V = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
+    new_leg_dual_arg = {'new_leg_dual': True} if new_leg_dual else {}
+    W, V = tensors.eigh(T, new_labels=['a', 'b', 'c'], **new_leg_dual_arg)
     W.test_sanity()
     V.test_sanity()
     assert W.labels == ['b', 'c']
@@ -2171,7 +2172,8 @@ def test_eig(cls, dom, new_leg_dual, make_compatible_tensor):
     T.set_labels(list('efghijk')[: 2 * dom])
     T.test_sanity()
 
-    W, V = tensors.eig(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
+    new_leg_dual_arg = {'new_leg_dual': True} if new_leg_dual else {}
+    W, V = tensors.eig(T, new_labels=['a', 'b', 'c'], **new_leg_dual_arg)
     W.test_sanity()
     V.test_sanity()
     assert W.labels == ['b', 'c']
@@ -2198,7 +2200,8 @@ def test_eigvalsh(cls, dom, new_leg_dual, make_compatible_tensor):
     T.set_labels(list('efghijk')[: 2 * dom])
     T.test_sanity()
 
-    W = tensors.eigvalsh(T, new_labels=['b', 'c'], new_leg_dual=new_leg_dual)
+    new_leg_dual_arg = {'new_leg_dual': True} if new_leg_dual else {}
+    W = tensors.eigvalsh(T, new_labels=['b', 'c'], **new_leg_dual_arg)
     W.test_sanity()
     assert W.labels == ['b', 'c']
     W2, _V = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
@@ -2221,7 +2224,8 @@ def test_eigvals(cls, dom, new_leg_dual, make_compatible_tensor):
     T.set_labels(list('efghijk')[: 2 * dom])
     T.test_sanity()
 
-    W = tensors.eigvals(T, new_labels=['b', 'c'], new_leg_dual=new_leg_dual)
+    new_leg_dual_arg = {'new_leg_dual': True} if new_leg_dual else {}
+    W = tensors.eigvals(T, new_labels=['b', 'c'], **new_leg_dual_arg)
     W.test_sanity()
     assert W.labels == ['b', 'c']
     W2, _V = tensors.eig(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)

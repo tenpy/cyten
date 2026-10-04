@@ -73,7 +73,7 @@ namespace cyten {
 [[nodiscard]] std::tuple<DiagonalTensorPtr, TensorPtr> eigh(
   TensorCPtr tensor,
   OptionalLabels new_labels,
-  bool new_leg_dual,
+  bool new_leg_dual = false,
   std::optional<std::string> sort = std::nullopt);
 
 /// The eigen-decomposition of a general (not necessarily hermitian) tensor.
@@ -98,7 +98,7 @@ namespace cyten {
 [[nodiscard]] std::tuple<DiagonalTensorPtr, TensorPtr> eig(
   TensorCPtr tensor,
   OptionalLabels new_labels,
-  bool new_leg_dual,
+  bool new_leg_dual = false,
   std::optional<std::string> sort = std::nullopt);
 
 /// Eigenvalues of a hermitian tensor, without eigenvectors.
@@ -115,7 +115,7 @@ namespace cyten {
 /// @returns `W`: real eigenvalues as a `DiagonalTensor`.
 [[nodiscard]] DiagonalTensorPtr eigvalsh(TensorCPtr tensor,
                                          OptionalLabels new_labels,
-                                         bool new_leg_dual,
+                                         bool new_leg_dual = false,
                                          std::optional<std::string> sort = std::nullopt);
 
 /// Eigenvalues of a general tensor, without eigenvectors.
@@ -131,7 +131,7 @@ namespace cyten {
 /// @returns `W`: (generally complex) eigenvalues as a `DiagonalTensor`.
 [[nodiscard]] DiagonalTensorPtr eigvals(TensorCPtr tensor,
                                         OptionalLabels new_labels,
-                                        bool new_leg_dual,
+                                        bool new_leg_dual = false,
                                         std::optional<std::string> sort = std::nullopt);
 
 /// The entropy of a probability distribution.

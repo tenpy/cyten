@@ -95,7 +95,7 @@ bind_tensors_decompositions(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("new_labels"),
-      py::arg("new_leg_dual"),
+      py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
       DOC(cyten, eigh));
 
@@ -109,7 +109,7 @@ bind_tensors_decompositions(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("new_labels"),
-      py::arg("new_leg_dual"),
+      py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
       DOC(cyten, eig));
 
@@ -123,7 +123,7 @@ bind_tensors_decompositions(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("new_labels"),
-      py::arg("new_leg_dual"),
+      py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
       DOC(cyten, eigvalsh));
 
@@ -137,7 +137,7 @@ bind_tensors_decompositions(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("new_labels"),
-      py::arg("new_leg_dual"),
+      py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
       DOC(cyten, eigvals));
 
