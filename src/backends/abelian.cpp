@@ -497,9 +497,11 @@ AbelianBackend::unwrap(DataPtr d)
     if (!d)
         throw std::invalid_argument("AbelianBackend::unwrap: null DataPtr");
     auto* p = dynamic_cast<AbelianBackendData*>(d.get());
-    if (!p)
+    if (!p) {
+        const auto& obj = *d;
         throw std::invalid_argument(std::format(
-          "AbelianBackend::unwrap: expected AbelianBackendData, got {}", typeid(*d).name()));
+          "AbelianBackend::unwrap: expected AbelianBackendData, got {}", typeid(obj).name()));
+    }
     return std::static_pointer_cast<AbelianBackendData>(d);
 }
 
