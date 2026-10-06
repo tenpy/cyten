@@ -752,17 +752,17 @@ tensor_grid_cell(TensorCPtr tensor,
 }
 
 TensorPtr
-tensor_grid_cells(TensorCPtr tensor,
-                  std::vector<DirectSumSpace::SummandRef> rows,
-                  std::vector<DirectSumSpace::SummandRef> cols,
-                  LegRef row_leg,
-                  LegRef col_leg)
+tensor_subgrid(TensorCPtr tensor,
+               std::vector<DirectSumSpace::SummandRef> rows,
+               std::vector<DirectSumSpace::SummandRef> cols,
+               LegRef row_leg,
+               LegRef col_leg)
 {
     if (!tensor) {
-        throw std::invalid_argument("tensor_grid_cells: tensor must be non-null");
+        throw std::invalid_argument("tensor_subgrid: tensor must be non-null");
     }
     if (rows.empty() || cols.empty()) {
-        throw std::invalid_argument("tensor_grid_cells: rows and cols must be non-empty");
+        throw std::invalid_argument("tensor_subgrid: rows and cols must be non-empty");
     }
 
     // Summand labels of the selected rows / cols, if the stacking leg is a DirectSumSpace.

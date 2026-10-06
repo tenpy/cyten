@@ -186,11 +186,11 @@ namespace cyten {
 /// @param rows,cols Non-empty lists of summand indices or labels, as in `tensor_grid_cell`.
 /// @param row_leg Leg of the row direct sum (default: first codomain leg).
 /// @param col_leg Leg of the column direct sum (default: last domain leg, ``-1``).
-[[nodiscard]] TensorPtr tensor_grid_cells(TensorCPtr tensor,
-                                          std::vector<DirectSumSpace::SummandRef> rows,
-                                          std::vector<DirectSumSpace::SummandRef> cols,
-                                          LegRef row_leg = int64{ 0 },
-                                          LegRef col_leg = int64{ -1 });
+[[nodiscard]] TensorPtr tensor_subgrid(TensorCPtr tensor,
+                                       std::vector<DirectSumSpace::SummandRef> rows,
+                                       std::vector<DirectSumSpace::SummandRef> cols,
+                                       LegRef row_leg = int64{ 0 },
+                                       LegRef col_leg = int64{ -1 });
 
 /// Project selected tensor legs onto summands of their `DirectSumSpace`s.
 ///

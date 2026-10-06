@@ -4041,8 +4041,8 @@ def test_tensor_grid_cell_roundtrip(make_compatible_tensor, make_compatible_spac
     assert tensors.almost_equal(projected, expected)
 
 
-def test_tensor_grid_cells(make_compatible_tensor, make_compatible_space):
-    """tensor_grid_cells returns the subgrid, consistent with tensor_grid_cell."""
+def test_tensor_subgrid(make_compatible_tensor, make_compatible_space):
+    """tensor_subgrid returns the subgrid, consistent with tensor_grid_cell."""
     T: SymmetricTensor = make_compatible_tensor([None], [None], cls=SymmetricTensor, use_pipes=False)
     dual_codom = T.codomain[0].is_dual
     dual_dom = T.domain[-1].is_dual
@@ -4058,7 +4058,7 @@ def test_tensor_grid_cells(make_compatible_tensor, make_compatible_space):
 
     rows = ['C', 0]
     cols = [1, 'A']
-    sub = tensors.tensor_grid_cells(res, rows, cols, row_leg='wL', col_leg='wR')
+    sub = tensors.tensor_subgrid(res, rows, cols, row_leg='wL', col_leg='wR')
     assert sub.labels == ['wL', 'wR']
     assert isinstance(sub.codomain[0], DirectSumSpace)
     assert isinstance(sub.domain[-1], DirectSumSpace)
@@ -4072,19 +4072,17 @@ def test_tensor_grid_cells(make_compatible_tensor, make_compatible_space):
             assert tensors.almost_equal(actual, expected)
 
     # Selecting everything in order reproduces the tensor.
-    full = tensors.tensor_grid_cells(res, [0, 1, 2], [0, 1, 2], row_leg='wL', col_leg='wR')
+    full = tensors.tensor_subgrid(res, [0, 1, 2], [0, 1, 2], row_leg='wL', col_leg='wR')
     assert tensors.almost_equal(full, res)
 
     with pytest.raises(ValueError):
-        tensors.tensor_grid_cells(res, [], [0], row_leg='wL', col_leg='wR')
+        tensors.tensor_subgrid(res, [], [0], row_leg='wL', col_leg='wR')
 
     # Subgrids are recombined by tensor_from_grid (without row/col labels): nested summand
     # labels are flattened, so the original labels are recovered.
     row_blocks = [['A', 'B'], ['C']]
     col_blocks = [['A'], ['B', 'C']]
-    subs = [
-        [tensors.tensor_grid_cells(res, rb, cb, row_leg='wL', col_leg='wR') for cb in col_blocks] for rb in row_blocks
-    ]
+    subs = [[tensors.tensor_subgrid(res, rb, cb, row_leg='wL', col_leg='wR') for cb in col_blocks] for rb in row_blocks]
     recombined = tensors.tensor_from_grid(subs, labels=['wL', 'wR'])
     assert recombined.codomain[0].summand_labels == labels
     assert recombined.domain[-1].summand_labels == labels

@@ -236,7 +236,7 @@ In Python, ``row`` / ``col`` accept ``int | str`` (a summand label, resolved via
 )pydoc"));
 
     m.def(
-      "tensor_grid_cells",
+      "tensor_subgrid",
       [](py::object tensor,
          py::object rows,
          py::object cols,
@@ -262,18 +262,18 @@ In Python, ``row`` / ``col`` accept ``int | str`` (a summand label, resolved via
               }
               return obj.cast<int64>();
           };
-          return tensor_grid_cells(tensor.cast<TensorCPtr>(),
-                                   as_summand_refs(rows),
-                                   as_summand_refs(cols),
-                                   as_leg_ref(row_leg, 0),
-                                   as_leg_ref(col_leg, -1));
+          return tensor_subgrid(tensor.cast<TensorCPtr>(),
+                                as_summand_refs(rows),
+                                as_summand_refs(cols),
+                                as_leg_ref(row_leg, 0),
+                                as_leg_ref(col_leg, -1));
       },
       py::arg("tensor"),
       py::arg("rows"),
       py::arg("cols"),
       py::arg("row_leg") = py::none(),
       py::arg("col_leg") = py::none(),
-      doc_plus(DOC(cyten, tensor_grid_cells),
+      doc_plus(DOC(cyten, tensor_subgrid),
                R"pydoc(
 In Python, ``rows`` / ``cols`` are sequences of ``int | str`` (summand labels).
 )pydoc"));
