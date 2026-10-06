@@ -4041,6 +4041,56 @@ def test_tensor_grid_cell_roundtrip(make_compatible_tensor, make_compatible_spac
     assert tensors.almost_equal(projected, expected)
 
 
+def test_tensor_grid_cells(make_compatible_tensor, make_compatible_space):
+    """tensor_grid_cells returns the subgrid, consistent with tensor_grid_cell."""
+    T: SymmetricTensor = make_compatible_tensor([None], [None], cls=SymmetricTensor, use_pipes=False)
+    dual_codom = T.codomain[0].is_dual
+    dual_dom = T.domain[-1].is_dual
+
+    row_spaces = [T.codomain[0]] + [make_compatible_space(is_dual=dual_codom) for _ in range(2)]
+    col_spaces = [T.domain[-1]] + [make_compatible_space(is_dual=dual_dom) for _ in range(2)]
+    grid = [
+        [make_compatible_tensor([row_spaces[i]], [col_spaces[j]], cls=SymmetricTensor) for j in range(3)]
+        for i in range(3)
+    ]
+    labels = ['A', 'B', 'C']
+    res = tensors.tensor_from_grid(grid, labels=['wL', 'wR'], row_labels=labels, col_labels=labels)
+
+    rows = ['C', 0]
+    cols = [1, 'A']
+    sub = tensors.tensor_grid_cells(res, rows, cols, row_leg='wL', col_leg='wR')
+    assert sub.labels == ['wL', 'wR']
+    assert isinstance(sub.codomain[0], DirectSumSpace)
+    assert isinstance(sub.domain[-1], DirectSumSpace)
+    assert sub.codomain[0].summand_labels == ['C', 'A']
+    assert sub.domain[-1].summand_labels == ['B', 'A']
+
+    for i, r in enumerate(rows):
+        for j, c in enumerate(cols):
+            expected = tensors.tensor_grid_cell(res, r, c, row_leg='wL', col_leg='wR')
+            actual = tensors.tensor_grid_cell(sub, i, j, row_leg='wL', col_leg='wR')
+            assert tensors.almost_equal(actual, expected)
+
+    # Selecting everything in order reproduces the tensor.
+    full = tensors.tensor_grid_cells(res, [0, 1, 2], [0, 1, 2], row_leg='wL', col_leg='wR')
+    assert tensors.almost_equal(full, res)
+
+    with pytest.raises(ValueError):
+        tensors.tensor_grid_cells(res, [], [0], row_leg='wL', col_leg='wR')
+
+    # Subgrids are recombined by tensor_from_grid (without row/col labels): nested summand
+    # labels are flattened, so the original labels are recovered.
+    row_blocks = [['A', 'B'], ['C']]
+    col_blocks = [['A'], ['B', 'C']]
+    subs = [
+        [tensors.tensor_grid_cells(res, rb, cb, row_leg='wL', col_leg='wR') for cb in col_blocks] for rb in row_blocks
+    ]
+    recombined = tensors.tensor_from_grid(subs, labels=['wL', 'wR'])
+    assert recombined.codomain[0].summand_labels == labels
+    assert recombined.domain[-1].summand_labels == labels
+    assert tensors.almost_equal(recombined, res)
+
+
 def test_mpo_partition_and_make_U_I_pattern(compatible_symmetry, compatible_backend):
     """DSS Mask patterns used by TeNPy make_U_I / make_U_II (IdL ⊕ other ⊕ IdR)."""
     sym = compatible_symmetry

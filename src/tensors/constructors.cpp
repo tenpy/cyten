@@ -448,8 +448,25 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
     if (!left_dss || !right_dss) {
         throw std::runtime_error("tensor_from_grid: direct_sum did not return a DirectSumSpace");
     }
-    auto left_mult_slices = left_dss->mult_slices();
-    auto right_mult_slices = right_dss->mult_slices();
+    // Slices per grid cell, not per flattened summand (cells may themselves be DirectSumSpaces).
+    auto cell_mult_slices = [](DirectSumSpace const& dss,
+                               std::vector<ElementarySpace::Ptr> const& cells) {
+        std::vector<std::vector<int64>> out;
+        out.reserve(static_cast<std::size_t>(dss.num_sectors));
+        for (auto const& sector : dss.sector_decomposition) {
+            std::vector<int64> slices{ 0 };
+            for (auto const& cell : cells) {
+                auto idx = cell->sector_decomposition_where(sector);
+                slices.push_back(
+                  slices.back() +
+                  (idx.has_value() ? cell->multiplicities[static_cast<std::size_t>(*idx)] : 0));
+            }
+            out.push_back(std::move(slices));
+        }
+        return out;
+    };
+    auto left_mult_slices = cell_mult_slices(*left_dss, left_spaces);
+    auto right_mult_slices = cell_mult_slices(*right_dss, right_spaces);
 
     std::vector<Leg::Ptr> cod_legs;
     cod_legs.push_back(left_space);
@@ -732,6 +749,53 @@ tensor_grid_cell(TensorCPtr tensor,
           "tensor_grid_cell: column stacking leg is not a DirectSumSpace; only col 0/-1 is valid");
     }
     return cell;
+}
+
+TensorPtr
+tensor_grid_cells(TensorCPtr tensor,
+                  std::vector<DirectSumSpace::SummandRef> rows,
+                  std::vector<DirectSumSpace::SummandRef> cols,
+                  LegRef row_leg,
+                  LegRef col_leg)
+{
+    if (!tensor) {
+        throw std::invalid_argument("tensor_grid_cells: tensor must be non-null");
+    }
+    if (rows.empty() || cols.empty()) {
+        throw std::invalid_argument("tensor_grid_cells: rows and cols must be non-empty");
+    }
+
+    // Summand labels of the selected rows / cols, if the stacking leg is a DirectSumSpace.
+    auto select_labels =
+      [&](LegRef leg,
+          std::vector<DirectSumSpace::SummandRef> const& refs) -> std::optional<OptionalLabels> {
+        auto dss = std::dynamic_pointer_cast<DirectSumSpace>(tensor->get_leg(leg));
+        if (!dss) {
+            return std::nullopt;
+        }
+        OptionalLabels out;
+        out.reserve(refs.size());
+        for (auto const& ref : refs) {
+            out.push_back(
+              dss->summand_labels.at(static_cast<std::size_t>(dss->get_summand_idx(ref))));
+        }
+        return out;
+    };
+
+    std::vector<std::vector<TensorPtr>> grid;
+    grid.reserve(rows.size());
+    for (auto const& r : rows) {
+        auto& grid_row = grid.emplace_back();
+        grid_row.reserve(cols.size());
+        for (auto const& c : cols) {
+            grid_row.push_back(tensor_grid_cell(tensor, r, c, row_leg, col_leg));
+        }
+    }
+    return tensor_from_grid(std::move(grid),
+                            tensor->labels(),
+                            std::nullopt,
+                            select_labels(row_leg, rows),
+                            select_labels(col_leg, cols));
 }
 
 TensorPtr

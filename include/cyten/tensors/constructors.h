@@ -171,6 +171,27 @@ namespace cyten {
                                          LegRef row_leg = int64{ 0 },
                                          LegRef col_leg = int64{ -1 });
 
+/// Extract a subgrid from a tensor stacked by `tensor_from_grid`.
+///
+/// Like `tensor_grid_cell`, but for several rows and columns at once. The result is stacked
+/// again via `tensor_from_grid` from the cells ``(rows[i], cols[j])``, so its stacking legs are
+/// `DirectSumSpace`s with the selected summands in the given order (and their labels).
+///
+/// To re-combine subgrids, pass them as cells of a grid to `tensor_from_grid` *without*
+/// `row_labels` / `col_labels`. The stacking legs of the subgrids are `DirectSumSpace`s, so
+/// they are flattened and their `summand_labels` are preserved in the result. Passing explicit
+/// labels would instead raise, as one label cannot name several flattened summands.
+///
+/// @param tensor Result of `tensor_from_grid` (or an isomorphic stacked tensor).
+/// @param rows,cols Non-empty lists of summand indices or labels, as in `tensor_grid_cell`.
+/// @param row_leg Leg of the row direct sum (default: first codomain leg).
+/// @param col_leg Leg of the column direct sum (default: last domain leg, ``-1``).
+[[nodiscard]] TensorPtr tensor_grid_cells(TensorCPtr tensor,
+                                          std::vector<DirectSumSpace::SummandRef> rows,
+                                          std::vector<DirectSumSpace::SummandRef> cols,
+                                          LegRef row_leg = int64{ 0 },
+                                          LegRef col_leg = int64{ -1 });
+
 /// Project selected tensor legs onto summands of their `DirectSumSpace`s.
 ///
 /// Unlike `tensor_grid_cell`, this operation can be applied to any tensor with direct-sum legs,

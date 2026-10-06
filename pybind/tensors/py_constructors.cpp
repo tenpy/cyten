@@ -236,6 +236,49 @@ In Python, ``row`` / ``col`` accept ``int | str`` (a summand label, resolved via
 )pydoc"));
 
     m.def(
+      "tensor_grid_cells",
+      [](py::object tensor,
+         py::object rows,
+         py::object cols,
+         py::object row_leg,
+         py::object col_leg) {
+          auto as_summand_refs = [](py::object seq) {
+              std::vector<DirectSumSpace::SummandRef> out;
+              for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
+                  if (py::isinstance<py::str>(item)) {
+                      out.emplace_back(item.cast<std::string>());
+                  } else {
+                      out.emplace_back(item.cast<int64>());
+                  }
+              }
+              return out;
+          };
+          auto as_leg_ref = [](py::object obj, int64 default_idx) -> LegRef {
+              if (obj.is_none()) {
+                  return default_idx;
+              }
+              if (py::isinstance<py::str>(obj)) {
+                  return obj.cast<std::string>();
+              }
+              return obj.cast<int64>();
+          };
+          return tensor_grid_cells(tensor.cast<TensorCPtr>(),
+                                   as_summand_refs(rows),
+                                   as_summand_refs(cols),
+                                   as_leg_ref(row_leg, 0),
+                                   as_leg_ref(col_leg, -1));
+      },
+      py::arg("tensor"),
+      py::arg("rows"),
+      py::arg("cols"),
+      py::arg("row_leg") = py::none(),
+      py::arg("col_leg") = py::none(),
+      doc_plus(DOC(cyten, tensor_grid_cells),
+               R"pydoc(
+In Python, ``rows`` / ``cols`` are sequences of ``int | str`` (summand labels).
+)pydoc"));
+
+    m.def(
       "grid_project",
       [](py::object tensor, py::object legs, py::object cells, bool squeeze) {
           auto as_leg_ref = [](py::handle item) -> LegRef {
