@@ -1,11 +1,11 @@
-#include <cyten/tensors/decompositions.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/tensor.h>
-#include <cyten/tools.h>
+#include <lasyten/tensors/decompositions.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/tensor.h>
+#include <lasyten/tools.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/decompositions.h"
 
@@ -15,7 +15,7 @@
 #include <string>
 #include <tuple>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -83,7 +83,7 @@ bind_tensors_decompositions(py::module_& m)
           &apply_mask_DiagonalTensor,
           py::arg("tensor"),
           py::arg("mask"),
-          DOC(cyten, apply_mask_DiagonalTensor));
+          DOC(lasyten, apply_mask_DiagonalTensor));
 
     m.def(
       "eigh",
@@ -97,7 +97,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("new_labels"),
       py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
-      DOC(cyten, eigh));
+      DOC(lasyten, eigh));
 
     m.def(
       "eig",
@@ -111,7 +111,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("new_labels"),
       py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
-      DOC(cyten, eig));
+      DOC(lasyten, eig));
 
     m.def(
       "eigvalsh",
@@ -125,7 +125,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("new_labels"),
       py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
-      DOC(cyten, eigvalsh));
+      DOC(lasyten, eigvalsh));
 
     m.def(
       "eigvals",
@@ -139,7 +139,7 @@ bind_tensors_decompositions(py::module_& m)
       py::arg("new_labels"),
       py::arg("new_leg_dual") = false,
       py::arg("sort") = py::none(),
-      DOC(cyten, eigvals));
+      DOC(lasyten, eigvals));
 
     m.def(
       "entropy",
@@ -162,7 +162,7 @@ bind_tensors_decompositions(py::module_& m)
       },
       py::arg("p"),
       py::arg("n") = 1,
-      doc_plus(DOC(cyten, entropy),
+      doc_plus(DOC(lasyten, entropy),
                R"pydoc(
 In Python, ``p`` may also be a NumPy array / sequence of floats. The DiagonalTensor path
 returns a NumPy scalar via ``.to_numpy()``.
@@ -177,7 +177,7 @@ returns a NumPy scalar via ``.to_numpy()``.
       py::arg("new_labels") = py::none(),
       py::arg("new_leg_dual") = false,
       py::arg("charge_leg_top") = true,
-      DOC(cyten, lq));
+      DOC(lasyten, lq));
 
     m.def(
       "qr",
@@ -188,7 +188,7 @@ returns a NumPy scalar via ``.to_numpy()``.
       py::arg("new_labels") = py::none(),
       py::arg("new_leg_dual") = false,
       py::arg("charge_leg_top") = true,
-      DOC(cyten, qr));
+      DOC(lasyten, qr));
 
     m.def(
       "svd",
@@ -208,7 +208,7 @@ returns a NumPy scalar via ``.to_numpy()``.
       py::arg("new_leg_dual") = false,
       py::arg("charge_leg_top") = true,
       py::arg("algorithm") = py::none(),
-      DOC(cyten, svd));
+      DOC(lasyten, svd));
 
     m.def("svd_apply_mask",
           &svd_apply_mask,
@@ -216,7 +216,7 @@ returns a NumPy scalar via ``.to_numpy()``.
           py::arg("S"),
           py::arg("Vh"),
           py::arg("mask"),
-          DOC(cyten, svd_apply_mask));
+          DOC(lasyten, svd_apply_mask));
 
     m.def(
       "truncate_singular_values",
@@ -254,7 +254,7 @@ returns a NumPy scalar via ``.to_numpy()``.
       py::arg("svd_min") = 0,
       py::arg("minimize_error") = true,
       py::arg("mask_labels") = py::none(),
-      DOC(cyten, truncate_singular_values));
+      DOC(lasyten, truncate_singular_values));
 
     m.def(
       "truncated_svd",
@@ -305,7 +305,7 @@ returns a NumPy scalar via ``.to_numpy()``.
       py::arg("degeneracy_tol") = 0,
       py::arg("trunc_cut") = 0,
       py::arg("svd_min") = 0,
-      DOC(cyten, truncated_svd));
+      DOC(lasyten, truncated_svd));
 }
 
-} // namespace cyten
+} // namespace lasyten

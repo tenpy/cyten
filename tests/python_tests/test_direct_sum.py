@@ -5,8 +5,8 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from cyten import backends, krylov_based, sparse, tensors
-from cyten.tensors import DirectSum, VectorLike, almost_equal, inner, linear_combination, norm
+from lasyten import backends, krylov_based, sparse, tensors
+from lasyten.tensors import DirectSum, VectorLike, almost_equal, inner, linear_combination, norm
 
 
 def _to_num(value):

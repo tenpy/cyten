@@ -1,8 +1,8 @@
-#include <cyten/backends/block_inds_numpy.h>
+#include <lasyten/backends/block_inds_numpy.h>
 
 #include <stdexcept>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -83,4 +83,4 @@ block_inds_from_numpy(py::handle src)
     return out;
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -13,8 +13,8 @@ Prefer `SUN(N=2, ...)` for production SU(2).
 | Field | Value |
 | --- | --- |
 | original python name | `SU2` (now `_SU2`) |
-| original python file | `cyten/symmetries/_symmetries.py` |
-| declaration | `include/cyten/symmetries/factors/su2.h` |
+| original python file | `lasyten/symmetries/_symmetries.py` |
+| declaration | `include/lasyten/symmetries/factors/su2.h` |
 | definition | `src/symmetries/factors/su2.cpp` |
 | pybind11 binding | `pybind/symmetries/factors/py_su2.cpp` |
 | trampoline | none |
@@ -24,7 +24,7 @@ Prefer `SUN(N=2, ...)` for production SU(2).
 
 - Subclass C++ `Group` with `FusionStyle::multiple_unique`, infinite sectors.
 - Class attrs `spin_zero` / `spin_half` / `spin_one` set on the pybind class; `fusion_tensor_dtype = Float64` in ctor.
-- `_f_symbol`, `_fusion_tensor`, `Z_iso` call Python `cyten.symmetries._su2data` (deferred full C++ conversion of that module).
+- `_f_symbol`, `_fusion_tensor`, `Z_iso` call Python `lasyten.symmetries._su2data` (deferred full C++ conversion of that module).
 - Combinatorics (`fusion_outcomes`, `can_fuse_to`, dims, `_r_symbol`, `frobenius_schur`) in C++.
 - Construction warns (stderr in C++ ctor; `warnings.warn` in the pybind init wrapper).
 

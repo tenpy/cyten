@@ -1,12 +1,12 @@
 mask.h
 ======
 
-Declared in ``include/cyten/tensors/mask.h``.
+Declared in ``include/lasyten/tensors/mask.h``.
 
-cyten::Mask
+lasyten::Mask
 -----------
 
-.. doxygenclass:: cyten::Mask
-   :project: cyten
+.. doxygenclass:: lasyten::Mask
+   :project: lasyten
    :members:
    :undoc-members:

@@ -3,9 +3,9 @@
 #include <iostream>
 #include <unordered_set>
 
-#include <cyten/symmetries/sector.h>
+#include <lasyten/symmetries/sector.h>
 
-using namespace cyten;
+using namespace lasyten;
 
 int
 test_sector(int /*argc*/, char** /*args*/)

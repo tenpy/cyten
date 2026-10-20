@@ -1,18 +1,18 @@
-cyten.backends.no_symmetry
+lasyten.backends.no_symmetry
 ==========================
 
-Declared in ``cyten/backends/no_symmetry.py``.
+Declared in ``lasyten/backends/no_symmetry.py``.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.backends.no_symmetry.NoSymmetryBackend
+lasyten.backends.no_symmetry.NoSymmetryBackend
 --------------------------------------------
 
-.. autoclass:: cyten.backends.no_symmetry.NoSymmetryBackend
+.. autoclass:: lasyten.backends.no_symmetry.NoSymmetryBackend
    :members:
    :undoc-members:
    :show-inheritance:

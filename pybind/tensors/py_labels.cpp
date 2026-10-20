@@ -1,7 +1,7 @@
-#include <cyten/tensors/labels.h>
+#include <lasyten/tensors/labels.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/labels.h"
 
@@ -9,7 +9,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -61,7 +61,7 @@ void
 declare_tensors_labels(py::module_& m)
 {
     g_labelled_legs = py::class_<LabelledLegs, py::smart_holder>(m, "LabelledLegs");
-    (*g_labelled_legs).doc() = DOC(cyten, LabelledLegs);
+    (*g_labelled_legs).doc() = DOC(lasyten, LabelledLegs);
 }
 
 void
@@ -90,13 +90,13 @@ bind_tensors_labels(py::module_& m)
           return is_valid_leg_label(OptionalLabel{ label.cast<std::string>() });
       },
       py::arg("label"),
-      DOC(cyten, is_valid_leg_label));
+      DOC(lasyten, is_valid_leg_label));
 
     m.def("_combine_leg_labels",
           &_combine_leg_labels,
           py::arg("labels"),
           py::arg("offset") = 0,
-          DOC(cyten, _combine_leg_labels));
+          DOC(lasyten, _combine_leg_labels));
 
     m.def(
       "_split_leg_label",
@@ -109,15 +109,16 @@ bind_tensors_labels(py::module_& m)
       },
       py::arg("label"),
       py::arg("num") = py::none(),
-      DOC(cyten, _split_leg_label));
+      DOC(lasyten, _split_leg_label));
 
     m.def(
       "_dual_leg_label",
       [](py::object label) { return _dual_leg_label(as_leg_label(label)); },
       py::arg("label"),
-      DOC(cyten, _dual_leg_label));
+      DOC(lasyten, _dual_leg_label));
 
-    m.def("_dual_label_list", &_dual_label_list, py::arg("labels"), DOC(cyten, _dual_label_list));
+    m.def(
+      "_dual_label_list", &_dual_label_list, py::arg("labels"), DOC(lasyten, _dual_label_list));
 
     m.def(
       "_get_matching_labels",
@@ -127,7 +128,7 @@ bind_tensors_labels(py::module_& m)
       py::arg("labels1"),
       py::arg("labels2"),
       py::arg("stacklevel") = 1,
-      doc_plus(DOC(cyten, _get_matching_labels),
+      doc_plus(DOC(lasyten, _get_matching_labels),
                R"pydoc(
 The ``stacklevel`` argument is Python-only (accepted for API compatibility; unused).
 In Python, ``None`` labels correspond to C++ ``nullopt``.
@@ -139,12 +140,12 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
       .def_readwrite("num_legs", &LabelledLegs::num_legs)
       .def_property_readonly("is_fully_labelled",
                              &LabelledLegs::is_fully_labelled,
-                             DOC(cyten, LabelledLegs, is_fully_labelled))
+                             DOC(lasyten, LabelledLegs, is_fully_labelled))
       .def_property(
         "labels",
         &LabelledLegs::labels,
         [](LabelledLegs& self, OptionalLabels labels) { self.set_labels(std::move(labels)); },
-        DOC(cyten, LabelledLegs, labels))
+        DOC(lasyten, LabelledLegs, labels))
       // Python free functions often access ``_labels``; keep as alias until those are converted.
       .def_property(
         "_labels",
@@ -160,9 +161,11 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
                                  }
                                  return out;
                              })
-      .def("test_sanity", &LabelledLegs::test_sanity, DOC(cyten, LabelledLegs, test_sanity))
-      .def(
-        "get_leg_idcs", &py_get_leg_idcs, py::arg("idcs"), DOC(cyten, LabelledLegs, get_leg_idcs))
+      .def("test_sanity", &LabelledLegs::test_sanity, DOC(lasyten, LabelledLegs, test_sanity))
+      .def("get_leg_idcs",
+           &py_get_leg_idcs,
+           py::arg("idcs"),
+           DOC(lasyten, LabelledLegs, get_leg_idcs))
       .def(
         "has_label",
         [](LabelledLegs const& self, py::args args) {
@@ -171,7 +174,7 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
             }
             return self.has_label(args_as_strings(args));
         },
-        DOC(cyten, LabelledLegs, has_label))
+        DOC(lasyten, LabelledLegs, has_label))
       .def(
         "labels_are",
         [](LabelledLegs const& self, py::args args, bool planar) {
@@ -179,14 +182,14 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
         },
         py::kw_only(),
         py::arg("planar") = false,
-        DOC(cyten, LabelledLegs, labels_are))
+        DOC(lasyten, LabelledLegs, labels_are))
       .def(
         "relabel",
         [](LabelledLegs& self, std::map<std::string, std::string> const& mapping)
           -> LabelledLegs& { return self.relabel(mapping); },
         py::arg("mapping"),
         py::return_value_policy::reference,
-        DOC(cyten, LabelledLegs, relabel))
+        DOC(lasyten, LabelledLegs, relabel))
       .def(
         "set_label",
         [](LabelledLegs& self, int64 pos, py::object label) -> LabelledLegs& {
@@ -195,7 +198,7 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
         py::arg("pos"),
         py::arg("label"),
         py::return_value_policy::reference,
-        DOC(cyten, LabelledLegs, set_label))
+        DOC(lasyten, LabelledLegs, set_label))
       .def(
         "set_labels",
         [](LabelledLegs& self, OptionalLabels labels) -> LabelledLegs& {
@@ -203,7 +206,7 @@ In Python, ``None`` labels correspond to C++ ``nullopt``.
         },
         py::arg("labels"),
         py::return_value_policy::reference,
-        DOC(cyten, LabelledLegs, set_labels));
+        DOC(lasyten, LabelledLegs, set_labels));
 }
 
-} // namespace cyten
+} // namespace lasyten

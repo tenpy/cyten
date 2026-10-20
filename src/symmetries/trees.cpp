@@ -1,9 +1,9 @@
-#include <cyten/symmetries/trees.h>
+#include <lasyten/symmetries/trees.h>
 
-#include <cyten/block_backend/numpy.h>
-#include <cyten/symmetries/exceptions.h>
-#include <cyten/symmetries/fusion_symbol.h>
-#include <cyten/tools.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/symmetries/exceptions.h>
+#include <lasyten/symmetries/fusion_symbol.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <cassert>
@@ -18,7 +18,7 @@
 #include <string_view>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -1792,7 +1792,7 @@ fusion_trees::compute_index(FusionTree const& tree) const
     return idx;
 }
 
-} // namespace cyten
+} // namespace lasyten
 
 // =============================================================================
 // ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)

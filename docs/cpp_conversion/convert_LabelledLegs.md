@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `LabelledLegs` (+ helpers in same batch)
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration in C++ header file: `include/cyten/tensors/labels.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration in C++ header file: `include/lasyten/tensors/labels.h`
 - definition in C++ file: `src/tensors/labels.cpp`
 - pybind11 binding: `pybind/tensors/py_labels.cpp`
 - trampoline: defer until monkey-patch (or add `PyLabelledLegs` if monkey-patching before `Tensor` is C++)
@@ -32,7 +32,7 @@
 - Virtual destructor; `set_labels` virtual (overridden by `Tensor` / `ChargedTensor`).
 - `get_leg_idcs`: C++ overloads for `int64`, `std::string`, `std::vector` of variants; bindings accept Python `int | str | Sequence`.
 - `duplicate_entries`: small private C++ helper in `labels.cpp` (Python `tools.misc.duplicate_entries` not converted yet).
-- Reuse `cyten::to_valid_idx` from `tools.h`.
+- Reuse `lasyten::to_valid_idx` from `tools.h`.
 - `_get_matching_labels`: drop Python `stacklevel`; use `SPDLOG`/`logger` if available, else omit debug or call Python logging from bindings only.
 - Do **not** monkey-patch `LabelledLegs` until `Tensor` is C++ (or add trampoline). Free label helpers may be monkey-patched after bindings work.
 

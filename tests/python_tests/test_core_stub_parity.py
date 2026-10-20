@@ -1,4 +1,4 @@
-"""Ensure generated ``cyten._core`` stubs track the compiled extension API."""
+"""Ensure generated ``lasyten._core`` stubs track the compiled extension API."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _SCRIPTS = _REPO / 'scripts'
 
 def _is_compiled_core() -> bool:
     try:
-        spec = importlib.util.find_spec('cyten._core')
+        spec = importlib.util.find_spec('lasyten._core')
     except (ImportError, ModuleNotFoundError, ValueError):  # fmt: skip
         return False
     if spec is None or spec.loader is None:
@@ -26,17 +26,17 @@ def _is_compiled_core() -> bool:
     return origin.endswith('.so') or origin.endswith('.pyd')
 
 
-@pytest.mark.skipif(not _is_compiled_core(), reason='compiled cyten._core not available')
+@pytest.mark.skipif(not _is_compiled_core(), reason='compiled lasyten._core not available')
 def test_core_stub_parity():
     sys.path.insert(0, str(_SCRIPTS))
     try:
-        import cyten._core as live
+        import lasyten._core as live
     except ImportError as exc:
-        pytest.skip(f'compiled cyten._core not importable: {exc}')
+        pytest.skip(f'compiled lasyten._core not importable: {exc}')
 
     origin = getattr(live, '__file__', '') or ''
     if origin.endswith('.py'):
-        pytest.skip('cyten._core is a pure-Python stub')
+        pytest.skip('lasyten._core is a pure-Python stub')
 
     from check_core_stub_parity import compare
     from generate_core_stubs import generate_stub

@@ -1,14 +1,14 @@
-#include <cyten/symmetries/sector_numpy.h>
+#include <lasyten/symmetries/sector_numpy.h>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5.h>
 #include <limits>
 #include <memory>
 #include <stdexcept>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -282,7 +282,7 @@ sector_array_from_numpy(py::handle src)
 }
 
 void
-Sector::save_hdf5(cyten::hdf5::Saver& saver,
+Sector::save_hdf5(lasyten::hdf5::Saver& saver,
                   HighFive::Group& /*h5gr*/,
                   std::string const& subpath) const
 {
@@ -291,7 +291,7 @@ Sector::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 Sector
-Sector::from_hdf5(cyten::hdf5::Loader& loader,
+Sector::from_hdf5(lasyten::hdf5::Loader& loader,
                   HighFive::Group& /*h5gr*/,
                   std::string const& subpath)
 {
@@ -302,7 +302,7 @@ Sector::from_hdf5(cyten::hdf5::Loader& loader,
 }
 
 void
-SectorArray::save_hdf5(cyten::hdf5::Saver& saver,
+SectorArray::save_hdf5(lasyten::hdf5::Saver& saver,
                        HighFive::Group& /*h5gr*/,
                        std::string const& subpath) const
 {
@@ -310,7 +310,7 @@ SectorArray::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 SectorArray
-SectorArray::from_hdf5(cyten::hdf5::Loader& loader,
+SectorArray::from_hdf5(lasyten::hdf5::Loader& loader,
                        HighFive::Group& /*h5gr*/,
                        std::string const& subpath)
 {
@@ -320,4 +320,4 @@ SectorArray::from_hdf5(cyten::hdf5::Loader& loader,
     return sector_array_from_hdf5_buffer(buf);
 }
 
-} // namespace cyten
+} // namespace lasyten

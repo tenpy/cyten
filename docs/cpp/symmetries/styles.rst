@@ -1,16 +1,16 @@
 styles.h
 ========
 
-Declared in ``include/cyten/symmetries/styles.h``.
+Declared in ``include/lasyten/symmetries/styles.h``.
 
-cyten::FusionStyle
+lasyten::FusionStyle
 ------------------
 
-.. doxygenenum:: cyten::FusionStyle
-   :project: cyten
+.. doxygenenum:: lasyten::FusionStyle
+   :project: lasyten
 
-cyten::BraidingStyle
+lasyten::BraidingStyle
 --------------------
 
-.. doxygenenum:: cyten::BraidingStyle
-   :project: cyten
+.. doxygenenum:: lasyten::BraidingStyle
+   :project: lasyten

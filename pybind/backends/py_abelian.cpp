@@ -1,16 +1,16 @@
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "docstrings/backends/abelian.h"
 
 #include "backends/casters.hpp"
 
-#include <cyten/backends/abelian.h>
-#include <cyten/backends/block_inds_numpy.h>
-#include <cyten/block_backend/numpy.h>
-#include <cyten/block_backend/torch.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/backends/abelian.h>
+#include <lasyten/backends/block_inds_numpy.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/block_backend/torch.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
 #include "tools/hdf5_bind.h"
 #include <memory>
@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -45,7 +45,7 @@ bind_abelian_backend_data(py::module_& m)
 {
     py::class_<AbelianBackendData, TensorBackend::Data, py::smart_holder> cls(
       m, "AbelianBackendData");
-    cls.doc() = DOC(cyten, AbelianBackendData);
+    cls.doc() = DOC(lasyten, AbelianBackendData);
 
     cls.def(py::init([](Dtype dtype,
                         std::string device,
@@ -73,18 +73,18 @@ bind_abelian_backend_data(py::module_& m)
       .def("get_block_num",
            &AbelianBackendData::get_block_num,
            py::arg("block_inds"),
-           DOC(cyten, AbelianBackendData, get_block_num))
+           DOC(lasyten, AbelianBackendData, get_block_num))
       .def("get_block",
            &AbelianBackendData::get_block,
            py::arg("block_inds"),
-           DOC(cyten, AbelianBackendData, get_block))
+           DOC(lasyten, AbelianBackendData, get_block))
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<AbelianBackendData>(),
+           lasyten::hdf5::wrap_save_hdf5_const<AbelianBackendData>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<AbelianBackendData>(),
+                  lasyten::hdf5::wrap_from_hdf5<AbelianBackendData>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -95,7 +95,7 @@ bind_abelian_backend(py::module_& m)
 {
     // AbelianBackendData must already be registered (bind_abelian_backend_data).
     py::class_<AbelianBackend, TensorBackend, py::smart_holder> cls(m, "AbelianBackend");
-    cls.doc() = DOC(cyten, AbelianBackend);
+    cls.doc() = DOC(lasyten, AbelianBackend);
 
     cls.def(py::init([](py::object block_backend) {
                 return std::make_shared<AbelianBackend>(as_shared_block_backend(block_backend));
@@ -109,7 +109,7 @@ bind_abelian_backend(py::module_& m)
             &AbelianBackend::leg_pipe_map_incoming_block_inds,
             py::arg("pipe"),
             py::arg("incoming_block_inds"),
-            DOC(cyten, AbelianBackend, leg_pipe_map_incoming_block_inds));
+            DOC(lasyten, AbelianBackend, leg_pipe_map_incoming_block_inds));
 
     cls.def(
       "partial_trace",
@@ -136,15 +136,15 @@ bind_abelian_backend(py::module_& m)
       py::arg("tensor"),
       py::arg("pairs"),
       py::arg("levels") = py::none(),
-      DOC(cyten, AbelianBackend, partial_trace));
+      DOC(lasyten, AbelianBackend, partial_trace));
 
     // Expose under both the C++ name and the Python private name.
     m.def("valid_block_inds",
           &valid_block_inds,
           py::arg("codomain"),
           py::arg("domain"),
-          doc_cpp_ref(R"pydoc(valid_block_inds)pydoc", "cyten::valid_block_inds()"));
+          doc_cpp_ref(R"pydoc(valid_block_inds)pydoc", "lasyten::valid_block_inds()"));
     m.attr("_valid_block_inds") = m.attr("valid_block_inds");
 }
 
-} // namespace cyten
+} // namespace lasyten

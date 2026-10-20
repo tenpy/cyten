@@ -4,7 +4,7 @@ Checks: 'cppcoreguidelines-*'
 # Treat specific warnings as errors:
 # WarningsAsErrors: 'cppcoreguidelines-*'
 
-HeaderFilterRegex: "^cyten.*"
+HeaderFilterRegex: "^lasyten.*"
 
 CheckOptions:
   cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: true

@@ -1,30 +1,30 @@
 tensor_backend.h
 ================
 
-Declared in ``include/cyten/backends/tensor_backend.h``.
+Declared in ``include/lasyten/backends/tensor_backend.h``.
 
-cyten::TensorBackend
+lasyten::TensorBackend
 --------------------
 
-.. doxygenclass:: cyten::TensorBackend
-   :project: cyten
+.. doxygenclass:: lasyten::TensorBackend
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::conventional_leg_order(TensorProduct::Ptr, TensorProduct::Ptr)
-   :project: cyten
+.. doxygenfunction:: lasyten::conventional_leg_order(TensorProduct::Ptr, TensorProduct::Ptr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::conventional_leg_order(py::object, py::object)
-   :project: cyten
+.. doxygenfunction:: lasyten::conventional_leg_order(py::object, py::object)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::conventional_leg_order(TensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::conventional_leg_order(TensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::get_same_backend(const std::vector< py::object > &, std::string)
-   :project: cyten
+.. doxygenfunction:: lasyten::get_same_backend(const std::vector< py::object > &, std::string)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::get_same_backend(const std::vector< TensorCPtr > &, std::string)
-   :project: cyten
+.. doxygenfunction:: lasyten::get_same_backend(const std::vector< TensorCPtr > &, std::string)
+   :project: lasyten

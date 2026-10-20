@@ -1,39 +1,39 @@
 config
 ======
 
-Declared in ``include/cyten/config.h``.
+Declared in ``include/lasyten/config.h``.
 
-cyten::CytenConfig
+lasyten::LasytenConfig
 ------------------
 
-.. doxygenclass:: cyten::CytenConfig
-   :project: cyten
+.. doxygenclass:: lasyten::LasytenConfig
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::get_config
-   :project: cyten
+.. doxygenfunction:: lasyten::get_config
+   :project: lasyten
 
-.. doxygenfunction:: cyten::set_option(const std::string &, const std::string &)
-   :project: cyten
+.. doxygenfunction:: lasyten::set_option(const std::string &, const std::string &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::set_option(const std::string &, int64)
-   :project: cyten
+.. doxygenfunction:: lasyten::set_option(const std::string &, int64)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::set_option(const std::string &, bool)
-   :project: cyten
+.. doxygenfunction:: lasyten::set_option(const std::string &, bool)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::set_option(const std::string &, py::handle)
-   :project: cyten
+.. doxygenfunction:: lasyten::set_option(const std::string &, py::handle)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::set_options
-   :project: cyten
+.. doxygenfunction:: lasyten::set_options
+   :project: lasyten
 
-.. doxygenfunction:: cyten::get_option
-   :project: cyten
+.. doxygenfunction:: lasyten::get_option
+   :project: lasyten
 
-.. doxygenfunction:: cyten::restore_defaults
-   :project: cyten
+.. doxygenfunction:: lasyten::restore_defaults
+   :project: lasyten

@@ -28,9 +28,9 @@ docs/build_docs
 .conda
 .venv
 src/version.h
-cyten/_version.py
-cyten/_core.py
-cyten/_core.pyi
+lasyten/_version.py
+lasyten/_core.py
+lasyten/_core.pyi
 .cursor/plans
 .cursor/rules
 

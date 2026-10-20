@@ -19,7 +19,7 @@ Converted and monkey-patched from `_core` (Python class bodies removed from `_sy
 | `SU2_kAnyonCategory` | `su2_k_anyon_category.*` |
 | `SU3_3AnyonCategory` | `su3_3_anyon_category.*` |
 
-Shared helper: `include/cyten/symmetries/topo_ones.h`.
+Shared helper: `include/lasyten/symmetries/topo_ones.h`.
 
 `tests/python_tests/test_symmetries.py`: **48 passed, 1 skipped**.
 

@@ -1,10 +1,10 @@
-#include <cyten/tensors/sparse.h>
+#include <lasyten/tensors/sparse.h>
 
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tensors/tensor.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tensors/tensor.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/sparse.h"
 
@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -126,7 +126,7 @@ bind_tensors_sparse(py::module_& m)
 {
     py::class_<LinearOperator, PyLinearOperator, py::smart_holder> linear_operator(
       m, "LinearOperator");
-    linear_operator.doc() = DOC(cyten, LinearOperator);
+    linear_operator.doc() = DOC(lasyten, LinearOperator);
     linear_operator.attr("acts_on") = LinearOperator::acts_on;
 
     linear_operator
@@ -147,21 +147,21 @@ bind_tensors_sparse(py::module_& m)
             self.vector_labels = optional_labels(labels);
         })
       .def_readwrite("dtype", &LinearOperator::dtype)
-      .def("matvec", &LinearOperator::matvec, py::arg("vec"), DOC(cyten, LinearOperator, matvec))
+      .def("matvec", &LinearOperator::matvec, py::arg("vec"), DOC(lasyten, LinearOperator, matvec))
       .def("to_tensor",
            &LinearOperator::to_tensor,
            py::arg("backend") = nullptr,
-           DOC(cyten, LinearOperator, to_tensor))
+           DOC(lasyten, LinearOperator, to_tensor))
       .def("to_matrix",
            &LinearOperator::to_matrix,
            py::arg("backend") = nullptr,
-           DOC(cyten, LinearOperator, to_matrix))
-      .def("adjoint", &LinearOperator::adjoint, DOC(cyten, LinearOperator, adjoint));
+           DOC(lasyten, LinearOperator, to_matrix))
+      .def("adjoint", &LinearOperator::adjoint, DOC(lasyten, LinearOperator, adjoint));
 
     auto tensor_linear_operator_cls =
       py::class_<TensorLinearOperator, LinearOperator, py::smart_holder>(m,
                                                                          "TensorLinearOperator");
-    tensor_linear_operator_cls.doc() = DOC(cyten, TensorLinearOperator);
+    tensor_linear_operator_cls.doc() = DOC(lasyten, TensorLinearOperator);
     tensor_linear_operator_cls
       .def(py::init<SymmetricTensorPtr, std::variant<int64, std::string>>(),
            py::arg("tensor"),
@@ -176,13 +176,13 @@ bind_tensors_sparse(py::module_& m)
     auto linear_operator_wrapper_cls =
       py::class_<LinearOperatorWrapper, LinearOperator, py::smart_holder>(m,
                                                                           "LinearOperatorWrapper");
-    linear_operator_wrapper_cls.doc() = DOC(cyten, LinearOperatorWrapper);
+    linear_operator_wrapper_cls.doc() = DOC(lasyten, LinearOperatorWrapper);
     linear_operator_wrapper_cls.def(py::init<LinearOperator::Ptr>(), py::arg("original_operator"))
       .def_readwrite("original_operator", &LinearOperatorWrapper::original_operator)
       .def("unwrapped",
            &LinearOperatorWrapper::unwrapped,
            py::arg("recursive") = true,
-           DOC(cyten, LinearOperatorWrapper, unwrapped))
+           DOC(lasyten, LinearOperatorWrapper, unwrapped))
       .def("__getattr__",
            [](LinearOperatorWrapper const& self, std::string const& name) {
                return py::getattr(py::cast(self.original_operator), name.c_str());
@@ -194,7 +194,7 @@ bind_tensors_sparse(py::module_& m)
     auto sum_linear_operator_cls =
       py::class_<SumLinearOperator, LinearOperatorWrapper, py::smart_holder>(m,
                                                                              "SumLinearOperator");
-    sum_linear_operator_cls.doc() = DOC(cyten, SumLinearOperator);
+    sum_linear_operator_cls.doc() = DOC(lasyten, SumLinearOperator);
     sum_linear_operator_cls
       .def(py::init([](LinearOperator::Ptr original_operator, py::args more_ops) {
                std::vector<LinearOperator::Ptr> more;
@@ -214,7 +214,7 @@ bind_tensors_sparse(py::module_& m)
     auto shifted_linear_operator_cls =
       py::class_<ShiftedLinearOperator, LinearOperatorWrapper, py::smart_holder>(
         m, "ShiftedLinearOperator");
-    shifted_linear_operator_cls.doc() = DOC(cyten, ShiftedLinearOperator);
+    shifted_linear_operator_cls.doc() = DOC(lasyten, ShiftedLinearOperator);
     shifted_linear_operator_cls
       .def(py::init([](py::object original_operator, py::object shift) {
                return std::make_shared<ShiftedLinearOperator>(
@@ -230,7 +230,7 @@ bind_tensors_sparse(py::module_& m)
     auto projected_linear_operator_cls =
       py::class_<ProjectedLinearOperator, LinearOperatorWrapper, py::smart_holder>(
         m, "ProjectedLinearOperator");
-    projected_linear_operator_cls.doc() = DOC(cyten, ProjectedLinearOperator);
+    projected_linear_operator_cls.doc() = DOC(lasyten, ProjectedLinearOperator);
     projected_linear_operator_cls
       .def(py::init([](py::object original_operator,
                        std::vector<VectorLike::Ptr> ortho_vecs,
@@ -270,7 +270,7 @@ bind_tensors_sparse(py::module_& m)
     auto direct_sum_linear_operator_cls =
       py::class_<DirectSumLinearOperator, LinearOperator, py::smart_holder>(
         m, "DirectSumLinearOperator");
-    direct_sum_linear_operator_cls.doc() = DOC(cyten, DirectSumLinearOperator);
+    direct_sum_linear_operator_cls.doc() = DOC(lasyten, DirectSumLinearOperator);
     direct_sum_linear_operator_cls
       .def(py::init([](std::vector<LinearOperator::Ptr> operators) {
                return std::make_shared<DirectSumLinearOperator>(std::move(operators));
@@ -284,7 +284,7 @@ bind_tensors_sparse(py::module_& m)
           &gram_schmidt,
           py::arg("vecs"),
           py::arg("rcond") = kGramSchmidtDefaultRcond,
-          DOC(cyten, gram_schmidt));
+          DOC(lasyten, gram_schmidt));
 }
 
-} // namespace cyten
+} // namespace lasyten

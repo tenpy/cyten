@@ -1,23 +1,23 @@
-Cyten
------
+LASyTen
+=======
 
-.. image:: https://img.shields.io/github/last-commit/tenpy/cyten
+.. image:: https://img.shields.io/github/last-commit/tenpy/lasyten
    :alt: GitHub last commit
-   :target: https://github.com/tenpy/cyten
-.. image:: https://github.com/tenpy/cyten/actions/workflows/pytest_numpy.yml/badge.svg?branch=main
+   :target: https://github.com/tenpy/lasyten
+.. image:: https://github.com/tenpy/lasyten/actions/workflows/pytest_numpy.yml/badge.svg?branch=main
    :alt: Pytest
-   :target: https://github.com/tenpy/cyten/actions/
-.. image:: https://img.shields.io/github/issues/tenpy/cyten
+   :target: https://github.com/tenpy/lasyten/actions/
+.. image:: https://img.shields.io/github/issues/tenpy/lasyten
    :alt: GitHub issues
-   :target: https://github.com/tenpy/cyten/issues
+   :target: https://github.com/tenpy/lasyten/issues
 
 .. warning::
 
-   Cyten is still in **alpha** and under heavy development.
+   LASyTen is still in **alpha** and under heavy development.
    The API is not stable and may change without notice.
 
-Cyten (pronounced like "sci-ten") is a C++ library with Python bindings for tensors whose
-block-sparse structure is imposed by symmetries.
+LASyTen (Linear Algebra with SYmmetric TENsors) is a C++ library with Python bindings for
+tensors whose block-sparse structure is imposed by symmetries.
 It serves as the linear algebra backend for `TeNPy <https://github.com/tenpy/tenpy>`_,
 a Python library for the simulation of strongly correlated quantum systems with tensor networks.
 
@@ -27,19 +27,19 @@ The dense blocks can be handled by different backends, for example NumPy or PyTo
 
 How do I get set up?
 --------------------
-Create a conda environment from the provided ``environment.yml`` and install Cyten in
+Create a conda environment from the provided ``environment.yml`` and install LASyTen in
 editable mode::
 
     conda env create -f environment.yml
-    conda activate cyten
+    conda activate lasyten
     pip install -e .
 
 Further details and alternative methods can be found in the file `docs/INSTALL.rst`.
-The latest version of the source code can be obtained from https://github.com/tenpy/cyten.
+The latest version of the source code can be obtained from https://github.com/tenpy/lasyten.
 
 How to read the documentation
 -----------------------------
-The **documentation is hosted** at https://cyten.readthedocs.io/.
+The **documentation is hosted** at https://lasyten.readthedocs.io/.
 It is roughly split into a "user guide" with additional explanations, and a full
 "reference" of the Python interface and the C++ API.
 
@@ -50,7 +50,7 @@ which means it is quite readable in the source plain text, but can also be conve
 If you like it simple, you can just use interactive python `help()`, Python IDEs of your choice
 or jupyter notebooks, or just read the source.
 Moreover, the documentation gets converted into HTML using `Sphinx <http://www.sphinx-doc.org>`_,
-and is made available online at https://cyten.readthedocs.io/.
+and is made available online at https://lasyten.readthedocs.io/.
 The big advantages of the (online) HTML documentation are a lot of cross-links between different
 functions, and even a search function.
 If you prefer yet another format, you can try to build the documentation yourself, as described
@@ -58,9 +58,9 @@ in ``docs/README.md``.
 
 I found a bug
 -------------
-You might want to check the `github issues <https://github.com/tenpy/cyten/issues>`_,
+You might want to check the `github issues <https://github.com/tenpy/lasyten/issues>`_,
 if someone else already reported the same problem.
-To report a new bug, just `open a new issue <https://github.com/tenpy/cyten/issues/new>`_ on github.
+To report a new bug, just `open a new issue <https://github.com/tenpy/lasyten/issues/new>`_ on github.
 If you already know how to fix it, you can just create a pull request :)
 
 License

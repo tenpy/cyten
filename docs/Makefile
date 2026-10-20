@@ -15,9 +15,9 @@ help:
 
 .PHONY: help Makefile stubs doxygen-xml
 
-# Generate cyten/_core.py for autodoc when the C++ extension is not installed.
+# Generate lasyten/_core.py for autodoc when the C++ extension is not installed.
 stubs:
-	@python "$(REPO_ROOT)/scripts/generate_core_stubs.py" -o "$(REPO_ROOT)/cyten/_core.py"
+	@python "$(REPO_ROOT)/scripts/generate_core_stubs.py" -o "$(REPO_ROOT)/lasyten/_core.py"
 
 doxygen-xml:
 	@doxygen

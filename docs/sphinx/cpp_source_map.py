@@ -247,7 +247,7 @@ def load_cpp_source_map(xml_dir: str | Path, repo_root: str | Path) -> dict[str,
 
     Indexes class/struct compounds and function memberdefs (methods and free
     functions). Overloads are also stored under Sphinx v1 ids
-    (``cyten::sqrt__DiagonalTensorCPtr``). Missing or unreadable XML yields an
+    (``lasyten::sqrt__DiagonalTensorCPtr``). Missing or unreadable XML yields an
     empty map.
     """
     xml_path = Path(xml_dir)

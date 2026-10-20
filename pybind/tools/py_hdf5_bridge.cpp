@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace cyten::hdf5 {
+namespace lasyten::hdf5 {
 
 namespace {
 
@@ -127,4 +127,4 @@ numpy_from_buffer(::hdf5_io::Hdf5Buffer const& buf)
     return arr;
 }
 
-} // namespace cyten::hdf5
+} // namespace lasyten::hdf5

@@ -1,11 +1,11 @@
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "docstrings/backends/block_inds.h"
 
 #include "backends/casters.hpp"
 
-#include <cyten/backends/block_inds.h>
-#include <cyten/backends/block_inds_numpy.h>
+#include <lasyten/backends/block_inds.h>
+#include <lasyten/backends/block_inds_numpy.h>
 
 #include <pybind11/functional.h>
 #include <pybind11/numpy.h>
@@ -23,7 +23,7 @@
 
 // g_block_inds is defined below (declare_block_inds / bind_block_inds).
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -144,7 +144,7 @@ std::optional<py::class_<BlockInds>> g_block_inds;
 void
 declare_block_inds(py::module_& m)
 {
-    g_block_inds = py::class_<BlockInds>(m, "BlockInds", DOC(cyten, BlockInds));
+    g_block_inds = py::class_<BlockInds>(m, "BlockInds", DOC(lasyten, BlockInds));
 }
 
 void
@@ -393,12 +393,12 @@ bind_block_inds(py::module_& m)
                return py::cast(self.take(idx));
            })
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<BlockInds>(),
+           lasyten::hdf5::wrap_save_hdf5_const<BlockInds>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<BlockInds>(),
+                  lasyten::hdf5::wrap_from_hdf5<BlockInds>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -406,4 +406,4 @@ bind_block_inds(py::module_& m)
     py::implicitly_convertible<py::array, BlockInds>();
 }
 
-} // namespace cyten
+} // namespace lasyten

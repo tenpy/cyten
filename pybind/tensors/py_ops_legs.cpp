@@ -1,11 +1,11 @@
-#include <cyten/symmetries/sector.h>
-#include <cyten/tensors/charged_tensor.h>
-#include <cyten/tensors/hidden_leg_tensor.h>
-#include <cyten/tensors/ops_legs.h>
-#include <cyten/tensors/tensor.h>
+#include <lasyten/symmetries/sector.h>
+#include <lasyten/tensors/charged_tensor.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/ops_legs.h>
+#include <lasyten/tensors/tensor.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/ops_legs.h"
 
@@ -14,7 +14,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -217,7 +217,7 @@ bind_tensors_ops_legs(py::module_& m)
       py::arg("tensor"),
       py::arg("num_codomain_legs") = py::none(),
       py::arg("num_domain_legs") = py::none(),
-      doc_plus(DOC(cyten, bend_legs),
+      doc_plus(DOC(lasyten, bend_legs),
                R"pydoc(
 In Python, ``num_codomain_legs`` / ``num_domain_legs`` are ``int | None`` (``None`` = unspecified).
 )pydoc"));
@@ -226,7 +226,7 @@ In Python, ``num_codomain_legs`` / ``num_domain_legs`` are ``int | None`` (``Non
           &check_same_legs,
           py::arg("t1"),
           py::arg("t2"),
-          DOC(cyten, check_same_legs));
+          DOC(lasyten, check_same_legs));
 
     m.def(
       "combine_legs",
@@ -254,7 +254,7 @@ In Python, ``num_codomain_legs`` / ``num_domain_legs`` are ``int | None`` (``Non
       py::arg("pipe_dualities") = false,
       py::arg("pipes") = py::none(),
       py::arg("levels") = py::none(),
-      doc_plus(DOC(cyten, combine_legs),
+      doc_plus(DOC(lasyten, combine_legs),
                R"pydoc(
 In Python, groups are passed as ``*which_legs`` (each a sequence of ``int | str``);
 ``pipes`` / ``levels`` use ``None`` for unspecified; ``levels`` may also be a ``dict``.
@@ -272,7 +272,7 @@ In Python, groups are passed as ``*which_legs`` (each a sequence of ``int | str`
       py::arg("codomain") = py::none(),
       py::arg("domain") = py::none(),
       py::arg("levels") = py::none(),
-      doc_plus(DOC(cyten, combine_to_matrix),
+      doc_plus(DOC(lasyten, combine_to_matrix),
                R"pydoc(
 In Python, ``codomain`` / ``domain`` are ``int``, ``str``, a sequence thereof, or ``None``;
 ``levels`` may be a ``list``, ``dict``, or ``None``.
@@ -310,7 +310,7 @@ In Python, ``codomain`` / ``domain`` are ``int``, ``str``, a sequence thereof, o
       py::arg("domain_pos") = py::none(),
       py::arg("levels") = py::none(),
       py::arg("bend_right") = py::none(),
-      doc_plus(DOC(cyten, move_leg),
+      doc_plus(DOC(lasyten, move_leg),
                R"pydoc(
 In Python, ``which_leg`` is ``int | str``; optional args use ``None``; ``levels`` /
 ``bend_right`` may also be a ``dict``.
@@ -323,7 +323,7 @@ In Python, ``which_leg`` is ``int | str``; optional args use ``None``; ``levels`
       },
       py::arg("tensor"),
       py::arg("which_leg"),
-      doc_plus(DOC(cyten, flatten_pipe_leg),
+      doc_plus(DOC(lasyten, flatten_pipe_leg),
                R"pydoc(
 In Python, ``which_leg`` is ``int | str``.
 )pydoc"));
@@ -361,7 +361,7 @@ In Python, ``which_leg`` is ``int | str``.
       py::arg("target_codomain_pos") = py::none(),
       py::kw_only(),
       py::arg("target_domain_pos") = py::none(),
-      doc_plus(DOC(cyten, move_hidden_leg),
+      doc_plus(DOC(lasyten, move_hidden_leg),
                R"pydoc(
 In Python, ``axis_A`` / ``axis_B`` are ``int | str``; optional position args use ``None``.
 )pydoc"));
@@ -386,7 +386,7 @@ In Python, ``axis_A`` / ``axis_B`` are ``int | str``; optional position args use
       py::arg("domain") = py::none(),
       py::arg("levels") = py::none(),
       py::arg("bend_right") = py::none(),
-      doc_plus(DOC(cyten, permute_legs),
+      doc_plus(DOC(lasyten, permute_legs),
                R"pydoc(
 In Python, ``codomain`` / ``domain`` are ``int``, ``str``, a sequence thereof, or ``None``;
 ``levels`` / ``bend_right`` may be a ``list``, ``dict``, or ``None``.
@@ -403,16 +403,16 @@ In Python, ``codomain`` / ``domain`` are ``int``, ``str``, a sequence thereof, o
       },
       py::arg("tensor"),
       py::arg("legs") = py::none(),
-      doc_plus(DOC(cyten, split_legs),
+      doc_plus(DOC(lasyten, split_legs),
                R"pydoc(
 In Python, ``legs`` is ``int``, ``str``, a sequence thereof, or ``None`` (split all pipes).
 )pydoc"));
 
-    char const* slice_leg_py_doc = doc_plus(DOC(cyten, slice_leg),
+    char const* slice_leg_py_doc = doc_plus(DOC(lasyten, slice_leg),
                                             R"pydoc(
 In Python, both overloads are exposed as one function:
 ``slice_leg(tensor, leg, idx_or_sector, multiplicity=None)``.
-``leg`` is ``int | str``; pass a public-basis index or a :class:`~cyten.symmetries.Sector`.
+``leg`` is ``int | str``; pass a public-basis index or a :class:`~lasyten.symmetries.Sector`.
 )pydoc");
 
     m.def("slice_leg",
@@ -447,10 +447,10 @@ In Python, both overloads are exposed as one function:
       },
       py::arg("tensor"),
       py::arg("legs") = py::none(),
-      doc_plus(DOC(cyten, squeeze_legs),
+      doc_plus(DOC(lasyten, squeeze_legs),
                R"pydoc(
 In Python, ``legs`` is ``int``, ``str``, a sequence thereof, or ``None`` (squeeze all trivial).
 )pydoc"));
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.AbelianBackendData`. Imported in `cyten/backends/abelian.py` from `_core` (with `AbelianBackend`).
+**Done / monkey-patched** on branch `convert_backends`. Exported as `lasyten._core.AbelianBackendData`. Imported in `lasyten/backends/abelian.py` from `_core` (with `AbelianBackend`).
 
 Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md). Backend: [convert_AbelianBackend.md](convert_AbelianBackend.md).
 
@@ -11,9 +11,9 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 | Field | Value |
 | --- | --- |
 | original python name | `AbelianBackendData` |
-| original python file | `cyten/backends/abelian.py` |
-| original python module | `cyten.backends.abelian` |
-| declaration | `include/cyten/backends/abelian.h` |
+| original python file | `lasyten/backends/abelian.py` |
+| original python module | `lasyten.backends.abelian` |
+| declaration | `include/lasyten/backends/abelian.h` |
 | definition | `src/backends/abelian.cpp` |
 | pybind11 binding | `pybind/backends/py_abelian.cpp` |
 | trampoline | none (data class; no Python subclasses) |

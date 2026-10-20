@@ -1,39 +1,39 @@
 degrees_of_freedom.h
 ====================
 
-Declared in ``include/cyten/models/degrees_of_freedom.h``.
+Declared in ``include/lasyten/models/degrees_of_freedom.h``.
 
-.. doxygenclass:: cyten::Site
-   :project: cyten
+.. doxygenclass:: lasyten::Site
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::SpinDOF
-   :project: cyten
+.. doxygenclass:: lasyten::SpinDOF
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::ClockDOF
-   :project: cyten
+.. doxygenclass:: lasyten::ClockDOF
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::AnyonDOF
-   :project: cyten
+.. doxygenclass:: lasyten::AnyonDOF
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::OccupationDOF
-   :project: cyten
+.. doxygenclass:: lasyten::OccupationDOF
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::BosonicDOF
-   :project: cyten
+.. doxygenclass:: lasyten::BosonicDOF
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::FermionicDOF
-   :project: cyten
+.. doxygenclass:: lasyten::FermionicDOF
+   :project: lasyten
    :members:
    :undoc-members:

@@ -3,9 +3,9 @@
 #include <optional>
 #include <vector>
 
-#include <cyten/backends/block_inds.h>
+#include <lasyten/backends/block_inds.h>
 
-using namespace cyten;
+using namespace lasyten;
 
 int
 test_block_inds(int /*argc*/, char** /*args*/)

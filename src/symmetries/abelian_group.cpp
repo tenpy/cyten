@@ -1,11 +1,11 @@
-#include <cyten/symmetries/abelian_group.h>
+#include <lasyten/symmetries/abelian_group.h>
 
-#include <cyten/symmetries/topo_ones.h>
+#include <lasyten/symmetries/topo_ones.h>
 
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 AbelianGroup::AbelianGroup(Sector trivial_sector,
                            std::string group_name,
@@ -129,4 +129,4 @@ AbelianGroup::Z_iso(Sector /*a*/) const
     return topo_ones::one_2D_float();
 }
 
-} // namespace cyten
+} // namespace lasyten

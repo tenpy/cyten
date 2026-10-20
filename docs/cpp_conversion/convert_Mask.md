@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `Mask`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration in C++ header file: `include/cyten/tensors/mask.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration in C++ header file: `include/lasyten/tensors/mask.h`
 - definition in C++ file: `src/tensors/mask.cpp`
 - pybind11 binding: `pybind/tensors/py_mask.cpp`
 - trampoline: not needed (no library subclasses of Mask)

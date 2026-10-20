@@ -1,11 +1,11 @@
-#include <cyten/tensors/helpers.h>
+#include <lasyten/tensors/helpers.h>
 
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/tensors/charged_tensor.h>
-#include <cyten/tensors/hidden_leg_tensor.h>
-#include <cyten/tensors/ops_legs.h>
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tools.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/tensors/charged_tensor.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/ops_legs.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tools.h>
 
 #include <cassert>
 #include <format>
@@ -16,7 +16,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -693,4 +693,4 @@ _svd_new_labels(std::optional<OptionalLabels> new_labels)
     return { a, b, c, d };
 }
 
-} // namespace cyten
+} // namespace lasyten

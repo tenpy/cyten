@@ -1,12 +1,12 @@
-#include <cyten/tensors/ops_elementwise.h>
+#include <lasyten/tensors/ops_elementwise.h>
 
-#include <cyten/tensors/charged_tensor.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/helpers.h>
-#include <cyten/tensors/ops_legs.h>
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tensors/tensor.h>
-#include <cyten/tools.h>
+#include <lasyten/tensors/charged_tensor.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/helpers.h>
+#include <lasyten/tensors/ops_legs.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tensors/tensor.h>
+#include <lasyten/tools.h>
 
 #include <cmath>
 #include <complex>
@@ -15,7 +15,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -216,4 +216,4 @@ exp(TensorCPtr obj)
     throw NotImplemented("exp");
 }
 
-} // namespace cyten
+} // namespace lasyten

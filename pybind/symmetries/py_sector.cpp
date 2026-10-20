@@ -1,10 +1,10 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/sector.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 #include "tools/hdf5_bind.h"
 
-#include <cyten/symmetries/sector.h>
-#include <cyten/symmetries/sector_numpy.h>
+#include <lasyten/symmetries/sector.h>
+#include <lasyten/symmetries/sector_numpy.h>
 
 #include <pybind11/functional.h>
 #include <pybind11/numpy.h>
@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -177,7 +177,7 @@ sector_array_repr(SectorArray const& a)
 void
 bind_sector(py::module_& m)
 {
-    py::class_<Sector>(m, "Sector", DOC(cyten, Sector))
+    py::class_<Sector>(m, "Sector", DOC(lasyten, Sector))
       .def(py::init<>())
       .def(py::init([](py::object values) { return sector_from_numpy(values); }),
            py::arg("values"),
@@ -232,19 +232,19 @@ bind_sector(py::module_& m)
         [](Sector const& self) { return sector_to_numpy(self); },
         "Return a copy as a 1D ``int64`` NumPy array.")
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<Sector>(),
+           lasyten::hdf5::wrap_save_hdf5_const<Sector>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<Sector>(),
+                  lasyten::hdf5::wrap_from_hdf5<Sector>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
 
     py::implicitly_convertible<py::array, Sector>();
 
-    py::class_<SectorArray>(m, "SectorArray", DOC(cyten, SectorArray))
+    py::class_<SectorArray>(m, "SectorArray", DOC(lasyten, SectorArray))
       .def(py::init<>())
       .def(py::init([](py::object values) { return sector_array_from_numpy(values); }),
            py::arg("values"),
@@ -440,12 +440,12 @@ bind_sector(py::module_& m)
         py::arg("a_strict") = true,
         py::arg("b_strict") = true)
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<SectorArray>(),
+           lasyten::hdf5::wrap_save_hdf5_const<SectorArray>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<SectorArray>(),
+                  lasyten::hdf5::wrap_from_hdf5<SectorArray>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -453,4 +453,4 @@ bind_sector(py::module_& m)
     py::implicitly_convertible<py::array, SectorArray>();
 }
 
-} // namespace cyten
+} // namespace lasyten

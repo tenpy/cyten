@@ -1,20 +1,20 @@
 trees.h
 =======
 
-Declared in ``include/cyten/symmetries/trees.h``.
+Declared in ``include/lasyten/symmetries/trees.h``.
 
-cyten::FusionTree
+lasyten::FusionTree
 -----------------
 
-.. doxygenclass:: cyten::FusionTree
-   :project: cyten
+.. doxygenclass:: lasyten::FusionTree
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::fusion_trees
+lasyten::fusion_trees
 -------------------
 
-.. doxygenclass:: cyten::fusion_trees
-   :project: cyten
+.. doxygenclass:: lasyten::fusion_trees
+   :project: lasyten
    :members:
    :undoc-members:

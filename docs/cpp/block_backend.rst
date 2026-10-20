@@ -1,6 +1,6 @@
 block_backend
 =============
-Headers in ``include/cyten/block_backend/``.
+Headers in ``include/lasyten/block_backend/``.
 
 .. toctree::
    :maxdepth: 1

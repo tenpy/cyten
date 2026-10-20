@@ -3,9 +3,9 @@
 ## metadata
 
 - original python names: `eye`, `tensor`, `add_trivial_leg`, `zero_like`, `tensor_from_grid`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration: `include/cyten/tensors/constructors.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration: `include/lasyten/tensors/constructors.h`
 - definition: `src/tensors/constructors.cpp`
 - pybind11 binding: `pybind/tensors/py_constructors.cpp`
 - trampoline: n/a (free functions)
@@ -19,7 +19,7 @@ Stay on branch **`convert_tensors`**.
 
 ## Design notes
 
-- Free functions in `cyten::`; return `py::object` and build results via **Python** tensor classmethods / ctors (hierarchy not monkey-patched yet).
+- Free functions in `lasyten::`; return `py::object` and build results via **Python** tensor classmethods / ctors (hierarchy not monkey-patched yet).
 - NoSymmetry: unwrap `BlockData` → `Block` when constructing Python `SymmetricTensor` from C++ `DataPtr` (same as helpers).
 - `eye` / `zero_like` / `tensor`: thin wrappers over Python `from_eye` / `from_zero` / `from_dense_block` / `as_SymmetricTensor` (keeps isinstance correct).
 - `add_trivial_leg`: port position parsing + recursive ChargedTensor path in C++; call backend `add_trivial_leg` with `py::object` tensor.

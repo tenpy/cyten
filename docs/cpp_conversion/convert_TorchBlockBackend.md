@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: TorchBlockBackend
-- original python file: cyten/block_backends/torch.py
-- original python module: cyten.block_backends.torch
-- declaration in C++ header file: include/cyten/block_backend/torch.h
+- original python file: lasyten/block_backends/torch.py
+- original python module: lasyten.block_backends.torch
+- declaration in C++ header file: include/lasyten/block_backend/torch.h
 - definition in C++ file: src/block_backend/torch.cpp
 - pybind11 binding: pybind/block_backend/py_torch.cpp (included from py_block_backend.cpp)
 - first line of docstring: A block-backend using PyTorch
@@ -22,7 +22,7 @@
 
 ## Shared libtorch with Python `torch`
 
-Users will `import cyten` and `import torch` in the same process. Cyten uses the **hybrid**
+Users will `import lasyten` and `import torch` in the same process. LASyTen uses the **hybrid**
 approach: C++ `TorchBlockBackend` calls the libtorch C++ API, but `_core` must load the **same**
 shared `libtorch` / `libc10` as `torch._C`:
 
@@ -49,9 +49,9 @@ shared `libtorch` / `libc10` as `torch._C`:
    Ellipsis/None/exotic keys still fall back to numpy `__getitem__`/`__setitem__`.
 6. **HDF5:** Round-trip via `to_numpy()` / `block_from_numpy`, same idea as numpy block save/load.
 7. **Factory wiring:** Update `backend_factory.py` to use `TorchBlockBackend.from_factory` like
-   numpy; export from `cyten/block_backends/__init__.py` via `_core`.
+   numpy; export from `lasyten/block_backends/__init__.py` via `_core`.
 8. **Tests:** Enable torch path in `test_to_backend` (remove xfail); run pytest with
-   `--block-backends=torch` once monkey-patched. Allow `import torch` alongside cyten.
+   `--block-backends=torch` once monkey-patched. Allow `import torch` alongside lasyten.
 
 ## TODO list for conversion
 

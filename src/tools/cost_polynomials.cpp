@@ -1,13 +1,13 @@
-#include <cyten/tools/cost_polynomials.h>
+#include <lasyten/tools/cost_polynomials.h>
 
-#include <cyten/tools.h>
+#include <lasyten/tools.h>
 
 #include <format>
 #include <functional>
 #include <ranges>
 #include <sstream>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -306,4 +306,4 @@ BigOPolynomial::prod(std::vector<BigOPolynomial> const& others) const
     return result.prod(std::vector<BigOPolynomial>(others.begin() + 1, others.end()));
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,34 +1,34 @@
-cyten.backends.abelian
+lasyten.backends.abelian
 ======================
 
-Declared in ``cyten/backends/abelian.py`` (bindings in ``pybind/backends/py_abelian.cpp``).
+Declared in ``lasyten/backends/abelian.py`` (bindings in ``pybind/backends/py_abelian.cpp``).
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.backends.abelian.AbelianBackend
+lasyten.backends.abelian.AbelianBackend
 -------------------------------------
 
-.. autoclass:: cyten.backends.abelian.AbelianBackend
+.. autoclass:: lasyten.backends.abelian.AbelianBackend
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.abelian.AbelianBackendData
+lasyten.backends.abelian.AbelianBackendData
 -----------------------------------------
 
-.. autoclass:: cyten.backends.abelian.AbelianBackendData
+.. autoclass:: lasyten.backends.abelian.AbelianBackendData
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.abelian.BlockInds
+lasyten.backends.abelian.BlockInds
 --------------------------------
 
-.. autoclass:: cyten.backends.abelian.BlockInds
+.. autoclass:: lasyten.backends.abelian.BlockInds
    :members:
    :undoc-members:
    :show-inheritance:
@@ -36,4 +36,4 @@ cyten.backends.abelian.BlockInds
 Functions
 ---------
 
-.. autofunction:: cyten.backends.abelian.valid_block_inds
+.. autofunction:: lasyten.backends.abelian.valid_block_inds

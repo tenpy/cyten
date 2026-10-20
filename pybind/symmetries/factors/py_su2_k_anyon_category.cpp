@@ -1,24 +1,24 @@
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/su2_k_anyon_category.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/factors/su2_k_anyon_category.h>
+#include <lasyten/symmetries/factors/su2_k_anyon_category.h>
 
 #include "tools/hdf5_bind.h"
 #include <string>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_su2_k_anyon_category(py::module_& m)
 {
     py::class_<SU2_kAnyonCategory, SymmetryFactor, py::smart_holder> cls(
-      m, "SU2_kAnyonCategory", DOC(cyten, SU2_kAnyonCategory));
+      m, "SU2_kAnyonCategory", DOC(lasyten, SU2_kAnyonCategory));
     cls.def(py::init<int, std::string>(), py::arg("k"), py::arg("handedness") = "left")
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<SU2_kAnyonCategory>(),
+                  lasyten::hdf5::wrap_from_hdf5<SU2_kAnyonCategory>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -34,4 +34,4 @@ bind_su2_k_anyon_category(py::module_& m)
       });
 }
 
-} // namespace cyten
+} // namespace lasyten

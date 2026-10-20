@@ -2,7 +2,7 @@
 
 ## Status
 
-**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.TensorBackend` (plus `conventional_leg_order`, `get_same_backend`). Imported in `cyten/backends/_backend.py` from `_core`.
+**Done / monkey-patched** on branch `convert_backends`. Exported as `lasyten._core.TensorBackend` (plus `conventional_leg_order`, `get_same_backend`). Imported in `lasyten/backends/_backend.py` from `_core`.
 
 Layer overview: [convert_backends.md](convert_backends.md).
 
@@ -11,9 +11,9 @@ Layer overview: [convert_backends.md](convert_backends.md).
 | Field | Value |
 | --- | --- |
 | original python name | `TensorBackend` (+ `conventional_leg_order`, `get_same_backend`) |
-| original python file | `cyten/backends/_backend.py` |
-| original python module | `cyten.backends` |
-| declaration | `include/cyten/backends/tensor_backend.h` |
+| original python file | `lasyten/backends/_backend.py` |
+| original python module | `lasyten.backends` |
+| declaration | `include/lasyten/backends/tensor_backend.h` |
 | definition | `src/backends/tensor_backend.cpp` |
 | pybind11 binding | `pybind/backends/py_tensor_backend.cpp` |
 | trampoline | yes — `pybind/backends/py_trampolines.hpp` (`PyTensorBackend`) |

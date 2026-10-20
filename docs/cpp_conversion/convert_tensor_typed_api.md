@@ -5,13 +5,13 @@
 - status: **done**
 - related: [convert_tensors.md](convert_tensors.md) §17
 - prerequisite: [convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md) (backend virtuals already typed)
-- headers: `include/cyten/tensors/{tensor,symmetric_tensor,diagonal_tensor,mask,charged_tensor,helpers,constructors,ops_elementwise,ops_algebra,ops_legs,decompositions}.h`
-- spaces: `include/cyten/symmetries/spaces.h` (`TensorProduct::factors`)
+- headers: `include/lasyten/tensors/{tensor,symmetric_tensor,diagonal_tensor,mask,charged_tensor,helpers,constructors,ops_elementwise,ops_algebra,ops_legs,decompositions}.h`
+- spaces: `include/lasyten/symmetries/spaces.h` (`TensorProduct::factors`)
 
 ## Goal
 
 Replace leftover `py::object` tensor / space / leg arguments and returns on the Layer 4 C++ API
-with typed `shared_ptr`s (`Tensor::Ptr`, `Leg::Ptr`, …), so `libcyten` headers are usable without
+with typed `shared_ptr`s (`Tensor::Ptr`, `Leg::Ptr`, …), so `liblasyten` headers are usable without
 duck-typed Python objects.
 
 Flexible Python input formats (sequences of spaces, nested label lists, numpy arrays, `*args`)
@@ -23,7 +23,7 @@ Class monkey-patch is already done (`_tensors.py` is a `_core` re-export).
 ## Type mapping
 
 Use the **most specific** pointer the signature documents. Prefer `CPtr` for read-only inputs.
-Existing aliases live in [forward_declare.h](../../include/cyten/tensors/forward_declare.h) and on
+Existing aliases live in [forward_declare.h](../../include/lasyten/tensors/forward_declare.h) and on
 each class (`Tensor::Ptr`, `Space::Ptr`, …).
 
 | Current `py::object` | C++ type |
@@ -137,7 +137,7 @@ Pitfalls that showed up in pytest:
   tensor->dtype)` (Mask is bool, so `2.0` became `True`). Use the one-arg block-backend
   `as_scalar`.
 - **Explicit `None` + Tensor** — pybind11 rejects `scalar_multiply(None, tensor)` as incompatible
-  arguments even with `py::object`. Thin Python wrappers in `cyten/tensors/_tensors.py` raise
+  arguments even with `py::object`. Thin Python wrappers in `lasyten/tensors/_tensors.py` raise
   `TypeError` for `None`.
 - **Python trampoline subclasses** (`DummyTensor`) cannot `cast<TensorCPtr>()` (smart_holder /
   `enable_shared_from_this`). `is_scalar` bindings duck-type via attributes instead of casting.

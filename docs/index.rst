@@ -1,5 +1,5 @@
-Cyten documentation
-===================
+LASyTen documentation
+=====================
 
 If you're new here, start with the :doc:`readme_wrap` and the
 :doc:`intro/first_steps` example.
@@ -19,13 +19,13 @@ If you're new here, start with the :doc:`readme_wrap` and the
     :maxdepth: 1
 
     main
-    python/cyten.config
-    python/cyten.backends
-    python/cyten.block_backends
-    python/cyten.symmetries
-    python/cyten.tensors
-    python/cyten.tools
-    python/cyten.models
+    python/lasyten.config
+    python/lasyten.backends
+    python/lasyten.block_backends
+    python/lasyten.symmetries
+    python/lasyten.tensors
+    python/lasyten.tools
+    python/lasyten.models
 
 .. toctree::
     :caption: C++ Reference

@@ -1,12 +1,12 @@
 zn_anyon_category.h
 ===================
 
-Declared in ``include/cyten/symmetries/factors/zn_anyon_category.h``.
+Declared in ``include/lasyten/symmetries/factors/zn_anyon_category.h``.
 
-cyten::ZNAnyonCategory
+lasyten::ZNAnyonCategory
 ----------------------
 
-.. doxygenclass:: cyten::ZNAnyonCategory
-   :project: cyten
+.. doxygenclass:: lasyten::ZNAnyonCategory
+   :project: lasyten
    :members:
    :undoc-members:

@@ -8,9 +8,9 @@
 
 | Object | Original Python | C++ header | C++ source | Bindings |
 | --- | --- | --- | --- | --- |
-| `SymmetryError` | `cyten/symmetries/_symmetries.py` | `include/cyten/symmetries/exceptions.h` | n/a (header-only) | `pybind/symmetries/py_exceptions.cpp` |
+| `SymmetryError` | `lasyten/symmetries/_symmetries.py` | `include/lasyten/symmetries/exceptions.h` | n/a (header-only) | `pybind/symmetries/py_exceptions.cpp` |
 | `BraidChiralityUnspecifiedError` | same | same | n/a | same |
-| `FusionStyle` | same | `include/cyten/symmetries/styles.h` | n/a | `pybind/symmetries/py_styles.cpp` |
+| `FusionStyle` | same | `include/lasyten/symmetries/styles.h` | n/a | `pybind/symmetries/py_styles.cpp` |
 | `BraidingStyle` | same | same | n/a | same |
 
 ## Notes

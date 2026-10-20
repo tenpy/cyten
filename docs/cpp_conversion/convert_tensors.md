@@ -4,9 +4,9 @@
 
 Branch: **`convert_tensors`** (reuse for the whole module; no per-object branches).
 
-Python source: [`cyten/tensors/_tensors.py`](../../cyten/tensors/_tensors.py) — thin `_core` re-export (class + free-function bodies removed).
+Python source: [`lasyten/tensors/_tensors.py`](../../lasyten/tensors/_tensors.py) — thin `_core` re-export (class + free-function bodies removed).
 
-Layer 3 backends use typed tensor Ptr args via [`forward_declare.h`](../../include/cyten/tensors/forward_declare.h) — see [convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md).
+Layer 3 backends use typed tensor Ptr args via [`forward_declare.h`](../../include/lasyten/tensors/forward_declare.h) — see [convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md).
 
 Layer 4 C++ tensor / space / leg API is typed — see [convert_tensor_typed_api.md](convert_tensor_typed_api.md).
 
@@ -111,8 +111,8 @@ flowchart TD
 ## File layout
 
 ```
-include/cyten/tensors.h
-include/cyten/tensors/
+include/lasyten/tensors.h
+include/lasyten/tensors/
   labels.h              # constants + label helpers + LabelledLegs
   tensor.h
   symmetric_tensor.h
@@ -129,7 +129,7 @@ src/tensors/            # matching .cpp; register in src/CMakeLists.txt
 pybind/tensors/         # matching py_*.cpp; register in pybind/CMakeLists.txt
 ```
 
-Namespace: `cyten::`.
+Namespace: `lasyten::`.
 
 ## Design notes
 
@@ -143,5 +143,5 @@ Namespace: `cyten::`.
 ## Codegen
 
 ```bash
-/opt/micromamba/envs/cyten_py314/bin/python .cursor/skills/pybind11-codegen/pybind11_codegen.py <cmd> ...
+/opt/micromamba/envs/lasyten_py314/bin/python .cursor/skills/pybind11-codegen/pybind11_codegen.py <cmd> ...
 ```

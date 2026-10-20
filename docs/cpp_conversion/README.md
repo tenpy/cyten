@@ -1,6 +1,6 @@
 # C++ conversion tracking
 
-This folder stores per-object conversion plans and notes for the Python-to-C++ migration of the cyten core library.
+This folder stores per-object conversion plans and notes for the Python-to-C++ migration of the lasyten core library.
 
 Each conversion follows the workflow in [.cursor/skills/pybind11-codegen/SKILL.md](../../.cursor/skills/pybind11-codegen/SKILL.md) and is documented in a file `convert_<pyname>.md` (e.g. `convert_format_like_list.md`).
 
@@ -76,60 +76,60 @@ flowchart LR
 
 ### Layer 0 — Minimal tools
 
-- **SparseMapping / IdentityMapping** — **C++ templates** in `_core` as `SparseMappingFusionTree` / `…Pair` (+ Identity aliases); Python `cyten/tools/mappings.py` removed — [convert_SparseMapping.md](convert_SparseMapping.md).
-- **cyten/tools/misc.py** — `to_iterable`, `rank_data`, `argsort`, `combine_constraints`, `as_immutable_array`, `duplicate_entries`, `inverse_permutation`, `iter_common_sorted_arrays`, `to_valid_idx`, `is_iterable` (used everywhere).
-- **cyten/tools/string.py** — `format_like_list` (tiny).
-- **cyten/block_backends/dtypes.py** — `Dtype`, numpy/cyten dtype mapping (needed by block_backends).
-- **cyten/tools/cost_polynomials.py** — `BigOMonomial`, `BigOPolynomial` — **done in C++** (see [convert_cost_polynomials.md](convert_cost_polynomials.md)).
-- **cyten/tools/math.py** — `speigs`, `speigsh` (used by sparse/tensors).
+- **SparseMapping / IdentityMapping** — **C++ templates** in `_core` as `SparseMappingFusionTree` / `…Pair` (+ Identity aliases); Python `lasyten/tools/mappings.py` removed — [convert_SparseMapping.md](convert_SparseMapping.md).
+- **lasyten/tools/misc.py** — `to_iterable`, `rank_data`, `argsort`, `combine_constraints`, `as_immutable_array`, `duplicate_entries`, `inverse_permutation`, `iter_common_sorted_arrays`, `to_valid_idx`, `is_iterable` (used everywhere).
+- **lasyten/tools/string.py** — `format_like_list` (tiny).
+- **lasyten/block_backends/dtypes.py** — `Dtype`, numpy/lasyten dtype mapping (needed by block_backends).
+- **lasyten/tools/cost_polynomials.py** — `BigOMonomial`, `BigOPolynomial` — **done in C++** (see [convert_cost_polynomials.md](convert_cost_polynomials.md)).
+- **lasyten/tools/math.py** — `speigs`, `speigsh` (used by sparse/tensors).
 
 Convert **functions and classes** in each file in dependency order within the file (e.g. helpers before public API). Use `list_python_names` to get the exact list of convertible names per module.
 
 ### Layer 1 — Block backends (no torch)
 
-- **cyten/block_backends/_block_backend.py** — `BlockBackend` (abstract) — **done in C++** (see [convert_BlockBackend.md](convert_BlockBackend.md)). Nested C++ types `BlockBackend::Block` and `BlockBackend::Scalar` were added as part of this conversion. Python leftovers remain for ArrayApi/Torch subclasses.
-- **cyten/block_backends/numpy.py** — `NumpyBlockBackend` — **done in C++** (same doc). Exported from `cyten._core` via `__init__.py`.
-- **cyten/block_backends/array_api.py** — `ArrayApiBlockBackend` (still Python).
+- **lasyten/block_backends/_block_backend.py** — `BlockBackend` (abstract) — **done in C++** (see [convert_BlockBackend.md](convert_BlockBackend.md)). Nested C++ types `BlockBackend::Block` and `BlockBackend::Scalar` were added as part of this conversion. Python leftovers remain for ArrayApi/Torch subclasses.
+- **lasyten/block_backends/numpy.py** — `NumpyBlockBackend` — **done in C++** (same doc). Exported from `lasyten._core` via `__init__.py`.
+- **lasyten/block_backends/array_api.py** — `ArrayApiBlockBackend` (still Python).
 
 Skip `block_backends/torch.py` per scope.
 
 ### Layer 2 — Symmetries
 
 - **Sector / SectorArray** — C++ foundation (see [convert_Sector.md](convert_Sector.md)): owning `Sector` (`int16_t[7]` + length, 16 bytes), `SectorArray` as `std::vector<Sector>` with stored `sector_ind_len` (including when empty), ops as methods, Python classes + `to_numpy()` / load casters. Do **not** template `Symmetry` on sector length.
-- **cyten/symmetries/_symmetries.py** — Large (~2.6k lines). Convert in order: exceptions → enums → `BaseSymmetry` (virtual API on `Sector` / `SectorArray`) → `SymmetryFactor` / concrete factors → product `Symmetry` → free functions.
-- **cyten/symmetries/_su2data.py** — SU2 data (small).
-- **cyten/symmetries/trees.py** — `FusionTree`, `fusion_trees` (~1k lines).
-- **cyten/symmetries/spaces.py** — `ElementarySpace`, `Leg`, `LegPipe`, `Space`, `TensorProduct`, `AbelianLegPipe` (~2.2k lines). Depends on symmetries and trees.
+- **lasyten/symmetries/_symmetries.py** — Large (~2.6k lines). Convert in order: exceptions → enums → `BaseSymmetry` (virtual API on `Sector` / `SectorArray`) → `SymmetryFactor` / concrete factors → product `Symmetry` → free functions.
+- **lasyten/symmetries/_su2data.py** — SU2 data (small).
+- **lasyten/symmetries/trees.py** — `FusionTree`, `fusion_trees` (~1k lines).
+- **lasyten/symmetries/spaces.py** — `ElementarySpace`, `Leg`, `LegPipe`, `Space`, `TensorProduct`, `AbelianLegPipe` (~2.2k lines). Depends on symmetries and trees.
 
 ### Layer 3 — Backends
 
 Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`.
 
-- **cyten/backends/_backend.py** — `TensorBackend` (abstract), helpers. **Monkey-patched** from `_core` — [convert_TensorBackend.md](convert_TensorBackend.md).
-- **cyten/backends/no_symmetry.py** — `NoSymmetryBackend`. **Monkey-patched** — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md).
-- **cyten/backends/abelian.py** — `AbelianBackendData` + `AbelianBackend`. **Monkey-patched** — [convert_AbelianBackendData.md](convert_AbelianBackendData.md), [convert_AbelianBackend.md](convert_AbelianBackend.md).
-- **cyten/backends/fusion_tree_backend.py** — FT stack **monkey-patched** from `_core` (keeps `_tree_block_iter`). See [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md).
-- **cyten/backends/backend_factory.py** — `get_backend` **monkey-patched** from `_core` — [convert_get_backend.md](convert_get_backend.md).
+- **lasyten/backends/_backend.py** — `TensorBackend` (abstract), helpers. **Monkey-patched** from `_core` — [convert_TensorBackend.md](convert_TensorBackend.md).
+- **lasyten/backends/no_symmetry.py** — `NoSymmetryBackend`. **Monkey-patched** — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md).
+- **lasyten/backends/abelian.py** — `AbelianBackendData` + `AbelianBackend`. **Monkey-patched** — [convert_AbelianBackendData.md](convert_AbelianBackendData.md), [convert_AbelianBackend.md](convert_AbelianBackend.md).
+- **lasyten/backends/fusion_tree_backend.py** — FT stack **monkey-patched** from `_core` (keeps `_tree_block_iter`). See [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md).
+- **lasyten/backends/backend_factory.py** — `get_backend` **monkey-patched** from `_core` — [convert_get_backend.md](convert_get_backend.md).
 
 ### Layer 4 — Tensors
 
-- **cyten/tensors/_tensors.py** — **C++ + bindings + monkey-patched**; Python file is a `_core` re-export. Batches 1–17: [convert_tensors.md](convert_tensors.md). Typed C++ API (no leftover tensor/space/leg `py::object`): [convert_tensor_typed_api.md](convert_tensor_typed_api.md).
-- **cyten/tensors/planar.py** — Planar diagram utilities. **C++ + monkey-patched**; thin Python `PlanarLinearOperator` wrapper kept — [convert_planar.md](convert_planar.md).
-- **cyten/tensors/sparse.py** — `LinearOperator`, `ProjectedLinearOperator`, etc. **C++ + monkey-patched** (numpy/scipy helpers remain Python) — [convert_sparse.md](convert_sparse.md).
-- **cyten/tensors/krylov_based.py** — `KrylovBased`, `Arnoldi`, `Lanczos*`, `GMRES`, `lanczos` **C++ + monkey-patched**; `lanczos_arpack` remains Python — [convert_krylov_based.md](convert_krylov_based.md).
+- **lasyten/tensors/_tensors.py** — **C++ + bindings + monkey-patched**; Python file is a `_core` re-export. Batches 1–17: [convert_tensors.md](convert_tensors.md). Typed C++ API (no leftover tensor/space/leg `py::object`): [convert_tensor_typed_api.md](convert_tensor_typed_api.md).
+- **lasyten/tensors/planar.py** — Planar diagram utilities. **C++ + monkey-patched**; thin Python `PlanarLinearOperator` wrapper kept — [convert_planar.md](convert_planar.md).
+- **lasyten/tensors/sparse.py** — `LinearOperator`, `ProjectedLinearOperator`, etc. **C++ + monkey-patched** (numpy/scipy helpers remain Python) — [convert_sparse.md](convert_sparse.md).
+- **lasyten/tensors/krylov_based.py** — `KrylovBased`, `Arnoldi`, `Lanczos*`, `GMRES`, `lanczos` **C++ + monkey-patched**; `lanczos_arpack` remains Python — [convert_krylov_based.md](convert_krylov_based.md).
 
 ### Layer 5 — Models
 
 Branch: `convert_models`. Overview: [convert_models.md](convert_models.md).
 
-- **cyten/models/degrees_of_freedom.py** — `Site`, DOF classes (`SpinDOF`, `ClockDOF`, `AnyonDOF`, `OccupationDOF`, `BosonicDOF`, `FermionicDOF`), `ALL_SPECIES`. **C++ + monkey-patched** — [convert_Site.md](convert_Site.md).
-- **cyten/models/sites.py** — Concrete sites (`SpinSite`, `SpinlessBosonSite`, `SpinlessFermionSite`, `SpinHalfFermionSite`, anyon sites, …). **C++ + monkey-patched**.
-- **cyten/models/couplings.py** — `Coupling`, factory functions (`spin_spin_coupling`, `hopping`, …). **C++ + monkey-patched**; `tenpy_models.py` remains Python.
-- **cyten/models/tenpy_models.py** — TenPy model helpers (~130 lines). **Still Python** (out of scope).
+- **lasyten/models/degrees_of_freedom.py** — `Site`, DOF classes (`SpinDOF`, `ClockDOF`, `AnyonDOF`, `OccupationDOF`, `BosonicDOF`, `FermionicDOF`), `ALL_SPECIES`. **C++ + monkey-patched** — [convert_Site.md](convert_Site.md).
+- **lasyten/models/sites.py** — Concrete sites (`SpinSite`, `SpinlessBosonSite`, `SpinlessFermionSite`, `SpinHalfFermionSite`, anyon sites, …). **C++ + monkey-patched**.
+- **lasyten/models/couplings.py** — `Coupling`, factory functions (`spin_spin_coupling`, `hopping`, …). **C++ + monkey-patched**; `tenpy_models.py` remains Python.
+- **lasyten/models/tenpy_models.py** — TenPy model helpers (~130 lines). **Still Python** (out of scope).
 
 ## C++ layout
 
-- **Headers:** [include/cyten/](include/cyten/) — add e.g. `tools.hpp`, `block_backend.hpp`, `symmetries.hpp`, `spaces.hpp`, `trees.hpp`, `backend.hpp`, `tensors.hpp`, `models.hpp` (or split further as needed).
+- **Headers:** [include/lasyten/](include/lasyten/) — add e.g. `tools.hpp`, `block_backend.hpp`, `symmetries.hpp`, `spaces.hpp`, `trees.hpp`, `backend.hpp`, `tensors.hpp`, `models.hpp` (or split further as needed).
 - **Sources:** Add under a `src/` (or equivalent) and register in CMake.
 - **Bindings:** [pybind/](pybind/) — extend `_core.cpp` or add separate `.cpp` files and include them in the same module.
 
@@ -145,4 +145,4 @@ Keep namespaces and include structure consistent with existing headers.
 4. **Trampolines** — Use `gen_pyb11_trampoline` only for classes that are subclassed in Python (e.g. `TensorBackend`, `BlockBackend`, `Symmetry`); for internal-only bases, bindings may not need trampolines.
 5. **Tests** — For each converted object, run the relevant pytest under `tests/`; keep the full suite passing before removing the corresponding Python implementation.
 6. **Incremental commits** — Per the skill: WIP commits with `--no-verify` (e.g. "WIP: convert : ") so pre-commit doesn’t block mid-conversion.
-7. **Docstrings** — See [docstring_porting.md](docstring_porting.md) (dual-language policy from [tenpy/cyten#242](https://github.com/tenpy/cyten/issues/242); `///` + per-header `pybind/docstrings/` + `DOC` / `R"pydoc"`).
+7. **Docstrings** — See [docstring_porting.md](docstring_porting.md) (dual-language policy from [tenpy/lasyten#242](https://github.com/tenpy/lasyten/issues/242); `///` + per-header `pybind/docstrings/` + `DOC` / `R"pydoc"`).

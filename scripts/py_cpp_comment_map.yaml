@@ -1,5 +1,5 @@
 # Python → C++ / pybind mapping for layers 2–4.
-# Paths under `py:` are relative to tmp/orig_cyten/.
+# Paths under `py:` are relative to tmp/orig_lasyten/.
 # Paths under cpp/pybind are relative to the repo root.
 #
 # Derived from docs/cpp_conversion/convert_*.md metadata (path fields only).
@@ -9,23 +9,23 @@ modules:
   - py: backends/_backend.py
     cpp:
       - src/backends/tensor_backend.cpp
-      - include/cyten/backends/tensor_backend.h
+      - include/lasyten/backends/tensor_backend.h
     pybind:
       - pybind/backends/py_tensor_backend.cpp
 
   - py: backends/no_symmetry.py
     cpp:
       - src/backends/no_symmetry.cpp
-      - include/cyten/backends/no_symmetry.h
+      - include/lasyten/backends/no_symmetry.h
     pybind:
       - pybind/backends/py_no_symmetry.cpp
 
   - py: backends/abelian.py
     cpp:
       - src/backends/abelian.cpp
-      - include/cyten/backends/abelian.h
+      - include/lasyten/backends/abelian.h
       - src/backends/block_inds.cpp
-      - include/cyten/backends/block_inds.h
+      - include/lasyten/backends/block_inds.h
     pybind:
       - pybind/backends/py_abelian.cpp
       - pybind/backends/py_block_inds.cpp
@@ -33,11 +33,11 @@ modules:
   - py: backends/fusion_tree_backend.py
     cpp:
       - src/backends/fusion_tree_backend.cpp
-      - include/cyten/backends/fusion_tree_backend.h
+      - include/lasyten/backends/fusion_tree_backend.h
       - src/backends/fusion_tree_mapping.cpp
-      - include/cyten/backends/fusion_tree_mapping.h
+      - include/lasyten/backends/fusion_tree_mapping.h
       - src/backends/fusion_tree_permute.cpp
-      - include/cyten/backends/fusion_tree_permute.h
+      - include/lasyten/backends/fusion_tree_permute.h
     pybind:
       - pybind/backends/py_fusion_tree_backend.cpp
       - pybind/backends/py_fusion_tree_mapping.cpp
@@ -45,7 +45,7 @@ modules:
   - py: backends/backend_factory.py
     cpp:
       - src/backends/backend_factory.cpp
-      - include/cyten/backends/backend_factory.h
+      - include/lasyten/backends/backend_factory.h
     pybind:
       - pybind/backends/py_backend_factory.cpp
 
@@ -53,14 +53,14 @@ modules:
   - py: symmetries/spaces.py
     cpp:
       - src/symmetries/spaces.cpp
-      - include/cyten/symmetries/spaces.h
+      - include/lasyten/symmetries/spaces.h
     pybind:
       - pybind/symmetries/py_spaces.cpp
 
   - py: symmetries/trees.py
     cpp:
       - src/symmetries/trees.cpp
-      - include/cyten/symmetries/trees.h
+      - include/lasyten/symmetries/trees.h
     pybind:
       - pybind/symmetries/py_trees.cpp
 
@@ -68,52 +68,52 @@ modules:
   - py: symmetries/_symmetries.py
     cpp:
       - src/symmetries/base_symmetry.cpp
-      - include/cyten/symmetries/base_symmetry.h
+      - include/lasyten/symmetries/base_symmetry.h
       - src/symmetries/symmetry_factor.cpp
-      - include/cyten/symmetries/symmetry_factor.h
+      - include/lasyten/symmetries/symmetry_factor.h
       - src/symmetries/group.cpp
-      - include/cyten/symmetries/group.h
+      - include/lasyten/symmetries/group.h
       - src/symmetries/abelian_group.cpp
-      - include/cyten/symmetries/abelian_group.h
+      - include/lasyten/symmetries/abelian_group.h
       - src/symmetries/symmetry.cpp
-      - include/cyten/symmetries/symmetry.h
+      - include/lasyten/symmetries/symmetry.h
       - src/symmetries/fusion_symbol.cpp
-      - include/cyten/symmetries/fusion_symbol.h
-      - include/cyten/symmetries/exceptions.h
-      - include/cyten/symmetries/styles.h
-      - include/cyten/symmetries/sector.h
+      - include/lasyten/symmetries/fusion_symbol.h
+      - include/lasyten/symmetries/exceptions.h
+      - include/lasyten/symmetries/styles.h
+      - include/lasyten/symmetries/sector.h
       - src/symmetries/sector_array.cpp
-      - include/cyten/symmetries/topo_ones.h
+      - include/lasyten/symmetries/topo_ones.h
       - src/symmetries/factors/no_symmetry.cpp
-      - include/cyten/symmetries/factors/no_symmetry.h
+      - include/lasyten/symmetries/factors/no_symmetry.h
       - src/symmetries/factors/u1.cpp
-      - include/cyten/symmetries/factors/u1.h
+      - include/lasyten/symmetries/factors/u1.h
       - src/symmetries/factors/zn.cpp
-      - include/cyten/symmetries/factors/zn.h
+      - include/lasyten/symmetries/factors/zn.h
       - src/symmetries/factors/su2.cpp
-      - include/cyten/symmetries/factors/su2.h
+      - include/lasyten/symmetries/factors/su2.h
       - src/symmetries/factors/sun.cpp
-      - include/cyten/symmetries/factors/sun.h
+      - include/lasyten/symmetries/factors/sun.h
       - src/symmetries/factors/fermion_number.cpp
-      - include/cyten/symmetries/factors/fermion_number.h
+      - include/lasyten/symmetries/factors/fermion_number.h
       - src/symmetries/factors/fermion_parity.cpp
-      - include/cyten/symmetries/factors/fermion_parity.h
+      - include/lasyten/symmetries/factors/fermion_parity.h
       - src/symmetries/factors/zn_anyon_category.cpp
-      - include/cyten/symmetries/factors/zn_anyon_category.h
+      - include/lasyten/symmetries/factors/zn_anyon_category.h
       - src/symmetries/factors/zn_anyon_category2.cpp
-      - include/cyten/symmetries/factors/zn_anyon_category2.h
+      - include/lasyten/symmetries/factors/zn_anyon_category2.h
       - src/symmetries/factors/quantum_double_zn_anyon_category.cpp
-      - include/cyten/symmetries/factors/quantum_double_zn_anyon_category.h
+      - include/lasyten/symmetries/factors/quantum_double_zn_anyon_category.h
       - src/symmetries/factors/toric_code_category.cpp
-      - include/cyten/symmetries/factors/toric_code_category.h
+      - include/lasyten/symmetries/factors/toric_code_category.h
       - src/symmetries/factors/fibonacci_anyon_category.cpp
-      - include/cyten/symmetries/factors/fibonacci_anyon_category.h
+      - include/lasyten/symmetries/factors/fibonacci_anyon_category.h
       - src/symmetries/factors/ising_anyon_category.cpp
-      - include/cyten/symmetries/factors/ising_anyon_category.h
+      - include/lasyten/symmetries/factors/ising_anyon_category.h
       - src/symmetries/factors/su2_k_anyon_category.cpp
-      - include/cyten/symmetries/factors/su2_k_anyon_category.h
+      - include/lasyten/symmetries/factors/su2_k_anyon_category.h
       - src/symmetries/factors/su3_3_anyon_category.cpp
-      - include/cyten/symmetries/factors/su3_3_anyon_category.h
+      - include/lasyten/symmetries/factors/su3_3_anyon_category.h
     pybind:
       - pybind/symmetries/py_base_symmetry.cpp
       - pybind/symmetries/py_symmetry_factor.cpp
@@ -144,29 +144,29 @@ modules:
   - py: tensors/_tensors.py
     cpp:
       - src/tensors/labels.cpp
-      - include/cyten/tensors/labels.h
+      - include/lasyten/tensors/labels.h
       - src/tensors/tensor.cpp
-      - include/cyten/tensors/tensor.h
+      - include/lasyten/tensors/tensor.h
       - src/tensors/symmetric_tensor.cpp
-      - include/cyten/tensors/symmetric_tensor.h
+      - include/lasyten/tensors/symmetric_tensor.h
       - src/tensors/diagonal_tensor.cpp
-      - include/cyten/tensors/diagonal_tensor.h
+      - include/lasyten/tensors/diagonal_tensor.h
       - src/tensors/mask.cpp
-      - include/cyten/tensors/mask.h
+      - include/lasyten/tensors/mask.h
       - src/tensors/charged_tensor.cpp
-      - include/cyten/tensors/charged_tensor.h
+      - include/lasyten/tensors/charged_tensor.h
       - src/tensors/helpers.cpp
-      - include/cyten/tensors/helpers.h
+      - include/lasyten/tensors/helpers.h
       - src/tensors/constructors.cpp
-      - include/cyten/tensors/constructors.h
+      - include/lasyten/tensors/constructors.h
       - src/tensors/ops_elementwise.cpp
-      - include/cyten/tensors/ops_elementwise.h
+      - include/lasyten/tensors/ops_elementwise.h
       - src/tensors/ops_algebra.cpp
-      - include/cyten/tensors/ops_algebra.h
+      - include/lasyten/tensors/ops_algebra.h
       - src/tensors/ops_legs.cpp
-      - include/cyten/tensors/ops_legs.h
+      - include/lasyten/tensors/ops_legs.h
       - src/tensors/decompositions.cpp
-      - include/cyten/tensors/decompositions.h
+      - include/lasyten/tensors/decompositions.h
     pybind:
       - pybind/tensors/py_labels.cpp
       - pybind/tensors/py_tensor.cpp

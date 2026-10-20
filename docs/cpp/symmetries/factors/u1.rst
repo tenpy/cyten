@@ -1,12 +1,12 @@
 u1.h
 ====
 
-Declared in ``include/cyten/symmetries/factors/u1.h``.
+Declared in ``include/lasyten/symmetries/factors/u1.h``.
 
-cyten::U1
+lasyten::U1
 ---------
 
-.. doxygenclass:: cyten::U1
-   :project: cyten
+.. doxygenclass:: lasyten::U1
+   :project: lasyten
    :members:
    :undoc-members:

@@ -1,10 +1,10 @@
-#include <cyten/tensors/charged_tensor.h>
+#include <lasyten/tensors/charged_tensor.h>
 
 #include "py_callbacks.hpp"
 #include "py_factory_parse.hpp"
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/charged_tensor.h"
 
@@ -16,7 +16,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -43,7 +43,7 @@ void
 bind_tensors_charged_tensor(py::module_& m)
 {
     py::class_<ChargedTensor, Tensor, py::smart_holder> cls(m, "ChargedTensor");
-    cls.doc() = DOC(cyten, ChargedTensor);
+    cls.doc() = DOC(lasyten, ChargedTensor);
 
     cls.def(py::init([](py::object invariant_part, py::object charged_state) {
                 auto inv = invariant_part.cast<SymmetricTensor::Ptr>();
@@ -72,7 +72,7 @@ bind_tensors_charged_tensor(py::module_& m)
       });
     cls.def_readonly("charge_leg", &ChargedTensor::charge_leg);
 
-    cls.def("test_sanity", &ChargedTensor::test_sanity, DOC(cyten, ChargedTensor, test_sanity));
+    cls.def("test_sanity", &ChargedTensor::test_sanity, DOC(lasyten, ChargedTensor, test_sanity));
 
     cls.def_static(
       "_parse_inv_domain",
@@ -81,7 +81,7 @@ bind_tensors_charged_tensor(py::module_& m)
       },
       py::arg("domain"),
       py::arg("charge"),
-      DOC(cyten, ChargedTensor, _parse_inv_domain));
+      DOC(lasyten, ChargedTensor, _parse_inv_domain));
     cls.def_static(
       "_parse_inv_labels",
       [](py::object labels, TensorProduct::Ptr codomain, TensorProduct::Ptr domain) {
@@ -91,11 +91,11 @@ bind_tensors_charged_tensor(py::module_& m)
       py::arg("labels"),
       py::arg("codomain"),
       py::arg("domain"),
-      DOC(cyten, ChargedTensor, _parse_inv_labels));
+      DOC(lasyten, ChargedTensor, _parse_inv_labels));
     cls.def_static("supports_symmetry",
                    &ChargedTensor::supports_symmetry,
                    py::arg("symmetry"),
-                   DOC(cyten, ChargedTensor, supports_symmetry));
+                   DOC(lasyten, ChargedTensor, supports_symmetry));
 
     cls.def_static(
       "from_block_func",
@@ -136,7 +136,7 @@ bind_tensors_charged_tensor(py::module_& m)
       py::arg("shape_kw") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, ChargedTensor, from_block_func));
+      DOC(lasyten, ChargedTensor, from_block_func));
 
     cls.def_static(
       "from_dense_block",
@@ -173,7 +173,7 @@ bind_tensors_charged_tensor(py::module_& m)
       py::arg("device") = py::none(),
       py::arg("tol") = 1e-6,
       py::arg("understood_braiding") = false,
-      DOC(cyten, ChargedTensor, from_dense_block));
+      DOC(lasyten, ChargedTensor, from_dense_block));
 
     cls.def_static(
       "from_dense_block_single_sector",
@@ -197,7 +197,7 @@ bind_tensors_charged_tensor(py::module_& m)
       py::arg("backend") = nullptr,
       py::arg("label") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, ChargedTensor, from_dense_block_single_sector));
+      DOC(lasyten, ChargedTensor, from_dense_block_single_sector));
 
     cls.def_static(
       "from_invariant_part",
@@ -208,7 +208,7 @@ bind_tensors_charged_tensor(py::module_& m)
       },
       py::arg("invariant_part"),
       py::arg("charged_state"),
-      DOC(cyten, ChargedTensor, from_invariant_part));
+      DOC(lasyten, ChargedTensor, from_invariant_part));
 
     cls.def_static(
       "from_two_charge_legs",
@@ -224,7 +224,7 @@ bind_tensors_charged_tensor(py::module_& m)
       py::arg("invariant_part"),
       py::arg("state1"),
       py::arg("state2"),
-      DOC(cyten, ChargedTensor, from_two_charge_legs));
+      DOC(lasyten, ChargedTensor, from_two_charge_legs));
 
     cls.def_static(
       "from_zero",
@@ -255,47 +255,50 @@ bind_tensors_charged_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
       py::arg("device") = py::none(),
-      DOC(cyten, ChargedTensor, from_zero));
+      DOC(lasyten, ChargedTensor, from_zero));
 
     cls.def_static("from_hdf5",
-                   cyten::hdf5::wrap_from_hdf5<ChargedTensor>(),
+                   lasyten::hdf5::wrap_from_hdf5<ChargedTensor>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
-                   DOC(cyten, ChargedTensor, from_hdf5));
+                   DOC(lasyten, ChargedTensor, from_hdf5));
     cls.def("save_hdf5",
-            cyten::hdf5::wrap_save_hdf5_const<ChargedTensor>(),
+            lasyten::hdf5::wrap_save_hdf5_const<ChargedTensor>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
-            DOC(cyten, ChargedTensor, save_hdf5));
+            DOC(lasyten, ChargedTensor, save_hdf5));
 
-    cls.def(
-      "as_dtype", &ChargedTensor::as_dtype, py::arg("dtype"), DOC(cyten, ChargedTensor, as_dtype));
+    cls.def("as_dtype",
+            &ChargedTensor::as_dtype,
+            py::arg("dtype"),
+            DOC(lasyten, ChargedTensor, as_dtype));
     cls.def("as_SymmetricTensor",
             &ChargedTensor::as_SymmetricTensor,
             py::arg("guarantee_copy") = false,
             py::arg("warning") = py::none(),
-            DOC(cyten, ChargedTensor, as_SymmetricTensor));
+            DOC(lasyten, ChargedTensor, as_SymmetricTensor));
 
     cls.def("copy",
             &ChargedTensor::copy,
             py::arg("deep") = true,
             py::arg("device") = py::none(),
             py::arg("dtype") = py::none(),
-            DOC(cyten, ChargedTensor, copy));
+            DOC(lasyten, ChargedTensor, copy));
 
-    cls.def_property_readonly("dagger", &ChargedTensor::dagger, DOC(cyten, ChargedTensor, dagger));
-    cls.def_property_readonly("hc", &ChargedTensor::dagger, DOC(cyten, ChargedTensor, dagger));
+    cls.def_property_readonly(
+      "dagger", &ChargedTensor::dagger, DOC(lasyten, ChargedTensor, dagger));
+    cls.def_property_readonly("hc", &ChargedTensor::dagger, DOC(lasyten, ChargedTensor, dagger));
 
     cls.def("_get_item",
             &ChargedTensor::_get_item,
             py::arg("idx"),
-            DOC(cyten, ChargedTensor, _get_item));
+            DOC(lasyten, ChargedTensor, _get_item));
     cls.def("move_to_device",
             &ChargedTensor::move_to_device,
             py::arg("device"),
-            DOC(cyten, ChargedTensor, move_to_device));
+            DOC(lasyten, ChargedTensor, move_to_device));
 
     cls.def(
       "set_label",
@@ -308,7 +311,7 @@ bind_tensors_charged_tensor(py::module_& m)
       },
       py::arg("pos"),
       py::arg("label"),
-      DOC(cyten, ChargedTensor, set_label));
+      DOC(lasyten, ChargedTensor, set_label));
 
     cls.def(
       "set_labels",
@@ -317,14 +320,14 @@ bind_tensors_charged_tensor(py::module_& m)
           return self;
       },
       py::arg("labels"),
-      DOC(cyten, ChargedTensor, set_labels));
+      DOC(lasyten, ChargedTensor, set_labels));
 
     cls.def("to_backend",
             &ChargedTensor::to_backend,
             py::arg("backend"),
             py::arg("dtype") = py::none(),
             py::arg("device") = py::none(),
-            DOC(cyten, ChargedTensor, to_backend));
+            DOC(lasyten, ChargedTensor, to_backend));
 
     cls.def(
       "to_dense_block",
@@ -337,11 +340,11 @@ bind_tensors_charged_tensor(py::module_& m)
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("understood_braiding") = false,
-      DOC(cyten, ChargedTensor, to_dense_block));
+      DOC(lasyten, ChargedTensor, to_dense_block));
 
     cls.def("to_dense_block_single_sector",
             &ChargedTensor::to_dense_block_single_sector,
-            DOC(cyten, ChargedTensor, to_dense_block_single_sector));
+            DOC(lasyten, ChargedTensor, to_dense_block_single_sector));
 }
 
-} // namespace cyten
+} // namespace lasyten

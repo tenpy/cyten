@@ -1,13 +1,13 @@
-#include <cyten/backends/fusion_tree_permute.h>
+#include <lasyten/backends/fusion_tree_permute.h>
 
-#include <cyten/tools.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <cassert>
 #include <numeric>
 #include <stdexcept>
 
-namespace cyten {
+namespace lasyten {
 
 PermuteLegsInstructionEngine::PermuteLegsInstructionEngine(
   int64 num_codomain_legs_,
@@ -361,4 +361,4 @@ PermuteLegsInstructionEngine::swap(int64 idx, std::optional<bool> over)
     std::swap(should_bend[ia], should_bend[ib]);
 }
 
-} // namespace cyten
+} // namespace lasyten

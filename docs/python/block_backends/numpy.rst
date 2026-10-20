@@ -1,18 +1,18 @@
-cyten.block_backends.numpy
+lasyten.block_backends.numpy
 ==========================
 
-Declared in ``cyten/block_backends/numpy.py``.
+Declared in ``lasyten/block_backends/numpy.py``.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.block_backends.numpy.NumpyBlockBackend
+lasyten.block_backends.numpy.NumpyBlockBackend
 --------------------------------------------
 
-.. autoclass:: cyten.block_backends.numpy.NumpyBlockBackend
+.. autoclass:: lasyten.block_backends.numpy.NumpyBlockBackend
    :members:
    :undoc-members:
    :show-inheritance:

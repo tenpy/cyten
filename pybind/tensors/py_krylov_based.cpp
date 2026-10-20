@@ -1,7 +1,7 @@
-#include <cyten/tensors/krylov_based.h>
+#include <lasyten/tensors/krylov_based.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/krylov_based.h"
 
@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -79,7 +79,7 @@ void
 bind_tensors_krylov_based(py::module_& m)
 {
     py::class_<KrylovBased, PyKrylovBased, py::smart_holder> krylov_based(m, "KrylovBased");
-    krylov_based.doc() = DOC(cyten, KrylovBased);
+    krylov_based.doc() = DOC(lasyten, KrylovBased);
 
     krylov_based
       .def(py::init<LinearOperator::Ptr, VectorLike::Ptr, py::object>(),
@@ -114,7 +114,7 @@ bind_tensors_krylov_based(py::module_& m)
            "Clear cached Krylov vectors and the projected Hessenberg matrix.");
 
     py::class_<GMRES, py::smart_holder> gmres(m, "GMRES");
-    gmres.doc() = DOC(cyten, GMRES);
+    gmres.doc() = DOC(lasyten, GMRES);
 
     gmres
       .def(py::init<LinearOperator::Ptr, VectorLike::Ptr, VectorLike::Ptr, py::object>(),
@@ -138,7 +138,7 @@ bind_tensors_krylov_based(py::module_& m)
       .def("reset", &GMRES::reset);
 
     py::class_<Arnoldi, KrylovBased, py::smart_holder> arnoldi(m, "Arnoldi");
-    arnoldi.doc() = DOC(cyten, Arnoldi);
+    arnoldi.doc() = DOC(lasyten, Arnoldi);
 
     arnoldi
       .def(py::init<LinearOperator::Ptr, VectorLike::Ptr, py::object>(),
@@ -154,11 +154,11 @@ bind_tensors_krylov_based(py::module_& m)
             auto [E0s, psis, N] = self.run();
             return py::make_tuple(eigenvalues_to_numpy(E0s), std::move(psis), N);
         },
-        DOC(cyten, Arnoldi, run));
+        DOC(lasyten, Arnoldi, run));
 
     py::class_<ArnoldiEvolution, Arnoldi, py::smart_holder> arnoldi_evolution(m,
                                                                               "ArnoldiEvolution");
-    arnoldi_evolution.doc() = DOC(cyten, ArnoldiEvolution);
+    arnoldi_evolution.doc() = DOC(lasyten, ArnoldiEvolution);
 
     arnoldi_evolution
       .def(py::init<LinearOperator::Ptr, VectorLike::Ptr, py::object>(),
@@ -180,11 +180,11 @@ bind_tensors_krylov_based(py::module_& m)
            &ArnoldiEvolution::run,
            py::arg("delta"),
            py::arg("normalize") = py::none(),
-           DOC(cyten, ArnoldiEvolution, run));
+           DOC(lasyten, ArnoldiEvolution, run));
 
     py::class_<LanczosGroundState, KrylovBased, py::smart_holder> lanczos_ground_state(
       m, "LanczosGroundState");
-    lanczos_ground_state.doc() = DOC(cyten, LanczosGroundState);
+    lanczos_ground_state.doc() = DOC(lasyten, LanczosGroundState);
 
     lanczos_ground_state
       .def(py::init<LinearOperator::Ptr, VectorLike::Ptr, py::object>(),
@@ -192,11 +192,11 @@ bind_tensors_krylov_based(py::module_& m)
            py::arg("psi0"),
            py::arg("options") = py::none())
       .def_readwrite("E_tol", &LanczosGroundState::E_tol)
-      .def("run", &LanczosGroundState::run, DOC(cyten, LanczosGroundState, run));
+      .def("run", &LanczosGroundState::run, DOC(lasyten, LanczosGroundState, run));
 
     py::class_<LanczosEvolution, LanczosGroundState, py::smart_holder> lanczos_evolution(
       m, "LanczosEvolution");
-    lanczos_evolution.doc() = DOC(cyten, LanczosEvolution);
+    lanczos_evolution.doc() = DOC(lasyten, LanczosEvolution);
 
     lanczos_evolution
       .def(py::init<LinearOperator::Ptr, VectorLike::Ptr, py::object>(),
@@ -218,14 +218,14 @@ bind_tensors_krylov_based(py::module_& m)
            &LanczosEvolution::run,
            py::arg("delta"),
            py::arg("normalize") = py::none(),
-           DOC(cyten, LanczosEvolution, run));
+           DOC(lasyten, LanczosEvolution, run));
 
     m.def("lanczos",
           &lanczos,
           py::arg("H"),
           py::arg("psi"),
           py::arg("options") = py::none(),
-          DOC(cyten, lanczos));
+          DOC(lasyten, lanczos));
 }
 
-} // namespace cyten
+} // namespace lasyten

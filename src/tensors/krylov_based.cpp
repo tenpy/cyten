@@ -1,8 +1,8 @@
-#include <cyten/tensors/krylov_based.h>
+#include <lasyten/tensors/krylov_based.h>
 
-#include <cyten/block_backend/dtypes.h>
-#include <cyten/tensors/ops_algebra.h>
-#include <cyten/tools.h>
+#include <lasyten/block_backend/dtypes.h>
+#include <lasyten/tensors/ops_algebra.h>
+#include <lasyten/tools.h>
 
 #include <pybind11/numpy.h>
 
@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -29,7 +29,7 @@ namespace {
 void
 krylov_log_warning(std::string const& msg)
 {
-    std::cerr << "WARNING:cyten.tensors.krylov_based: " << msg << '\n';
+    std::cerr << "WARNING:lasyten.tensors.krylov_based: " << msg << '\n';
 }
 
 void
@@ -1380,4 +1380,4 @@ lanczos(LinearOperator::Ptr H, VectorLike::Ptr psi, py::object options)
     return LanczosGroundState(std::move(H), std::move(psi), std::move(options)).run();
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,9 +1,9 @@
-#include <cyten/symmetries/group.h>
+#include <lasyten/symmetries/group.h>
 
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 Group::Group(FusionStyle fusion_style,
              Sector trivial_sector,
@@ -60,4 +60,4 @@ Group::topological_twist(Sector /*a*/) const
     return complex128{ 1.0, 0.0 };
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,6 +1,6 @@
-#include <cyten/tools/misc.h>
+#include <lasyten/tools/misc.h>
 
-#include <cyten/tools/warn.h>
+#include <lasyten/tools/warn.h>
 
 #include <algorithm>
 #include <numeric>
@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-namespace cyten {
+namespace lasyten {
 
 std::vector<int64>
 make_stride(std::vector<int64> const& shape, bool cstyle)
@@ -297,4 +297,4 @@ vert_join(std::vector<std::string> const& strlist,
     return out;
 }
 
-} // namespace cyten
+} // namespace lasyten

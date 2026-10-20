@@ -1,50 +1,50 @@
-cyten.tensors.planar
+lasyten.tensors.planar
 ====================
 
-Declared in ``cyten/tensors/planar.py`` (bindings in ``pybind/tensors/py_planar.cpp``).
+Declared in ``lasyten/tensors/planar.py`` (bindings in ``pybind/tensors/py_planar.cpp``).
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.tensors.planar.TensorPlaceholder
+lasyten.tensors.planar.TensorPlaceholder
 --------------------------------------
 
-.. autoclass:: cyten.tensors.planar.TensorPlaceholder
+.. autoclass:: lasyten.tensors.planar.TensorPlaceholder
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.planar.ContractionTreeNode
+lasyten.tensors.planar.ContractionTreeNode
 ----------------------------------------
 
-.. autoclass:: cyten.tensors.planar.ContractionTreeNode
+.. autoclass:: lasyten.tensors.planar.ContractionTreeNode
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.planar.ContractionTree
+lasyten.tensors.planar.ContractionTree
 ------------------------------------
 
-.. autoclass:: cyten.tensors.planar.ContractionTree
+.. autoclass:: lasyten.tensors.planar.ContractionTree
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.planar.PlanarDiagram
+lasyten.tensors.planar.PlanarDiagram
 ----------------------------------
 
-.. autoclass:: cyten.tensors.planar.PlanarDiagram
+.. autoclass:: lasyten.tensors.planar.PlanarDiagram
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.planar.PlanarLinearOperator
+lasyten.tensors.planar.PlanarLinearOperator
 -----------------------------------------
 
-.. autoclass:: cyten.tensors.planar.PlanarLinearOperator
+.. autoclass:: lasyten.tensors.planar.PlanarLinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -52,32 +52,32 @@ cyten.tensors.planar.PlanarLinearOperator
 Functions
 ---------
 
-.. autofunction:: cyten.tensors.planar.parse_leg_bipartition
+.. autofunction:: lasyten.tensors.planar.parse_leg_bipartition
 
-.. autofunction:: cyten.tensors.planar.horizontal_factorization
+.. autofunction:: lasyten.tensors.planar.horizontal_factorization
 
-.. autofunction:: cyten.tensors.planar.planar_almost_equal
+.. autofunction:: lasyten.tensors.planar.planar_almost_equal
 
-.. autofunction:: cyten.tensors.planar.planar_combine_legs
+.. autofunction:: lasyten.tensors.planar.planar_combine_legs
 
-.. autofunction:: cyten.tensors.planar.planar_contraction
+.. autofunction:: lasyten.tensors.planar.planar_contraction
 
-.. autofunction:: cyten.tensors.planar.planar_decomposition
+.. autofunction:: lasyten.tensors.planar.planar_decomposition
 
-.. autofunction:: cyten.tensors.planar.planar_eigh
+.. autofunction:: lasyten.tensors.planar.planar_eigh
 
-.. autofunction:: cyten.tensors.planar.planar_eig
+.. autofunction:: lasyten.tensors.planar.planar_eig
 
-.. autofunction:: cyten.tensors.planar.planar_eigvals
+.. autofunction:: lasyten.tensors.planar.planar_eigvals
 
-.. autofunction:: cyten.tensors.planar.planar_lq
+.. autofunction:: lasyten.tensors.planar.planar_lq
 
-.. autofunction:: cyten.tensors.planar.planar_partial_trace
+.. autofunction:: lasyten.tensors.planar.planar_partial_trace
 
-.. autofunction:: cyten.tensors.planar.planar_permute_legs
+.. autofunction:: lasyten.tensors.planar.planar_permute_legs
 
-.. autofunction:: cyten.tensors.planar.planar_qr
+.. autofunction:: lasyten.tensors.planar.planar_qr
 
-.. autofunction:: cyten.tensors.planar.planar_svd
+.. autofunction:: lasyten.tensors.planar.planar_svd
 
-.. autofunction:: cyten.tensors.planar.planar_truncated_svd
+.. autofunction:: lasyten.tensors.planar.planar_truncated_svd

@@ -1,10 +1,10 @@
-#include <cyten/block_backend/torch.h>
-#include <cyten/tools.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/block_backend/torch.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/warn.h>
 
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 #include <map>
 #include <mutex>
 #include <numeric>
@@ -16,7 +16,7 @@
 #include <type_traits>
 #include <variant>
 
-namespace cyten {
+namespace lasyten {
 
 using torch::indexing::None;
 using torch::indexing::Slice;
@@ -162,7 +162,7 @@ from_torch_dtype(c10::ScalarType torch_dtype)
         case torch::kComplexDouble:
             return Dtype::Complex128;
         default:
-            throw std::invalid_argument("unsupported torch ScalarType for cyten Dtype");
+            throw std::invalid_argument("unsupported torch ScalarType for lasyten Dtype");
     }
 }
 
@@ -498,7 +498,7 @@ TorchBlockBackend::Block::pow(const BlockBackend::Block& exponent) const
 }
 
 void
-TorchBlockBackend::Block::save_hdf5(cyten::hdf5::Saver& saver,
+TorchBlockBackend::Block::save_hdf5(lasyten::hdf5::Saver& saver,
                                     HighFive::Group& /*h5gr*/,
                                     const std::string& subpath)
 {
@@ -507,7 +507,7 @@ TorchBlockBackend::Block::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 std::shared_ptr<TorchBlockBackend::Block>
-TorchBlockBackend::Block::from_hdf5(cyten::hdf5::Loader& loader,
+TorchBlockBackend::Block::from_hdf5(lasyten::hdf5::Loader& loader,
                                     HighFive::Group& h5gr,
                                     std::string const& subpath)
 {
@@ -737,7 +737,7 @@ TorchBlockBackend::get_backend_name() const
 }
 
 std::shared_ptr<TorchBlockBackend>
-TorchBlockBackend::from_hdf5(cyten::hdf5::Loader& loader,
+TorchBlockBackend::from_hdf5(lasyten::hdf5::Loader& loader,
                              HighFive::Group& h5gr,
                              std::string const& subpath)
 {
@@ -1214,7 +1214,7 @@ TorchBlockBackend::_block_repr_lines(const BlockCPtr& a,
                                      int64 max_lines)
 {
     // Prefer numpy repr to avoid importing the Python torch package (which can conflict with
-    // libtorch already linked into cyten._core).
+    // libtorch already linked into lasyten._core).
     (void)max_width;
     py::array arr = ptr(a)->to_numpy();
     std::string rep = py::str(py::repr(arr));
@@ -1465,4 +1465,4 @@ TorchBlockBackend::apply_leg_permutations(const BlockCPtr& block,
     return wrap(tensor_from_numpy_array(result).to(tens(block).device()));
 }
 
-} // namespace cyten
+} // namespace lasyten

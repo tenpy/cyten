@@ -1,8 +1,8 @@
-#include <cyten/backends/fusion_tree_mapping.h>
+#include <lasyten/backends/fusion_tree_mapping.h>
 
-#include <cyten/backends/block_inds_numpy.h>
-#include <cyten/block_backend/dtypes.h>
-#include <cyten/tools.h>
+#include <lasyten/backends/block_inds_numpy.h>
+#include <lasyten/block_backend/dtypes.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <cassert>
@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <unordered_set>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -786,4 +786,4 @@ FactorizedTreeMapping::transform_tensor(FusionTreeData const& data,
       std::move(block_inds), std::move(blocks), dtype, data.device, true);
 }
 
-} // namespace cyten
+} // namespace lasyten

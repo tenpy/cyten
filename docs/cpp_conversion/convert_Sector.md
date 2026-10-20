@@ -8,7 +8,7 @@
 
 | Object | Original Python | C++ header | C++ source | Bindings |
 | --- | --- | --- | --- | --- |
-| `Sector` | type alias → class | `include/cyten/symmetries/sector.h` | + `sector_numpy.cpp` (HDF5 / NumPy) | `pybind/symmetries/py_sector.cpp` + casters |
+| `Sector` | type alias → class | `include/lasyten/symmetries/sector.h` | + `sector_numpy.cpp` (HDF5 / NumPy) | `pybind/symmetries/py_sector.cpp` + casters |
 | `SectorArray` | type alias → class | same | `src/symmetries/sector_array.cpp` | same |
 
 ## Locked design decisions

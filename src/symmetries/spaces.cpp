@@ -1,21 +1,21 @@
-#include <cyten/symmetries/spaces.h>
+#include <lasyten/symmetries/spaces.h>
 
-#include <cyten/config.h>
-#include <cyten/symmetries/exceptions.h>
-#include <cyten/symmetries/factors/no_symmetry.h>
-#include <cyten/tools.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/config.h>
+#include <lasyten/symmetries/exceptions.h>
+#include <lasyten/symmetries/factors/no_symmetry.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <complex>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
 #include <format>
 #include <functional>
 #include <hdf5_io/constants.h>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 #include <numeric>
 #include <ranges>
 #include <sstream>
@@ -23,7 +23,7 @@
 #include <tuple>
 #include <unordered_set>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -1857,7 +1857,7 @@ ElementarySpace::ascii_arrow() const
 }
 
 void
-ElementarySpace::save_hdf5(cyten::hdf5::Saver& saver,
+ElementarySpace::save_hdf5(lasyten::hdf5::Saver& saver,
                            HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
@@ -1896,7 +1896,7 @@ ElementarySpace::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 ElementarySpace::Ptr
-ElementarySpace::from_hdf5(cyten::hdf5::Loader& loader,
+ElementarySpace::from_hdf5(lasyten::hdf5::Loader& loader,
                            HighFive::Group& h5gr,
                            std::string const& subpath)
 {
@@ -2386,7 +2386,7 @@ DirectSumSpace::from_trivial_sector(int64 /*dim*/,
 }
 
 void
-DirectSumSpace::save_hdf5(cyten::hdf5::Saver& saver,
+DirectSumSpace::save_hdf5(lasyten::hdf5::Saver& saver,
                           HighFive::Group& h5gr,
                           std::string const& subpath) const
 {
@@ -2398,7 +2398,7 @@ DirectSumSpace::save_hdf5(cyten::hdf5::Saver& saver,
                               static_cast<std::int64_t>(spaces.size()),
                               spaces_g,
                               spaces_sub);
-    cyten::hdf5::Saver spaces_saver(spaces_g);
+    lasyten::hdf5::Saver spaces_saver(spaces_g);
     for (std::size_t i = 0; i < spaces.size(); ++i) {
         hdf5_export::save_elementary_space(spaces_saver, std::to_string(i), spaces[i]);
     }
@@ -2407,14 +2407,14 @@ DirectSumSpace::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 DirectSumSpace::Ptr
-DirectSumSpace::from_hdf5(cyten::hdf5::Loader& loader,
+DirectSumSpace::from_hdf5(lasyten::hdf5::Loader& loader,
                           HighFive::Group& h5gr,
                           std::string const& subpath)
 {
     hid_t spaces_id = loader.open(subpath + "spaces");
     auto const n = hdf5_io::h5_get_attr_int64(spaces_id, hdf5_io::ATTR_LEN).value_or(0);
     HighFive::Group spaces_g = hdf5_io::group_from_hid(spaces_id);
-    cyten::hdf5::Loader spaces_loader(spaces_g);
+    lasyten::hdf5::Loader spaces_loader(spaces_g);
     std::vector<ElementarySpace::Ptr> spaces_;
     spaces_.reserve(static_cast<std::size_t>(n));
     for (std::int64_t i = 0; i < n; ++i) {
@@ -3291,7 +3291,7 @@ TensorProduct::calc_sectors(std::vector<Leg::Ptr> const& factors_) const
 }
 
 void
-TensorProduct::save_hdf5(cyten::hdf5::Saver& saver,
+TensorProduct::save_hdf5(lasyten::hdf5::Saver& saver,
                          HighFive::Group& /*h5gr*/,
                          std::string const& subpath) const
 {
@@ -3302,7 +3302,7 @@ TensorProduct::save_hdf5(cyten::hdf5::Saver& saver,
                               static_cast<std::int64_t>(factors.size()),
                               factor_g,
                               factor_sub);
-    cyten::hdf5::Saver factor_saver(factor_g);
+    lasyten::hdf5::Saver factor_saver(factor_g);
     for (std::size_t i = 0; i < factors.size(); ++i) {
         hdf5_export::save_leg(factor_saver, std::to_string(i), factors[i]);
     }
@@ -3341,7 +3341,7 @@ TensorProduct::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 TensorProduct::Ptr
-TensorProduct::from_hdf5(cyten::hdf5::Loader& loader,
+TensorProduct::from_hdf5(lasyten::hdf5::Loader& loader,
                          HighFive::Group& h5gr,
                          std::string const& subpath)
 {
@@ -3349,7 +3349,7 @@ TensorProduct::from_hdf5(cyten::hdf5::Loader& loader,
     hid_t factors_id = loader.open(subpath + "factors");
     auto const n = hdf5_io::h5_get_attr_int64(factors_id, hdf5_io::ATTR_LEN).value_or(0);
     HighFive::Group factors_g = hdf5_io::group_from_hid(factors_id);
-    cyten::hdf5::Loader factors_loader(factors_g);
+    lasyten::hdf5::Loader factors_loader(factors_g);
     std::vector<Leg::Ptr> factors;
     factors.reserve(static_cast<std::size_t>(n));
     for (std::int64_t i = 0; i < n; ++i) {
@@ -3368,7 +3368,7 @@ TensorProduct::from_hdf5(cyten::hdf5::Loader& loader,
 
 namespace {
 
-/// Entry ``n`` of row ``m`` of ``cyten.tools.misc.make_grid(shape, cstyle)``.
+/// Entry ``n`` of row ``m`` of ``lasyten.tools.misc.make_grid(shape, cstyle)``.
 ///
 /// `strides` must be ``make_stride(shape, cstyle)``. Since the grid enumerates all multi-indices
 /// exactly once, the row index is just the flat index for those strides.
@@ -4080,7 +4080,7 @@ AbelianLegPipe::repr(bool show_symmetry, bool one_line) const
 }
 
 void
-AbelianLegPipe::save_hdf5(cyten::hdf5::Saver& saver,
+AbelianLegPipe::save_hdf5(lasyten::hdf5::Saver& saver,
                           HighFive::Group& h5gr,
                           std::string const& subpath) const
 {
@@ -4092,7 +4092,7 @@ AbelianLegPipe::save_hdf5(cyten::hdf5::Saver& saver,
                               static_cast<std::int64_t>(legs.size()),
                               leg_g,
                               leg_sub);
-    cyten::hdf5::Saver leg_saver(leg_g);
+    lasyten::hdf5::Saver leg_saver(leg_g);
     for (std::size_t i = 0; i < legs.size(); ++i) {
         hdf5_export::save_leg(leg_saver, std::to_string(i), legs[i]);
     }
@@ -4100,14 +4100,14 @@ AbelianLegPipe::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 AbelianLegPipe::Ptr
-AbelianLegPipe::from_hdf5(cyten::hdf5::Loader& loader,
+AbelianLegPipe::from_hdf5(lasyten::hdf5::Loader& loader,
                           HighFive::Group& h5gr,
                           std::string const& subpath)
 {
     hid_t legs_id = loader.open(subpath + "legs");
     auto const n = hdf5_io::h5_get_attr_int64(legs_id, hdf5_io::ATTR_LEN).value_or(0);
     HighFive::Group legs_g = hdf5_io::group_from_hid(legs_id);
-    cyten::hdf5::Loader legs_loader(legs_g);
+    lasyten::hdf5::Loader legs_loader(legs_g);
     std::vector<ElementarySpace::Ptr> legs;
     legs.reserve(static_cast<std::size_t>(n));
     for (std::int64_t i = 0; i < n; ++i) {
@@ -4740,7 +4740,7 @@ parse_inputs_drop_symmetry_public(std::optional<std::vector<int64>> which, Symme
     return parse_inputs_drop_symmetry(std::move(which), *symmetry);
 }
 
-} // namespace cyten
+} // namespace lasyten
 
 // =============================================================================
 // ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)

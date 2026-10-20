@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `TensorProduct`
-- original python file: `cyten/symmetries/spaces.py`
-- original python module: `cyten.symmetries.spaces`
-- declaration: `include/cyten/symmetries/spaces.h`
+- original python file: `lasyten/symmetries/spaces.py`
+- original python module: `lasyten.symmetries.spaces`
+- declaration: `include/lasyten/symmetries/spaces.h`
 - definition: `src/symmetries/spaces.cpp`
 - binding: `pybind/symmetries/py_spaces.cpp`
 - trampoline: `PyTensorProduct` in `pybind/symmetries/py_trampolines.hpp`
@@ -29,7 +29,7 @@ Implemented as a set of anonymous-namespace helpers in `spaces.cpp` (`factor_sym
 
 ### Sector computation (`_calc_sectors`)
 
-Hard part: abelian path uses `make_grid` (Python `cyten.tools.misc`) + `multiple_fusion_broadcast`; non-abelian recurses with `fusion_outcomes` / `_n_symbol`. Flatten pipes via `flat_spaces` then `as_Space`. Reuse existing C++ `_sort_sectors` / `_unique_sorted_sectors` helpers already in `spaces.cpp`.
+Hard part: abelian path uses `make_grid` (Python `lasyten.tools.misc`) + `multiple_fusion_broadcast`; non-abelian recurses with `fusion_outcomes` / `_n_symbol`. Flatten pipes via `flat_spaces` then `as_Space`. Reuse existing C++ `_sort_sectors` / `_unique_sorted_sectors` helpers already in `spaces.cpp`.
 
 Done in `calc_sectors_of_spaces` (works on the flattened `Space::Ptr` list) with `calc_sectors_of_factors` as the entry point. The abelian branch replicates `make_grid` directly in C++ (no Python round-trip needed) and feeds the resulting index grid into `symmetry->multiple_fusion_broadcast`. Empty factor list yields the trivial sector with multiplicity 1.
 
@@ -56,7 +56,7 @@ Only method-bound virtuals are overridden: `test_sanity`, `change_symmetry`, `dr
 
 ### Monkey-patch
 
-Deferred until `AbelianLegPipe` (and remaining free fns) if following the spaces module plan. Export `cyten._core.TensorProduct`.
+Deferred until `AbelianLegPipe` (and remaining free fns) if following the spaces module plan. Export `lasyten._core.TensorProduct`.
 
 ## Fixed along the way
 

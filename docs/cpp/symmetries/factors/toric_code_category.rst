@@ -1,12 +1,12 @@
 toric_code_category.h
 =====================
 
-Declared in ``include/cyten/symmetries/factors/toric_code_category.h``.
+Declared in ``include/lasyten/symmetries/factors/toric_code_category.h``.
 
-cyten::ToricCodeCategory
+lasyten::ToricCodeCategory
 ------------------------
 
-.. doxygenclass:: cyten::ToricCodeCategory
-   :project: cyten
+.. doxygenclass:: lasyten::ToricCodeCategory
+   :project: lasyten
    :members:
    :undoc-members:

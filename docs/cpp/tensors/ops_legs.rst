@@ -1,40 +1,40 @@
 ops_legs.h
 ==========
 
-Declared in ``include/cyten/tensors/ops_legs.h``.
+Declared in ``include/lasyten/tensors/ops_legs.h``.
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::bend_legs
-   :project: cyten
+.. doxygenfunction:: lasyten::bend_legs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::check_same_legs
-   :project: cyten
+.. doxygenfunction:: lasyten::check_same_legs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::combine_legs
-   :project: cyten
+.. doxygenfunction:: lasyten::combine_legs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::combine_to_matrix
-   :project: cyten
+.. doxygenfunction:: lasyten::combine_to_matrix
+   :project: lasyten
 
-.. doxygenfunction:: cyten::move_leg
-    :project: cyten
+.. doxygenfunction:: lasyten::move_leg
+    :project: lasyten
 
-.. doxygenfunction:: cyten::move_hidden_leg
-    :project: cyten
+.. doxygenfunction:: lasyten::move_hidden_leg
+    :project: lasyten
 
-.. doxygenfunction:: cyten::permute_legs
-   :project: cyten
+.. doxygenfunction:: lasyten::permute_legs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::split_legs
-   :project: cyten
+.. doxygenfunction:: lasyten::split_legs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::squeeze_legs
-   :project: cyten
+.. doxygenfunction:: lasyten::squeeze_legs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::slice_leg(TensorCPtr, LegRef, int64)
-   :project: cyten
+.. doxygenfunction:: lasyten::slice_leg(TensorCPtr, LegRef, int64)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::slice_leg(TensorCPtr, LegRef, Sector const &, int64)
-   :project: cyten
+.. doxygenfunction:: lasyten::slice_leg(TensorCPtr, LegRef, Sector const &, int64)
+   :project: lasyten

@@ -2,16 +2,16 @@
 
 ## Status
 
-**Done** on branch `convert_backends`. C++ templates + bindings on `cyten._core` as `SparseMappingFusionTree`, `SparseMappingFusionTreePair`, `IdentityMappingFusionTree`, `IdentityMappingFusionTreePair`. Used by the FusionTree mapping stack; no Python `cyten.tools.mappings` module (removed — nothing called it after Layer 3 monkey-patch).
+**Done** on branch `convert_backends`. C++ templates + bindings on `lasyten._core` as `SparseMappingFusionTree`, `SparseMappingFusionTreePair`, `IdentityMappingFusionTree`, `IdentityMappingFusionTreePair`. Used by the FusionTree mapping stack; no Python `lasyten.tools.mappings` module (removed — nothing called it after Layer 3 monkey-patch).
 
 ## Metadata
 
 | Field | Value |
 | --- | --- |
 | original python name | `SparseMapping`, `IdentityMapping` |
-| original python file | `cyten/tools/mappings.py` (removed) |
-| original python module | `cyten.tools` |
-| declaration | `include/cyten/tools/mappings.h` |
+| original python file | `lasyten/tools/mappings.py` (removed) |
+| original python module | `lasyten.tools` |
+| declaration | `include/lasyten/tools/mappings.h` |
 | definition | header-only templates + `src/tools/mappings.cpp` (explicit instantiations) |
 | pybind11 binding | `pybind/tools/py_mappings.cpp` |
 | trampoline | no |
@@ -35,5 +35,5 @@
 - [x] declaration (templated header + pair hash)
 - [x] definitions + explicit instantiations + compile
 - [x] bindings + smoke
-- [x] remove unused Python `cyten/tools/mappings.py` (no monkey-patch)
+- [x] remove unused Python `lasyten/tools/mappings.py` (no monkey-patch)
 - [x] pytest — covered indirectly by FT backend / permute tests

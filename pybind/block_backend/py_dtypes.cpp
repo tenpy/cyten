@@ -2,7 +2,7 @@
 #include "docstrings/block_backend/dtypes.h"
 // NOTE: this file is #included from block_backend.cpp
 
-#include <cyten/block_backend/dtypes.h>
+#include <lasyten/block_backend/dtypes.h>
 #include <pybind11/attr.h>
 #include <pybind11/native_enum.h>
 
@@ -10,12 +10,12 @@
 #include <type_traits>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_block_backend_dtypes(py::module_& m)
 {
-    py::native_enum<Dtype> dtype_enum(m, "Dtype", "enum.Enum", DOC(cyten, Dtype));
+    py::native_enum<Dtype> dtype_enum(m, "Dtype", "enum.Enum", DOC(lasyten, Dtype));
     dtype_enum.value("bool", Dtype::Bool)
       .value("float32", Dtype::Float32)
       .value("complex64", Dtype::Complex64)
@@ -89,7 +89,7 @@ bind_block_backend_dtypes(py::module_& m)
       py::arg("hdf5_saver"),
       py::arg("h5gr"),
       py::arg("subpath"),
-      "Export a Dtype enum member for cyten.tools.hdf5_io");
+      "Export a Dtype enum member for lasyten.tools.hdf5_io");
 
     D.attr("from_hdf5") = classmethod(py::cpp_function(
       [](py::object cls, py::object hdf5_loader, py::object h5gr, const std::string& subpath) {
@@ -106,4 +106,4 @@ bind_block_backend_dtypes(py::module_& m)
       "Reconstruct a Dtype enum member from HDF5"));
 }
 
-} // namespace cyten
+} // namespace lasyten

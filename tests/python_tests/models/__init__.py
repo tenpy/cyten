@@ -1,4 +1,4 @@
-"""Tests for the `cyten.models` subpackage"""
+"""Tests for the `lasyten.models` subpackage"""
 
 # Copyright (C) TeNPy Developers, Apache license
 pass

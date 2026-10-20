@@ -2,9 +2,9 @@
 
 ## metadata
 
-- original python file: `cyten/tensors/krylov_based.py`
-- original python module: `cyten.tensors.krylov_based`
-- C++ declaration header: `include/cyten/tensors/krylov_based.h`
+- original python file: `lasyten/tensors/krylov_based.py`
+- original python module: `lasyten.tensors.krylov_based`
+- C++ declaration header: `include/lasyten/tensors/krylov_based.h`
 - C++ definitions: `src/tensors/krylov_based.cpp`
 - pybind11 binding: `pybind/tensors/py_krylov_based.cpp`
 - first line of docstring: Krylov-based algorithms for tensors

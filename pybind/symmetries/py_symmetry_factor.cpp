@@ -1,24 +1,24 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/symmetry_factor.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 #include "tools/hdf5_bind.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
 
-#include <cyten/symmetries/symmetry.h>
-#include <cyten/symmetries/symmetry_factor.h>
+#include <lasyten/symmetries/symmetry.h>
+#include <lasyten/symmetries/symmetry_factor.h>
 
 #include <optional>
 #include <string>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_symmetry_factor(py::module_& m)
 {
     py::class_<SymmetryFactor, BaseSymmetry, PySymmetryFactor, py::smart_holder> cls(
-      m, "SymmetryFactor", DOC(cyten, SymmetryFactor));
+      m, "SymmetryFactor", DOC(lasyten, SymmetryFactor));
 
     cls.def(py::init<FusionStyle,
                      BraidingStyle,
@@ -58,7 +58,7 @@ bind_symmetry_factor(py::module_& m)
             }
         },
         py::arg("a"),
-        doc_cpp_ref(R"pydoc(is_valid_sector)pydoc", "cyten::BaseSymmetry::is_valid_sector()"))
+        doc_cpp_ref(R"pydoc(is_valid_sector)pydoc", "lasyten::BaseSymmetry::is_valid_sector()"))
       .def(
         "are_valid_sectors",
         [](SymmetryFactor const& self, py::object sectors) {
@@ -79,7 +79,7 @@ bind_symmetry_factor(py::module_& m)
            &SymmetryFactor::fusion_outcomes,
            py::arg("a"),
            py::arg("b"),
-           doc_cpp_ref(R"pydoc(fusion_outcomes)pydoc", "cyten::BaseSymmetry::fusion_outcomes()"))
+           doc_cpp_ref(R"pydoc(fusion_outcomes)pydoc", "lasyten::BaseSymmetry::fusion_outcomes()"))
       .def("__repr__", &SymmetryFactor::repr)
       .def(
         "is_equivalent_to",
@@ -93,7 +93,7 @@ bind_symmetry_factor(py::module_& m)
       .def("_is_equivalent_factor",
            &SymmetryFactor::_is_equivalent_factor,
            py::arg("other"),
-           DOC(cyten, SymmetryFactor, _is_equivalent_factor))
+           DOC(lasyten, SymmetryFactor, _is_equivalent_factor))
       .def(
         "as_Symmetry",
         [](py::object self) {
@@ -102,7 +102,7 @@ bind_symmetry_factor(py::module_& m)
             auto ptr = self.cast<SymmetryFactor::Ptr>();
             return std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ ptr });
         },
-        DOC(cyten, SymmetryFactor, as_Symmetry))
+        DOC(lasyten, SymmetryFactor, as_Symmetry))
       .def("__str__", &SymmetryFactor::str)
       .def("__mul__",
            [](py::object self, py::object other) -> py::object {
@@ -129,10 +129,10 @@ bind_symmetry_factor(py::module_& m)
                return self.equals(other.cast<SymmetryFactor const&>());
            })
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<SymmetryFactor>(),
+           lasyten::hdf5::wrap_save_hdf5_const<SymmetryFactor>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"));
 }
 
-} // namespace cyten
+} // namespace lasyten

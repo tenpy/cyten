@@ -14,7 +14,7 @@ import types
 
 import numpy as np
 
-import cyten
+import lasyten
 
 try:
     from packaging.version import parse as parse_version  # part of setuptools
@@ -36,21 +36,21 @@ if os.path.isdir(datadir):
     datadir_files = os.listdir(datadir)
 
 
-def gen_example_data(version=cyten.__version__):
+def gen_example_data(version=lasyten.__version__):
     if '+' in version:
         version = version.split('+')[0]  # discard '+GITHASH' from version
 
-    SU2_SpinSite = cyten.models.SpinSite(conserve='SU2', use_test_su2=True)
-    FermionSite = cyten.models.SpinlessFermionSite(num_species=1, conserve='N')
+    SU2_SpinSite = lasyten.models.SpinSite(conserve='SU2', use_test_su2=True)
+    FermionSite = lasyten.models.SpinlessFermionSite(num_species=1, conserve='N')
     leg = FermionSite.leg
     n_op = FermionSite.get_op('N')  # DiagonalTensor
     identity = FermionSite.get_op('Id')  # Identity
     # Two-leg identity map stored as a generic SymmetricTensor (not DiagonalTensor).
-    symmetric = cyten.tensors.SymmetricTensor.from_eye([leg], labels=['p'])
-    mask = cyten.tensors.Mask.from_block_mask(np.array([True, False]), large_leg=leg, labels=['p'])
+    symmetric = lasyten.tensors.SymmetricTensor.from_eye([leg], labels=['p'])
+    mask = lasyten.tensors.Mask.from_block_mask(np.array([True, False]), large_leg=leg, labels=['p'])
     # ChargedTensor: hide a trivial charge leg on a non-zero operator.
-    inv = cyten.add_trivial_leg(n_op.as_SymmetricTensor(), domain_pos=0, label='!')
-    charged = cyten.tensors.ChargedTensor(inv, charged_state=[1.0])
+    inv = lasyten.add_trivial_leg(n_op.as_SymmetricTensor(), domain_pos=0, label='!')
+    charged = lasyten.tensors.ChargedTensor(inv, charged_state=[1.0])
 
     data = {
         'version': version,
@@ -60,7 +60,7 @@ def gen_example_data(version=cyten.__version__):
         'iterables': [[], [11, 12], tuple([]), tuple([1, 2, 3]), set([]), set([1, 2, 3])],
         'recursive': [0, None, 2, [3, None, 5]],
         'dict_complicated': {0: 1, 'asdf': 2, (1, 2): '3'},
-        'exportable': cyten.tools.hdf5_io.Hdf5Exportable(),
+        'exportable': lasyten.tools.hdf5_io.Hdf5Exportable(),
         'range': range(2, 8, 3),
         'dtypes': [np.dtype('int64'), np.dtype([('a', np.int32, 8), ('b', np.float64, 5)])],
         'symmetry': FermionSite.symmetry,
@@ -100,14 +100,14 @@ def assert_equal_data(data_imported, data_expected, max_recursion_depth=10):
         np.testing.assert_array_equal(data_imported, data_expected)
     elif isinstance(data_expected, (int, float, np.int64, np.float64, complex, str)):
         assert data_imported == data_expected
-    elif isinstance(data_expected, (cyten.symmetries.Symmetry, cyten.symmetries.SymmetryFactor)):
+    elif isinstance(data_expected, (lasyten.symmetries.Symmetry, lasyten.symmetries.SymmetryFactor)):
         # Extra parameters (N, handedness, nu, ...) are part of equality.
         assert data_imported == data_expected
-    elif isinstance(data_expected, cyten.tensors.Tensor):
+    elif isinstance(data_expected, lasyten.tensors.Tensor):
         assert type(data_imported) is type(data_expected)
         assert data_imported.dtype == data_expected.dtype
         assert data_imported.labels == data_expected.labels
-        assert cyten.almost_equal(data_imported, data_expected)
+        assert lasyten.almost_equal(data_imported, data_expected)
     elif isinstance(data_expected, (types.FunctionType, type)):
         # global variables where no copy should be made
         assert data_imported is data_expected
@@ -117,7 +117,7 @@ def get_datadir_filename(template='pickled_from_tenpy_{0}.pkl'):
     """Determine filename for export to `datadir`."""
     if not os.path.isdir(datadir):
         os.mkdir(datadir)
-    version = cyten.__version__
+    version = lasyten.__version__
     fn = template.format(version)
     filename = os.path.join(datadir, fn)
     if os.path.exists(filename):

@@ -1,25 +1,25 @@
 constructors.h
 ==============
 
-Declared in ``include/cyten/tensors/constructors.h``.
+Declared in ``include/lasyten/tensors/constructors.h``.
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::eye
-   :project: cyten
+.. doxygenfunction:: lasyten::eye
+   :project: lasyten
 
-.. doxygenfunction:: cyten::tensor(TensorCPtr, TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, std::optional<OptionalLabels>, std::optional<Dtype>, std::optional<std::string>)
-   :project: cyten
+.. doxygenfunction:: lasyten::tensor(TensorCPtr, TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, std::optional<OptionalLabels>, std::optional<Dtype>, std::optional<std::string>)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::tensor(BlockBackend::BlockPtr, TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, std::optional<OptionalLabels>, std::optional<Dtype>, std::optional<std::string>, bool)
-   :project: cyten
+.. doxygenfunction:: lasyten::tensor(BlockBackend::BlockPtr, TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, std::optional<OptionalLabels>, std::optional<Dtype>, std::optional<std::string>, bool)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::add_trivial_leg
-   :project: cyten
+.. doxygenfunction:: lasyten::add_trivial_leg
+   :project: lasyten
 
-.. doxygenfunction:: cyten::zero_like
-   :project: cyten
+.. doxygenfunction:: lasyten::zero_like
+   :project: lasyten
 
-.. doxygenfunction:: cyten::tensor_from_grid
-   :project: cyten
+.. doxygenfunction:: lasyten::tensor_from_grid
+   :project: lasyten

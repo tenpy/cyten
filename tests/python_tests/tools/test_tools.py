@@ -7,7 +7,7 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from cyten import sparse, tools
+from lasyten import sparse, tools
 
 # TODO use fixtures, e.g. np_random
 

@@ -35,8 +35,8 @@ def get_python_files(top):
 
 def check_copyright_notice():
     expected_notice = '# Copyright (C) TeNPy Developers, Apache license'
-    cyten_files = get_python_files(REPO_ROOT / 'cyten')
-    for fn in cyten_files:
+    lasyten_files = get_python_files(REPO_ROOT / 'lasyten')
+    for fn in lasyten_files:
         with open(fn, 'r') as f:
             for line in f:
                 if line.startswith(expected_notice):

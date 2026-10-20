@@ -1,12 +1,12 @@
 fibonacci_anyon_category.h
 ==========================
 
-Declared in ``include/cyten/symmetries/factors/fibonacci_anyon_category.h``.
+Declared in ``include/lasyten/symmetries/factors/fibonacci_anyon_category.h``.
 
-cyten::FibonacciAnyonCategory
+lasyten::FibonacciAnyonCategory
 -----------------------------
 
-.. doxygenclass:: cyten::FibonacciAnyonCategory
-   :project: cyten
+.. doxygenclass:: lasyten::FibonacciAnyonCategory
+   :project: lasyten
    :members:
    :undoc-members:

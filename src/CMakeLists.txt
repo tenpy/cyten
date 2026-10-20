@@ -3,8 +3,8 @@
 # #####################################################################
 
 # Sources that do not *own* a Python-only backend implementation.
-# Many still compile against py:: APIs via public headers (see CYTEN_WITH_PYTHON).
-target_sources(cyten
+# Many still compile against py:: APIs via public headers (see LASYTEN_WITH_PYTHON).
+target_sources(lasyten
   PRIVATE
   backends/tensor_backend.cpp
   backends/no_symmetry.cpp
@@ -70,8 +70,8 @@ target_sources(cyten
 # Python / pybind11-dependent TUs: NumpyBlockBackend (requires a Python
 # interpreter for numpy arrays), Torch/Array-API backends that expose py::array,
 # test-only _SU2 (pulls numpy), and models that store py::array / py::object.
-if(CYTEN_WITH_PYTHON)
-  target_sources(cyten
+if(LASYTEN_WITH_PYTHON)
+  target_sources(lasyten
     PRIVATE
     block_backend/array_api.cpp
     block_backend/numpy.cpp

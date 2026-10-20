@@ -1,12 +1,12 @@
 symmetry.h
 ==========
 
-Declared in ``include/cyten/symmetries/symmetry.h``.
+Declared in ``include/lasyten/symmetries/symmetry.h``.
 
-cyten::Symmetry
+lasyten::Symmetry
 ---------------
 
-.. doxygenclass:: cyten::Symmetry
-   :project: cyten
+.. doxygenclass:: lasyten::Symmetry
+   :project: lasyten
    :members:
    :undoc-members:

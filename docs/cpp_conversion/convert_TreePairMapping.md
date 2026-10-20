@@ -2,13 +2,13 @@
 
 ## Status
 
-**Done / monkey-patched** on branch `convert_backends`. Exported on `cyten._core` and re-exported from `cyten.backends.fusion_tree_backend` (`TreePairMapping`, `FactorizedTreeMapping`, Instructions, `PermuteLegsInstructionEngine`).
+**Done / monkey-patched** on branch `convert_backends`. Exported on `lasyten._core` and re-exported from `lasyten.backends.fusion_tree_backend` (`TreePairMapping`, `FactorizedTreeMapping`, Instructions, `PermuteLegsInstructionEngine`).
 
 | Component | C++ location |
 | --- | --- |
-| `BraidInstruction`, `BendInstruction`, `TwistInstruction` | `include/cyten/backends/fusion_tree_mapping.h` |
+| `BraidInstruction`, `BendInstruction`, `TwistInstruction` | `include/lasyten/backends/fusion_tree_mapping.h` |
 | `TensorMapping` (ABC), `TreePairMapping`, `FactorizedTreeMapping` | same + `src/backends/fusion_tree_mapping.cpp` |
-| `PermuteLegsInstructionEngine` | `include/cyten/backends/fusion_tree_permute.h` + `src/backends/fusion_tree_permute.cpp` |
+| `PermuteLegsInstructionEngine` | `include/lasyten/backends/fusion_tree_permute.h` + `src/backends/fusion_tree_permute.cpp` |
 | pybind11 | `pybind/backends/py_fusion_tree_mapping.cpp` |
 
 `FusionTreeBackend::apply_instructions` and `permute_legs` now call the native mapping stack (no Python `TreePairMapping` / `PermuteLegsInstructionEngine` delegation).

@@ -1,10 +1,10 @@
-#include <cyten/symmetries/sector.h>
+#include <lasyten/symmetries/sector.h>
 
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
 
-namespace cyten {
+namespace lasyten {
 
 SectorArray::SectorArray(std::size_t n, std::uint8_t sector_ind_len_)
   : Base(n, Sector::zeros(sector_ind_len_))
@@ -314,4 +314,4 @@ SectorArray::iter_common_sorted(SectorArray const& a,
     }
 }
 
-} // namespace cyten
+} // namespace lasyten

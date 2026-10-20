@@ -1,9 +1,9 @@
-"""Tests for cyten.tools.cost_polynomials (C++ BigOMonomial / BigOPolynomial)."""
+"""Tests for lasyten.tools.cost_polynomials (C++ BigOMonomial / BigOPolynomial)."""
 # Copyright (C) TeNPy Developers, Apache license
 
 import pytest
 
-from cyten.tools.cost_polynomials import BigOMonomial, BigOPolynomial
+from lasyten.tools.cost_polynomials import BigOMonomial, BigOPolynomial
 
 
 def test_monomial_from_str_and_str():

@@ -1,12 +1,12 @@
-"""A collection of tests for cyten.krylov_based."""
+"""A collection of tests for lasyten.krylov_based."""
 
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 import pytest
 from scipy.linalg import expm
 
-from cyten import Dtype, ElementarySpace, backends, krylov_based, sparse, tensors
-from cyten.tensors import almost_equal, inner, norm
+from lasyten import Dtype, ElementarySpace, backends, krylov_based, sparse, tensors
+from lasyten.tensors import almost_equal, inner, norm
 
 
 def _op_and_vec(make_compatible_tensor, hermitian=True, trivial_mult=5):

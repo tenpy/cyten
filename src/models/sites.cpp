@@ -1,19 +1,19 @@
-#include <cyten/models/sites.h>
+#include <lasyten/models/sites.h>
 
-#include <cyten/symmetries/factors/fermion_parity.h>
-#include <cyten/symmetries/factors/fibonacci_anyon_category.h>
-#include <cyten/symmetries/factors/ising_anyon_category.h>
-#include <cyten/symmetries/factors/no_symmetry.h>
-#include <cyten/symmetries/factors/su2.h>
-#include <cyten/symmetries/factors/su2_k_anyon_category.h>
-#include <cyten/symmetries/factors/sun.h>
-#include <cyten/symmetries/factors/u1.h>
-#include <cyten/symmetries/factors/zn.h>
-#include <cyten/symmetries/sector_numpy.h>
-#include <cyten/symmetries/spaces.h>
-#include <cyten/symmetries/symmetry.h>
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tools.h>
+#include <lasyten/symmetries/factors/fermion_parity.h>
+#include <lasyten/symmetries/factors/fibonacci_anyon_category.h>
+#include <lasyten/symmetries/factors/ising_anyon_category.h>
+#include <lasyten/symmetries/factors/no_symmetry.h>
+#include <lasyten/symmetries/factors/su2.h>
+#include <lasyten/symmetries/factors/su2_k_anyon_category.h>
+#include <lasyten/symmetries/factors/sun.h>
+#include <lasyten/symmetries/factors/u1.h>
+#include <lasyten/symmetries/factors/zn.h>
+#include <lasyten/symmetries/sector_numpy.h>
+#include <lasyten/symmetries/spaces.h>
+#include <lasyten/symmetries/symmetry.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tools.h>
 
 #include <cmath>
 #include <format>
@@ -21,7 +21,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -1304,4 +1304,4 @@ SU2kSpin1Site::hdf5_init_kwargs() const
     return d;
 }
 
-} // namespace cyten
+} // namespace lasyten

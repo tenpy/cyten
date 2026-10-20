@@ -1,7 +1,7 @@
-#include <cyten/block_backend/dtypes.h>
-#include <cyten/tools.h>
+#include <lasyten/block_backend/dtypes.h>
+#include <lasyten/tools.h>
 
-namespace cyten {
+namespace lasyten {
 
 namespace dtype {
 
@@ -117,7 +117,7 @@ Dtype
 from_numpy_dtype(py::object numpy_dtype)
 {
     if (numpy_dtype.is_none())
-        throw std::invalid_argument("None is not a valid cyten dtype");
+        throw std::invalid_argument("None is not a valid lasyten dtype");
     py::module_ np = numpy_module();
     py::module_ builtins = py::module_::import("builtins");
     if (numpy_dtype.equal(np.attr("float64")) || numpy_dtype.equal(builtins.attr("float")))
@@ -226,4 +226,4 @@ one_scalar(Dtype dtype)
 
 } // namespace dtype
 
-} // namespace cyten
+} // namespace lasyten

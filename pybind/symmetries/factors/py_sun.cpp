@@ -1,10 +1,10 @@
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/sun.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/factors/sun.h>
+#include <lasyten/symmetries/factors/sun.h>
 
 #include "tools/hdf5_bind.h"
 #include <map>
@@ -12,7 +12,7 @@
 #include <string>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -45,7 +45,7 @@ sector_int_map_to_py(std::map<Sector, int64> const& m)
 void
 bind_sun(py::module_& m)
 {
-    py::class_<SUN, Group, py::smart_holder> cls(m, "SUN", DOC(cyten, SUN));
+    py::class_<SUN, Group, py::smart_holder> cls(m, "SUN", DOC(lasyten, SUN));
 
     cls.def(py::init([](int N,
                         int64 hweight,
@@ -97,7 +97,7 @@ bind_sun(py::module_& m)
           py::arg("kind"),
           py::arg("hweight"),
           py::arg("filename_base") = py::none(),
-          DOC(cyten, su_n_data_filename));
+          DOC(lasyten, su_n_data_filename));
 
     m.def("su_n_data_file_path",
           &su_n_data_file_path,
@@ -106,7 +106,7 @@ bind_sun(py::module_& m)
           py::arg("hweight"),
           py::arg("path") = py::none(),
           py::arg("filename_base") = py::none(),
-          DOC(cyten, su_n_data_file_path));
+          DOC(lasyten, su_n_data_file_path));
 
     cls.def_readonly("N", &SUN::N)
       .def_readonly("CGpath", &SUN::CGpath)
@@ -117,7 +117,7 @@ bind_sun(py::module_& m)
       .def_property_readonly("Ffile", [](SUN const& self) { return py::str(self.Fpath); })
       .def_property_readonly("Rfile", [](SUN const& self) { return py::str(self.Rpath); })
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<SUN>(),
+                  lasyten::hdf5::wrap_from_hdf5<SUN>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -128,12 +128,12 @@ bind_sun(py::module_& m)
       .def("S_index_irrep_weight",
            &SUN::S_index_irrep_weight,
            py::arg("a"),
-           DOC(cyten, SUN, S_index_irrep_weight))
+           DOC(lasyten, SUN, S_index_irrep_weight))
       .def("highest_irrep_in_decomp",
            &SUN::highest_irrep_in_decomp,
            py::arg("a"),
            py::arg("b"),
-           DOC(cyten, SUN, highest_irrep_in_decomp))
+           DOC(lasyten, SUN, highest_irrep_in_decomp))
       .def(
         "dims_of_irreps",
         [](SUN const& self, Sector a, Sector b) {
@@ -141,7 +141,7 @@ bind_sun(py::module_& m)
         },
         py::arg("a"),
         py::arg("b"),
-        DOC(cyten, SUN, dims_of_irreps))
+        DOC(lasyten, SUN, dims_of_irreps))
       .def(
         "outer_multiplicity_from_CG",
         [](SUN const& self, Sector a, Sector b) {
@@ -149,7 +149,7 @@ bind_sun(py::module_& m)
         },
         py::arg("a"),
         py::arg("b"),
-        DOC(cyten, SUN, outer_multiplicity_from_CG))
+        DOC(lasyten, SUN, outer_multiplicity_from_CG))
       .def("clebschgordan",
            &SUN::clebschgordan,
            py::arg("a"),
@@ -159,7 +159,7 @@ bind_sun(py::module_& m)
            py::arg("c"),
            py::arg("q_c"),
            py::arg("mu"),
-           DOC(cyten, SUN, clebschgordan))
+           DOC(lasyten, SUN, clebschgordan))
       .def("_f_symbol_from_CG",
            &SUN::_f_symbol_from_CG,
            py::arg("a"),
@@ -168,13 +168,13 @@ bind_sun(py::module_& m)
            py::arg("d"),
            py::arg("e"),
            py::arg("f"),
-           DOC(cyten, SUN, _f_symbol_from_CG))
+           DOC(lasyten, SUN, _f_symbol_from_CG))
       .def("_r_symbol_from_CG",
            &SUN::_r_symbol_from_CG,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, SUN, _r_symbol_from_CG))
+           DOC(lasyten, SUN, _r_symbol_from_CG))
       .def(
         "has_data_in_group",
         [](SUN const& self, py::object group) {
@@ -201,7 +201,7 @@ bind_sun(py::module_& m)
             self.sanity_check_hdf5(hf);
         },
         py::arg("file"),
-        DOC(cyten, SUN, sanity_check_hdf5));
+        DOC(lasyten, SUN, sanity_check_hdf5));
 }
 
-} // namespace cyten
+} // namespace lasyten

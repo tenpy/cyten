@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Audit and recover Python docstrings/comments into C++ / pybind for layers 2–3.
 
-Reads ``scripts/py_cpp_comment_map.yaml`` and original sources under ``tmp/orig_cyten/``.
+Reads ``scripts/py_cpp_comment_map.yaml`` and original sources under ``tmp/orig_lasyten/``.
 
 Usage:
   python scripts/recover_py_comments.py report
@@ -40,7 +40,7 @@ METHOD_NAME_ALIASES: dict[str, list[str]] = {
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_MAP = REPO / 'scripts' / 'py_cpp_comment_map.yaml'
-DEFAULT_ORIG = REPO / 'tmp' / 'orig_cyten'
+DEFAULT_ORIG = REPO / 'tmp' / 'orig_lasyten'
 DEFAULT_REPORT = REPO / 'docs' / 'cpp_conversion' / 'comment_recovery_report.md'
 
 SEPARATOR_RE = re.compile(r'^#?\s*[-=*]{3,}\s*$')

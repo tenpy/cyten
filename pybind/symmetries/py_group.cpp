@@ -1,22 +1,22 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/group.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
 
-#include <cyten/symmetries/group.h>
+#include <lasyten/symmetries/group.h>
 
 #include <optional>
 #include <string>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_group(py::module_& m)
 {
     py::class_<Group, SymmetryFactor, PyGroup, py::smart_holder> cls(
-      m, "Group", DOC(cyten, Group));
+      m, "Group", DOC(lasyten, Group));
 
     cls.def(
       py::
@@ -38,27 +38,27 @@ bind_group(py::module_& m)
            py::arg("c"),
            py::arg("Z_a"),
            py::arg("Z_b"),
-           DOC(cyten, Group, _fusion_tensor))
+           DOC(lasyten, Group, _fusion_tensor))
       .def("swap_gate",
            &Group::swap_gate,
            py::arg("a"),
            py::arg("b"),
-           doc_cpp_ref(R"pydoc(swap_gate)pydoc", "cyten::BaseSymmetry::swap_gate()"))
+           doc_cpp_ref(R"pydoc(swap_gate)pydoc", "lasyten::BaseSymmetry::swap_gate()"))
       .def("qdim",
            &Group::qdim,
            py::arg("a"),
-           doc_cpp_ref(R"pydoc(qdim)pydoc", "cyten::BaseSymmetry::qdim()"))
+           doc_cpp_ref(R"pydoc(qdim)pydoc", "lasyten::BaseSymmetry::qdim()"))
       .def(
         "batch_qdim",
         [](Group const& self, SectorArray const& a) {
             return vector_f64_to_numpy(self.batch_qdim(a));
         },
         py::arg("a"),
-        DOC(cyten, Group, batch_qdim))
+        DOC(lasyten, Group, batch_qdim))
       .def("topological_twist",
            &Group::topological_twist,
            py::arg("a"),
-           DOC(cyten, Group, topological_twist));
+           DOC(lasyten, Group, topological_twist));
 }
 
-} // namespace cyten
+} // namespace lasyten

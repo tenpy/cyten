@@ -1,34 +1,34 @@
 helpers.h
 =========
 
-Declared in ``include/cyten/tensors/helpers.h``.
+Declared in ``include/lasyten/tensors/helpers.h``.
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::_check_compatible_legs(std::vector<Leg::Ptr> const &, std::vector<Leg::Ptr> const &, bool)
-   :project: cyten
+.. doxygenfunction:: lasyten::_check_compatible_legs(std::vector<Leg::Ptr> const &, std::vector<Leg::Ptr> const &, bool)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_check_compatible_legs(std::vector<Space::Ptr> const &, std::vector<Space::Ptr> const &, bool)
-   :project: cyten
+.. doxygenfunction:: lasyten::_check_compatible_legs(std::vector<Space::Ptr> const &, std::vector<Space::Ptr> const &, bool)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_compose_with_Mask
-   :project: cyten
+.. doxygenfunction:: lasyten::_compose_with_Mask
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_compose_SymmetricTensors
-   :project: cyten
+.. doxygenfunction:: lasyten::_compose_SymmetricTensors
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_convert_abelian_to_FT
-   :project: cyten
+.. doxygenfunction:: lasyten::_convert_abelian_to_FT
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_convert_FT_to_abelian
-   :project: cyten
+.. doxygenfunction:: lasyten::_convert_FT_to_abelian
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_decomposition_prepare
-   :project: cyten
+.. doxygenfunction:: lasyten::_decomposition_prepare
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_decomposition_labels
-   :project: cyten
+.. doxygenfunction:: lasyten::_decomposition_labels
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_svd_new_labels
-   :project: cyten
+.. doxygenfunction:: lasyten::_svd_new_labels
+   :project: lasyten

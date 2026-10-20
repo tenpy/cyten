@@ -5,8 +5,8 @@
 - status: **done**
 - related: [convert_tensors.md](convert_tensors.md) §18
 - prerequisite: [convert_tensor_typed_api.md](convert_tensor_typed_api.md) (batch 17; tensor args already typed)
-- headers: `include/cyten/backends/tensor_backend.h`,
-  `include/cyten/tensors/{symmetric_tensor,diagonal_tensor,charged_tensor,mask}.h`
+- headers: `include/lasyten/backends/tensor_backend.h`,
+  `include/lasyten/tensors/{symmetric_tensor,diagonal_tensor,charged_tensor,mask}.h`
 - wrap helpers: `pybind/tensors/py_callbacks.hpp`
 
 ## Goal

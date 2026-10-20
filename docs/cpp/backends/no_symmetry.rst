@@ -1,12 +1,12 @@
 no_symmetry.h
 =============
 
-Declared in ``include/cyten/backends/no_symmetry.h``.
+Declared in ``include/lasyten/backends/no_symmetry.h``.
 
-cyten::NoSymmetryBackend
+lasyten::NoSymmetryBackend
 ------------------------
 
-.. doxygenclass:: cyten::NoSymmetryBackend
-   :project: cyten
+.. doxygenclass:: lasyten::NoSymmetryBackend
+   :project: lasyten
    :members:
    :undoc-members:

@@ -1,15 +1,15 @@
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "docstrings/backends/fusion_tree_backend.h"
 
 #include "backends/casters.hpp"
 
-#include <cyten/backends/fusion_tree_backend.h>
-#include <cyten/block_backend/numpy.h>
-#include <cyten/block_backend/torch.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/backends/fusion_tree_backend.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/block_backend/torch.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
 #include "tools/hdf5_bind.h"
 #include <memory>
@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -44,7 +44,7 @@ void
 bind_fusion_tree_data(py::module_& m)
 {
     py::class_<FusionTreeData, TensorBackend::Data, py::smart_holder> cls(m, "FusionTreeData");
-    cls.doc() = DOC(cyten, FusionTreeData);
+    cls.doc() = DOC(lasyten, FusionTreeData);
 
     cls.def(py::init([](BlockInds block_inds,
                         std::vector<BlockBackend::BlockPtr> blocks,
@@ -70,11 +70,11 @@ bind_fusion_tree_data(py::module_& m)
            &FusionTreeData::block_ind_from_coupled,
            py::arg("coupled"),
            py::arg("domain"),
-           DOC(cyten, FusionTreeData, block_ind_from_coupled))
+           DOC(lasyten, FusionTreeData, block_ind_from_coupled))
       .def("block_ind_from_domain_sector_ind",
            &FusionTreeData::block_ind_from_domain_sector_ind,
            py::arg("domain_sector_ind"),
-           DOC(cyten, FusionTreeData, block_ind_from_domain_sector_ind))
+           DOC(lasyten, FusionTreeData, block_ind_from_domain_sector_ind))
       .def(
         "discard_zero_blocks",
         [](FusionTreeData& self, py::object backend, float64 eps) {
@@ -82,14 +82,14 @@ bind_fusion_tree_data(py::module_& m)
         },
         py::arg("backend"),
         py::arg("eps"),
-        DOC(cyten, FusionTreeData, discard_zero_blocks))
+        DOC(lasyten, FusionTreeData, discard_zero_blocks))
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<FusionTreeData>(),
+           lasyten::hdf5::wrap_save_hdf5_const<FusionTreeData>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<FusionTreeData>(),
+                  lasyten::hdf5::wrap_from_hdf5<FusionTreeData>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -99,7 +99,7 @@ void
 bind_fusion_tree_backend(py::module_& m)
 {
     py::class_<FusionTreeBackend, TensorBackend, py::smart_holder> cls(m, "FusionTreeBackend");
-    cls.doc() = DOC(cyten, FusionTreeBackend);
+    cls.doc() = DOC(lasyten, FusionTreeBackend);
 
     cls.def(py::init([](py::object block_backend) {
                 return std::make_shared<FusionTreeBackend>(as_shared_block_backend(block_backend));
@@ -133,7 +133,7 @@ bind_fusion_tree_backend(py::module_& m)
       py::arg("tensor"),
       py::arg("pairs"),
       py::arg("levels") = py::none(),
-      DOC(cyten, FusionTreeBackend, partial_trace));
+      DOC(lasyten, FusionTreeBackend, partial_trace));
 
     cls.def("apply_instructions",
             &FusionTreeBackend::apply_instructions,
@@ -144,7 +144,7 @@ bind_fusion_tree_backend(py::module_& m)
             py::arg("new_codomain"),
             py::arg("new_domain"),
             py::arg("mixes_codomain_domain"),
-            DOC(cyten, FusionTreeBackend, apply_instructions));
+            DOC(lasyten, FusionTreeBackend, apply_instructions));
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,12 +1,12 @@
 zn.h
 ====
 
-Declared in ``include/cyten/symmetries/factors/zn.h``.
+Declared in ``include/lasyten/symmetries/factors/zn.h``.
 
-cyten::ZN
+lasyten::ZN
 ---------
 
-.. doxygenclass:: cyten::ZN
-   :project: cyten
+.. doxygenclass:: lasyten::ZN
+   :project: lasyten
    :members:
    :undoc-members:

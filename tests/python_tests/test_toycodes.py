@@ -3,7 +3,7 @@
 # Copyright (C) TeNPy Developers, Apache license
 import pytest
 
-import cyten as ct
+import lasyten as lasy
 from toycodes.tenpy_toycodes.a_mps import init_Fib_anyon_MPS, init_FM_MPS, init_Neel_MPS, init_SU2_sym_MPS
 from toycodes.tenpy_toycodes.b_model import (
     GoldenChainModel,
@@ -61,7 +61,7 @@ def test_planar_dmrg_golden_chain():
 
 @pytest.mark.slow
 def test_dmrg_heisenberg():
-    backend = ct.get_backend('fusion_tree', 'numpy')
+    backend = lasy.get_backend('fusion_tree', 'numpy')
     L = 6
     e_exact = heisenberg_finite_gs_energy(L, J=1)
     for conserve in ['none', 'Z2', 'SU2']:
@@ -77,7 +77,7 @@ def test_dmrg_heisenberg():
 
 @pytest.mark.slow
 def test_planar_dmrg_heisenberg():
-    backend = ct.get_backend('fusion_tree', 'numpy')
+    backend = lasy.get_backend('fusion_tree', 'numpy')
     L = 6
     e_exact = heisenberg_finite_gs_energy(L, J=1)
     for conserve in ['none', 'Z2', 'SU2']:
@@ -93,7 +93,7 @@ def test_planar_dmrg_heisenberg():
 
 @pytest.mark.slow
 def test_dmrg_tfi(np_random):
-    backend = ct.get_backend('abelian', 'numpy')
+    backend = lasy.get_backend('abelian', 'numpy')
     L = 10
     J, g = np_random.random(2)
     e_exact = tfi_finite_gs_energy(L, J, g)
@@ -108,7 +108,7 @@ def test_dmrg_tfi(np_random):
 
 @pytest.mark.slow
 def test_planar_dmrg_tfi(np_random):
-    backend = ct.get_backend('abelian', 'numpy')
+    backend = lasy.get_backend('abelian', 'numpy')
     L = 10
     J, g = np_random.random(2)
     e_exact = tfi_finite_gs_energy(L, J, g)

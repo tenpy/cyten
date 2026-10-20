@@ -1,6 +1,6 @@
 Symmetry factors
 ================
-Headers in ``include/cyten/symmetries/factors/``.
+Headers in ``include/lasyten/symmetries/factors/``.
 
 .. toctree::
    :maxdepth: 1

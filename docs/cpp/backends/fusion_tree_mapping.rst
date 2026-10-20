@@ -1,64 +1,64 @@
 fusion_tree_mapping.h
 =====================
 
-Declared in ``include/cyten/backends/fusion_tree_mapping.h``.
+Declared in ``include/lasyten/backends/fusion_tree_mapping.h``.
 
-cyten::BendInstruction
+lasyten::BendInstruction
 ----------------------
 
-.. doxygenstruct:: cyten::BendInstruction
-   :project: cyten
+.. doxygenstruct:: lasyten::BendInstruction
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::BraidInstruction
+lasyten::BraidInstruction
 -----------------------
 
-.. doxygenstruct:: cyten::BraidInstruction
-   :project: cyten
+.. doxygenstruct:: lasyten::BraidInstruction
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::FactorizedTreeMapping
+lasyten::FactorizedTreeMapping
 ----------------------------
 
-.. doxygenclass:: cyten::FactorizedTreeMapping
-   :project: cyten
+.. doxygenclass:: lasyten::FactorizedTreeMapping
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::TensorMapping
+lasyten::TensorMapping
 --------------------
 
-.. doxygenclass:: cyten::TensorMapping
-   :project: cyten
+.. doxygenclass:: lasyten::TensorMapping
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::TreePairMapping
+lasyten::TreePairMapping
 ----------------------
 
-.. doxygenclass:: cyten::TreePairMapping
-   :project: cyten
+.. doxygenclass:: lasyten::TreePairMapping
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::TwistInstruction
+lasyten::TwistInstruction
 -----------------------
 
-.. doxygenstruct:: cyten::TwistInstruction
-   :project: cyten
+.. doxygenstruct:: lasyten::TwistInstruction
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::instructions_from_python
-   :project: cyten
+.. doxygenfunction:: lasyten::instructions_from_python
+   :project: lasyten
 
-.. doxygenfunction:: cyten::to_inner
-   :project: cyten
+.. doxygenfunction:: lasyten::to_inner
+   :project: lasyten
 
-.. doxygenfunction:: cyten::to_inner_pair
-   :project: cyten
+.. doxygenfunction:: lasyten::to_inner_pair
+   :project: lasyten

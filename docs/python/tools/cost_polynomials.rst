@@ -1,26 +1,26 @@
-cyten.tools.cost_polynomials
+lasyten.tools.cost_polynomials
 ============================
 
-Declared in ``cyten/tools/cost_polynomials.py``.
+Declared in ``lasyten/tools/cost_polynomials.py``.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.tools.cost_polynomials.BigOMonomial
+lasyten.tools.cost_polynomials.BigOMonomial
 -----------------------------------------
 
-.. autoclass:: cyten.tools.cost_polynomials.BigOMonomial
+.. autoclass:: lasyten.tools.cost_polynomials.BigOMonomial
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tools.cost_polynomials.BigOPolynomial
+lasyten.tools.cost_polynomials.BigOPolynomial
 -------------------------------------------
 
-.. autoclass:: cyten.tools.cost_polynomials.BigOPolynomial
+.. autoclass:: lasyten.tools.cost_polynomials.BigOPolynomial
    :members:
    :undoc-members:
    :show-inheritance:

@@ -1,18 +1,18 @@
-cyten.block_backends.array_api
+lasyten.block_backends.array_api
 ==============================
 
-Declared in ``cyten/block_backends/array_api.py``.
+Declared in ``lasyten/block_backends/array_api.py``.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.block_backends.array_api.ArrayApiBlockBackend
+lasyten.block_backends.array_api.ArrayApiBlockBackend
 ---------------------------------------------------
 
-.. autoclass:: cyten.block_backends.array_api.ArrayApiBlockBackend
+.. autoclass:: lasyten.block_backends.array_api.ArrayApiBlockBackend
    :members:
    :undoc-members:
    :show-inheritance:

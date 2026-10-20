@@ -1,14 +1,14 @@
 su2.h
 =====
 
-Declared in ``include/cyten/symmetries/factors/su2.h``.
+Declared in ``include/lasyten/symmetries/factors/su2.h``.
 
-Test-only SU(2) factor. Prefer ``cyten::SUN`` with ``N=2`` for production.
+Test-only SU(2) factor. Prefer ``lasyten::SUN`` with ``N=2`` for production.
 
-cyten::_SU2
+lasyten::_SU2
 ----------
 
-.. doxygenclass:: cyten::_SU2
-   :project: cyten
+.. doxygenclass:: lasyten::_SU2
+   :project: lasyten
    :members:
    :undoc-members:

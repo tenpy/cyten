@@ -1,54 +1,54 @@
 sites.h
 =======
 
-Declared in ``include/cyten/models/sites.h``.
+Declared in ``include/lasyten/models/sites.h``.
 
-.. doxygenclass:: cyten::SpinSite
-   :project: cyten
+.. doxygenclass:: lasyten::SpinSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::SpinlessBosonSite
-   :project: cyten
+.. doxygenclass:: lasyten::SpinlessBosonSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::SpinlessFermionSite
-   :project: cyten
+.. doxygenclass:: lasyten::SpinlessFermionSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::SpinHalfFermionSite
-   :project: cyten
+.. doxygenclass:: lasyten::SpinHalfFermionSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::ClockSite
-   :project: cyten
+.. doxygenclass:: lasyten::ClockSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::AnyonSite
-   :project: cyten
+.. doxygenclass:: lasyten::AnyonSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::FibonacciAnyonSite
-   :project: cyten
+.. doxygenclass:: lasyten::FibonacciAnyonSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::IsingAnyonSite
-   :project: cyten
+.. doxygenclass:: lasyten::IsingAnyonSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::GoldenSite
-   :project: cyten
+.. doxygenclass:: lasyten::GoldenSite
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::SU2kSpin1Site
-   :project: cyten
+.. doxygenclass:: lasyten::SU2kSpin1Site
+   :project: lasyten
    :members:
    :undoc-members:

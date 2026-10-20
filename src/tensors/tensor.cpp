@@ -1,8 +1,8 @@
-#include <cyten/tensors/tensor.h>
+#include <lasyten/tensors/tensor.h>
 
-#include <cyten/tensors/ops_algebra.h>
-#include <cyten/tools.h>
-#include <cyten/tools/misc.h>
+#include <lasyten/tensors/ops_algebra.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/misc.h>
 
 #include <algorithm>
 #include <cassert>
@@ -14,7 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -930,7 +930,7 @@ Tensor::__str__() const
         right += '\n';
         right += line;
     }
-    // Call C++ vert_join (ported from cyten.tools.string.vert_join).
+    // Call C++ vert_join (ported from lasyten.tools.string.vert_join).
     return vert_join({ ascii_diagram(), right }, 'c', 'l', "   |  ");
 }
 
@@ -1011,4 +1011,4 @@ Tensor::compatible_with(VectorLike::CPtr other) const
     return true;
 }
 
-} // namespace cyten
+} // namespace lasyten

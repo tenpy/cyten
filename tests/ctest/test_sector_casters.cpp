@@ -7,11 +7,11 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/sector.h>
-#include <cyten/symmetries/sector_numpy.h>
+#include <lasyten/symmetries/sector.h>
+#include <lasyten/symmetries/sector_numpy.h>
 
 namespace py = pybind11;
-using namespace cyten;
+using namespace lasyten;
 
 int
 test_sector_casters(int /*argc*/, char** /*args*/)
@@ -19,7 +19,7 @@ test_sector_casters(int /*argc*/, char** /*args*/)
     py::scoped_interpreter guard{};
     py::module_::import("numpy");
     // Register py::class_<Sector> / SectorArray bindings used by type_caster_base.
-    py::module_::import("cyten._core");
+    py::module_::import("lasyten._core");
 
     Sector s{ 1, -2, 3 };
     py::object obj = py::cast(s);

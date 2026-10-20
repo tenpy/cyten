@@ -1,12 +1,12 @@
-"""Minimal tests for C++ BlockBackend / NumpyBlockBackend from cyten._core."""
+"""Minimal tests for C++ BlockBackend / NumpyBlockBackend from lasyten._core."""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-from cyten._core import Dtype, NumpyBlockBackend
-from cyten.config import get_option, temporary_options
+from lasyten._core import Dtype, NumpyBlockBackend
+from lasyten.config import get_option, temporary_options
 
 
 def test_numpy_block_backend_zeros_get_shape():
@@ -27,7 +27,7 @@ def test_numpy_block_backend_copy_block():
 
 
 def test_block_getitem_setitem_scalar_by_int_indices():
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     block = be.as_block(np.arange(6, dtype=np.float64).reshape(2, 3))
@@ -48,7 +48,7 @@ def test_block_getitem_setitem_scalar_by_int_indices():
 
 
 def test_block_getitem_setitem_scalar_1d():
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     vec = be.as_block(np.array([10.0, 20.0, 30.0]))
@@ -65,7 +65,7 @@ def test_block_getitem_setitem_scalar_1d():
 
 def test_block_getitem_setitem_slice_and_index_array():
     """Advanced indexing (slices / index arrays) returns Blocks and supports setitem."""
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     block = be.as_block(np.arange(12, dtype=np.float64).reshape(3, 4))
@@ -89,7 +89,7 @@ def test_block_getitem_setitem_slice_and_index_array():
 
 
 def test_block_abs():
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     block = be.as_block(np.array([-1.0, 2.0, -3.0]))
@@ -103,7 +103,7 @@ def test_block_abs():
 
 
 def test_scalar_abs():
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     s = abs(be.as_scalar(-2.5))
@@ -115,7 +115,7 @@ def test_scalar_abs():
 
 
 def test_scalar_sqrt_exp_log_pow():
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     s = be.as_scalar(4.0)
@@ -129,7 +129,7 @@ def test_scalar_sqrt_exp_log_pow():
 
 
 def test_scalar_real_imag():
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     z = be.as_scalar(3.0 + 4.0j)
@@ -144,7 +144,7 @@ def test_scalar_real_imag():
 
 
 def test_scalar_conj_real_if_close():
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     z = be.as_scalar(3.0 + 4.0j)
@@ -196,7 +196,7 @@ def test_scalar_implicit_conversion_disabled_in_tests():
 
 
 def test_scalar_implicit_conversion_when_enabled():
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     be = NumpyBlockBackend.from_factory('cpu')
     s = be.as_scalar(2.5)

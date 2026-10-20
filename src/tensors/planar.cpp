@@ -1,14 +1,14 @@
-#include <cyten/tensors/planar.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/tensors/planar.h>
+#include <lasyten/tools/warn.h>
 
-#include <cyten/backends/fusion_tree_backend.h>
-#include <cyten/symmetries/spaces.h>
-#include <cyten/tensors/charged_tensor.h>
-#include <cyten/tensors/hidden_leg_tensor.h>
-#include <cyten/tensors/labels.h>
-#include <cyten/tensors/ops_legs.h>
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tools.h>
+#include <lasyten/backends/fusion_tree_backend.h>
+#include <lasyten/symmetries/spaces.h>
+#include <lasyten/tensors/charged_tensor.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/labels.h>
+#include <lasyten/tensors/ops_legs.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <format>
@@ -19,7 +19,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -164,7 +164,7 @@ py_mod(int64 idx, int64 length)
 void
 planar_warn(std::string const& msg, int stacklevel = 1)
 {
-    cyten::warn(msg, stacklevel);
+    lasyten::warn(msg, stacklevel);
 }
 
 [[nodiscard]] std::string
@@ -3678,4 +3678,4 @@ _planar_contraction_helper(TensorCPtr tensor, std::vector<int64> const& contr_in
     return { std::const_pointer_cast<Tensor>(tensor), *std::ranges::min_element(contr) };
 }
 
-} // namespace cyten
+} // namespace lasyten

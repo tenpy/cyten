@@ -3,7 +3,7 @@
 
 Usage:
   python3 scripts/port_pydoc_to_headers.py \\
-      --header include/cyten/tensors/sparse.h \\
+      --header include/lasyten/tensors/sparse.h \\
       --pybind pybind/tensors/py_sparse.cpp \\
       --classes LinearOperator,TensorLinearOperator,...
 """
@@ -361,14 +361,14 @@ def port(header_path: Path, pybind_path: Path, classes: list[str]) -> None:
         print(f"  method {label}: updated ///")
 
     # Rewrite pybind docs
-    rel = str(header_path.relative_to("include/cyten"))
+    rel = str(header_path.relative_to("include/lasyten"))
     if f'docstrings/{rel}"' not in py and f"docstrings/{rel}'" not in py:
         if '#include "../doc_plus.h"' not in py:
             py = py.replace(
-                '#include "../py_cyten_pybind11.h"',
-                '#include "../doc_plus.h"\n#include "../py_cyten_pybind11.h"',
+                '#include "../py_lasyten_pybind11.h"',
+                '#include "../doc_plus.h"\n#include "../py_lasyten_pybind11.h"',
             )
-        insert_after = '#include "../py_cyten_pybind11.h"\n'
+        insert_after = '#include "../py_lasyten_pybind11.h"\n'
         if insert_after in py and f'#include "docstrings/{rel}"' not in py:
             py = py.replace(
                 insert_after,
@@ -388,8 +388,8 @@ def port(header_path: Path, pybind_path: Path, classes: list[str]) -> None:
         cls = cm[-1].group(1) if cm else None
         if not cls:
             return m.group(0)
-        print(f"  pybind {var}.doc -> DOC(cyten, {cls})")
-        return f"{var}.doc() = DOC(cyten, {cls})"
+        print(f"  pybind {var}.doc -> DOC(lasyten, {cls})")
+        return f"{var}.doc() = DOC(lasyten, {cls})"
 
     py = re.sub(r'(\w+)\.doc\(\)\s*=\s*R"pydoc\(.*?\)pydoc"', repl_class_doc, py, flags=re.S)
 
@@ -401,9 +401,9 @@ def port(header_path: Path, pybind_path: Path, classes: list[str]) -> None:
     method_docs2 = extract_method_docs(py)
     for cls, name, _body, (start, end) in sorted(method_docs2, key=lambda x: x[3][0], reverse=True):
         if cls:
-            doc_expr = f"DOC(cyten, {cls}, {name})"
+            doc_expr = f"DOC(lasyten, {cls}, {name})"
         else:
-            doc_expr = f"DOC(cyten, {name})"
+            doc_expr = f"DOC(lasyten, {name})"
         print(f"  pybind DOC <- {doc_expr}")
         py = py[:start] + doc_expr + py[end:]
 

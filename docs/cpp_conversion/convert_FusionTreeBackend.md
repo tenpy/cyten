@@ -2,7 +2,7 @@
 
 ## Status
 
-**Done / monkey-patched** on branch `convert_backends`. `cyten.backends.fusion_tree_backend` re-exports C++ types from `cyten._core` and keeps `_tree_block_iter` for tests.
+**Done / monkey-patched** on branch `convert_backends`. `lasyten.backends.fusion_tree_backend` re-exports C++ types from `lasyten._core` and keeps `_tree_block_iter` for tests.
 
 ### Python leftovers
 
@@ -17,9 +17,9 @@ None of the FusionTreeBackend method surface is Python-delegated. `partial_trace
 | Field | Value |
 | --- | --- |
 | original python name | `FusionTreeBackend` (+ Instruction / Engine / TensorMapping helpers) |
-| original python file | `cyten/backends/fusion_tree_backend.py` |
-| original python module | `cyten.backends` |
-| declaration | `include/cyten/backends/fusion_tree_backend.h` (+ optional `fusion_tree_permute.h`, `fusion_tree_mapping.h`) |
+| original python file | `lasyten/backends/fusion_tree_backend.py` |
+| original python module | `lasyten.backends` |
+| declaration | `include/lasyten/backends/fusion_tree_backend.h` (+ optional `fusion_tree_permute.h`, `fusion_tree_mapping.h`) |
 | definition | `src/backends/fusion_tree_backend.cpp` (may split) |
 | pybind11 binding | `pybind/backends/py_fusion_tree_backend.cpp` |
 | trampoline | no (no Python subclasses) |
@@ -37,7 +37,7 @@ None of the FusionTreeBackend method surface is Python-delegated. `partial_trace
   2. `PermuteLegsInstructionEngine`
   3. `TensorMapping` / `TreePairMapping` / `FactorizedTreeMapping` — **done** ([convert_TreePairMapping.md](convert_TreePairMapping.md))
 - Forest helpers `_add_forest_block_entries` / `_get_forest_block_contribution` for dense I/O.
-- Prefer calling `cyten.tools.misc` / mappings via pybind for iterators when clearer than a full port.
+- Prefer calling `lasyten.tools.misc` / mappings via pybind for iterators when clearer than a full port.
 - **SparseMapping** / **TreePairMapping** / **FactorizedTreeMapping** / **PermuteLegsInstructionEngine** / **`_partial_trace_helper`** are native C++.
 - `partial_trace` full-trace path: binding returns `(scalar, None, None)`; scalar data uses `block_inds` shape `(1, 2)`.
 - QR / LQ / SVD new-leg multiplicities come from `new_co_domain->multiplicities` (TensorProduct mults), not `factors[0]`.

@@ -1,10 +1,10 @@
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
-#include <cyten/symmetries/factors/no_symmetry.h>
-#include <cyten/tools.h>
+#include <lasyten/symmetries/factors/no_symmetry.h>
+#include <lasyten/tools.h>
 
 #include <cassert>
 #include <cmath>
@@ -14,7 +14,7 @@
 #include <stdexcept>
 #include <typeinfo>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -1098,4 +1098,4 @@ NoSymmetryBackend::zero_mask_data(Space::Ptr large_leg, std::string device)
     return wrap(block_backend->zeros({ space_dim_i64(*large_leg) }, Dtype::Bool, device));
 }
 
-} // namespace cyten
+} // namespace lasyten

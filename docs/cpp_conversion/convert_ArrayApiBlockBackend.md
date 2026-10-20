@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: ArrayApiBlockBackend
-- original python file: cyten/block_backends/array_api.py
-- original python module: cyten.block_backends.array_api
-- declaration in C++ header file: include/cyten/block_backend/array_api.h
+- original python file: lasyten/block_backends/array_api.py
+- original python module: lasyten.block_backends.array_api
+- declaration in C++ header file: include/lasyten/block_backend/array_api.h
 - definition in C++ file: src/block_backend/array_api.cpp
 - pybind11 binding: pybind/block_backend/py_array_api.cpp (included from py_block_backend.cpp)
 - trampoline: pybind/block_backend/py_trampolines.hpp (`PyArrayApiBlockBackend`)

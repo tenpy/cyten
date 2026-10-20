@@ -1,8 +1,8 @@
-#include <cyten/tensors/helpers.h>
-#include <cyten/tools.h>
+#include <lasyten/tensors/helpers.h>
+#include <lasyten/tools.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/helpers.h"
 
@@ -12,7 +12,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -87,7 +87,7 @@ bind_tensors_helpers(py::module_& m)
           py::arg("legs1"),
           py::arg("legs2"),
           py::arg("expect_equal") = true,
-          doc_plus(DOC(cyten, _check_compatible_legs),
+          doc_plus(DOC(lasyten, _check_compatible_legs),
                    R"pydoc(
 Accepts sequences of either ``Leg`` or ``Space`` objects (dispatches to the matching
 C++ overload).
@@ -98,7 +98,7 @@ C++ overload).
           py::arg("tensor"),
           py::arg("mask"),
           py::arg("leg_idx"),
-          DOC(cyten, _compose_with_Mask));
+          DOC(lasyten, _compose_with_Mask));
 
     m.def(
       "_compose_SymmetricTensors",
@@ -118,7 +118,7 @@ C++ overload).
       py::arg("tensor2"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      doc_plus(DOC(cyten, _compose_SymmetricTensors),
+      doc_plus(DOC(lasyten, _compose_SymmetricTensors),
                R"pydoc(
 In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabel).
 )pydoc"));
@@ -129,7 +129,7 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
           py::arg("backend"),
           py::arg("dtype"),
           py::arg("device"),
-          DOC(cyten, _convert_abelian_to_FT));
+          DOC(lasyten, _convert_abelian_to_FT));
 
     m.def("_convert_FT_to_abelian",
           &_convert_FT_to_abelian,
@@ -137,13 +137,13 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
           py::arg("backend"),
           py::arg("dtype"),
           py::arg("device"),
-          DOC(cyten, _convert_FT_to_abelian));
+          DOC(lasyten, _convert_FT_to_abelian));
 
     m.def("_decomposition_prepare",
           &_decomposition_prepare,
           py::arg("tensor"),
           py::arg("new_leg_dual"),
-          DOC(cyten, _decomposition_prepare));
+          DOC(lasyten, _decomposition_prepare));
 
     m.def(
       "_decomposition_labels",
@@ -151,7 +151,7 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
           return _decomposition_labels(py_leg_labels(to_iterable(new_labels)));
       },
       py::arg("new_labels"),
-      DOC(cyten, _decomposition_labels));
+      DOC(lasyten, _decomposition_labels));
 
     m.def(
       "_svd_new_labels",
@@ -162,10 +162,10 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
           return _svd_new_labels(py_leg_labels(to_iterable(new_labels)));
       },
       py::arg("new_labels"),
-      doc_plus(DOC(cyten, _svd_new_labels),
+      doc_plus(DOC(lasyten, _svd_new_labels),
                R"pydoc(
 In Python, ``new_labels`` may be ``None`` (all unlabeled).
 )pydoc"));
 }
 
-} // namespace cyten
+} // namespace lasyten

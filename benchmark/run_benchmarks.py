@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""CLI entry point for cyten backend benchmarks.
+"""CLI entry point for lasyten backend benchmarks.
 
 Examples
 --------
-Run from the repository root (cyten must be importable)::
+Run from the repository root (lasyten must be importable)::
 
     python -m benchmark.run_benchmarks \\
         --ops tdot,svd,eigh,combine_legs,split_legs \\
@@ -77,7 +77,7 @@ DEFAULT_MAX_RAM = '5GB'
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        description='Benchmark cyten ops across backends and devices (optional dense NumPy refs).',
+        description='Benchmark lasyten ops across backends and devices (optional dense NumPy refs).',
     )
     p.add_argument(
         '--ops',
@@ -109,7 +109,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_DIMS,
         help=f'Comma-separated target leg dimensions (default: {DEFAULT_DIMS}).',
     )
-    p.add_argument('--dtype', default='float64', help='Cyten dtype name (default: float64).')
+    p.add_argument('--dtype', default='float64', help='LASyTen dtype name (default: float64).')
     p.add_argument('--warmup', type=int, default=2, help='Warmup iterations (default: 2).')
     p.add_argument('--repeats', type=int, default=5, help='Timed iterations (default: 5).')
     p.add_argument('--seed', type=int, default=0, help='Reserved seed for reproducibility.')
@@ -250,8 +250,8 @@ def main(argv: list[str] | None = None) -> int:
     metadata = collect_run_metadata(cli_args=vars(args))
     metadata['max_ram_bytes'] = installed_ram
     print(
-        f'cyten {metadata.get("cyten_version")} '
-        f'(commit {metadata.get("cyten_commit_id")}) '
+        f'lasyten {metadata.get("lasyten_version")} '
+        f'(commit {metadata.get("lasyten_commit_id")}) '
         f'on {metadata.get("hostname")} at {metadata.get("started_at")}'
     )
     compile_info = metadata.get('compile') or {}
@@ -303,7 +303,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         got_numpy = False
         for record in out:
-            tag = 'numpy' if record.impl == 'numpy' else 'cyten'
+            tag = 'numpy' if record.impl == 'numpy' else 'lasyten'
             print(
                 f'  [{tag}] mean={record.mean:.4e}s  median={record.median:.4e}s  '
                 f'actual_dim={record.actual_dim}  blocks={record.num_blocks}'
@@ -318,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
             if not got_numpy:
                 cap = format_ram_limit(installed_ram) if installed_ram is not None else 'system'
                 print(
-                    f'  skipped numpy-ref: memory limit ({cap}) exceeded (cyten result kept)',
+                    f'  skipped numpy-ref: memory limit ({cap}) exceeded (lasyten result kept)',
                     file=sys.stderr,
                 )
 

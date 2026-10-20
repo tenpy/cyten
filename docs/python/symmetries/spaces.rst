@@ -1,58 +1,58 @@
-cyten.symmetries.spaces
+lasyten.symmetries.spaces
 =======================
 
-Declared in ``cyten/symmetries/spaces.py``.
+Declared in ``lasyten/symmetries/spaces.py``.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.symmetries.spaces.Leg
+lasyten.symmetries.spaces.Leg
 ---------------------------
 
-.. autoclass:: cyten.symmetries.spaces.Leg
+.. autoclass:: lasyten.symmetries.spaces.Leg
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.symmetries.spaces.Space
+lasyten.symmetries.spaces.Space
 -----------------------------
 
-.. autoclass:: cyten.symmetries.spaces.Space
+.. autoclass:: lasyten.symmetries.spaces.Space
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.symmetries.spaces.LegPipe
+lasyten.symmetries.spaces.LegPipe
 -------------------------------
 
-.. autoclass:: cyten.symmetries.spaces.LegPipe
+.. autoclass:: lasyten.symmetries.spaces.LegPipe
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.symmetries.spaces.ElementarySpace
+lasyten.symmetries.spaces.ElementarySpace
 ---------------------------------------
 
-.. autoclass:: cyten.symmetries.spaces.ElementarySpace
+.. autoclass:: lasyten.symmetries.spaces.ElementarySpace
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.symmetries.spaces.TensorProduct
+lasyten.symmetries.spaces.TensorProduct
 -------------------------------------
 
-.. autoclass:: cyten.symmetries.spaces.TensorProduct
+.. autoclass:: lasyten.symmetries.spaces.TensorProduct
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.symmetries.spaces.AbelianLegPipe
+lasyten.symmetries.spaces.AbelianLegPipe
 --------------------------------------
 
-.. autoclass:: cyten.symmetries.spaces.AbelianLegPipe
+.. autoclass:: lasyten.symmetries.spaces.AbelianLegPipe
    :members:
    :undoc-members:
    :show-inheritance:
@@ -60,6 +60,6 @@ cyten.symmetries.spaces.AbelianLegPipe
 Functions
 ---------
 
-.. autofunction:: cyten.symmetries.spaces.swap_gate
+.. autofunction:: lasyten.symmetries.spaces.swap_gate
 
-.. autofunction:: cyten.symmetries.spaces.twist_gate
+.. autofunction:: lasyten.symmetries.spaces.twist_gate

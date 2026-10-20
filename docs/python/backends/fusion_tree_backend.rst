@@ -1,74 +1,74 @@
-cyten.backends.fusion_tree_backend
+lasyten.backends.fusion_tree_backend
 ==================================
 
-Declared in ``cyten/backends/fusion_tree_backend.py``.
+Declared in ``lasyten/backends/fusion_tree_backend.py``.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.backends.fusion_tree_backend.FusionTreeBackend
+lasyten.backends.fusion_tree_backend.FusionTreeBackend
 ----------------------------------------------------
 
-.. autoclass:: cyten.backends.fusion_tree_backend.FusionTreeBackend
+.. autoclass:: lasyten.backends.fusion_tree_backend.FusionTreeBackend
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.fusion_tree_backend.FusionTreeData
+lasyten.backends.fusion_tree_backend.FusionTreeData
 -------------------------------------------------
 
-.. autoclass:: cyten.backends.fusion_tree_backend.FusionTreeData
+.. autoclass:: lasyten.backends.fusion_tree_backend.FusionTreeData
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.fusion_tree_backend.BraidInstruction
+lasyten.backends.fusion_tree_backend.BraidInstruction
 ---------------------------------------------------
 
-.. autoclass:: cyten.backends.fusion_tree_backend.BraidInstruction
+.. autoclass:: lasyten.backends.fusion_tree_backend.BraidInstruction
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.fusion_tree_backend.BendInstruction
+lasyten.backends.fusion_tree_backend.BendInstruction
 --------------------------------------------------
 
-.. autoclass:: cyten.backends.fusion_tree_backend.BendInstruction
+.. autoclass:: lasyten.backends.fusion_tree_backend.BendInstruction
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.fusion_tree_backend.TwistInstruction
+lasyten.backends.fusion_tree_backend.TwistInstruction
 ---------------------------------------------------
 
-.. autoclass:: cyten.backends.fusion_tree_backend.TwistInstruction
+.. autoclass:: lasyten.backends.fusion_tree_backend.TwistInstruction
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.fusion_tree_backend.PermuteLegsInstructionEngine
+lasyten.backends.fusion_tree_backend.PermuteLegsInstructionEngine
 ---------------------------------------------------------------
 
-.. autoclass:: cyten.backends.fusion_tree_backend.PermuteLegsInstructionEngine
+.. autoclass:: lasyten.backends.fusion_tree_backend.PermuteLegsInstructionEngine
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.fusion_tree_backend.TreePairMapping
+lasyten.backends.fusion_tree_backend.TreePairMapping
 --------------------------------------------------
 
-.. autoclass:: cyten.backends.fusion_tree_backend.TreePairMapping
+.. autoclass:: lasyten.backends.fusion_tree_backend.TreePairMapping
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.backends.fusion_tree_backend.FactorizedTreeMapping
+lasyten.backends.fusion_tree_backend.FactorizedTreeMapping
 --------------------------------------------------------
 
-.. autoclass:: cyten.backends.fusion_tree_backend.FactorizedTreeMapping
+.. autoclass:: lasyten.backends.fusion_tree_backend.FactorizedTreeMapping
    :members:
    :undoc-members:
    :show-inheritance:

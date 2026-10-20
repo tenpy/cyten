@@ -1,15 +1,15 @@
-#include <cyten/symmetries/factors/su3_3_anyon_category.h>
+#include <lasyten/symmetries/factors/su3_3_anyon_category.h>
 
-#include <cyten/symmetries/topo_ones.h>
+#include <lasyten/symmetries/topo_ones.h>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <cyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5.h>
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 Sector const SU3_3AnyonCategory::one_irrep{ 0 };
 Sector const SU3_3AnyonCategory::eight_irrep{ 1 };
@@ -528,7 +528,7 @@ SU3_3AnyonCategory::all_sectors() const
 }
 
 SU3_3AnyonCategory::Ptr
-SU3_3AnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
+SU3_3AnyonCategory::from_hdf5(lasyten::hdf5::Loader& loader,
                               HighFive::Group& h5gr,
                               std::string const& /*subpath*/)
 {
@@ -538,4 +538,4 @@ SU3_3AnyonCategory::from_hdf5(cyten::hdf5::Loader& loader,
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

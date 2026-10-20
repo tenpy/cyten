@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `ChargedTensor`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration in C++ header file: `include/cyten/tensors/charged_tensor.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration in C++ header file: `include/lasyten/tensors/charged_tensor.h`
 - definition in C++ file: `src/tensors/charged_tensor.cpp`
 - pybind11 binding: `pybind/tensors/py_charged_tensor.cpp`
 - trampoline: not needed (no library subclasses of ChargedTensor)
@@ -29,7 +29,7 @@ Stay on branch **`convert_tensors`**. Defer monkey-patch until all Tensor subcla
 - Factories: `from_block_func`, `from_dense_block`, `from_dense_block_single_sector` (NotImplemented like Python), `from_invariant_part`, `from_two_charge_legs`, `from_zero`, hdf5.
 - Helpers: `_parse_inv_domain`, `_parse_inv_labels`.
 - Overrides: `test_sanity`, `as_dtype`, `as_SymmetricTensor`, `copy`, `_get_item`, `move_to_device`, `_repr_header_lines`, `set_label`/`set_labels`, `to_backend`, `to_dense_block`, `to_dense_block_single_sector`.
-- Free functions still Python (`squeeze_legs`, `tdot`, `bend_legs`, `combine_legs`) — call via `py::module_::import("cyten.tensors._tensors")` where needed.
+- Free functions still Python (`squeeze_legs`, `tdot`, `bend_legs`, `combine_legs`) — call via `py::module_::import("lasyten.tensors._tensors")` where needed.
 - Update toml: `ChargedTensor = "ChargedTensor::Ptr"`.
 - Python `set_labels` bug (`*self._CHARGE_LEG_LABEL`) → C++ append single charge label.
 - Python hdf5 looks incomplete (`self.data`) — save/load `invariant_part` + `charged_state` sensibly.

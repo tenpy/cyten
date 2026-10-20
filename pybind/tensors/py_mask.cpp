@@ -1,11 +1,11 @@
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/tensors/mask.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/tensors/mask.h>
 
 #include "py_callbacks.hpp"
 #include "py_factory_parse.hpp"
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/mask.h"
 
@@ -20,7 +20,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -53,7 +53,7 @@ void
 declare_tensors_mask(py::module_& m)
 {
     g_mask = py::class_<Mask, Tensor, py::smart_holder>(m, "Mask");
-    (*g_mask).doc() = DOC(cyten, Mask);
+    (*g_mask).doc() = DOC(lasyten, Mask);
 }
 
 void
@@ -123,7 +123,7 @@ bind_tensors_mask(py::module_& m)
     cls.def_property_readonly("large_leg", &Mask::large_leg);
     cls.def_property_readonly("small_leg", &Mask::small_leg);
 
-    cls.def("test_sanity", &Mask::test_sanity, DOC(cyten, Mask, test_sanity));
+    cls.def("test_sanity", &Mask::test_sanity, DOC(lasyten, Mask, test_sanity));
 
     cls.def_static(
       "from_eye",
@@ -141,7 +141,7 @@ bind_tensors_mask(py::module_& m)
       py::arg("backend") = nullptr,
       py::arg("labels") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, Mask, from_eye));
+      DOC(lasyten, Mask, from_eye));
 
     cls.def_static(
       "from_block_mask",
@@ -160,13 +160,13 @@ bind_tensors_mask(py::module_& m)
       py::arg("backend") = nullptr,
       py::arg("labels") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, Mask, from_block_mask));
+      DOC(lasyten, Mask, from_block_mask));
 
     cls.def_static(
       "from_DiagonalTensor",
       [](py::object diag) { return Mask::from_DiagonalTensor(diag.cast<DiagonalTensorCPtr>()); },
       py::arg("diag"),
-      DOC(cyten, Mask, from_DiagonalTensor));
+      DOC(lasyten, Mask, from_DiagonalTensor));
 
     cls.def_static(
       "from_indices",
@@ -184,7 +184,7 @@ bind_tensors_mask(py::module_& m)
       py::arg("backend") = nullptr,
       py::arg("labels") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, Mask, from_indices));
+      DOC(lasyten, Mask, from_indices));
 
     cls.def_static(
       "from_random",
@@ -218,7 +218,7 @@ bind_tensors_mask(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("device") = py::none(),
       py::arg("np_random") = py::none(),
-      DOC(cyten, Mask, from_random));
+      DOC(lasyten, Mask, from_random));
 
     cls.def_static(
       "from_zero",
@@ -233,23 +233,23 @@ bind_tensors_mask(py::module_& m)
       py::arg("backend") = nullptr,
       py::arg("labels") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, Mask, from_zero));
+      DOC(lasyten, Mask, from_zero));
 
     cls.def_static("from_hdf5",
-                   cyten::hdf5::wrap_from_hdf5<Mask>(),
+                   lasyten::hdf5::wrap_from_hdf5<Mask>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
-                   DOC(cyten, Mask, from_hdf5));
+                   DOC(lasyten, Mask, from_hdf5));
 
     cls.def("save_hdf5",
-            cyten::hdf5::wrap_save_hdf5_const<Mask>(),
+            lasyten::hdf5::wrap_save_hdf5_const<Mask>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
-            DOC(cyten, Mask, save_hdf5));
+            DOC(lasyten, Mask, save_hdf5));
 
-    cls.def("as_dtype", &Mask::as_dtype, py::arg("dtype"), DOC(cyten, Mask, as_dtype));
+    cls.def("as_dtype", &Mask::as_dtype, py::arg("dtype"), DOC(lasyten, Mask, as_dtype));
 
     cls.def(
       "as_SymmetricTensor",
@@ -265,45 +265,45 @@ bind_tensors_mask(py::module_& m)
       py::arg("guarantee_copy") = false,
       py::arg("warning") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
-      DOC(cyten, Mask, as_SymmetricTensor));
+      DOC(lasyten, Mask, as_SymmetricTensor));
 
     cls.def("as_DiagonalTensor", &Mask::as_DiagonalTensor, py::arg("dtype") = Dtype::Complex128);
 
     cls.def("as_block_mask", &Mask::as_block_mask);
     cls.def("as_numpy_mask", &Mask::as_numpy_mask);
 
-    cls.def("all", &Mask::all, DOC(cyten, Mask, all));
-    cls.def("any", &Mask::any, DOC(cyten, Mask, any));
+    cls.def("all", &Mask::all, DOC(lasyten, Mask, all));
+    cls.def("any", &Mask::any, DOC(lasyten, Mask, any));
 
     cls.def("copy",
             &Mask::copy,
             py::arg("deep") = true,
             py::arg("device") = py::none(),
             py::arg("dtype") = py::none(),
-            DOC(cyten, Mask, copy));
+            DOC(lasyten, Mask, copy));
 
     // Override Tensor.dagger / hc properties (which delegate to the Python free function).
-    cls.def_property_readonly("dagger", &Mask::dagger, DOC(cyten, Mask, dagger));
-    cls.def_property_readonly("hc", &Mask::dagger, DOC(cyten, Mask, dagger));
+    cls.def_property_readonly("dagger", &Mask::dagger, DOC(lasyten, Mask, dagger));
+    cls.def_property_readonly("hc", &Mask::dagger, DOC(lasyten, Mask, dagger));
 
-    cls.def("_get_item", &Mask::_get_item, py::arg("idx"), DOC(cyten, Mask, _get_item));
+    cls.def("_get_item", &Mask::_get_item, py::arg("idx"), DOC(lasyten, Mask, _get_item));
 
-    cls.def("logical_not", &Mask::logical_not, DOC(cyten, Mask, logical_not));
+    cls.def("logical_not", &Mask::logical_not, DOC(lasyten, Mask, logical_not));
     cls.def("orthogonal_complement",
             &Mask::orthogonal_complement,
-            DOC(cyten, Mask, orthogonal_complement));
+            DOC(lasyten, Mask, orthogonal_complement));
 
     cls.def("move_to_device",
             &Mask::move_to_device,
             py::arg("device"),
-            DOC(cyten, Mask, move_to_device));
+            DOC(lasyten, Mask, move_to_device));
 
     cls.def("to_backend",
             &Mask::to_backend,
             py::arg("backend"),
             py::arg("dtype") = py::none(),
             py::arg("device") = py::none(),
-            DOC(cyten, Mask, to_backend));
+            DOC(lasyten, Mask, to_backend));
 
     cls.def(
       "to_dense_block",
@@ -313,7 +313,7 @@ bind_tensors_mask(py::module_& m)
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("understood_braiding") = false,
-      DOC(cyten, Mask, to_dense_block));
+      DOC(lasyten, Mask, to_dense_block));
 
     cls.def(
       "to_numpy",
@@ -323,7 +323,7 @@ bind_tensors_mask(py::module_& m)
       py::arg("leg_order") = py::none(),
       py::arg("numpy_dtype") = py::none(),
       py::arg("understood_braiding") = false,
-      DOC(cyten, Mask, to_numpy));
+      DOC(lasyten, Mask, to_numpy));
 
     cls.def(
       "_binary_operand",
@@ -337,13 +337,14 @@ bind_tensors_mask(py::module_& m)
               return py::cast(self._binary_operand(other.cast<bool>(), adapted, operand));
           }
           if (py::isinstance<Mask>(other) ||
-              py::isinstance(other, py::module_::import("cyten.tensors._tensors").attr("Mask"))) {
+              py::isinstance(other,
+                             py::module_::import("lasyten.tensors._tensors").attr("Mask"))) {
               return py::cast(self._binary_operand(other.cast<MaskCPtr>(), adapted, operand));
           }
           if (return_NotImplemented &&
               !(py::isinstance<Tensor>(other) ||
                 py::isinstance(other,
-                               py::module_::import("cyten.tensors._tensors").attr("Tensor")) ||
+                               py::module_::import("lasyten.tensors._tensors").attr("Tensor")) ||
                 py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
               return py::reinterpret_borrow<py::object>(Py_NotImplemented);
           }
@@ -355,7 +356,7 @@ bind_tensors_mask(py::module_& m)
       py::arg("func"),
       py::arg("operand"),
       py::arg("return_NotImplemented") = true,
-      DOC(cyten, Mask, _binary_operand));
+      DOC(lasyten, Mask, _binary_operand));
 
     cls.def(
       "_unary_operand",
@@ -384,12 +385,12 @@ bind_tensors_mask(py::module_& m)
               }
               if (py::isinstance<Mask>(other) ||
                   py::isinstance(other,
-                                 py::module_::import("cyten.tensors._tensors").attr("Mask"))) {
+                                 py::module_::import("lasyten.tensors._tensors").attr("Mask"))) {
                   return py::cast(self._binary_operand(other.cast<MaskCPtr>(), func, operand));
               }
               if (!(py::isinstance<Tensor>(other) ||
-                    py::isinstance(other,
-                                   py::module_::import("cyten.tensors._tensors").attr("Tensor")) ||
+                    py::isinstance(
+                      other, py::module_::import("lasyten.tensors._tensors").attr("Tensor")) ||
                     py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
                   return py::reinterpret_borrow<py::object>(Py_NotImplemented);
               }
@@ -410,4 +411,4 @@ bind_tensors_mask(py::module_& m)
     bind_bool_binop("__ne__", "ne", "!=");
 }
 
-} // namespace cyten
+} // namespace lasyten

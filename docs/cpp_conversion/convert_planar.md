@@ -2,9 +2,9 @@
 
 ## metadata
 
-- original python file: `cyten/tensors/planar.py`
-- original python module: `cyten.tensors.planar`
-- C++ declaration header: `include/cyten/tensors/planar.h`
+- original python file: `lasyten/tensors/planar.py`
+- original python module: `lasyten.tensors.planar`
+- C++ declaration header: `include/lasyten/tensors/planar.h`
 - C++ definitions: `src/tensors/planar.cpp`
 - pybind11 bindings: `pybind/tensors/py_planar.cpp`
 - first line of docstring: Provides useful classes and functions for dealing with planar (systems of) tensors.
@@ -40,14 +40,14 @@ C++ declaration order is not Python source order (`ContractionTree` is used by `
 - `product_of([])` is the empty polynomial.
 - Insertion order of diagram tensors is `PlanarDiagram::tensor_names_`; lookup is `std::map`.
 - `OPEN_LEG_SYMBOL in definition` is checked on the full definition string (Python quirk).
-- Monkey-patch: `cyten/tensors/planar.py` re-exports converted names from `_core`. `partial_trace` is re-exported from `_tensors` because tests use `ct.planar.partial_trace`.
+- Monkey-patch: `lasyten/tensors/planar.py` re-exports converted names from `_core`. `partial_trace` is re-exported from `_tensors` because tests use `lasy.planar.partial_trace`.
 
-Register sources in CMake, `pybind/_core.cpp`, and `include/cyten/tensors.h`.
+Register sources in CMake, `pybind/_core.cpp`, and `include/lasyten/tensors.h`.
 
 ## Dependencies
 
 - Done: `LabelledLegs`, `Tensor` hierarchy, `LinearOperator` (+ trampoline), `BigOPolynomial`, tensor free functions (`compose`, `partial_trace`, `combine_legs`, `permute_legs`, decompositions).
-- `duplicate_entries`: still Python (`cyten.tools.misc`); inline a small C++ helper for `parse_leg_bipartition`.
+- `duplicate_entries`: still Python (`lasyten.tools.misc`); inline a small C++ helper for `parse_leg_bipartition`.
 
 ## TODO list for conversion
 

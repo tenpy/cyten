@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import cyten as ct
+import lasyten as lasy
 
 from .cases import CASES, case_compatible, make_rank4_tensor
 from .common import (
@@ -32,7 +32,7 @@ def run_combine_legs_benchmark(
     seed: int = 0,
     numpy_ref: bool = False,
 ) -> list[BenchmarkRecord]:
-    """Time ``cyten.combine_legs``; optionally also time dense transpose+reshape."""
+    """Time ``lasyten.combine_legs``; optionally also time dense transpose+reshape."""
     if case not in CASES:
         raise ValueError(f'Unknown case {case!r}')
     if not config_ok(case, symmetry_backend, block_backend, device, case_compatible_fn=case_compatible):
@@ -49,10 +49,10 @@ def run_combine_legs_benchmark(
         seed=seed,
     )
 
-    def _cyten():
-        return ct.combine_legs(T, [0, 1], [2, 3])
+    def _lasyten():
+        return lasy.combine_legs(T, [0, 1], [2, 3])
 
-    timing = time_call(_cyten, warmup=warmup, repeats=repeats, device=device)
+    timing = time_call(_lasyten, warmup=warmup, repeats=repeats, device=device)
     records = [
         make_record(
             op='combine_legs',

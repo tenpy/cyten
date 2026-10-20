@@ -11,8 +11,8 @@ Hand-written after codegen declaration draft (bindings for bases from `_core` st
 | Field | Value |
 | --- | --- |
 | original python name | `AbelianGroup` |
-| original python file | `cyten/symmetries/_symmetries.py` |
-| declaration | `include/cyten/symmetries/abelian_group.h` |
+| original python file | `lasyten/symmetries/_symmetries.py` |
+| declaration | `include/lasyten/symmetries/abelian_group.h` |
 | definition | `src/symmetries/abelian_group.cpp` |
 | pybind11 binding | `pybind/symmetries/py_abelian_group.cpp` |
 | trampoline | `PyAbelianGroup` in `pybind/symmetries/py_trampolines.hpp` |

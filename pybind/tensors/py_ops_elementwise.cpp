@@ -1,15 +1,15 @@
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/ops_elementwise.h>
-#include <cyten/tensors/tensor.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/ops_elementwise.h>
+#include <lasyten/tensors/tensor.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/ops_elementwise.h"
 
 #include <format>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -23,9 +23,9 @@ bool
 is_number_or_scalar(py::object x)
 {
     return py::isinstance(x, py::module_::import("numbers").attr("Number")) ||
-           py::isinstance(x, py::module_::import("cyten.block_backends").attr("Scalar")) ||
+           py::isinstance(x, py::module_::import("lasyten.block_backends").attr("Scalar")) ||
            (py::isinstance<Tensor>(x) &&
-            py::module_::import("cyten.tensors._tensors").attr("is_scalar")(x).cast<bool>());
+            py::module_::import("lasyten.tensors._tensors").attr("is_scalar")(x).cast<bool>());
 }
 
 [[noreturn]] void
@@ -62,9 +62,9 @@ bind_tensors_ops_elementwise(py::module_& m)
             [](py::object n) { return numpy().attr("angle")(n); });
       },
       py::arg("x"),
-      doc_plus(DOC(cyten, angle),
+      doc_plus(DOC(lasyten, angle),
                R"pydoc(
-In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+In Python, ``x`` may also be a number / :class:`~lasyten.block_backends.Scalar`.
 )pydoc"));
 
     m.def(
@@ -83,9 +83,9 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
       },
       py::arg("x"),
       py::arg("cutoff") = 1e-15,
-      doc_plus(DOC(cyten, cutoff_inverse),
+      doc_plus(DOC(lasyten, cutoff_inverse),
                R"pydoc(
-In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+In Python, ``x`` may also be a number / :class:`~lasyten.block_backends.Scalar`.
 )pydoc"));
 
     m.def(
@@ -101,9 +101,9 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
             });
       },
       py::arg("x"),
-      doc_plus(DOC(cyten, complex_conj),
+      doc_plus(DOC(lasyten, complex_conj),
                R"pydoc(
-In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+In Python, ``x`` may also be a number / :class:`~lasyten.block_backends.Scalar`.
 )pydoc"));
 
     m.def(
@@ -115,9 +115,9 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
             [](py::object n) { return numpy().attr("imag")(n); });
       },
       py::arg("x"),
-      doc_plus(DOC(cyten, imag),
+      doc_plus(DOC(lasyten, imag),
                R"pydoc(
-In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+In Python, ``x`` may also be a number / :class:`~lasyten.block_backends.Scalar`.
 )pydoc"));
 
     m.def(
@@ -129,9 +129,9 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
             [](py::object n) { return numpy().attr("real")(n); });
       },
       py::arg("x"),
-      doc_plus(DOC(cyten, real),
+      doc_plus(DOC(lasyten, real),
                R"pydoc(
-In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+In Python, ``x`` may also be a number / :class:`~lasyten.block_backends.Scalar`.
 )pydoc"));
 
     m.def(
@@ -148,9 +148,9 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
       },
       py::arg("x"),
       py::arg("tol") = 100.,
-      doc_plus(DOC(cyten, real_if_close),
+      doc_plus(DOC(lasyten, real_if_close),
                R"pydoc(
-In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+In Python, ``x`` may also be a number / :class:`~lasyten.block_backends.Scalar`.
 )pydoc"));
 
     m.def(
@@ -162,9 +162,9 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
             [](py::object n) { return numpy().attr("sqrt")(n); });
       },
       py::arg("x"),
-      doc_plus(DOC(cyten, sqrt),
+      doc_plus(DOC(lasyten, sqrt),
                R"pydoc(
-In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+In Python, ``x`` may also be a number / :class:`~lasyten.block_backends.Scalar`.
 )pydoc"));
 
     m.def(
@@ -180,9 +180,9 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
       },
       py::arg("x"),
       py::arg("cutoff") = 1e-30,
-      doc_plus(DOC(cyten, stable_log),
+      doc_plus(DOC(lasyten, stable_log),
                R"pydoc(
-In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
+In Python, ``x`` may also be a number / :class:`~lasyten.block_backends.Scalar`.
 )pydoc"));
 
     m.def(
@@ -194,10 +194,10 @@ In Python, ``x`` may also be a number / :class:`~cyten.block_backends.Scalar`.
           return numpy().attr("exp")(obj);
       },
       py::arg("obj"),
-      doc_plus(DOC(cyten, exp),
+      doc_plus(DOC(lasyten, exp),
                R"pydoc(
 In Python, non-tensor inputs are forwarded to ``numpy.exp``.
 )pydoc"));
 }
 
-} // namespace cyten
+} // namespace lasyten

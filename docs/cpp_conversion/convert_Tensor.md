@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `Tensor`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration in C++ header file: `include/cyten/tensors/tensor.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration in C++ header file: `include/lasyten/tensors/tensor.h`
 - definition in C++ file: `src/tensors/tensor.cpp`
 - pybind11 binding: `pybind/tensors/py_tensor.cpp`
 - trampoline: `PyTensor` in `pybind/tensors/py_trampolines.hpp` (required)
@@ -17,7 +17,7 @@
 2. **`Tensor`** — this conversion (abstract base).
 3. Next: `SymmetricTensor` → `DiagonalTensor` → `Identity` → `Mask` → `ChargedTensor` → free functions.
 
-Keep original Python `Tensor` until all subclasses are converted. Export `cyten._core.Tensor`; **defer monkey-patch**.
+Keep original Python `Tensor` until all subclasses are converted. Export `lasyten._core.Tensor`; **defer monkey-patch**.
 
 ## Design notes
 

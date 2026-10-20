@@ -1,12 +1,12 @@
 vector_like.h
 =============
 
-Declared in ``include/cyten/tensors/vector_like.h``.
+Declared in ``include/lasyten/tensors/vector_like.h``.
 
-cyten::VectorLike
+lasyten::VectorLike
 -----------------
 
-.. doxygenclass:: cyten::VectorLike
-   :project: cyten
+.. doxygenclass:: lasyten::VectorLike
+   :project: lasyten
    :members:
    :undoc-members:

@@ -1,80 +1,80 @@
 planar.h
 ========
 
-Declared in ``include/cyten/tensors/planar.h``.
+Declared in ``include/lasyten/tensors/planar.h``.
 
-.. doxygenclass:: cyten::TensorPlaceholder
-   :project: cyten
+.. doxygenclass:: lasyten::TensorPlaceholder
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::ContractionTreeNode
-   :project: cyten
+.. doxygenclass:: lasyten::ContractionTreeNode
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::ContractionTree
-   :project: cyten
+.. doxygenclass:: lasyten::ContractionTree
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::PlanarDiagram
-   :project: cyten
+.. doxygenclass:: lasyten::PlanarDiagram
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::PlanarLinearOperator
-   :project: cyten
+.. doxygenclass:: lasyten::PlanarLinearOperator
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::parse_leg_bipartition
-   :project: cyten
+.. doxygenfunction:: lasyten::parse_leg_bipartition
+   :project: lasyten
 
-.. doxygenfunction:: cyten::horizontal_factorization
-   :project: cyten
+.. doxygenfunction:: lasyten::horizontal_factorization
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_almost_equal
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_almost_equal
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_combine_legs
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_combine_legs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_contraction(TensorCPtr, TensorCPtr, std::vector<LegRef>, std::vector<LegRef>, std::map<std::string, std::string>, std::map<std::string, std::string>)
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_contraction(TensorCPtr, TensorCPtr, std::vector<LegRef>, std::vector<LegRef>, std::map<std::string, std::string>, std::map<std::string, std::string>)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_contraction(TensorPlaceholder const &, TensorPlaceholder const &, std::vector<LegRef>, std::vector<LegRef>)
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_contraction(TensorPlaceholder const &, TensorPlaceholder const &, std::vector<LegRef>, std::vector<LegRef>)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_eigh
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_eigh
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_eig
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_eig
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_eigvals
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_eigvals
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_lq
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_lq
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_partial_trace(TensorCPtr, std::vector<std::vector<LegRef>>)
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_partial_trace(TensorCPtr, std::vector<std::vector<LegRef>>)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_partial_trace(TensorPlaceholder const &, std::vector<std::vector<LegRef>>)
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_partial_trace(TensorPlaceholder const &, std::vector<std::vector<LegRef>>)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_permute_legs
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_permute_legs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_qr
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_qr
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_svd
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_svd
+   :project: lasyten
 
-.. doxygenfunction:: cyten::planar_truncated_svd
-   :project: cyten
+.. doxygenfunction:: lasyten::planar_truncated_svd
+   :project: lasyten

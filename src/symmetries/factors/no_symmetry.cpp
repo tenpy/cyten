@@ -1,7 +1,7 @@
-#include <cyten/symmetries/factors/no_symmetry.h>
-#include <cyten/tools/hdf5.h>
+#include <lasyten/symmetries/factors/no_symmetry.h>
+#include <lasyten/tools/hdf5.h>
 
-namespace cyten {
+namespace lasyten {
 
 NoSymmetry::NoSymmetry()
   : AbelianGroup(Sector{ 0 },
@@ -91,7 +91,7 @@ NoSymmetry::all_sectors() const
 }
 
 NoSymmetry::Ptr
-NoSymmetry::from_hdf5(cyten::hdf5::Loader& loader,
+NoSymmetry::from_hdf5(lasyten::hdf5::Loader& loader,
                       HighFive::Group& h5gr,
                       std::string const& /*subpath*/)
 {
@@ -101,4 +101,4 @@ NoSymmetry::from_hdf5(cyten::hdf5::Loader& loader,
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

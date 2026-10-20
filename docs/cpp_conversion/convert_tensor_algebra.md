@@ -3,9 +3,9 @@
 ## metadata
 
 - original python names: `almost_equal`, `compose`, `dagger`, `inner`, `item`, `linear_combination`, `norm`, `outer`, `partial_compose`, `partial_trace`, `pinv`, `scalar_multiply`, `scale_axis`, `tdot`, `trace`, `transpose`, `is_scalar`, `get_same_device`, `on_device`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration: `include/cyten/tensors/ops_algebra.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration: `include/lasyten/tensors/ops_algebra.h`
 - definition: `src/tensors/ops_algebra.cpp`
 - pybind11 binding: `pybind/tensors/py_ops_algebra.cpp`
 - trampoline: n/a (free functions)

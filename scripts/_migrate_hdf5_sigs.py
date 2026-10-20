@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Mechanical Phase C signature migration for cyten HDF5 APIs."""
+"""Mechanical Phase C signature migration for lasyten HDF5 APIs."""
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-ROOT = Path("/home/johannes/work/tenpy/cyten_main")
+ROOT = Path("/home/johannes/work/tenpy/lasyten_main")
 
 # Signature replacements in headers/sources
 PATTERNS = [
@@ -14,7 +14,7 @@ PATTERNS = [
         re.compile(
             r"void save_hdf5\(py::object hdf5_saver,\s*\n\s*py::object h5gr,\s*\n\s*(?:const )?std::string(?: const)?& subpath\)"
         ),
-        "void save_hdf5(cyten::hdf5::Saver& saver,\n"
+        "void save_hdf5(lasyten::hdf5::Saver& saver,\n"
         "                       HighFive::Group& h5gr,\n"
         "                       std::string const& subpath)",
     ),
@@ -22,20 +22,20 @@ PATTERNS = [
         re.compile(
             r"void save_hdf5\(py::object hdf5_saver, py::object h5gr, (?:const )?std::string(?: const)?& subpath\)"
         ),
-        "void save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath)",
+        "void save_hdf5(lasyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath)",
     ),
     (
         re.compile(
             r"void save_hdf5\(py::object hdf5_saver, py::object h5gr, std::string subpath\)"
         ),
-        "void save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string subpath)",
+        "void save_hdf5(lasyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string subpath)",
     ),
     # from_hdf5 common
     (
         re.compile(
             r"from_hdf5\(py::object hdf5_loader,\s*\n\s*py::object h5gr,\s*\n\s*(?:const )?std::string(?: const)?& subpath\)"
         ),
-        "from_hdf5(cyten::hdf5::Loader& loader,\n"
+        "from_hdf5(lasyten::hdf5::Loader& loader,\n"
         "                                    HighFive::Group& h5gr,\n"
         "                                    std::string const& subpath)",
     ),
@@ -43,38 +43,38 @@ PATTERNS = [
         re.compile(
             r"from_hdf5\(py::object hdf5_loader, py::object h5gr, (?:const )?std::string(?: const)?& subpath\)"
         ),
-        "from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)",
+        "from_hdf5(lasyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)",
     ),
     (
         re.compile(
             r"from_hdf5\(py::object hdf5_loader, py::object h5gr, std::string subpath\)"
         ),
-        "from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string subpath)",
+        "from_hdf5(lasyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string subpath)",
     ),
     # definitions with unused names
     (
         re.compile(r"py::object hdf5_saver"),
-        "cyten::hdf5::Saver& saver",
+        "lasyten::hdf5::Saver& saver",
     ),
     (
         re.compile(r"py::object /\*hdf5_saver\*/"),
-        "cyten::hdf5::Saver& /*saver*/",
+        "lasyten::hdf5::Saver& /*saver*/",
     ),
     (
         re.compile(r"py::object hdf5_loader"),
-        "cyten::hdf5::Loader& loader",
+        "lasyten::hdf5::Loader& loader",
     ),
     (
         re.compile(r"py::object /\*hdf5_loader\*/"),
-        "cyten::hdf5::Loader& /*loader*/",
+        "lasyten::hdf5::Loader& /*loader*/",
     ),
 ]
 
-INCLUDE_LINE = "#include <cyten/tools/hdf5.h>\n"
+INCLUDE_LINE = "#include <lasyten/tools/hdf5.h>\n"
 
 
 def needs_include(text: str) -> bool:
-    return "cyten::hdf5::" in text or "HighFive::Group& h5gr" in text
+    return "lasyten::hdf5::" in text or "HighFive::Group& h5gr" in text
 
 
 def process_file(path: Path) -> bool:
@@ -86,7 +86,7 @@ def process_file(path: Path) -> bool:
         text = cre.sub(repl, text)
 
     # Fix leftover py::object h5gr in hdf5 signatures only when Saver/Loader already migrated nearby
-    if "cyten::hdf5::Saver&" in text or "cyten::hdf5::Loader&" in text:
+    if "lasyten::hdf5::Saver&" in text or "lasyten::hdf5::Loader&" in text:
         text = re.sub(
             r"(save_hdf5\([^)]*?),\s*py::object h5gr,",
             r"\1, HighFive::Group& h5gr,",
@@ -104,16 +104,16 @@ def process_file(path: Path) -> bool:
         )
         text = text.replace(
             "void load_hdf5_common(py::object hdf5_loader, HighFive::Group& h5gr,",
-            "void load_hdf5_common(cyten::hdf5::Loader& loader, HighFive::Group& h5gr,",
+            "void load_hdf5_common(lasyten::hdf5::Loader& loader, HighFive::Group& h5gr,",
         )
-        text = text.replace("py::object hdf5_loader", "cyten::hdf5::Loader& loader")
+        text = text.replace("py::object hdf5_loader", "lasyten::hdf5::Loader& loader")
         text = text.replace("py::object /*h5gr*/", "HighFive::Group& /*h5gr*/")
         text = text.replace(", py::object /*h5gr*/,", ", HighFive::Group& /*h5gr*/,")
 
     if text == orig:
         return False
 
-    if needs_include(text) and "#include <cyten/tools/hdf5.h>" not in text:
+    if needs_include(text) and "#include <lasyten/tools/hdf5.h>" not in text:
         # Insert after last include
         lines = text.splitlines(keepends=True)
         last_inc = 0
@@ -129,7 +129,7 @@ def process_file(path: Path) -> bool:
 
 def main() -> None:
     changed = []
-    for folder in ("include/cyten", "src"):
+    for folder in ("include/lasyten", "src"):
         for path in (ROOT / folder).rglob("*"):
             if path.suffix not in {".h", ".cpp", ".hpp"}:
                 continue

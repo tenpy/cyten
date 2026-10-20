@@ -1,4 +1,4 @@
-"""A collection of tests for cyten.backends.fusion_tree_backend"""
+"""A collection of tests for lasyten.backends.fusion_tree_backend"""
 
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
@@ -10,11 +10,11 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from cyten import backends
-from cyten.backends import fusion_tree_backend, get_backend
-from cyten.block_backends.dtypes import Dtype
-from cyten.config import get_option
-from cyten.symmetries import (
+from lasyten import backends
+from lasyten.backends import fusion_tree_backend, get_backend
+from lasyten.block_backends.dtypes import Dtype
+from lasyten.config import get_option
+from lasyten.symmetries import (
     _SU2,
     U1,
     ZN,
@@ -28,8 +28,8 @@ from cyten.symmetries import (
     Symmetry,
     TensorProduct,
 )
-from cyten.tensors import DiagonalTensor, SymmetricTensor, permute_legs, transpose
-from cyten.testing import assert_tensors_almost_equal, random_ElementarySpace, random_tensor
+from lasyten.tensors import DiagonalTensor, SymmetricTensor, permute_legs, transpose
+from lasyten.testing import assert_tensors_almost_equal, random_ElementarySpace, random_tensor
 
 fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left').as_Symmetry()
 ising_anyon_category = IsingAnyonCategory(nu=1).as_Symmetry()

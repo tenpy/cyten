@@ -1,10 +1,10 @@
-# Conversion of cyten.models (Layer 5)
+# Conversion of lasyten.models (Layer 5)
 
 ## metadata
 
-- original python module: `cyten.models`
+- original python module: `lasyten.models`
 - branch: `convert_models`
-- C++ umbrella header: `include/cyten/models.h`
+- C++ umbrella header: `include/lasyten/models.h`
 - C++ sources: `src/models/{degrees_of_freedom,sites,couplings}.cpp`
 - pybind11 bindings: `pybind/models/py_{degrees_of_freedom,sites,couplings}.cpp`
 

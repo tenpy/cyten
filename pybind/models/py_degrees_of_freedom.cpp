@@ -1,7 +1,7 @@
-#include <cyten/models/degrees_of_freedom.h>
+#include <lasyten/models/degrees_of_freedom.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "docstrings/models/degrees_of_freedom.h"
 
 #include "tools/hdf5_bind.h"
@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -60,7 +60,7 @@ bind_models_degrees_of_freedom(py::module_& m)
     m.attr("ALL_SPECIES") = all_species_sentinel();
 
     py::class_<Site, PySite, py::smart_holder> site(m, "Site");
-    site.doc() = DOC(cyten, Site);
+    site.doc() = DOC(lasyten, Site);
 
     site
       .def(py::init<ElementarySpace::Ptr,
@@ -78,7 +78,7 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_readwrite("backend", &Site::backend)
       .def_readwrite("default_device", &Site::default_device)
       .def_readwrite("onsite_operators", &Site::onsite_operators)
-      .def("test_sanity", &Site::test_sanity, DOC(cyten, Site, test_sanity))
+      .def("test_sanity", &Site::test_sanity, DOC(lasyten, Site, test_sanity))
       .def_property_readonly("symmetry", &Site::symmetry)
       .def_property_readonly("dim", [](Site const& self) { return dim_to_python(self.dim()); })
       .def("add_onsite_operator",
@@ -87,44 +87,46 @@ bind_models_degrees_of_freedom(py::module_& m)
            py::arg("op"),
            py::arg("is_diagonal") = py::none(),
            py::arg("understood_braiding") = false,
-           DOC(cyten, Site, add_onsite_operator))
-      .def("valid_opname", &Site::valid_opname, py::arg("name"), DOC(cyten, Site, valid_opname))
-      .def("get_op", &Site::get_op, py::arg("name"), DOC(cyten, Site, get_op))
+           DOC(lasyten, Site, add_onsite_operator))
+      .def("valid_opname", &Site::valid_opname, py::arg("name"), DOC(lasyten, Site, valid_opname))
+      .def("get_op", &Site::get_op, py::arg("name"), DOC(lasyten, Site, get_op))
       .def("multiply_op_names",
            &Site::multiply_op_names,
            py::arg("names"),
-           DOC(cyten, Site, multiply_op_names))
+           DOC(lasyten, Site, multiply_op_names))
       .def("multiply_operators",
            &Site::multiply_operators,
            py::arg("operators"),
-           DOC(cyten, Site, multiply_operators))
+           DOC(lasyten, Site, multiply_operators))
       .def("identity_tensor",
            &Site::identity_tensor,
            py::arg("w"),
            py::arg("overbraid") = true,
-           DOC(cyten, Site, identity_tensor))
-      .def("state_index", &Site::state_index, py::arg("label"), DOC(cyten, Site, state_index))
-      .def(
-        "state_indices", &Site::state_indices, py::arg("labels"), DOC(cyten, Site, state_indices))
+           DOC(lasyten, Site, identity_tensor))
+      .def("state_index", &Site::state_index, py::arg("label"), DOC(lasyten, Site, state_index))
+      .def("state_indices",
+           &Site::state_indices,
+           py::arg("labels"),
+           DOC(lasyten, Site, state_indices))
       .def("__repr__", &Site::repr)
       .def(
         "save_hdf5",
         [](Site const& self, py::object py_saver, py::object py_h5gr, std::string subpath) {
             // Use subclass hdf5_init_kwargs (S/conserve for SpinSite, etc.) rather than the
             // base Site leg/state_labels format, which many site constructors do not accept.
-            cyten::hdf5::PyBridge bridge(py_saver, py::none(), py_h5gr);
-            cyten::hdf5::py_save(subpath + "init_kwargs", self.hdf5_init_kwargs());
+            lasyten::hdf5::PyBridge bridge(py_saver, py::none(), py_h5gr);
+            lasyten::hdf5::py_save(subpath + "init_kwargs", self.hdf5_init_kwargs());
         },
         py::arg("hdf5_saver"),
         py::arg("h5gr"),
         py::arg("subpath"),
-        DOC(cyten, Site, save_hdf5));
+        DOC(lasyten, Site, save_hdf5));
 
     py::object classmethod = py::module_::import("builtins").attr("classmethod");
     site.attr("from_hdf5") = classmethod(py::cpp_function(
       [](py::object cls, py::object py_loader, py::object py_h5gr, std::string subpath) {
-          cyten::hdf5::PyBridge bridge(py::none(), py_loader, py_h5gr);
-          py::object kwargs = cyten::hdf5::py_load(subpath + "init_kwargs");
+          lasyten::hdf5::PyBridge bridge(py::none(), py_loader, py_h5gr);
+          py::object kwargs = lasyten::hdf5::py_load(subpath + "init_kwargs");
           py::object obj = cls(**kwargs);
           py_loader.attr("memorize_load")(py_h5gr, obj);
           return obj;
@@ -137,7 +139,7 @@ bind_models_degrees_of_freedom(py::module_& m)
       "Reconstruct a Site (or subclass) from HDF5."));
 
     py::class_<SpinDOF, Site, py::smart_holder> spin_dof(m, "SpinDOF");
-    spin_dof.doc() = DOC(cyten, SpinDOF);
+    spin_dof.doc() = DOC(lasyten, SpinDOF);
 
     spin_dof
       .def(py::init<ElementarySpace::Ptr,
@@ -153,20 +155,20 @@ bind_models_degrees_of_freedom(py::module_& m)
            py::arg("backend") = nullptr,
            py::arg("default_device") = py::none())
       .def_readwrite("spin_vector", &SpinDOF::spin_vector)
-      .def("test_sanity", &SpinDOF::test_sanity, DOC(cyten, SpinDOF, test_sanity))
+      .def("test_sanity", &SpinDOF::test_sanity, DOC(lasyten, SpinDOF, test_sanity))
       .def_static("spin_vector_from_Sp",
                   &SpinDOF::spin_vector_from_Sp,
                   py::arg("Sz"),
                   py::arg("Sp"),
-                  DOC(cyten, SpinDOF, spin_vector_from_Sp))
+                  DOC(lasyten, SpinDOF, spin_vector_from_Sp))
       .def_static("conservation_law_to_symmetry",
                   &SpinDOF::conservation_law_to_symmetry,
                   py::arg("conserve"),
                   py::arg("use_test_su2") = false,
-                  DOC(cyten, SpinDOF, conservation_law_to_symmetry));
+                  DOC(lasyten, SpinDOF, conservation_law_to_symmetry));
 
     py::class_<ClockDOF, Site, py::smart_holder> clock_dof(m, "ClockDOF");
-    clock_dof.doc() = DOC(cyten, ClockDOF);
+    clock_dof.doc() = DOC(lasyten, ClockDOF);
 
     clock_dof
       .def(py::init<ElementarySpace::Ptr,
@@ -182,15 +184,15 @@ bind_models_degrees_of_freedom(py::module_& m)
            py::arg("backend") = nullptr,
            py::arg("default_device") = py::none())
       .def_readwrite("clock_operators", &ClockDOF::clock_operators)
-      .def("test_sanity", &ClockDOF::test_sanity, DOC(cyten, ClockDOF, test_sanity))
+      .def("test_sanity", &ClockDOF::test_sanity, DOC(lasyten, ClockDOF, test_sanity))
       .def_static("conservation_law_to_symmetry",
                   &ClockDOF::conservation_law_to_symmetry,
                   py::arg("conserve"),
                   py::arg("use_test_su2") = false,
-                  DOC(cyten, ClockDOF, conservation_law_to_symmetry));
+                  DOC(lasyten, ClockDOF, conservation_law_to_symmetry));
 
     py::class_<AnyonDOF, Site, py::smart_holder> anyon_dof(m, "AnyonDOF");
-    anyon_dof.doc() = DOC(cyten, AnyonDOF);
+    anyon_dof.doc() = DOC(lasyten, AnyonDOF);
 
     anyon_dof
       .def(py::init<ElementarySpace::Ptr,
@@ -206,11 +208,11 @@ bind_models_degrees_of_freedom(py::module_& m)
            py::arg("backend") = nullptr,
            py::arg("default_device") = py::none())
       .def_readwrite("sector_names", &AnyonDOF::sector_names)
-      .def("test_sanity", &AnyonDOF::test_sanity, DOC(cyten, AnyonDOF, test_sanity));
+      .def("test_sanity", &AnyonDOF::test_sanity, DOC(lasyten, AnyonDOF, test_sanity));
 
     py::class_<OccupationDOF, Site, PyOccupationDOF, py::smart_holder> occupation_dof(
       m, "OccupationDOF");
-    occupation_dof.doc() = DOC(cyten, OccupationDOF);
+    occupation_dof.doc() = DOC(lasyten, OccupationDOF);
 
     occupation_dof.def_readwrite("num_species", &OccupationDOF::num_species)
       .def_readwrite("creators", &OccupationDOF::creators)
@@ -221,32 +223,32 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_readwrite("n_tot", &OccupationDOF::n_tot)
       .def("test_sanity",
            &OccupationDOF::test_sanity,
-           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::OccupationDOF::test_sanity()"))
+           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "lasyten::OccupationDOF::test_sanity()"))
       .def("add_individual_occupation_ops",
            &OccupationDOF::add_individual_occupation_ops,
-           DOC(cyten, OccupationDOF, add_individual_occupation_ops))
+           DOC(lasyten, OccupationDOF, add_individual_occupation_ops))
       .def("add_total_occupation_ops",
            &OccupationDOF::add_total_occupation_ops,
            doc_cpp_ref(R"pydoc(add_total_occupation_ops)pydoc",
-                       "cyten::OccupationDOF::add_total_occupation_ops()"))
+                       "lasyten::OccupationDOF::add_total_occupation_ops()"))
       .def("get_annihilator_numpy",
            &OccupationDOF::get_annihilator_numpy,
            py::arg("species"),
            py::arg("include_JW") = false,
-           DOC(cyten, OccupationDOF, get_annihilator_numpy))
+           DOC(lasyten, OccupationDOF, get_annihilator_numpy))
       .def("get_creator_numpy",
            &OccupationDOF::get_creator_numpy,
            py::arg("species"),
            py::arg("include_JW") = false,
-           DOC(cyten, OccupationDOF, get_creator_numpy))
+           DOC(lasyten, OccupationDOF, get_creator_numpy))
       .def("get_occupation_numpy",
            &OccupationDOF::get_occupation_numpy,
            py::arg_v("species", all_species_sentinel(), "ALL_SPECIES"),
-           DOC(cyten, OccupationDOF, get_occupation_numpy))
+           DOC(lasyten, OccupationDOF, get_occupation_numpy))
       .def("get_species_idx", &OccupationDOF::get_species_idx, py::arg("species"));
 
     py::class_<BosonicDOF, OccupationDOF, py::smart_holder> bosonic_dof(m, "BosonicDOF");
-    bosonic_dof.doc() = DOC(cyten, BosonicDOF);
+    bosonic_dof.doc() = DOC(lasyten, BosonicDOF);
 
     bosonic_dof
       .def(py::init<ElementarySpace::Ptr,
@@ -272,11 +274,11 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_readwrite("_JW", &BosonicDOF::JW)
       .def("test_sanity",
            &BosonicDOF::test_sanity,
-           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::BosonicDOF::test_sanity()"))
+           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "lasyten::BosonicDOF::test_sanity()"))
       .def("add_individual_occupation_ops",
            &BosonicDOF::add_individual_occupation_ops,
            doc_cpp_ref(R"pydoc(add_individual_occupation_ops)pydoc",
-                       "cyten::BosonicDOF::add_individual_occupation_ops()"))
+                       "lasyten::BosonicDOF::add_individual_occupation_ops()"))
       .def("get_annihilator_numpy",
            &BosonicDOF::get_annihilator_numpy,
            py::arg("species"),
@@ -289,7 +291,7 @@ bind_models_degrees_of_freedom(py::module_& m)
                   &BosonicDOF::conservation_law_to_symmetry,
                   py::arg("conserve"),
                   doc_cpp_ref(R"pydoc(conservation_law_to_symmetry)pydoc",
-                              "cyten::BosonicDOF::conservation_law_to_symmetry()"))
+                              "lasyten::BosonicDOF::conservation_law_to_symmetry()"))
       .def_static("creation_annihilation_op_from_single_Nmax",
                   &BosonicDOF::creation_annihilation_op_from_single_Nmax,
                   py::arg("Nmax"),
@@ -305,7 +307,7 @@ bind_models_degrees_of_freedom(py::module_& m)
                   py::arg("dim"));
 
     py::class_<FermionicDOF, OccupationDOF, py::smart_holder> fermionic_dof(m, "FermionicDOF");
-    fermionic_dof.doc() = DOC(cyten, FermionicDOF);
+    fermionic_dof.doc() = DOC(lasyten, FermionicDOF);
 
     fermionic_dof
       .def(py::init<ElementarySpace::Ptr,
@@ -329,7 +331,7 @@ bind_models_degrees_of_freedom(py::module_& m)
       .def_readwrite("_JW", &FermionicDOF::JW)
       .def("test_sanity",
            &FermionicDOF::test_sanity,
-           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::FermionicDOF::test_sanity()"))
+           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "lasyten::FermionicDOF::test_sanity()"))
       .def("get_annihilator_numpy",
            &FermionicDOF::get_annihilator_numpy,
            py::arg("species"),
@@ -342,10 +344,10 @@ bind_models_degrees_of_freedom(py::module_& m)
                   &FermionicDOF::conservation_law_to_symmetry,
                   py::arg("conserve"),
                   doc_cpp_ref(R"pydoc(conservation_law_to_symmetry)pydoc",
-                              "cyten::FermionicDOF::conservation_law_to_symmetry()"))
+                              "lasyten::FermionicDOF::conservation_law_to_symmetry()"))
       .def_static("creation_annihilation_ops",
                   &FermionicDOF::creation_annihilation_ops,
                   py::arg("num_species"));
 }
 
-} // namespace cyten
+} // namespace lasyten

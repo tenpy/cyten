@@ -1,12 +1,12 @@
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/tensors/diagonal_tensor.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/tensors/diagonal_tensor.h>
 
 #include "py_callbacks.hpp"
 #include "py_factory_parse.hpp"
 #include "py_trampolines.hpp"
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/diagonal_tensor.h"
 
@@ -21,7 +21,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -45,7 +45,7 @@ optional_leg_order(py::object obj)
 py::object
 tensors_mod()
 {
-    return py::module_::import("cyten.tensors._tensors");
+    return py::module_::import("lasyten.tensors._tensors");
 }
 
 bool
@@ -171,7 +171,7 @@ declare_tensors_diagonal_tensor(py::module_& m)
     g_diagonal_tensor =
       py::class_<DiagonalTensor, SymmetricTensor, PyDiagonalTensor, py::smart_holder>(
         m, "DiagonalTensor");
-    (*g_diagonal_tensor).doc() = DOC(cyten, DiagonalTensor);
+    (*g_diagonal_tensor).doc() = DOC(lasyten, DiagonalTensor);
 }
 
 void
@@ -209,9 +209,10 @@ bind_tensors_diagonal_tensor(py::module_& m)
           }
       });
 
-    cls.def_property_readonly("leg", &DiagonalTensor::leg, DOC(cyten, DiagonalTensor, leg));
+    cls.def_property_readonly("leg", &DiagonalTensor::leg, DOC(lasyten, DiagonalTensor, leg));
 
-    cls.def("test_sanity", &DiagonalTensor::test_sanity, DOC(cyten, DiagonalTensor, test_sanity));
+    cls.def(
+      "test_sanity", &DiagonalTensor::test_sanity, DOC(lasyten, DiagonalTensor, test_sanity));
     cls.def("verify_dtype", &DiagonalTensor::verify_dtype);
 
     cls.def_static(
@@ -238,7 +239,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("shape_kw") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, DiagonalTensor, from_block_func));
+      DOC(lasyten, DiagonalTensor, from_block_func));
 
     cls.def_static(
       "from_dense_block",
@@ -269,7 +270,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("tol") = 1e-6,
       py::arg("device") = py::none(),
       py::arg("understood_braiding") = false,
-      DOC(cyten, DiagonalTensor, from_dense_block));
+      DOC(lasyten, DiagonalTensor, from_dense_block));
 
     cls.def_static(
       "from_diag_block",
@@ -292,7 +293,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
       py::arg("tol") = 1e-6,
-      DOC(cyten, DiagonalTensor, from_diag_block));
+      DOC(lasyten, DiagonalTensor, from_diag_block));
 
     cls.def_static(
       "from_eye",
@@ -310,7 +311,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Float64,
       py::arg("device") = py::none(),
-      DOC(cyten, DiagonalTensor, from_eye));
+      DOC(lasyten, DiagonalTensor, from_eye));
 
     cls.def_static(
       "from_random_normal",
@@ -344,7 +345,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
       py::arg("device") = py::none(),
-      DOC(cyten, DiagonalTensor, from_random_normal));
+      DOC(lasyten, DiagonalTensor, from_random_normal));
 
     cls.def_static(
       "from_random_uniform",
@@ -362,7 +363,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
       py::arg("device") = py::none(),
-      DOC(cyten, DiagonalTensor, from_random_uniform));
+      DOC(lasyten, DiagonalTensor, from_random_uniform));
 
     cls.def_static(
       "from_sector_block_func",
@@ -386,7 +387,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("func_kwargs") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, DiagonalTensor, from_sector_block_func));
+      DOC(lasyten, DiagonalTensor, from_sector_block_func));
 
     cls.def_static(
       "from_tensor",
@@ -395,7 +396,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       },
       py::arg("tens"),
       py::arg("tol") = 1e-12,
-      DOC(cyten, DiagonalTensor, from_tensor));
+      DOC(lasyten, DiagonalTensor, from_tensor));
 
     cls.def_static(
       "from_zero",
@@ -413,24 +414,24 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
       py::arg("device") = py::none(),
-      DOC(cyten, DiagonalTensor, from_zero));
+      DOC(lasyten, DiagonalTensor, from_zero));
 
     cls.def_static("from_hdf5",
-                   cyten::hdf5::wrap_from_hdf5<DiagonalTensor>(),
+                   lasyten::hdf5::wrap_from_hdf5<DiagonalTensor>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
-                   DOC(cyten, DiagonalTensor, from_hdf5));
+                   DOC(lasyten, DiagonalTensor, from_hdf5));
 
     cls.def("as_dtype",
             &DiagonalTensor::as_dtype,
             py::arg("dtype"),
-            DOC(cyten, DiagonalTensor, as_dtype));
+            DOC(lasyten, DiagonalTensor, as_dtype));
     cls.def("as_SymmetricTensor",
             &DiagonalTensor::as_SymmetricTensor,
             py::arg("guarantee_copy") = false,
             py::arg("warning") = py::none(),
-            DOC(cyten, DiagonalTensor, as_SymmetricTensor));
+            DOC(lasyten, DiagonalTensor, as_SymmetricTensor));
     cls.def("as_DiagonalTensor",
             &DiagonalTensor::as_DiagonalTensor,
             py::arg("guarantee_copy") = false,
@@ -440,11 +441,11 @@ bind_tensors_diagonal_tensor(py::module_& m)
             py::arg("deep") = true,
             py::arg("device") = py::none(),
             py::arg("dtype") = py::none(),
-            DOC(cyten, DiagonalTensor, copy));
+            DOC(lasyten, DiagonalTensor, copy));
     cls.def("diagonal",
             &DiagonalTensor::diagonal,
             py::arg("check_offdiagonal") = false,
-            DOC(cyten, DiagonalTensor, diagonal));
+            DOC(lasyten, DiagonalTensor, diagonal));
     cls.def(
       "diagonal_as_block", &DiagonalTensor::diagonal_as_block, py::arg("dtype") = py::none());
     cls.def("diagonal_as_numpy",
@@ -468,7 +469,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("func"),
       py::arg("func_kwargs") = py::none(),
       py::arg("maps_zero_to_zero") = false,
-      DOC(cyten, DiagonalTensor, _elementwise_unary));
+      DOC(lasyten, DiagonalTensor, _elementwise_unary));
     cls.def(
       "_elementwise_binary",
       [](DiagonalTensor& self,
@@ -488,7 +489,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("func"),
       py::arg("func_kwargs") = py::none(),
       py::arg("partial_zero_is_zero") = false,
-      DOC(cyten, DiagonalTensor, _elementwise_binary));
+      DOC(lasyten, DiagonalTensor, _elementwise_binary));
     cls.def(
       "_binary_operand",
       [](DiagonalTensor& self,
@@ -505,33 +506,33 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("operand"),
       py::arg("return_NotImplemented") = false,
       py::arg("right") = false,
-      DOC(cyten, DiagonalTensor, _binary_operand));
+      DOC(lasyten, DiagonalTensor, _binary_operand));
     cls.def("_get_item",
             &DiagonalTensor::_get_item,
             py::arg("idx"),
-            DOC(cyten, DiagonalTensor, _get_item));
-    cls.def("all", &DiagonalTensor::all, DOC(cyten, DiagonalTensor, all));
-    cls.def("any", &DiagonalTensor::any, DOC(cyten, DiagonalTensor, any));
+            DOC(lasyten, DiagonalTensor, _get_item));
+    cls.def("all", &DiagonalTensor::all, DOC(lasyten, DiagonalTensor, all));
+    cls.def("any", &DiagonalTensor::any, DOC(lasyten, DiagonalTensor, any));
     cls.def("max", &DiagonalTensor::max);
     cls.def("min", &DiagonalTensor::min);
     cls.def("sector_argmin",
             &DiagonalTensor::sector_argmin,
             py::arg("s") = py::none(),
-            DOC(cyten, DiagonalTensor, sector_argmin));
+            DOC(lasyten, DiagonalTensor, sector_argmin));
     cls.def("argmin",
             &DiagonalTensor::argmin,
             py::arg("s") = py::none(),
-            DOC(cyten, DiagonalTensor, argmin));
+            DOC(lasyten, DiagonalTensor, argmin));
     cls.def("move_to_device",
             &DiagonalTensor::move_to_device,
             py::arg("device"),
-            DOC(cyten, DiagonalTensor, move_to_device));
+            DOC(lasyten, DiagonalTensor, move_to_device));
     cls.def("to_backend",
             &DiagonalTensor::to_backend,
             py::arg("backend"),
             py::arg("dtype") = py::none(),
             py::arg("device") = py::none(),
-            DOC(cyten, DiagonalTensor, to_backend));
+            DOC(lasyten, DiagonalTensor, to_backend));
     cls.def(
       "to_dense_block",
       [](DiagonalTensor& self,
@@ -543,18 +544,18 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("understood_braiding") = false,
-      DOC(cyten, DiagonalTensor, to_dense_block));
+      DOC(lasyten, DiagonalTensor, to_dense_block));
     cls.def("save_hdf5",
-            cyten::hdf5::wrap_save_hdf5_const<DiagonalTensor>(),
+            lasyten::hdf5::wrap_save_hdf5_const<DiagonalTensor>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
-            DOC(cyten, DiagonalTensor, save_hdf5));
+            DOC(lasyten, DiagonalTensor, save_hdf5));
 
     // Elementwise dunders
     cls.def("__abs__", &DiagonalTensor::abs);
     cls.def("__bool__", [](DiagonalTensor& self) {
-        auto tensors_mod = py::module_::import("cyten.tensors._tensors");
+        auto tensors_mod = py::module_::import("lasyten.tensors._tensors");
         if (self.dtype == Dtype::Bool && tensors_mod.attr("is_scalar")(self).cast<bool>()) {
             return tensors_mod.attr("item")(self).cast<bool>();
         }
@@ -601,7 +602,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
 
     // --- Identity ---
     py::class_<Identity, DiagonalTensor, py::smart_holder> id_cls(m, "Identity");
-    id_cls.doc() = DOC(cyten, Identity);
+    id_cls.doc() = DOC(lasyten, Identity);
 
     id_cls.def(py::init([](py::object leg,
                            TensorBackend::Ptr backend,
@@ -625,7 +626,7 @@ bind_tensors_diagonal_tensor(py::module_& m)
                py::arg("device") = py::none(),
                py::arg("labels") = py::none());
 
-    id_cls.def("test_sanity", &Identity::test_sanity, DOC(cyten, Identity, test_sanity));
+    id_cls.def("test_sanity", &Identity::test_sanity, DOC(lasyten, Identity, test_sanity));
 
     auto bind_unsupported = [&](char const* name) {
         id_cls.def_static(name, [name](py::args, py::kwargs) {
@@ -658,21 +659,22 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Float64,
       py::arg("device") = py::none(),
-      DOC(cyten, Identity, from_eye));
+      DOC(lasyten, Identity, from_eye));
 
     id_cls.def_static("from_hdf5",
-                      cyten::hdf5::wrap_from_hdf5<Identity>(),
+                      lasyten::hdf5::wrap_from_hdf5<Identity>(),
                       py::arg("hdf5_loader"),
                       py::arg("h5gr"),
                       py::arg("subpath"),
-                      DOC(cyten, Identity, from_hdf5));
+                      DOC(lasyten, Identity, from_hdf5));
 
-    id_cls.def("as_dtype", &Identity::as_dtype, py::arg("dtype"), DOC(cyten, Identity, as_dtype));
+    id_cls.def(
+      "as_dtype", &Identity::as_dtype, py::arg("dtype"), DOC(lasyten, Identity, as_dtype));
     id_cls.def("as_SymmetricTensor",
                &Identity::as_SymmetricTensor,
                py::arg("guarantee_copy") = false,
                py::arg("warning") = py::none(),
-               DOC(cyten, Identity, as_SymmetricTensor));
+               DOC(lasyten, Identity, as_SymmetricTensor));
     id_cls.def("as_DiagonalTensor",
                &Identity::as_DiagonalTensor,
                py::arg("guarantee_copy") = false,
@@ -682,31 +684,32 @@ bind_tensors_diagonal_tensor(py::module_& m)
                py::arg("deep") = true,
                py::arg("device") = py::none(),
                py::arg("dtype") = py::none(),
-               DOC(cyten, Identity, copy));
+               DOC(lasyten, Identity, copy));
     id_cls.def("diagonal",
                &Identity::diagonal,
                py::arg("check_offdiagonal") = false,
-               DOC(cyten, Identity, diagonal));
+               DOC(lasyten, Identity, diagonal));
     id_cls.def("diagonal_as_block", &Identity::diagonal_as_block, py::arg("dtype") = py::none());
     id_cls.def(
       "diagonal_as_numpy", &Identity::diagonal_as_numpy, py::arg("numpy_dtype") = py::none());
-    id_cls.def("_get_item", &Identity::_get_item, py::arg("idx"), DOC(cyten, Identity, _get_item));
-    id_cls.def("all", &Identity::all, DOC(cyten, Identity, all));
-    id_cls.def("any", &Identity::any, DOC(cyten, Identity, any));
+    id_cls.def(
+      "_get_item", &Identity::_get_item, py::arg("idx"), DOC(lasyten, Identity, _get_item));
+    id_cls.def("all", &Identity::all, DOC(lasyten, Identity, all));
+    id_cls.def("any", &Identity::any, DOC(lasyten, Identity, any));
     id_cls.def("max", &Identity::max);
     id_cls.def("min", &Identity::min);
     id_cls.def(
-      "argmin", &Identity::argmin, py::arg("s") = py::none(), DOC(cyten, Identity, argmin));
+      "argmin", &Identity::argmin, py::arg("s") = py::none(), DOC(lasyten, Identity, argmin));
     id_cls.def("move_to_device",
                &Identity::move_to_device,
                py::arg("device"),
-               DOC(cyten, Identity, move_to_device));
+               DOC(lasyten, Identity, move_to_device));
     id_cls.def("to_backend",
                &Identity::to_backend,
                py::arg("backend"),
                py::arg("dtype") = py::none(),
                py::arg("device") = py::none(),
-               DOC(cyten, Identity, to_backend));
+               DOC(lasyten, Identity, to_backend));
     id_cls.def(
       "to_dense_block",
       [](Identity& self,
@@ -718,11 +721,11 @@ bind_tensors_diagonal_tensor(py::module_& m)
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("understood_braiding") = false,
-      DOC(cyten, Identity, to_dense_block));
+      DOC(lasyten, Identity, to_dense_block));
 
     id_cls.def("__abs__", &Identity::abs);
     id_cls.def("__bool__", [](Identity& self) {
-        auto tensors_mod = py::module_::import("cyten.tensors._tensors");
+        auto tensors_mod = py::module_::import("lasyten.tensors._tensors");
         if (self.dtype == Dtype::Bool && tensors_mod.attr("is_scalar")(self).cast<bool>()) {
             return true;
         }
@@ -731,4 +734,4 @@ bind_tensors_diagonal_tensor(py::module_& m)
     });
 }
 
-} // namespace cyten
+} // namespace lasyten

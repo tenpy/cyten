@@ -2,7 +2,7 @@
 
 ## Status
 
-**Done / monkey-patched** on branch `convert_backends`. Layer 3 backends and `get_backend` are imported from `cyten._core` into `cyten.backends`.
+**Done / monkey-patched** on branch `convert_backends`. Layer 3 backends and `get_backend` are imported from `lasyten._core` into `lasyten.backends`.
 
 Monkey-patched:
 
@@ -39,21 +39,21 @@ flowchart TD
 
 | Order | Object(s) | Python source | Notes |
 | --- | --- | --- | --- |
-| 1 | `TensorBackend`, `conventional_leg_order`, `get_same_backend` | `cyten/backends/_backend.py` | Skip `HasBackend` Protocol |
-| 2 | `NoSymmetryBackend` | `cyten/backends/no_symmetry.py` | Smallest concrete backend |
-| 3 | `AbelianBackendData` then `AbelianBackend` (+ `_valid_block_inds`) | `cyten/backends/abelian.py` | |
-| 4 | `FusionTreeData` then `FusionTreeBackend` (+ Instruction/Mapping helpers as needed) | `cyten/backends/fusion_tree_backend.py` | Largest; may split headers |
-| 5 | `get_backend` | `cyten/backends/backend_factory.py` | |
+| 1 | `TensorBackend`, `conventional_leg_order`, `get_same_backend` | `lasyten/backends/_backend.py` | Skip `HasBackend` Protocol |
+| 2 | `NoSymmetryBackend` | `lasyten/backends/no_symmetry.py` | Smallest concrete backend |
+| 3 | `AbelianBackendData` then `AbelianBackend` (+ `_valid_block_inds`) | `lasyten/backends/abelian.py` | |
+| 4 | `FusionTreeData` then `FusionTreeBackend` (+ Instruction/Mapping helpers as needed) | `lasyten/backends/fusion_tree_backend.py` | Largest; may split headers |
+| 5 | `get_backend` | `lasyten/backends/backend_factory.py` | |
 
 ## File layout
 
 | Kind | Path |
 | --- | --- |
-| Header | `include/cyten/backends/tensor_backend.h` (then `no_symmetry.h`, `abelian.h`, `fusion_tree_backend.h`, …) |
+| Header | `include/lasyten/backends/tensor_backend.h` (then `no_symmetry.h`, `abelian.h`, `fusion_tree_backend.h`, …) |
 | Source | `src/backends/tensor_backend.cpp` (+ register in `src/CMakeLists.txt`) |
 | Bindings | `pybind/backends/py_tensor_backend.cpp` |
 | Trampoline | `pybind/backends/py_trampolines.hpp` |
-| Optional umbrella | `include/cyten/backends.h` (later) |
+| Optional umbrella | `include/lasyten/backends.h` (later) |
 
 ## Design decisions
 
@@ -73,7 +73,7 @@ flowchart TD
 ### Trampoline + monkey-patch timing
 
 - Generate trampoline so Python subclasses can remain until converted.
-- Monkey-patch of `TensorBackend` and concrete backends into `cyten.backends` is **done** (concrete backends are C++).
+- Monkey-patch of `TensorBackend` and concrete backends into `lasyten.backends` is **done** (concrete backends are C++).
 - Original Python backend bodies were removed; modules re-export from `_core` (FT keeps `_tree_block_iter`).
 
 ## Codegen
@@ -81,7 +81,7 @@ flowchart TD
 Use micromamba Python (system Python lacks `ast_comments`):
 
 ```bash
-/opt/micromamba/envs/cyten_py314/bin/python .cursor/skills/pybind11-codegen/pybind11_codegen.py <cmd> ...
+/opt/micromamba/envs/lasyten_py314/bin/python .cursor/skills/pybind11-codegen/pybind11_codegen.py <cmd> ...
 ```
 
 ## Dependencies

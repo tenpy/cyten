@@ -150,9 +150,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import cyten as ct
-from cyten import Dtype, backends, block_backends, tensors
-from cyten.testing import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
+import lasyten as lasy
+from lasyten import Dtype, backends, block_backends, tensors
+from lasyten.testing import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
 
 # OVERRIDE pytest routines
 
@@ -164,7 +164,7 @@ def _disable_implicit_scalar_conversion():
     Users get ``implicit_scalar_conversion=True`` by default. Tests keep native Scalars
     so accidental ``float(s)`` / ``np.asarray(s)`` cannot hide missing Scalar handling.
     """
-    with ct.temporary_options(implicit_scalar_conversion=False):
+    with lasy.temporary_options(implicit_scalar_conversion=False):
         yield
 
 
@@ -248,16 +248,16 @@ _block_backend_params = dict(
 )
 _symmetries = {
     # groups:
-    'NoSymm': ct.NoSymmetry().as_Symmetry(),
-    'U1': ct.U1().as_Symmetry(),
-    'Z4_named': ct.ZN(4, 'My_Z4_symmetry').as_Symmetry(),
-    'U1xZ3': ct.U1() * ct.ZN(3),
-    '_SU2': ct._SU2().as_Symmetry(),
+    'NoSymm': lasy.NoSymmetry().as_Symmetry(),
+    'U1': lasy.U1().as_Symmetry(),
+    'Z4_named': lasy.ZN(4, 'My_Z4_symmetry').as_Symmetry(),
+    'U1xZ3': lasy.U1() * lasy.ZN(3),
+    '_SU2': lasy._SU2().as_Symmetry(),
     # anyons:
-    'fermion': ct.FermionParity().as_Symmetry(),
-    'FibonacciAnyon': ct.FibonacciAnyonCategory(handedness='left').as_Symmetry(),
-    'IsingAnyon': ct.IsingAnyonCategory(nu=1).as_Symmetry(),
-    'Fib_U1': ct.FibonacciAnyonCategory(handedness='left') * ct.U1(),
+    'fermion': lasy.FermionParity().as_Symmetry(),
+    'FibonacciAnyon': lasy.FibonacciAnyonCategory(handedness='left').as_Symmetry(),
+    'IsingAnyon': lasy.IsingAnyonCategory(nu=1).as_Symmetry(),
+    'Fib_U1': lasy.FibonacciAnyonCategory(handedness='left') * lasy.U1(),
 }
 
 
@@ -290,7 +290,7 @@ def any_backend(block_backend, any_symmetry_backend) -> backends.TensorBackend:
     params=[s for s in _symmetries.values() if s.is_abelian and s.has_trivial_braid],
     ids=[k for k, s in _symmetries.items() if s.is_abelian and s.has_trivial_braid],
 )
-def abelian_group_symmetry(request) -> ct.Symmetry:
+def abelian_group_symmetry(request) -> lasy.Symmetry:
     return request.param
 
 
@@ -298,19 +298,19 @@ def abelian_group_symmetry(request) -> ct.Symmetry:
     params=[s for s in _symmetries.values() if s.can_be_dropped],
     ids=[k for k, s in _symmetries.items() if s.can_be_dropped],
 )
-def any_symmetry_that_can_be_dropped(request) -> ct.Symmetry:
+def any_symmetry_that_can_be_dropped(request) -> lasy.Symmetry:
     return request.param
 
 
 @pytest.fixture(params=list(_symmetries.values()), ids=list(_symmetries.keys()))
-def any_symmetry(request) -> ct.Symmetry:
+def any_symmetry(request) -> lasy.Symmetry:
     return request.param
 
 
 @pytest.fixture
 def make_any_sectors(any_symmetry, np_random):
     # if the symmetry does not have enough sectors, we return fewer!
-    def make(num: int, sort: bool = False) -> ct.SectorArray:
+    def make(num: int, sort: bool = False) -> lasy.SectorArray:
         # return SectorArray
         return random_symmetry_sectors(any_symmetry, num, sort, np_random=np_random)
 
@@ -321,7 +321,7 @@ def make_any_sectors(any_symmetry, np_random):
 def make_any_space(any_symmetry, np_random):
     def make(
         max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None, allow_basis_perm: bool = True
-    ) -> ct.ElementarySpace:
+    ) -> lasy.ElementarySpace:
         # return ElementarySpace
         return random_ElementarySpace(
             any_symmetry, max_sectors, max_mult, is_dual, np_random=np_random, allow_basis_perm=allow_basis_perm
@@ -342,7 +342,7 @@ def make_any_block(any_backend, np_random):
 # "COMPATIBLE" FIXTURES  ->  only go over those pairings of backend and symmetry that are compatible
 
 # build the compatible pairs
-_compatible_pairs = {'NoSymmetry': ('no_symmetry', ct.NoSymmetry().as_Symmetry())}  # {id: param}
+_compatible_pairs = {'NoSymmetry': ('no_symmetry', lasy.NoSymmetry().as_Symmetry())}  # {id: param}
 for _sym_name, _sym in _symmetries.items():
     if _sym.is_abelian and _sym.has_trivial_braid:
         _compatible_pairs[f'AbelianBackend-{_sym_name}'] = ('abelian', _sym)
@@ -352,7 +352,7 @@ for _sym_name, _sym in _symmetries.items():
 
 
 @pytest.fixture(params=list(_compatible_pairs.values()), ids=list(_compatible_pairs.keys()))
-def _compatible_backend_symm_pairs(request) -> tuple[str, ct.Symmetry]:
+def _compatible_backend_symm_pairs(request) -> tuple[str, lasy.Symmetry]:
     """Helper fixture that allows us to generate the *compatible* fixtures.
 
     Values are pairs (symmetry_backend: str, symmetry: Symmetry)
@@ -372,7 +372,7 @@ def compatible_backend(compatible_symmetry_backend, block_backend) -> backends.T
 
 
 @pytest.fixture
-def compatible_symmetry(_compatible_backend_symm_pairs) -> ct.Symmetry:
+def compatible_symmetry(_compatible_backend_symm_pairs) -> lasy.Symmetry:
     symmetry_backend, symmetry = _compatible_backend_symm_pairs
     return symmetry
 
@@ -380,7 +380,7 @@ def compatible_symmetry(_compatible_backend_symm_pairs) -> ct.Symmetry:
 @pytest.fixture
 def make_compatible_sectors(compatible_symmetry, np_random):
     # if the symmetry does not have enough sectors, we return fewer!
-    def make(num: int, sort: bool = False) -> ct.SectorArray:
+    def make(num: int, sort: bool = False) -> lasy.SectorArray:
         # returns SectorArray
         return random_symmetry_sectors(compatible_symmetry, num, sort, np_random=np_random)
 
@@ -391,7 +391,7 @@ def make_compatible_sectors(compatible_symmetry, np_random):
 def make_compatible_space(compatible_symmetry, np_random):
     def make(
         max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None, allow_basis_perm: bool = True
-    ) -> ct.ElementarySpace:
+    ) -> lasy.ElementarySpace:
         # returns ElementarySpace
         return random_ElementarySpace(
             compatible_symmetry, max_sectors, max_mult, is_dual, allow_basis_perm=allow_basis_perm, np_random=np_random
@@ -414,8 +414,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, np_random):
     """Tensor RNG."""
 
     def make(
-        codomain: list[ct.Space | str | None] | ct.TensorProduct | int = None,
-        domain: list[ct.Space | str | None] | ct.TensorProduct | int = None,
+        codomain: list[lasy.Space | str | None] | lasy.TensorProduct | int = None,
+        domain: list[lasy.Space | str | None] | lasy.TensorProduct | int = None,
         labels: list[str | None] = None,
         dtype: Dtype = None,
         device: str = None,

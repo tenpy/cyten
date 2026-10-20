@@ -2,7 +2,7 @@
 
 ## Status
 
-**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.AbelianBackend` (+ `valid_block_inds` / `_valid_block_inds`). Imported in `cyten/backends/abelian.py` from `_core`. `get_backend('abelian', …)` constructs the C++ backend.
+**Done / monkey-patched** on branch `convert_backends`. Exported as `lasyten._core.AbelianBackend` (+ `valid_block_inds` / `_valid_block_inds`). Imported in `lasyten/backends/abelian.py` from `_core`. `get_backend('abelian', …)` constructs the C++ backend.
 
 `AbelianBackendData`: [convert_AbelianBackendData.md](convert_AbelianBackendData.md).
 
@@ -11,9 +11,9 @@
 | Field | Value |
 | --- | --- |
 | original python name | `AbelianBackend` (+ `_valid_block_inds`) |
-| original python file | `cyten/backends/abelian.py` |
-| original python module | `cyten.backends` |
-| declaration | `include/cyten/backends/abelian.h` (extend) |
+| original python file | `lasyten/backends/abelian.py` |
+| original python module | `lasyten.backends` |
+| declaration | `include/lasyten/backends/abelian.h` (extend) |
 | definition | `src/backends/abelian.cpp` (extend) |
 | pybind11 binding | `pybind/backends/py_abelian.cpp` (extend) |
 | trampoline | no (no Python subclasses of AbelianBackend) |
@@ -27,7 +27,7 @@
 - Free helper `abelian_compose_worker` (anonymous namespace) used by `_compose_worker` and `partial_compose`.
 - Override `make_pipe` → `AbelianLegPipe`; override `save_hdf5` / `from_hdf5` (Python only saves `DataCls` — match that).
 - Tensor args stay interim `py::object`; callables → `py::function`.
-- Call `cyten.tools.misc` via `py::module_::import` for helpers (`make_grid`, `iter_common_*`, `list_to_dict_list`, `find_row_differences`, `rank_data`, `make_stride`, `inverse_permutation`).
+- Call `lasyten.tools.misc` via `py::module_::import` for helpers (`make_grid`, `iter_common_*`, `list_to_dict_list`, `find_row_differences`, `rank_data`, `make_stride`, `inverse_permutation`).
 - Stubs matching Python: `state_tensor_product`, `to_dense_block_trivial_sector` → `NotImplemented`.
 - `partial_trace` full-trace path: binding returns `(scalar, None, None)` (unwraps `Data` to a BlockBackend scalar).
 - Bindings return `AbelianBackendData` (not unwrapped Block) — Python already stores Data objects.
@@ -50,7 +50,7 @@
 - [x] declaration
 - [x] definitions + compile (native ports; no remaining `py_call_data` / `py_abelian` delegations)
 - [x] replace Python-delegated methods with native C++ ports
-- [x] bindings (`cyten._core.AbelianBackend`, `valid_block_inds`; factory wired)
+- [x] bindings (`lasyten._core.AbelianBackend`, `valid_block_inds`; factory wired)
 - [x] monkey-patch via `abelian.py`
 - [x] pytest
 

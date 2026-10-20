@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `Leg`
-- original python file: `cyten/symmetries/spaces.py`
-- original python module: `cyten.symmetries.spaces`
-- declaration in C++ header file: `include/cyten/symmetries/spaces.h`
+- original python file: `lasyten/symmetries/spaces.py`
+- original python module: `lasyten.symmetries.spaces`
+- declaration in C++ header file: `include/lasyten/symmetries/spaces.h`
 - definition in C++ file: `src/symmetries/spaces.cpp`
 - pybind11 binding: `pybind/symmetries/py_spaces.cpp`
 - trampoline: `PyLeg` in `pybind/symmetries/py_trampolines.hpp` (required — Python subclasses remain)
@@ -39,7 +39,7 @@ Keep original Python `Leg` (and all subclasses) until subclasses are converted. 
 - `ascii_arrow`: default throws; subclasses override (pipes / ElementarySpace).
 - Trampoline **required** (`LegPipe`, `ElementarySpace`, `AbelianLegPipe` still Python).
 - `enable_shared_from_this` + `py::smart_holder` like other Layer 2 bases.
-- Helper `inverse_permutation`: small C++ helper in `spaces.cpp` or `tools` (Python `cyten.tools.misc` not yet in C++).
+- Helper `inverse_permutation`: small C++ helper in `spaces.cpp` or `tools` (Python `lasyten.tools.misc` not yet in C++).
 
 ## Dependencies (already in C++)
 
@@ -58,7 +58,7 @@ Keep original Python `Leg` (and all subclasses) until subclasses are converted. 
 
 - [x] initial setup (clean tree, `Leg` in `list_python_names`, pytest `test_spaces.py` 867 passed; branch `convert_Leg` from `convert_trees`)
 - [x] planning (this file)
-- [x] generate the declaration draft (`gen_cpp_declaration` → `include/cyten/symmetries/spaces.h`)
+- [x] generate the declaration draft (`gen_cpp_declaration` → `include/lasyten/symmetries/spaces.h`)
 - [x] improve and fix the declaration draft (namespace, types, C++23 / pre-commit; protected perms + separate setters)
 - [x] generate the C++ definitions (`gen_cpp_definition`; add to `src/CMakeLists.txt`)
 - [x] improve and fix the definition drafts (CHECKME/FIXME; compile + ctest)

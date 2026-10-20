@@ -1,6 +1,6 @@
 models
 ======
-Headers in ``include/cyten/models/``.
+Headers in ``include/lasyten/models/``.
 
 .. toctree::
    :maxdepth: 1

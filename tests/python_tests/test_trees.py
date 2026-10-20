@@ -1,4 +1,4 @@
-"""A collection of tests for cyten.trees."""
+"""A collection of tests for lasyten.trees."""
 
 # Copyright (C) TeNPy Developers, Apache license
 from collections.abc import Callable
@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from cyten.backends import get_backend
-from cyten.block_backends import Block
-from cyten.block_backends.dtypes import Dtype
-from cyten.symmetries import (
+from lasyten.backends import get_backend
+from lasyten.block_backends import Block
+from lasyten.block_backends.dtypes import Dtype
+from lasyten.symmetries import (
     U1,
     ZN,
     ElementarySpace,
@@ -23,7 +23,7 @@ from cyten.symmetries import (
     assert_sectors_equal,
     trees,
 )
-from cyten.testing import random_symmetry_sectors
+from lasyten.testing import random_symmetry_sectors
 
 u1_symmetry = U1().as_Symmetry()
 z3_symmetry = ZN(N=3).as_Symmetry()

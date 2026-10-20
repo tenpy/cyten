@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `FusionTree`
-- original python file: `cyten/symmetries/trees.py`
-- original python module: `cyten.symmetries.trees`
-- declaration in C++ header file: `include/cyten/symmetries/trees.h`
+- original python file: `lasyten/symmetries/trees.py`
+- original python module: `lasyten.symmetries.trees`
+- declaration in C++ header file: `include/lasyten/symmetries/trees.h`
 - definition in C++ file: `src/symmetries/trees.cpp`
 - pybind11 binding: `pybind/symmetries/py_trees.cpp`
 - first line of docstring: A fusion tree, which represents the map from uncoupled to coupled sectors.

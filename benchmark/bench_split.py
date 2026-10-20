@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import cyten as ct
+import lasyten as lasy
 
 from .cases import CASES, case_compatible, make_rank4_tensor
 from .common import (
@@ -32,9 +32,9 @@ def run_split_legs_benchmark(
     seed: int = 0,
     numpy_ref: bool = False,
 ) -> list[BenchmarkRecord]:
-    """Time ``cyten.split_legs``; optionally also time dense reshape-split.
+    """Time ``lasyten.split_legs``; optionally also time dense reshape-split.
 
-    Combine is performed in setup (not timed) for both cyten and NumPy paths.
+    Combine is performed in setup (not timed) for both lasyten and NumPy paths.
     """
     if case not in CASES:
         raise ValueError(f'Unknown case {case!r}')
@@ -51,12 +51,12 @@ def run_split_legs_benchmark(
         dtype=ct_dtype,
         seed=seed,
     )
-    combined = ct.combine_legs(T, [0, 1], [2, 3])
+    combined = lasy.combine_legs(T, [0, 1], [2, 3])
 
-    def _cyten():
-        return ct.split_legs(combined)
+    def _lasyten():
+        return lasy.split_legs(combined)
 
-    timing = time_call(_cyten, warmup=warmup, repeats=repeats, device=device)
+    timing = time_call(_lasyten, warmup=warmup, repeats=repeats, device=device)
     records = [
         make_record(
             op='split_legs',
@@ -74,7 +74,7 @@ def run_split_legs_benchmark(
     ]
 
     if numpy_ref:
-        # Combined cyten tensor is only needed for the timed split above.
+        # Combined lasyten tensor is only needed for the timed split above.
         n_blocks = num_blocks_of(combined)
         del combined
 

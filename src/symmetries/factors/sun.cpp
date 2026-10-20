@@ -1,8 +1,8 @@
-#include <cyten/symmetries/factors/sun.h>
+#include <lasyten/symmetries/factors/sun.h>
 
-#include <cyten/block_backend/numpy.h>
-#include <cyten/config.h>
-#include <cyten/symmetries/fusion_symbol.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/config.h>
+#include <lasyten/symmetries/fusion_symbol.h>
 
 #include <hdf5_io/h5_ops.h>
 
@@ -13,9 +13,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <cyten/tools/hdf5.h>
 #include <filesystem>
 #include <format>
+#include <lasyten/tools/hdf5.h>
 #include <limits>
 #include <optional>
 #include <span>
@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -300,12 +300,12 @@ open_su_n_data_file(std::string const& full_path, char const* kind, int N, int64
         std::string msg = std::format(
           "SU(N) {} data file for N={}, hweight={} not found:\n"
           "    {}\n"
-          "Generate it with the clebsch_gordan_coefficients package, or tell cyten where your "
+          "Generate it with the clebsch_gordan_coefficients package, or tell lasyten where your "
           "files are:\n"
-          "    cyten.set_options(su_n_data_path='/path/to/dir')\n"
-          "    cyten.set_options(su_n_data_filename_base='my_base')\n"
-          "or set the environment variables CYTEN_SU_N_DATA_PATH / "
-          "CYTEN_SU_N_DATA_FILENAME_BASE, or add the keys to ~/.cytenconfig.yaml.\n"
+          "    lasyten.set_options(su_n_data_path='/path/to/dir')\n"
+          "    lasyten.set_options(su_n_data_filename_base='my_base')\n"
+          "or set the environment variables LASYTEN_SU_N_DATA_PATH / "
+          "LASYTEN_SU_N_DATA_FILENAME_BASE, or add the keys to ~/.lasytenconfig.yaml.\n"
           "The default location is the literal POSIX path "
           "'/home/<login-name>/.tenpy/su_n_symmetry_data' on all platforms.",
           kind,
@@ -330,7 +330,7 @@ open_su_n_data_file(std::string const& full_path, char const* kind, int N, int64
 }
 
 std::string
-load_string_child(cyten::hdf5::Loader& loader, std::string const& path)
+load_string_child(lasyten::hdf5::Loader& loader, std::string const& path)
 {
     hid_t id = loader.open(path);
     auto s = loader.load_string(id);
@@ -339,7 +339,7 @@ load_string_child(cyten::hdf5::Loader& loader, std::string const& path)
 }
 
 int64
-load_int64_child(cyten::hdf5::Loader& loader, std::string const& path)
+load_int64_child(lasyten::hdf5::Loader& loader, std::string const& path)
 {
     hid_t id = loader.open(path);
     auto v = loader.load_int64(id);
@@ -1036,7 +1036,9 @@ SUN::sanity_check_hdf5(HighFive::File const& file) const
 }
 
 void
-SUN::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
+SUN::save_hdf5(lasyten::hdf5::Saver& saver,
+               HighFive::Group& h5gr,
+               std::string const& subpath) const
 {
     SymmetryFactor::save_hdf5(saver, h5gr, subpath);
     // Persist paths so from_hdf5 can reopen.
@@ -1049,7 +1051,7 @@ SUN::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string con
 }
 
 SUN::Ptr
-SUN::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
+SUN::from_hdf5(lasyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
     int N = static_cast<int>(load_int64_child(loader, subpath + "N"));
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
@@ -1096,4 +1098,4 @@ SUN::from_config(int N,
       N, std::move(CGpath), std::move(Fpath), std::move(Rpath), std::move(descriptive_name));
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,14 +1,14 @@
-cyten.tools.misc
+lasyten.tools.misc
 ================
 
-Declared in ``cyten/tools/misc.py``. Only the pybind11 imports are listed here.
+Declared in ``lasyten/tools/misc.py``. Only the pybind11 imports are listed here.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
-.. autofunction:: cyten.tools.misc.is_iterable
+.. autofunction:: lasyten.tools.misc.is_iterable
 
-.. autofunction:: cyten.tools.misc.to_iterable
+.. autofunction:: lasyten.tools.misc.to_iterable
 
-.. autofunction:: cyten.tools.misc.to_valid_idx
+.. autofunction:: lasyten.tools.misc.to_valid_idx
 
-.. autofunction:: cyten.tools.misc.permutation_as_swaps
+.. autofunction:: lasyten.tools.misc.permutation_as_swaps

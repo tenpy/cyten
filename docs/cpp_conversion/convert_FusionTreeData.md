@@ -2,7 +2,7 @@
 
 ## Status
 
-**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.FusionTreeData`. Imported in `cyten/backends/fusion_tree_backend.py` from `_core` (with `FusionTreeBackend` and mapping helpers).
+**Done / monkey-patched** on branch `convert_backends`. Exported as `lasyten._core.FusionTreeData`. Imported in `lasyten/backends/fusion_tree_backend.py` from `_core` (with `FusionTreeBackend` and mapping helpers).
 
 Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md). Backend: [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md).
 
@@ -11,9 +11,9 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 | Field | Value |
 | --- | --- |
 | original python name | `FusionTreeData` |
-| original python file | `cyten/backends/fusion_tree_backend.py` |
-| original python module | `cyten.backends.fusion_tree_backend` |
-| declaration | `include/cyten/backends/fusion_tree_backend.h` |
+| original python file | `lasyten/backends/fusion_tree_backend.py` |
+| original python module | `lasyten.backends.fusion_tree_backend` |
+| declaration | `include/lasyten/backends/fusion_tree_backend.h` |
 | definition | `src/backends/fusion_tree_backend.cpp` |
 | pybind11 binding | `pybind/backends/py_fusion_tree_backend.cpp` |
 | trampoline | none (data class; no Python subclasses expected) |

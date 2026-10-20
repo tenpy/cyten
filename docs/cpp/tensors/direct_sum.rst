@@ -1,12 +1,12 @@
 direct_sum.h
 ============
 
-Declared in ``include/cyten/tensors/direct_sum.h``.
+Declared in ``include/lasyten/tensors/direct_sum.h``.
 
-cyten::DirectSum
+lasyten::DirectSum
 ----------------
 
-.. doxygenclass:: cyten::DirectSum
-   :project: cyten
+.. doxygenclass:: lasyten::DirectSum
+   :project: lasyten
    :members:
    :undoc-members:
