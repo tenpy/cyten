@@ -3,12 +3,12 @@
 #include <string>
 #include <string_view>
 
-namespace cyten {
+namespace lasyten {
 
 namespace detail {
 
 /// Marker produced by ``doxygen_xml_to_docstrings.py`` / ``doc_cpp_ref``.
-inline constexpr std::string_view kCppRefMarker = ".. cyten-cpp-ref::";
+inline constexpr std::string_view kCppRefMarker = ".. lasyten-cpp-ref::";
 
 [[nodiscard]] inline char const*
 leak_string(std::string s)
@@ -19,7 +19,7 @@ leak_string(std::string s)
 [[nodiscard]] inline std::string
 format_cpp_ref_marker(char const* cpp_symbol, char const* role)
 {
-    // Inventory keys are bare names (cyten::compose), not cyten::compose().
+    // Inventory keys are bare names (lasyten::compose), not lasyten::compose().
     std::string_view sym(cpp_symbol);
     auto paren = sym.find('(');
     if (paren != std::string_view::npos) {
@@ -29,7 +29,7 @@ format_cpp_ref_marker(char const* cpp_symbol, char const* role)
         sym.remove_suffix(1);
     }
 
-    std::string marker = ".. cyten-cpp-ref:: ";
+    std::string marker = ".. lasyten-cpp-ref:: ";
     marker.append(sym);
     marker += '\n';
     char const* r = (role != nullptr && role[0] != '\0') ? role : "func";
@@ -45,7 +45,7 @@ format_cpp_ref_marker(char const* cpp_symbol, char const* role)
 
 /// Concatenate a header-extracted docstring with a Python-only appendix.
 ///
-/// If ``shared`` already ends with a ``.. cyten-cpp-ref::`` marker (as produced
+/// If ``shared`` already ends with a ``.. lasyten-cpp-ref::`` marker (as produced
 /// by ``doxygen_xml_to_docstrings.py``), ``python_extra`` is inserted *before*
 /// that marker so the Sphinx ``[C++]`` badge metadata stays last.
 ///
@@ -94,13 +94,13 @@ doc_plus(char const* shared, char const* python_extra)
     return detail::leak_string(std::move(combined));
 }
 
-/// Append (or replace) a ``.. cyten-cpp-ref::`` marker for Sphinx ``[C++]`` badges.
+/// Append (or replace) a ``.. lasyten-cpp-ref::`` marker for Sphinx ``[C++]`` badges.
 ///
 /// Use for wrappers / lambdas that are not 1:1 ``DOC(...)`` bindings, or to
 /// override the auto-generated marker from ``doxygen_xml_to_docstrings.py``.
 ///
 /// @param doc Base docstring (often from ``DOC(...)`` or a short ``R"pydoc"``).
-/// @param cpp_symbol Qualified C++ name (``"cyten::compose"``). A trailing
+/// @param cpp_symbol Qualified C++ name (``"lasyten::compose"``). A trailing
 ///     ``()`` or parameter list is stripped for the Sphinx inventory key.
 /// @param role Sphinx C++ domain role without colons (default ``"func"``;
 ///     also ``"class"``, ``"enum"``, …).
@@ -144,4 +144,4 @@ doc_cpp_ref(char const* doc, char const* cpp_symbol, char const* role = "func")
     return detail::leak_string(std::move(combined));
 }
 
-} // namespace cyten
+} // namespace lasyten

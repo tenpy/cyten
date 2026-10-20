@@ -1,21 +1,21 @@
 #include <algorithm>
-#include <cyten/config.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/config.h>
+#include <lasyten/tools/warn.h>
 
 #include <cctype>
 #include <cstdlib>
-#include <cyten/tools/hdf5.h>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
 #include <ranges>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -132,11 +132,11 @@ login_name()
 std::string
 resolve_user_config_path()
 {
-    if (const char* override = std::getenv("CYTEN_CONFIG_FILE")) {
+    if (const char* override = std::getenv("LASYTEN_CONFIG_FILE")) {
         const fs::path p(expand_user(override));
         if (!fs::exists(p)) {
             throw py::value_error(
-              std::string("User config file read from CYTEN_CONFIG_FILE does not exist: ") +
+              std::string("User config file read from LASYTEN_CONFIG_FILE does not exist: ") +
               p.string());
         }
         return p.string();
@@ -144,7 +144,7 @@ resolve_user_config_path()
     const std::string home = home_directory();
     if (home.empty())
         return {};
-    const fs::path p = fs::path(home) / ".cytenconfig.yaml";
+    const fs::path p = fs::path(home) / ".lasytenconfig.yaml";
     if (!fs::exists(p))
         return {};
     return p.string();
@@ -154,14 +154,14 @@ resolve_user_config_path()
 std::string
 resolve_local_config_path()
 {
-    const fs::path p = fs::current_path() / ".cytenconfig.yaml";
+    const fs::path p = fs::current_path() / ".lasytenconfig.yaml";
     if (!fs::exists(p))
         return {};
     return p.string();
 }
 
 void
-try_update_from_file(CytenConfig& config, const std::string& path)
+try_update_from_file(LasytenConfig& config, const std::string& path)
 {
     if (path.empty())
         return;
@@ -202,10 +202,10 @@ default_su_n_data_path()
     return "/home/" + login_name() + "/.tenpy/su_n_symmetry_data";
 }
 
-CytenConfig _global_config;
+LasytenConfig _global_config;
 
 const std::vector<std::string>&
-CytenConfig::all_option_keys()
+LasytenConfig::all_option_keys()
 {
     static const std::vector<std::string> keys = {
         "print_linewidth",
@@ -225,13 +225,13 @@ CytenConfig::all_option_keys()
 }
 
 std::string
-CytenConfig::env_var_name(const std::string& key)
+LasytenConfig::env_var_name(const std::string& key)
 {
-    return "CYTEN_" + to_upper(key);
+    return "LASYTEN_" + to_upper(key);
 }
 
 void
-CytenConfig::set_option(const std::string& key, int64 value)
+LasytenConfig::set_option(const std::string& key, int64 value)
 {
     if (key == "print_linewidth") {
         check_min(value, 10, key);
@@ -255,7 +255,7 @@ CytenConfig::set_option(const std::string& key, int64 value)
 }
 
 void
-CytenConfig::set_option(const std::string& key, float64 value)
+LasytenConfig::set_option(const std::string& key, float64 value)
 {
     if (key == "fusion_tree_eps") {
         check_min(value, 0.0, key);
@@ -271,7 +271,7 @@ CytenConfig::set_option(const std::string& key, float64 value)
 }
 
 void
-CytenConfig::set_option(const std::string& key, bool value)
+LasytenConfig::set_option(const std::string& key, bool value)
 {
     if (key == "check_fusion") {
         check_fusion = value;
@@ -285,7 +285,7 @@ CytenConfig::set_option(const std::string& key, bool value)
 }
 
 void
-CytenConfig::set_option(const std::string& key, const std::string& value)
+LasytenConfig::set_option(const std::string& key, const std::string& value)
 {
     if (key == "print_linewidth" || key == "print_indent" || key == "maxlines_spaces" ||
         key == "maxlines_tensors") {
@@ -320,7 +320,7 @@ CytenConfig::set_option(const std::string& key, const std::string& value)
 }
 
 void
-CytenConfig::update(py::dict options)
+LasytenConfig::update(py::dict options)
 {
     for (auto item : options) {
         std::string key = py::cast<std::string>(item.first);
@@ -341,13 +341,13 @@ CytenConfig::update(py::dict options)
 }
 
 void
-CytenConfig::update(const CytenConfig& other)
+LasytenConfig::update(const LasytenConfig& other)
 {
     *this = other;
 }
 
 void
-CytenConfig::update_from_env()
+LasytenConfig::update_from_env()
 {
     for (const auto& key : all_option_keys()) {
         const char* val = std::getenv(env_var_name(key).c_str());
@@ -368,7 +368,7 @@ CytenConfig::update_from_env()
 }
 
 void
-CytenConfig::update_from_mapping(py::dict options)
+LasytenConfig::update_from_mapping(py::dict options)
 {
     update(std::move(options));
 }
@@ -397,10 +397,10 @@ strip_quotes(std::string s)
     return s;
 }
 
-/// Minimal flat ``key: value`` parser for ``.cytenconfig.yaml`` files.
+/// Minimal flat ``key: value`` parser for ``.lasytenconfig.yaml`` files.
 /// Nested YAML / multi-line values are not supported; use pybind ``update_from_yaml``.
 void
-apply_flat_yaml_text(CytenConfig& config, std::string const& text)
+apply_flat_yaml_text(LasytenConfig& config, std::string const& text)
 {
     std::istringstream in(text);
     std::string line;
@@ -429,7 +429,7 @@ apply_flat_yaml_text(CytenConfig& config, std::string const& text)
 } // namespace
 
 void
-CytenConfig::update_from_file(const std::string& filename)
+LasytenConfig::update_from_file(const std::string& filename)
 {
     // Chosen approach: C++ config file loading uses a minimal flat key:value parser so
     // ``src/`` does not import PyYAML. Full YAML (anchors, nested maps, …) is loaded only
@@ -447,7 +447,7 @@ CytenConfig::update_from_file(const std::string& filename)
 }
 
 py::object
-CytenConfig::get_option(const std::string& key) const
+LasytenConfig::get_option(const std::string& key) const
 {
     if (key == "print_linewidth")
         return py::cast(print_linewidth);
@@ -477,10 +477,10 @@ CytenConfig::get_option(const std::string& key) const
 }
 
 std::string
-CytenConfig::str() const
+LasytenConfig::str() const
 {
     std::ostringstream ss;
-    ss << "CytenConfig(";
+    ss << "LasytenConfig(";
     bool first = true;
     for (const auto& key : all_option_keys()) {
         if (!first)
@@ -498,9 +498,9 @@ CytenConfig::str() const
 }
 
 void
-CytenConfig::save_hdf5(cyten::hdf5::Saver& saver,
-                       HighFive::Group& /*h5gr*/,
-                       const std::string& subpath) const
+LasytenConfig::save_hdf5(lasyten::hdf5::Saver& saver,
+                         HighFive::Group& /*h5gr*/,
+                         const std::string& subpath) const
 {
     saver.save_int64(subpath + "print_linewidth", print_linewidth);
     saver.save_int64(subpath + "print_indent", print_indent);
@@ -516,12 +516,12 @@ CytenConfig::save_hdf5(cyten::hdf5::Saver& saver,
     saver.save_float64(subpath + "coupling_cutoff", coupling_cutoff);
 }
 
-CytenConfig
-CytenConfig::from_hdf5(cyten::hdf5::Loader& loader,
-                       HighFive::Group& h5gr,
-                       std::string const& subpath)
+LasytenConfig
+LasytenConfig::from_hdf5(lasyten::hdf5::Loader& loader,
+                         HighFive::Group& h5gr,
+                         std::string const& subpath)
 {
-    CytenConfig obj;
+    LasytenConfig obj;
     auto load_opt = [&](std::string const& key, auto&& apply) {
         if (!hdf5_io::h5_contains(loader.root(), subpath + key))
             return;
@@ -549,7 +549,7 @@ CytenConfig::from_hdf5(cyten::hdf5::Loader& loader,
     return obj;
 }
 
-const CytenConfig&
+const LasytenConfig&
 get_config()
 {
     if (!g_config_initialized)
@@ -610,7 +610,7 @@ get_option(const std::string& key)
 void
 restore_defaults(bool use_user_file, bool use_local_file, bool use_env_vars)
 {
-    _global_config = CytenConfig{}; // default values
+    _global_config = LasytenConfig{}; // default values
 
     // Precedence (later wins): defaults -> user file -> local file -> env
     if (use_user_file)
@@ -623,4 +623,4 @@ restore_defaults(bool use_user_file, bool use_local_file, bool use_env_vars)
     g_config_initialized = true;
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,9 +1,9 @@
-#include <cyten/symmetries/factors/toric_code_category.h>
+#include <lasyten/symmetries/factors/toric_code_category.h>
 
-#include <cyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5.h>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 Sector const ToricCodeCategory::vacuum{ 0, 0 };
 Sector const ToricCodeCategory::electric_charge{ 0, 1 };
@@ -34,7 +34,7 @@ ToricCodeCategory::_is_equivalent_factor(SymmetryFactor const& other) const
 }
 
 ToricCodeCategory::Ptr
-ToricCodeCategory::from_hdf5(cyten::hdf5::Loader& loader,
+ToricCodeCategory::from_hdf5(lasyten::hdf5::Loader& loader,
                              HighFive::Group& h5gr,
                              std::string const& /*subpath*/)
 {
@@ -44,4 +44,4 @@ ToricCodeCategory::from_hdf5(cyten::hdf5::Loader& loader,
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

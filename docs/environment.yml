@@ -1,4 +1,4 @@
-name: cyten-docs
+name: lasyten-docs
 channels:
   - conda-forge
 dependencies:

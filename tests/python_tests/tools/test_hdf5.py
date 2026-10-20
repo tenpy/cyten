@@ -7,8 +7,8 @@ import io_test
 import numpy as np
 import pytest
 
-import cyten
-from cyten.tools import hdf5_io
+import lasyten
+from lasyten.tools import hdf5_io
 
 h5py = pytest.importorskip('h5py')
 
@@ -43,7 +43,7 @@ def export_to_datadir():
 def test_hdf5_block_and_scalar_io(block_backend, tmp_path):
     """Roundtrip C++ NumpyBlockBackend Block and Scalar via HDF5."""
 
-    be = cyten.get_backend('no_symmetry', block_backend).block_backend
+    be = lasyten.get_backend('no_symmetry', block_backend).block_backend
     block = be.as_block(np.arange(6, dtype=np.float64).reshape(2, 3))
     scalar = be.as_scalar(3.5)
 
@@ -100,7 +100,7 @@ def _with_descriptive_name(obj, name):
 
 
 def _symmetry_hdf5_cases():
-    S = cyten.symmetries
+    S = lasyten.symmetries
     cases = [
         ('NoSymmetry', S.NoSymmetry(), {}),
         ('NoSymmetry named', _with_descriptive_name(S.NoSymmetry(), 'trivial'), {'descriptive_name': 'trivial'}),
@@ -172,7 +172,7 @@ def test_hdf5_symmetry_roundtrip(obj, attrs, tmp_path):
     assert loaded.is_equivalent_to(obj)
     for name, expected in attrs.items():
         assert getattr(loaded, name) == expected
-    if isinstance(obj, cyten.symmetries.Symmetry):
+    if isinstance(obj, lasyten.symmetries.Symmetry):
         assert loaded.num_factors == obj.num_factors
         for f_loaded, f_orig in zip(loaded.factors, obj.factors, strict=True):
             assert type(f_loaded) is type(f_orig)
@@ -193,7 +193,7 @@ def test_hdf5_symmetry_roundtrip(obj, attrs, tmp_path):
 
 @pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
 def test_hdf5_symmetry_extra_params_are_distinguished(tmp_path):
-    S = cyten.symmetries
+    S = lasyten.symmetries
     pairs = [
         (S.ZN(3), S.ZN(4)),
         (S.ZN(3, 'a'), S.ZN(3, 'b')),

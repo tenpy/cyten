@@ -1,40 +1,40 @@
 krylov_based.h
 ==============
 
-Declared in ``include/cyten/tensors/krylov_based.h``.
+Declared in ``include/lasyten/tensors/krylov_based.h``.
 
-.. doxygenclass:: cyten::KrylovBased
-   :project: cyten
+.. doxygenclass:: lasyten::KrylovBased
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::GMRES
-   :project: cyten
+.. doxygenclass:: lasyten::GMRES
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::Arnoldi
-   :project: cyten
+.. doxygenclass:: lasyten::Arnoldi
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::ArnoldiEvolution
-   :project: cyten
+.. doxygenclass:: lasyten::ArnoldiEvolution
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::LanczosGroundState
-   :project: cyten
+.. doxygenclass:: lasyten::LanczosGroundState
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::LanczosEvolution
-   :project: cyten
+.. doxygenclass:: lasyten::LanczosEvolution
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::lanczos
-   :project: cyten
+.. doxygenfunction:: lasyten::lanczos
+   :project: lasyten

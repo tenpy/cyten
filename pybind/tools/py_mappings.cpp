@@ -1,14 +1,14 @@
-#include <cyten/tools/mappings.h>
+#include <lasyten/tools/mappings.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "docstrings/tools/mappings.h"
 
 #include <complex>
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -28,21 +28,21 @@ bind_sparse_mapping(py::module_& m, char const* name, char const* doc)
       .def_static("from_identity",
                   &Mapping::from_identity,
                   py::arg("keys"),
-                  doc_cpp_ref(R"pydoc(from_identity)pydoc", "cyten::Mapping::from_identity()"))
+                  doc_cpp_ref(R"pydoc(from_identity)pydoc", "lasyten::Mapping::from_identity()"))
       .def("pre_compose",
            &Mapping::pre_compose,
            py::arg("other"),
-           doc_cpp_ref(R"pydoc(pre_compose)pydoc", "cyten::Mapping::pre_compose()"))
+           doc_cpp_ref(R"pydoc(pre_compose)pydoc", "lasyten::Mapping::pre_compose()"))
       .def("nonzero_rows",
            &Mapping::nonzero_rows,
-           doc_cpp_ref(R"pydoc(nonzero_rows)pydoc", "cyten::Mapping::nonzero_rows()"))
+           doc_cpp_ref(R"pydoc(nonzero_rows)pydoc", "lasyten::Mapping::nonzero_rows()"))
       .def("nonzero_cols",
            &Mapping::nonzero_cols,
-           doc_cpp_ref(R"pydoc(nonzero_cols)pydoc", "cyten::Mapping::nonzero_cols()"))
+           doc_cpp_ref(R"pydoc(nonzero_cols)pydoc", "lasyten::Mapping::nonzero_cols()"))
       .def("prune",
            &Mapping::prune,
            py::arg("tol"),
-           doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::Mapping::prune()"))
+           doc_cpp_ref(R"pydoc(prune)pydoc", "lasyten::Mapping::prune()"))
       .def("__len__", &Mapping::size)
       .def(
         "__contains__",
@@ -97,7 +97,7 @@ bind_identity_mapping(py::module_& m, char const* name)
     using KT = typename IdMapping::Key;
 
     py::class_<IdMapping> cls(m, name);
-    cls.doc() = doc_cpp_ref(R"pydoc(IdMapping)pydoc", "cyten::IdMapping");
+    cls.doc() = doc_cpp_ref(R"pydoc(IdMapping)pydoc", "lasyten::IdMapping");
 
     cls.def(py::init<>())
       .def(py::init<std::vector<KT> const&>(), py::arg("keys"))
@@ -105,13 +105,13 @@ bind_identity_mapping(py::module_& m, char const* name)
       .def("pre_compose",
            &IdMapping::pre_compose,
            py::arg("other"),
-           doc_cpp_ref(R"pydoc(pre_compose)pydoc", "cyten::IdMapping::pre_compose()"))
+           doc_cpp_ref(R"pydoc(pre_compose)pydoc", "lasyten::IdMapping::pre_compose()"))
       .def("nonzero_rows", &IdMapping::nonzero_rows)
       .def("nonzero_cols", &IdMapping::nonzero_cols)
       .def("prune",
            &IdMapping::prune,
            py::arg("tol"),
-           doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::IdMapping::prune()"));
+           doc_cpp_ref(R"pydoc(prune)pydoc", "lasyten::IdMapping::prune()"));
 }
 
 } // namespace
@@ -122,15 +122,15 @@ bind_mappings(py::module_& m)
     bind_sparse_mapping<SparseMappingFusionTree>(
       m,
       "SparseMappingFusionTree",
-      doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::IdMapping::prune()"));
+      doc_cpp_ref(R"pydoc(prune)pydoc", "lasyten::IdMapping::prune()"));
 
     bind_sparse_mapping<SparseMappingFusionTreePair>(
       m,
       "SparseMappingFusionTreePair",
-      doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::IdMapping::prune()"));
+      doc_cpp_ref(R"pydoc(prune)pydoc", "lasyten::IdMapping::prune()"));
 
     bind_identity_mapping<IdentityMappingFusionTree>(m, "IdentityMappingFusionTree");
     bind_identity_mapping<IdentityMappingFusionTreePair>(m, "IdentityMappingFusionTreePair");
 }
 
-} // namespace cyten
+} // namespace lasyten

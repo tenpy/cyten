@@ -1,64 +1,65 @@
-From TeNPy models to Cyten
+From TeNPy models to LASyTen
 ==========================
 
 :doc:`from_np_conserved` covers the linear algebra: how to replace
-:external+tenpy_v1:py:mod:`tenpy.linalg.np_conserved` with Cyten tensors. This page is
+:external+tenpy_v1:py:mod:`tenpy.linalg.np_conserved` with LASyTen tensors. This page is
 the **high-level** counterpart — sites, few-site operators, fermions, and
 the planar diagrams that replace hand-written ``tensordot`` chains in
 algorithms such as DMRG's effective Hamiltonian.
 
-TeNPy v2 is being rewritten against these Cyten objects. The notes below are
-the Cyten side of that conversion.
+TeNPy v2 is being rewritten against these LASyTen objects. The notes below are
+the LASyTen side of that conversion.
 
-If you are new to Cyten, start with :doc:`first_steps`. The scripts under
+If you are new to LASyTen, start with :doc:`first_steps`. The scripts under
 ``docs/intro/examples/`` are compact versions of the examples on this page.
+Code snippets below assume ``import lasyten as lasy``.
 
 
 Sites still exist, operators do not all survive
 -----------------------------------------------
 
-A :class:`~cyten.models.Site` is still the local Hilbert space plus a
+A :class:`~lasyten.models.Site` is still the local Hilbert space plus a
 dictionary of **symmetric** on-site operators
-(:attr:`~cyten.models.Site.onsite_operators`). The usual constructors live in
-:mod:`cyten.models` (:class:`~cyten.models.SpinSite`,
-:class:`~cyten.models.SpinlessFermionSite`,
-:class:`~cyten.models.SpinHalfFermionSite`, …).
+(:attr:`~lasyten.models.Site.onsite_operators`). The usual constructors live in
+:mod:`lasyten.models` (:class:`~lasyten.models.SpinSite`,
+:class:`~lasyten.models.SpinlessFermionSite`,
+:class:`~lasyten.models.SpinHalfFermionSite`, …).
 
 The change that affects model code:
 
 - Operators that conserve the symmetry (``Sz``, ``N``, ``Id``, density-density
-  pieces, …) stay on the site, as :class:`~cyten.tensors.SymmetricTensor`\s.
+  pieces, …) stay on the site, as :class:`~lasyten.tensors.SymmetricTensor`\s.
 - Operators that *change* the charge — TeNPy's ``Sp`` / ``Sm`` at conserved
   :math:`S^z`, and especially ``C`` / ``Cd`` — are **not** on-site operators.
-  They cannot be :class:`~cyten.tensors.SymmetricTensor`\s. In TeNPy they
-  were arrays with a non-zero ``qtotal`` and a ``need_JW`` flag. In Cyten a
-  lone charged map is a :class:`~cyten.tensors.ChargedTensor`; a *product* of
-  them that is overall symmetric is a :class:`~cyten.models.Coupling`.
+  They cannot be :class:`~lasyten.tensors.SymmetricTensor`\s. In TeNPy they
+  were arrays with a non-zero ``qtotal`` and a ``need_JW`` flag. In LASyTen a
+  lone charged map is a :class:`~lasyten.tensors.ChargedTensor`; a *product* of
+  them that is overall symmetric is a :class:`~lasyten.models.Coupling`.
 
 .. list-table::
    :header-rows: 1
    :widths: 45 55
 
    * - TeNPy v1
-     - Cyten
+     - LASyTen
    * - :external+tenpy_v1:py:class:`~tenpy.networks.site.SpinHalfSite`
-     - :class:`~cyten.models.SpinSite` ``(S=0.5, ...)``
+     - :class:`~lasyten.models.SpinSite` ``(S=0.5, ...)``
    * - :external+tenpy_v1:py:class:`~tenpy.networks.site.FermionSite`
-     - :class:`~cyten.models.SpinlessFermionSite`
+     - :class:`~lasyten.models.SpinlessFermionSite`
    * - ``site.get_op('Sz')`` / ``site.Sz``
      - ``site.onsite_operators['Sz']`` / ``site.get_op('Sz')``
    * - ``site.get_op('Cd')`` (charged, ``need_JW=True``)
-     - not an on-site operator; use a :class:`~cyten.models.Coupling`
+     - not an on-site operator; use a :class:`~lasyten.models.Coupling`
    * - ``site.op_needs_JW('Cd')``
      - no analogue (see :ref:`no_jw_on_mps`)
    * - :external+tenpy_v1:py:meth:`~tenpy.models.model.CouplingModel.add_coupling`
-     - build a :class:`~cyten.models.Coupling`, then place it on the lattice
+     - build a :class:`~lasyten.models.Coupling`, then place it on the lattice
 
 
 Couplings are mini-MPOs
 -----------------------
 
-A :class:`~cyten.models.Coupling` is a few-site operator stored as **one
+A :class:`~lasyten.models.Coupling` is a few-site operator stored as **one
 tensor per site**, i.e. a short MPO. Graphically the operator is the usual
 multi-site map
 
@@ -72,7 +73,7 @@ multi-site map
     |        │    │    │    │
     |        p0   p1   ..   pN
 
-and the factorization that Cyten actually stores is
+and the factorization that LASyTen actually stores is
 
 ::
 
@@ -84,9 +85,9 @@ and the factorization that Cyten actually stores is
     |         │           │                 │
     |         p0          p1                pN
 
-Each ``factorization[i]`` is a :class:`~cyten.tensors.SymmetricTensor` with
+Each ``factorization[i]`` is a :class:`~lasyten.tensors.SymmetricTensor` with
 labels ``['wL', 'p', 'wR', 'p*']``. The physical pair ``p, p*`` is the
-:attr:`~cyten.models.Site.leg` of ``sites[i]``. Contracting the virtual bonds
+:attr:`~lasyten.models.Site.leg` of ``sites[i]``. Contracting the virtual bonds
 ``wR`` of site :math:`i` with ``wL`` of site :math:`i+1` recovers ``h``.
 
 Those virtual legs are the high-level replacement for TeNPy's ``qtotal``:
@@ -97,25 +98,25 @@ charge-neutral.
 
 Useful methods:
 
-:meth:`~cyten.models.Coupling.to_tensor`
+:meth:`~lasyten.models.Coupling.to_tensor`
     Contract the virtual bonds. Returns a
-    :class:`~cyten.tensors.SymmetricTensor` with labels ``p0, p1, …``
+    :class:`~lasyten.tensors.SymmetricTensor` with labels ``p0, p1, …``
     (codomain) and ``p0*, p1*, …`` (domain).
-:meth:`~cyten.models.Coupling.from_tensor`
-    Split a multi-site :class:`~cyten.tensors.SymmetricTensor` with
-    :func:`~cyten.tensors.horizontal_factorization`.
-:meth:`~cyten.models.Coupling.from_dense_block`
+:meth:`~lasyten.models.Coupling.from_tensor`
+    Split a multi-site :class:`~lasyten.tensors.SymmetricTensor` with
+    :func:`~lasyten.tensors.horizontal_factorization`.
+:meth:`~lasyten.models.Coupling.from_dense_block`
     Same, from a numpy (or backend) block whose axes are
     ``p0, p1, …, p1*, p0*``.
-:meth:`~cyten.models.Coupling.stretch_with_identities`
+:meth:`~lasyten.models.Coupling.stretch_with_identities`
     Place the factors on a longer chain, filling every site in between with
-    :meth:`~cyten.models.Site.identity_tensor`. That is how a two-site
+    :meth:`~lasyten.models.Site.identity_tensor`. That is how a two-site
     :math:`c^\dagger_i c_j` becomes an operator on all sites
     :math:`i, i+1, \ldots, j`.
 
-Factories such as :func:`~cyten.models.heisenberg_coupling`,
-:func:`~cyten.models.hopping`, and
-:func:`~cyten.models.chiral_3spin_coupling` build the factorization for you.
+Factories such as :func:`~lasyten.models.heisenberg_coupling`,
+:func:`~lasyten.models.hopping`, and
+:func:`~lasyten.models.chiral_3spin_coupling` build the factorization for you.
 
 
 Examples
@@ -128,9 +129,9 @@ The two-site coupling :math:`h_{ij} = J\, \vec{S}_i \cdot \vec{S}_j` is
 
 .. code-block:: python
 
-    site0 = ct.models.SpinSite(S=0.5, conserve='Sz')
-    site1 = ct.models.SpinSite(S=0.5, conserve='Sz')
-    heisenberg = ct.models.heisenberg_coupling([site0, site1], J=1)
+    site0 = lasy.models.SpinSite(S=0.5, conserve='Sz')
+    site1 = lasy.models.SpinSite(S=0.5, conserve='Sz')
+    heisenberg = lasy.models.heisenberg_coupling([site0, site1], J=1)
     H = heisenberg.to_tensor()          # four-leg map  p⊗p → p⊗p
 
 With conserved :math:`S^z`, the ``Sz Sz`` piece is charge-neutral while
@@ -150,13 +151,13 @@ Fermion hopping in a Hamiltonian is the Hermitian combination
 
 .. code-block:: python
 
-    ferm = ct.models.SpinlessFermionSite(num_species=1, conserve='N')
-    hop = ct.models.hopping([ferm, ferm], t=1)
+    ferm = lasy.models.SpinlessFermionSite(num_species=1, conserve='N')
+    hop = lasy.models.hopping([ferm, ferm], t=1)
 
 A correlation function :math:`c^\dagger_i c_j` is the same geometry **without**
 the hermitian conjugate: one creation on the left, one annihilation on the
 right, connected by a virtual bond that carries one fermion (odd
-:class:`~cyten.symmetries.FermionParity`, and :math:`N = 1` if number is
+:class:`~lasyten.symmetries.FermionParity`, and :math:`N = 1` if number is
 conserved). ``C`` and ``Cd`` are not on-site operators, so the coupling is
 built from the dense two-site block (axes ``p0, p1, p1*, p0*``):
 
@@ -165,7 +166,7 @@ built from the dense two-site block (axes ``p0, p1, p1*, p0*``):
     Cd = ferm.get_creator_numpy(species=0, include_JW=True)
     C = ferm.get_annihilator_numpy(species=0, include_JW=True)
     h = (Cd @ ferm.JW)[:, None, None, :] * C[None, :, :, None]
-    cdag_c = ct.Coupling.from_dense_block(
+    cdag_c = lasy.Coupling.from_dense_block(
         h, [ferm, ferm], name='Cd C', understood_braiding=True
     )
 
@@ -187,7 +188,7 @@ three-site coupling, TeNPy's ``add_multi_coupling`` case:
 
 .. code-block:: python
 
-    chiral = ct.models.chiral_3spin_coupling([site0, site0, site0], chi=1)
+    chiral = lasy.models.chiral_3spin_coupling([site0, site0, site0], chi=1)
     # chiral.num_sites == 3, two virtual bonds in the mini-MPO
 
 Order of ``sites`` is the operator order. The result is Hermitian and
@@ -218,10 +219,10 @@ algorithm that inserts those operators — building an MPO,
 physical legs of the sites to the left (or in between). Sites carry
 ``need_JW_string``; ``add_coupling`` defaults to ``op_string='JW'``.
 
-Cyten does **not** do that. Fermions are a symmetry with a non-trivial
-braid: :class:`~cyten.symmetries.FermionParity` (always present on
-:class:`~cyten.models.SpinlessFermionSite` /
-:class:`~cyten.models.SpinHalfFermionSite`; ``conserve='None'`` is invalid).
+LASyTen does **not** do that. Fermions are a symmetry with a non-trivial
+braid: :class:`~lasyten.symmetries.FermionParity` (always present on
+:class:`~lasyten.models.SpinlessFermionSite` /
+:class:`~lasyten.models.SpinHalfFermionSite`; ``conserve='None'`` is invalid).
 The swap of two odd-parity legs is :math:`-1`. The MPS is an ordinary
 tensor network whose physical legs transform under that symmetry. There is
 no ``JW`` operator on the MPS, no ``need_JW``, and no
@@ -238,9 +239,9 @@ therefore has to cross their physical legs.
 The identity that fills a gap
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:meth:`~cyten.models.Coupling.stretch_with_identities` places ``Cd`` and
+:meth:`~lasyten.models.Coupling.stretch_with_identities` places ``Cd`` and
 ``C`` on chosen sites and fills every site in between with
-:meth:`~cyten.models.Site.identity_tensor`:
+:meth:`~lasyten.models.Site.identity_tensor`:
 
 .. code-block:: python
 
@@ -293,7 +294,7 @@ of every site between :math:`i` and :math:`j`::
 
     ["Cd JW", "JW", "C"]     # i < j = i+2, TeNPy on-site names
 
-Cyten inserts nothing on the MPS. The ``JW`` is the crossing *inside* the
+LASyTen inserts nothing on the MPS. The ``JW`` is the crossing *inside* the
 coupling's virtual line.
 
 What this means for measurements
@@ -313,13 +314,13 @@ What this means for measurements
 - Fermionic sites require a backend that can braid (the fusion-tree
   backend). The abelian backend that replaced ``np_conserved`` is not
   enough, which is why
-  :class:`~cyten.models.SpinlessFermionSite` refuses
+  :class:`~lasyten.models.SpinlessFermionSite` refuses
   ``NoSymmetryBackend`` / ``AbelianBackend``.
 
 .. todo ::
   :pull:`225` is about adressing this for the AbelianBackend.
 
-The same crossing rule is why :meth:`~cyten.models.Coupling.permute` of a
+The same crossing rule is why :meth:`~lasyten.models.Coupling.permute` of a
 fermionic coupling picks up a minus sign when two odd factors are swapped,
 without anyone multiplying by ``JW``.
 
@@ -328,20 +329,20 @@ Planar diagrams
 ---------------
 
 TeNPy v1 algorithms are written as a sequence of ``npc.tensordot`` and
-``itranspose``. That is fine when legs commute. In Cyten a
-:func:`~cyten.tensors.permute_legs` that makes two fermion (or anyon) lines
+``itranspose``. That is fine when legs commute. In LASyTen a
+:func:`~lasyten.tensors.permute_legs` that makes two fermion (or anyon) lines
 cross is a *braid*, and you must specify its chirality. The networks that
 show up in MPS algorithms — applying a two-site gate, contracting an MPO
 environment, the DMRG effective Hamiltonian — are drawn **without**
 crossings. Those contractions should be written as a
-:class:`~cyten.tensors.PlanarDiagram`, not as a chain of
-:func:`~cyten.tensors.tdot` / :func:`~cyten.tensors.compose` plus
+:class:`~lasyten.tensors.PlanarDiagram`, not as a chain of
+:func:`~lasyten.tensors.tdot` / :func:`~lasyten.tensors.compose` plus
 ``bend_right``.
 
 A planar diagram names every tensor, lists every contraction and every open
 leg by **label**, and forgets the (co)domain split. Cyclic permutations of
 a tensor's labels are allowed (they are planar). The contraction is
-connected and braid-free; Cyten checks that at construction. Evaluating
+connected and braid-free; LASyTen checks that at construction. Evaluating
 the diagram on concrete tensors never introduces a swap gate.
 
 Syntax
@@ -349,7 +350,7 @@ Syntax
 
 .. code-block:: python
 
-    diagram = ct.PlanarDiagram(
+    diagram = lasy.PlanarDiagram(
         tensors='theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]',
         definition=(
             'theta:p0 @ U:p0*, theta:p1 @ U:p1*, '
@@ -372,14 +373,14 @@ Syntax
   expensive: build it **once**, as a class or module attribute, and hard-code
   ``order`` once you know it.
 
-The result of :meth:`~cyten.tensors.PlanarDiagram.evaluate` is determined
+The result of :meth:`~lasyten.tensors.PlanarDiagram.evaluate` is determined
 only up to a cyclic permutation of the open legs. Bring it to a definite
-(co)domain with :func:`~cyten.tensors.planar_permute_legs` (the planar
-analogue of :func:`~cyten.tensors.permute_legs`; it refuses non-planar
+(co)domain with :func:`~lasyten.tensors.planar_permute_legs` (the planar
+analogue of :func:`~lasyten.tensors.permute_legs`; it refuses non-planar
 moves instead of asking for ``bend_right``).
 
-:meth:`~cyten.tensors.PlanarDiagram.add_tensor` /
-:meth:`~cyten.tensors.PlanarDiagram.remove_tensor` build a related diagram
+:meth:`~lasyten.tensors.PlanarDiagram.add_tensor` /
+:meth:`~lasyten.tensors.PlanarDiagram.remove_tensor` build a related diagram
 without repeating the contractions you already have. That is the intended
 way to go from "the operator" to "the operator acting on a vector".
 
@@ -398,16 +399,16 @@ two-site DMRG effective Hamiltonian
     |        .---       ---.
 
 and :external+tenpy_v1:py:meth:`~tenpy.algorithms.mps_common.TwoSiteH.matvec` is four
-``tensordot``\ s plus an ``itranspose``. The Cyten toycode
+``tensordot``\ s plus an ``itranspose``. The LASyTen toycode
 ``toycodes/tenpy_toycodes/d_dmrg.py`` still has a ``HEffective.matvec``
 written that way, with an explicit ``bend_right`` on every
-:func:`~cyten.tensors.permute_legs`. That style does not scale to fermions:
+:func:`~lasyten.tensors.permute_legs`. That style does not scale to fermions:
 one missed braid is a wrong sign.
 
-The replacement is :class:`~cyten.tensors.PlanarLinearOperator`, a
-:class:`~cyten.tensors.sparse.LinearOperator` whose
-:meth:`~cyten.tensors.sparse.LinearOperator.matvec` and
-:meth:`~cyten.tensors.sparse.LinearOperator.to_tensor` are two planar
+The replacement is :class:`~lasyten.tensors.PlanarLinearOperator`, a
+:class:`~lasyten.tensors.sparse.LinearOperator` whose
+:meth:`~lasyten.tensors.sparse.LinearOperator.matvec` and
+:meth:`~lasyten.tensors.sparse.LinearOperator.to_tensor` are two planar
 diagrams:
 
 - ``op_diagram`` — the network above (open legs ``vL, p0, p1, vR`` and
@@ -417,13 +418,13 @@ diagrams:
 
 Define both diagrams as **class attributes**. Obtain the matvec diagram by
 adding ``theta`` to the operator diagram (or, equivalently, define the
-matvec diagram first and :meth:`~cyten.tensors.PlanarDiagram.remove_tensor`
+matvec diagram first and :meth:`~lasyten.tensors.PlanarDiagram.remove_tensor`
 ``theta`` to get the operator):
 
 .. code-block:: python
 
-    class TwoSiteEffectiveH(ct.PlanarLinearOperator):
-        op_diagram = ct.PlanarDiagram(
+    class TwoSiteEffectiveH(lasy.PlanarLinearOperator):
+        op_diagram = lasy.PlanarDiagram(
             tensors='Lp[vR*, wR, vR], W0[wL, p, wR, p*], W1[wL, p, wR, p*], Rp[vL*, vL, wL]',
             definition=(
                 'Lp:vR* -> vL, Lp:wR @ W0:wL, Lp:vR -> vL*, '
@@ -451,14 +452,14 @@ matvec diagram first and :meth:`~cyten.tensors.PlanarDiagram.remove_tensor`
             )
 
 ``W0`` / ``W1`` are MPO tensors, i.e. the factors of a
-:class:`~cyten.models.Coupling` (or a full MPO built from them), with the
+:class:`~lasyten.models.Coupling` (or a full MPO built from them), with the
 usual ``wL, p, wR, p*`` labels. ``Lp`` / ``Rp`` are the left and right
-environments. :meth:`~cyten.tensors.sparse.LinearOperator.matvec` is then
+environments. :meth:`~lasyten.tensors.sparse.LinearOperator.matvec` is then
 just ``Heff.matvec(theta)``, suitable for
-:mod:`~cyten.tensors.krylov_based` Lanczos. After ``Heff.to_tensor()``,
+:mod:`~lasyten.tensors.krylov_based` Lanczos. After ``Heff.to_tensor()``,
 fix the cyclic permutation::
 
-    H = ct.planar_permute_legs(Heff.to_tensor(), codomain=['vL', 'p0', 'p1', 'vR'])
+    H = lasy.planar_permute_legs(Heff.to_tensor(), codomain=['vL', 'p0', 'p1', 'vR'])
 
 The same pattern applies to one-site and zero-site effective Hamiltonians
 (fewer ``W`` tensors) and to the environment updates themselves. The
@@ -470,46 +471,46 @@ What not to do
 ~~~~~~~~~~~~~~
 
 - Do not port ``TwoSiteH.matvec`` as a sequence of
-  :func:`~cyten.tensors.tdot` and :func:`~cyten.tensors.permute_legs` with
+  :func:`~lasyten.tensors.tdot` and :func:`~lasyten.tensors.permute_legs` with
   guessed ``bend_right``. If the network is planar, write a
-  :class:`~cyten.tensors.PlanarDiagram`.
+  :class:`~lasyten.tensors.PlanarDiagram`.
 - Do not construct the diagram inside ``__init__`` or inside ``matvec``
   (re-optimizing the order on every Lanczos step).
-- Do not use :func:`~cyten.tensors.combine_legs` to "make a matrix" before
-  Lanczos. :class:`~cyten.tensors.PlanarLinearOperator` already acts on the
+- Do not use :func:`~lasyten.tensors.combine_legs` to "make a matrix" before
+  Lanczos. :class:`~lasyten.tensors.PlanarLinearOperator` already acts on the
   uncombined ``theta``.
 - For the rare network that *does* braid (a JW line crossing a physical
   leg, as in the previous section), a planar diagram will refuse it. That
-  crossing belongs in :meth:`~cyten.models.Site.identity_tensor` /
-  :func:`~cyten.tensors.permute_legs`, not in the DMRG contraction.
+  crossing belongs in :meth:`~lasyten.models.Site.identity_tensor` /
+  :func:`~lasyten.tensors.permute_legs`, not in the DMRG contraction.
 
 
 Porting checklist
 -----------------
 
 1. Replace TeNPy :external+tenpy_v1:py:class:`~tenpy.networks.site.Site` subclasses with
-   :mod:`cyten.models` sites. Drop ``need_JW`` when adding custom operators;
+   :mod:`lasyten.models` sites. Drop ``need_JW`` when adding custom operators;
    only symmetric maps belong in ``onsite_operators``.
 2. Replace ``add_coupling`` / ``add_multi_coupling`` / ``add_onsite`` with
-   :class:`~cyten.models.Coupling` factories, or
-   :meth:`~cyten.models.Coupling.from_tensor` of a symmetric few-site map.
+   :class:`~lasyten.models.Coupling` factories, or
+   :meth:`~lasyten.models.Coupling.from_tensor` of a symmetric few-site map.
 3. Treat ``Sp``, ``Sm``, ``C``, ``Cd`` as factors of a coupling, not as
    tensors you insert into an MPS. The virtual bond carries the old
    ``qtotal``.
 4. For :math:`c^\dagger_i c_j` (Hamiltonian or correlator), build a coupling
    with a non-trivial virtual leg and
-   :meth:`~cyten.models.Coupling.stretch_with_identities` across the sites
+   :meth:`~lasyten.models.Coupling.stretch_with_identities` across the sites
    in between. Do not multiply ``JW`` onto MPS physical legs.
 5. Delete ``op_string='JW'``, ``str_on_first``, ``autoJW``, and
    ``apply_JW_string_left_of_virt_leg``. The braid of
-   :class:`~cyten.symmetries.FermionParity` replaces them.
+   :class:`~lasyten.symmetries.FermionParity` replaces them.
 6. Use the fusion-tree backend for fermions. Keep the abelian backend for
    spin / boson models that never braid.
 7. Replace :external+tenpy_v1:py:class:`~tenpy.algorithms.mps_common.TwoSiteH` /
    ``OneSiteH`` ``matvec`` chains with a
-   :class:`~cyten.tensors.PlanarLinearOperator`. Store the
-   :class:`~cyten.tensors.PlanarDiagram`\ s as class attributes. Use
-   :func:`~cyten.tensors.planar_permute_legs` after ``evaluate`` /
+   :class:`~lasyten.tensors.PlanarLinearOperator`. Store the
+   :class:`~lasyten.tensors.PlanarDiagram`\ s as class attributes. Use
+   :func:`~lasyten.tensors.planar_permute_legs` after ``evaluate`` /
    ``to_tensor``.
 8. Reactivate tests for what has been ported.
 

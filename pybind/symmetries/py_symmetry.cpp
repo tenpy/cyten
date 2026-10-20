@@ -1,19 +1,19 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/symmetry.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
 
-#include <cyten/symmetries/symmetry.h>
-#include <cyten/symmetries/symmetry_factor.h>
+#include <lasyten/symmetries/symmetry.h>
+#include <lasyten/symmetries/symmetry_factor.h>
 
 #include "tools/hdf5_bind.h"
 #include <memory>
 #include <optional>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -41,7 +41,7 @@ void
 declare_symmetry(py::module_& m)
 {
     g_symmetry =
-      py::class_<Symmetry, BaseSymmetry, py::smart_holder>(m, "Symmetry", DOC(cyten, Symmetry));
+      py::class_<Symmetry, BaseSymmetry, py::smart_holder>(m, "Symmetry", DOC(lasyten, Symmetry));
 }
 
 void
@@ -77,7 +77,7 @@ bind_symmetry(py::module_& m)
       .def(
         "as_Symmetry",
         [](py::object self) { return self.cast<Symmetry::Ptr>(); },
-        DOC(cyten, Symmetry, as_Symmetry))
+        DOC(lasyten, Symmetry, as_Symmetry))
       .def(
         "is_valid_sector",
         [](Symmetry const& self, py::object a) {
@@ -94,7 +94,7 @@ bind_symmetry(py::module_& m)
             }
         },
         py::arg("a"),
-        doc_cpp_ref(R"pydoc(is_valid_sector)pydoc", "cyten::BaseSymmetry::is_valid_sector()"))
+        doc_cpp_ref(R"pydoc(is_valid_sector)pydoc", "lasyten::BaseSymmetry::is_valid_sector()"))
       .def(
         "are_valid_sectors",
         [](Symmetry const& self, py::object sectors) {
@@ -115,12 +115,12 @@ bind_symmetry(py::module_& m)
            &Symmetry::fusion_outcomes,
            py::arg("a"),
            py::arg("b"),
-           DOC(cyten, Symmetry, fusion_outcomes))
+           DOC(lasyten, Symmetry, fusion_outcomes))
       .def("fusion_outcomes_broadcast",
            &Symmetry::fusion_outcomes_broadcast,
            py::arg("a"),
            py::arg("b"),
-           DOC(cyten, Symmetry, fusion_outcomes_broadcast))
+           DOC(lasyten, Symmetry, fusion_outcomes_broadcast))
       .def(
         "has_factor",
         [](Symmetry const& self, py::object other) {
@@ -139,39 +139,40 @@ bind_symmetry(py::module_& m)
             throw py::type_error("Expected instance or subclass of SymmetryFactor.");
         },
         py::arg("other"))
-      .def("dual_sector", &Symmetry::dual_sector, py::arg("a"), DOC(cyten, Symmetry, dual_sector))
+      .def(
+        "dual_sector", &Symmetry::dual_sector, py::arg("a"), DOC(lasyten, Symmetry, dual_sector))
       .def("dual_sectors",
            &Symmetry::dual_sectors,
            py::arg("sectors"),
-           DOC(cyten, Symmetry, dual_sectors))
+           DOC(lasyten, Symmetry, dual_sectors))
       .def("_n_symbol",
            &Symmetry::_n_symbol,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, Symmetry, _n_symbol))
-      .def("all_sectors", &Symmetry::all_sectors, DOC(cyten, Symmetry, all_sectors))
+           DOC(lasyten, Symmetry, _n_symbol))
+      .def("all_sectors", &Symmetry::all_sectors, DOC(lasyten, Symmetry, all_sectors))
       .def("factor_where",
            &Symmetry::factor_where,
            py::arg("descriptive_name"),
-           DOC(cyten, Symmetry, factor_where))
-      .def("qdim", &Symmetry::qdim, py::arg("a"), DOC(cyten, Symmetry, qdim))
-      .def("sector_dim", &Symmetry::sector_dim, py::arg("a"), DOC(cyten, Symmetry, sector_dim))
+           DOC(lasyten, Symmetry, factor_where))
+      .def("qdim", &Symmetry::qdim, py::arg("a"), DOC(lasyten, Symmetry, qdim))
+      .def("sector_dim", &Symmetry::sector_dim, py::arg("a"), DOC(lasyten, Symmetry, sector_dim))
       .def(
         "batch_sector_dim",
         [](Symmetry const& self, SectorArray const& a) {
             return vector_i64_to_numpy(self.batch_sector_dim(a));
         },
         py::arg("a"),
-        DOC(cyten, Symmetry, batch_sector_dim))
+        DOC(lasyten, Symmetry, batch_sector_dim))
       .def(
         "batch_qdim",
         [](Symmetry const& self, SectorArray const& a) {
             return vector_f64_to_numpy(self.batch_qdim(a));
         },
         py::arg("a"),
-        DOC(cyten, Symmetry, batch_qdim))
-      .def("sector_str", &Symmetry::sector_str, py::arg("a"), DOC(cyten, Symmetry, sector_str))
+        DOC(lasyten, Symmetry, batch_qdim))
+      .def("sector_str", &Symmetry::sector_str, py::arg("a"), DOC(lasyten, Symmetry, sector_str))
       .def("_f_symbol",
            &Symmetry::_f_symbol,
            py::arg("a"),
@@ -180,13 +181,13 @@ bind_symmetry(py::module_& m)
            py::arg("d"),
            py::arg("e"),
            py::arg("f"),
-           DOC(cyten, Symmetry, _f_symbol))
+           DOC(lasyten, Symmetry, _f_symbol))
       .def("_r_symbol",
            &Symmetry::_r_symbol,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, Symmetry, _r_symbol))
+           DOC(lasyten, Symmetry, _r_symbol))
       .def("_fusion_tensor",
            &Symmetry::_fusion_tensor,
            py::arg("a"),
@@ -194,13 +195,13 @@ bind_symmetry(py::module_& m)
            py::arg("c"),
            py::arg("Z_a") = false,
            py::arg("Z_b") = false,
-           DOC(cyten, Symmetry, _fusion_tensor))
+           DOC(lasyten, Symmetry, _fusion_tensor))
       .def("swap_gate",
            &Symmetry::swap_gate,
            py::arg("a"),
            py::arg("b"),
-           DOC(cyten, Symmetry, swap_gate))
-      .def("Z_iso", &Symmetry::Z_iso, py::arg("a"), DOC(cyten, Symmetry, Z_iso))
+           DOC(lasyten, Symmetry, swap_gate))
+      .def("Z_iso", &Symmetry::Z_iso, py::arg("a"), DOC(lasyten, Symmetry, Z_iso))
       .def(
         "is_equivalent_to",
         [](Symmetry const& self, py::object other, bool strict_ordering) {
@@ -217,7 +218,7 @@ bind_symmetry(py::module_& m)
         },
         py::arg("other"),
         py::arg("strict_ordering") = false,
-        DOC(cyten, Symmetry, is_equivalent_to))
+        DOC(lasyten, Symmetry, is_equivalent_to))
       .def("__repr__", &Symmetry::repr)
       .def("__str__", &Symmetry::str)
       .def("__eq__",
@@ -238,15 +239,15 @@ bind_symmetry(py::module_& m)
                return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
            })
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<Symmetry>(),
+           lasyten::hdf5::wrap_save_hdf5_const<Symmetry>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<Symmetry>(),
+                  lasyten::hdf5::wrap_from_hdf5<Symmetry>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
 }
 
-} // namespace cyten
+} // namespace lasyten

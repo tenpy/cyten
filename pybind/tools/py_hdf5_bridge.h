@@ -1,6 +1,6 @@
 #pragma once
 
-#include <cyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5.h>
 
 #include <highfive/highfive.hpp>
 #include <pybind11/numpy.h>
@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-namespace cyten::hdf5 {
+namespace lasyten::hdf5 {
 
 namespace py = pybind11;
 
@@ -30,4 +30,4 @@ Loader loader_from_python(py::object hdf5_loader);
 /// Convert an ``Hdf5Buffer`` back to a numpy array (copies).
 py::array numpy_from_buffer(::hdf5_io::Hdf5Buffer const& buf);
 
-} // namespace cyten::hdf5
+} // namespace lasyten::hdf5

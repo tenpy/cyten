@@ -30,6 +30,6 @@ tensors, swap gates, Z isomorphisms, S-matrix).
 
 ## Files
 
-- `include/cyten/symmetries/fusion_symbol.h`
+- `include/lasyten/symmetries/fusion_symbol.h`
 - `src/symmetries/fusion_symbol.cpp`
-- `include/cyten/symmetries/topo_ones.h` (thin wrappers around `FusionSymbol::one_*`)
+- `include/lasyten/symmetries/topo_ones.h` (thin wrappers around `FusionSymbol::one_*`)

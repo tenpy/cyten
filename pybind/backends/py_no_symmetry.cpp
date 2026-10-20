@@ -1,14 +1,14 @@
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "../tensors/py_callbacks.hpp"
 #include "docstrings/backends/no_symmetry.h"
 
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/block_backend/numpy.h>
-#include <cyten/block_backend/torch.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/block_backend/torch.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
 #include <memory>
 #include <optional>
@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -64,7 +64,7 @@ bind_no_symmetry_backend(py::module_& m)
       .def_readwrite("block", &NoSymmetryBackend::BlockData::block);
 
     py::class_<NoSymmetryBackend, TensorBackend, py::smart_holder> cls(m, "NoSymmetryBackend");
-    cls.doc() = DOC(cyten, NoSymmetryBackend);
+    cls.doc() = DOC(lasyten, NoSymmetryBackend);
 
     cls.def(py::init([](py::object block_backend) {
                 return std::make_shared<NoSymmetryBackend>(as_shared_block_backend(block_backend));
@@ -88,7 +88,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a"),
       py::arg("block_method"),
       py::arg("dtype_map"),
-      DOC(cyten, NoSymmetryBackend, act_block_diagonal_square_matrix));
+      DOC(lasyten, NoSymmetryBackend, act_block_diagonal_square_matrix));
     cls.def(
       "add_trivial_leg",
       [](NoSymmetryBackend& self,
@@ -107,7 +107,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("co_domain_pos"),
       py::arg("new_codomain"),
       py::arg("new_domain"),
-      DOC(cyten, NoSymmetryBackend, add_trivial_leg));
+      DOC(lasyten, NoSymmetryBackend, add_trivial_leg));
     cls.def(
       "apply_mask_to_DiagonalTensor",
       [](NoSymmetryBackend& self, DiagonalTensorCPtr tensor, MaskCPtr mask) {
@@ -131,7 +131,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("pipes"),
       py::arg("new_codomain"),
       py::arg("new_domain"),
-      DOC(cyten, NoSymmetryBackend, combine_legs));
+      DOC(lasyten, NoSymmetryBackend, combine_legs));
     cls.def(
       "compose",
       [](NoSymmetryBackend& self, SymmetricTensorCPtr a, SymmetricTensorCPtr b) {
@@ -139,7 +139,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("b"),
-      DOC(cyten, NoSymmetryBackend, compose));
+      DOC(lasyten, NoSymmetryBackend, compose));
     cls.def(
       "copy_data",
       [](NoSymmetryBackend& self, TensorCPtr a, std::optional<std::string> device) {
@@ -147,22 +147,22 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("device") = py::none(),
-      DOC(cyten, NoSymmetryBackend, copy_data));
+      DOC(lasyten, NoSymmetryBackend, copy_data));
     cls.def(
       "dagger",
       [](NoSymmetryBackend& self, TensorCPtr a) { return py_block(self.dagger(a)); },
       py::arg("a"),
-      DOC(cyten, NoSymmetryBackend, dagger));
+      DOC(lasyten, NoSymmetryBackend, dagger));
     cls.def(
       "item",
       [](NoSymmetryBackend& self, TensorCPtr a) { return self.item(a); },
       py::arg("a"),
-      doc_cpp_ref(R"pydoc(item)pydoc", "cyten::TensorBackend::item()"));
+      doc_cpp_ref(R"pydoc(item)pydoc", "lasyten::TensorBackend::item()"));
     cls.def(
       "data_item",
       [](NoSymmetryBackend& self, py::object a) { return self.data_item(py_data(a)); },
       py::arg("a"),
-      DOC(cyten, NoSymmetryBackend, data_item));
+      DOC(lasyten, NoSymmetryBackend, data_item));
     cls.def(
       "diagonal_elementwise_binary",
       [](NoSymmetryBackend& self,
@@ -179,7 +179,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("func"),
       py::arg("func_kwargs"),
       py::arg("partial_zero_is_zero"),
-      DOC(cyten, NoSymmetryBackend, diagonal_elementwise_binary));
+      DOC(lasyten, NoSymmetryBackend, diagonal_elementwise_binary));
     cls.def(
       "diagonal_elementwise_unary",
       [](NoSymmetryBackend& self,
@@ -194,7 +194,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("func"),
       py::arg("func_kwargs"),
       py::arg("maps_zero_to_zero"),
-      DOC(cyten, NoSymmetryBackend, diagonal_elementwise_unary));
+      DOC(lasyten, NoSymmetryBackend, diagonal_elementwise_unary));
     cls.def(
       "diagonal_from_block",
       [](NoSymmetryBackend& self,
@@ -204,7 +204,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a"),
       py::arg("co_domain"),
       py::arg("tol"),
-      DOC(cyten, NoSymmetryBackend, diagonal_from_block));
+      DOC(lasyten, NoSymmetryBackend, diagonal_from_block));
     cls.def(
       "diagonal_from_sector_block_func",
       [](NoSymmetryBackend& self, py::function func, TensorProduct::Ptr co_domain) {
@@ -213,7 +213,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("func"),
       py::arg("co_domain"),
-      DOC(cyten, NoSymmetryBackend, diagonal_from_sector_block_func));
+      DOC(lasyten, NoSymmetryBackend, diagonal_from_sector_block_func));
     cls.def(
       "diagonal_tensor_from_full_tensor",
       [](NoSymmetryBackend& self, SymmetricTensorCPtr a, std::optional<float64> tol) {
@@ -221,7 +221,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("tol") = 1e-12,
-      DOC(cyten, NoSymmetryBackend, diagonal_tensor_from_full_tensor));
+      DOC(lasyten, NoSymmetryBackend, diagonal_tensor_from_full_tensor));
     cls.def(
       "diagonal_to_mask",
       [](NoSymmetryBackend& self, DiagonalTensorCPtr tens) {
@@ -229,7 +229,7 @@ bind_no_symmetry_backend(py::module_& m)
           return std::make_tuple(py_block(std::move(data)), std::move(leg));
       },
       py::arg("tens"),
-      DOC(cyten, NoSymmetryBackend, diagonal_to_mask));
+      DOC(lasyten, NoSymmetryBackend, diagonal_to_mask));
     cls.def(
       "diagonal_transpose",
       [](NoSymmetryBackend& self, DiagonalTensorCPtr tens) {
@@ -237,7 +237,7 @@ bind_no_symmetry_backend(py::module_& m)
           return std::make_tuple(std::move(leg), py_block(std::move(data)));
       },
       py::arg("tens"),
-      DOC(cyten, NoSymmetryBackend, diagonal_transpose));
+      DOC(lasyten, NoSymmetryBackend, diagonal_transpose));
     cls.def(
       "eigh",
       [](NoSymmetryBackend& self,
@@ -250,7 +250,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a"),
       py::arg("new_leg_dual"),
       py::arg("sort") = py::none(),
-      DOC(cyten, NoSymmetryBackend, eigh));
+      DOC(lasyten, NoSymmetryBackend, eigh));
     cls.def(
       "eig",
       [](NoSymmetryBackend& self,
@@ -263,7 +263,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a"),
       py::arg("new_leg_dual"),
       py::arg("sort") = py::none(),
-      DOC(cyten, NoSymmetryBackend, eig));
+      DOC(lasyten, NoSymmetryBackend, eig));
     cls.def(
       "eigvalsh",
       [](NoSymmetryBackend& self,
@@ -276,7 +276,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a"),
       py::arg("new_leg_dual"),
       py::arg("sort") = py::none(),
-      DOC(cyten, NoSymmetryBackend, eigvalsh));
+      DOC(lasyten, NoSymmetryBackend, eigvalsh));
     cls.def(
       "eigvals",
       [](NoSymmetryBackend& self,
@@ -289,7 +289,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a"),
       py::arg("new_leg_dual"),
       py::arg("sort") = py::none(),
-      DOC(cyten, NoSymmetryBackend, eigvals));
+      DOC(lasyten, NoSymmetryBackend, eigvals));
     cls.def(
       "eye_data",
       [](NoSymmetryBackend& self, TensorProduct::Ptr co_domain, Dtype dtype, std::string device) {
@@ -298,7 +298,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("co_domain"),
       py::arg("dtype"),
       py::arg("device"),
-      DOC(cyten, NoSymmetryBackend, eye_data));
+      DOC(lasyten, NoSymmetryBackend, eye_data));
     cls.def(
       "from_dense_block",
       [](NoSymmetryBackend& self,
@@ -312,7 +312,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("codomain"),
       py::arg("domain"),
       py::arg("tol"),
-      DOC(cyten, NoSymmetryBackend, from_dense_block));
+      DOC(lasyten, NoSymmetryBackend, from_dense_block));
     cls.def(
       "from_dense_block_trivial_sector",
       [](NoSymmetryBackend& self, BlockBackend::BlockPtr block, Space::Ptr leg) {
@@ -320,7 +320,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("block"),
       py::arg("leg"),
-      DOC(cyten, NoSymmetryBackend, from_dense_block_trivial_sector));
+      DOC(lasyten, NoSymmetryBackend, from_dense_block_trivial_sector));
     cls.def(
       "from_grid",
       [](NoSymmetryBackend& self,
@@ -346,7 +346,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("right_mult_slices"),
       py::arg("dtype"),
       py::arg("device"),
-      DOC(cyten, NoSymmetryBackend, from_grid));
+      DOC(lasyten, NoSymmetryBackend, from_grid));
     cls.def(
       "from_random_normal",
       [](NoSymmetryBackend& self,
@@ -375,7 +375,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("func"),
       py::arg("codomain"),
       py::arg("domain"),
-      DOC(cyten, NoSymmetryBackend, from_sector_block_func));
+      DOC(lasyten, NoSymmetryBackend, from_sector_block_func));
     cls.def(
       "from_tree_pairs",
       [](NoSymmetryBackend& self,
@@ -392,7 +392,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("domain"),
       py::arg("dtype"),
       py::arg("device"),
-      DOC(cyten, NoSymmetryBackend, from_tree_pairs));
+      DOC(lasyten, NoSymmetryBackend, from_tree_pairs));
     cls.def(
       "full_data_from_diagonal_tensor",
       [](NoSymmetryBackend& self, DiagonalTensorCPtr a) {
@@ -406,12 +406,12 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("dtype"),
-      DOC(cyten, NoSymmetryBackend, full_data_from_mask));
+      DOC(lasyten, NoSymmetryBackend, full_data_from_mask));
     cls.def(
       "get_device_from_data",
       [](NoSymmetryBackend& self, py::object a) { return self.get_device_from_data(py_data(a)); },
       py::arg("a"),
-      DOC(cyten, NoSymmetryBackend, get_device_from_data));
+      DOC(lasyten, NoSymmetryBackend, get_device_from_data));
     cls.def(
       "get_dtype_from_data",
       [](NoSymmetryBackend& self, py::object a) { return self.get_dtype_from_data(py_data(a)); },
@@ -428,7 +428,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("vector"),
       py::arg("space"),
       py::arg("charge_leg"),
-      DOC(cyten, NoSymmetryBackend, inv_part_from_dense_block_single_sector));
+      DOC(lasyten, NoSymmetryBackend, inv_part_from_dense_block_single_sector));
     cls.def(
       "linear_combination",
       [](NoSymmetryBackend& self,
@@ -440,7 +440,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("v"),
       py::arg("b"),
       py::arg("w"),
-      DOC(cyten, NoSymmetryBackend, linear_combination));
+      DOC(lasyten, NoSymmetryBackend, linear_combination));
     cls.def(
       "lq",
       [](NoSymmetryBackend& self, SymmetricTensorCPtr tensor, TensorProduct::Ptr new_co_domain) {
@@ -449,7 +449,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("new_co_domain"),
-      DOC(cyten, NoSymmetryBackend, lq));
+      DOC(lasyten, NoSymmetryBackend, lq));
     cls.def(
       "mask_binary_operand",
       [](NoSymmetryBackend& self, MaskCPtr mask1, MaskCPtr mask2, py::function func) {
@@ -460,7 +460,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("mask1"),
       py::arg("mask2"),
       py::arg("func"),
-      DOC(cyten, NoSymmetryBackend, mask_binary_operand));
+      DOC(lasyten, NoSymmetryBackend, mask_binary_operand));
     cls.def(
       "mask_contract_large_leg",
       [](NoSymmetryBackend& self, TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) {
@@ -471,7 +471,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg_idx"),
-      DOC(cyten, NoSymmetryBackend, mask_contract_large_leg));
+      DOC(lasyten, NoSymmetryBackend, mask_contract_large_leg));
     cls.def(
       "mask_contract_small_leg",
       [](NoSymmetryBackend& self, TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) {
@@ -482,7 +482,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg_idx"),
-      DOC(cyten, NoSymmetryBackend, mask_contract_small_leg));
+      DOC(lasyten, NoSymmetryBackend, mask_contract_small_leg));
     cls.def(
       "mask_dagger",
       [](NoSymmetryBackend& self, MaskCPtr mask) { return py_block(self.mask_dagger(mask)); },
@@ -495,7 +495,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("large_leg"),
-      DOC(cyten, NoSymmetryBackend, mask_from_block));
+      DOC(lasyten, NoSymmetryBackend, mask_from_block));
     cls.def(
       "mask_to_diagonal",
       [](NoSymmetryBackend& self, MaskCPtr a, Dtype dtype) {
@@ -510,7 +510,7 @@ bind_no_symmetry_backend(py::module_& m)
           return std::make_tuple(std::move(s_in), std::move(s_out), py_block(std::move(data)));
       },
       py::arg("tens"),
-      DOC(cyten, NoSymmetryBackend, mask_transpose));
+      DOC(lasyten, NoSymmetryBackend, mask_transpose));
     cls.def(
       "mask_unary_operand",
       [](NoSymmetryBackend& self, MaskCPtr mask, py::function func) {
@@ -519,7 +519,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("mask"),
       py::arg("func"),
-      DOC(cyten, NoSymmetryBackend, mask_unary_operand));
+      DOC(lasyten, NoSymmetryBackend, mask_unary_operand));
     cls.def(
       "move_to_device",
       [](NoSymmetryBackend& self, TensorCPtr a, std::string device) {
@@ -527,7 +527,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("device"),
-      DOC(cyten, NoSymmetryBackend, move_to_device));
+      DOC(lasyten, NoSymmetryBackend, move_to_device));
     cls.def(
       "mul",
       [](NoSymmetryBackend& self, BlockBackend::Scalar a, TensorCPtr b) {
@@ -542,7 +542,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("b"),
-      DOC(cyten, NoSymmetryBackend, outer));
+      DOC(lasyten, NoSymmetryBackend, outer));
     cls.def(
       "partial_compose",
       [](NoSymmetryBackend& self,
@@ -558,7 +558,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a_first_leg"),
       py::arg("new_codomain"),
       py::arg("new_domain"),
-      DOC(cyten, NoSymmetryBackend, partial_compose));
+      DOC(lasyten, NoSymmetryBackend, partial_compose));
     cls.def(
       "partial_trace",
       [](NoSymmetryBackend& self,
@@ -577,7 +577,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("tensor"),
       py::arg("pairs"),
       py::arg("levels") = py::none(),
-      DOC(cyten, NoSymmetryBackend, partial_trace));
+      DOC(lasyten, NoSymmetryBackend, partial_trace));
     cls.def(
       "permute_legs",
       [](NoSymmetryBackend& self,
@@ -606,7 +606,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("mixes_codomain_domain"),
       py::arg("levels"),
       py::arg("bend_right"),
-      DOC(cyten, NoSymmetryBackend, permute_legs));
+      DOC(lasyten, NoSymmetryBackend, permute_legs));
     cls.def(
       "qr",
       [](NoSymmetryBackend& self, SymmetricTensorCPtr a, TensorProduct::Ptr new_co_domain) {
@@ -615,7 +615,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("new_co_domain"),
-      DOC(cyten, NoSymmetryBackend, qr));
+      DOC(lasyten, NoSymmetryBackend, qr));
     cls.def(
       "scale_axis",
       [](NoSymmetryBackend& self, TensorCPtr a, DiagonalTensorCPtr b, int64 leg) {
@@ -624,7 +624,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a"),
       py::arg("b"),
       py::arg("leg"),
-      DOC(cyten, NoSymmetryBackend, scale_axis));
+      DOC(lasyten, NoSymmetryBackend, scale_axis));
     cls.def(
       "split_legs",
       [](NoSymmetryBackend& self,
@@ -638,7 +638,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("leg_idcs"),
       py::arg("new_codomain"),
       py::arg("new_domain"),
-      DOC(cyten, NoSymmetryBackend, split_legs));
+      DOC(lasyten, NoSymmetryBackend, split_legs));
     cls.def(
       "squeeze_legs",
       [](NoSymmetryBackend& self, TensorCPtr a, std::vector<int64> idcs) {
@@ -646,7 +646,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("idcs"),
-      DOC(cyten, NoSymmetryBackend, squeeze_legs));
+      DOC(lasyten, NoSymmetryBackend, squeeze_legs));
     cls.def(
       "svd",
       [](NoSymmetryBackend& self,
@@ -660,7 +660,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("a"),
       py::arg("new_co_domain"),
       py::arg("algorithm") = py::none(),
-      DOC(cyten, NoSymmetryBackend, svd));
+      DOC(lasyten, NoSymmetryBackend, svd));
     cls.def(
       "to_block_backend",
       [](NoSymmetryBackend& self,
@@ -682,7 +682,7 @@ bind_no_symmetry_backend(py::module_& m)
       },
       py::arg("a"),
       py::arg("dtype"),
-      DOC(cyten, NoSymmetryBackend, to_dtype));
+      DOC(lasyten, NoSymmetryBackend, to_dtype));
     cls.def(
       "trace_full",
       [](NoSymmetryBackend& self,
@@ -715,7 +715,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("trunc_cut"),
       py::arg("svd_min"),
       py::arg("minimize_error") = true,
-      DOC(cyten, NoSymmetryBackend, truncate_singular_values));
+      DOC(lasyten, NoSymmetryBackend, truncate_singular_values));
     cls.def(
       "zero_data",
       [](NoSymmetryBackend& self,
@@ -731,7 +731,7 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("dtype"),
       py::arg("device"),
       py::arg("all_blocks") = false,
-      DOC(cyten, NoSymmetryBackend, zero_data));
+      DOC(lasyten, NoSymmetryBackend, zero_data));
     cls.def(
       "zero_diagonal_data",
       [](NoSymmetryBackend& self, TensorProduct::Ptr co_domain, Dtype dtype, std::string device) {
@@ -749,4 +749,4 @@ bind_no_symmetry_backend(py::module_& m)
       py::arg("device"));
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -2,9 +2,9 @@
 
 ## metadata
 
-- original python file: `cyten/tensors/sparse.py`
-- original python module: `cyten.tensors.sparse`
-- C++ declaration header: `include/cyten/tensors/sparse.h`
+- original python file: `lasyten/tensors/sparse.py`
+- original python module: `lasyten.tensors.sparse`
+- C++ declaration header: `include/lasyten/tensors/sparse.h`
 - C++ definitions: `src/tensors/sparse.cpp`
 - pybind11 bindings: `pybind/tensors/py_sparse.cpp`
 - first migrated objects:
@@ -21,7 +21,7 @@
 - Keep `NumpyArrayLinearOperator` and `HermitianNumpyArrayLinearOperator` in Python for now.
 - Keep scipy-based conversion helpers in Python.
 - Monkey-patch the converted classes/functions from `_core` at the bottom of
-  `cyten/tensors/sparse.py`.
+  `lasyten/tensors/sparse.py`.
 
 ## notes
 

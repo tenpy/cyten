@@ -11,9 +11,9 @@ See also [convert_SymmetryFactor.md](convert_SymmetryFactor.md), [convert_Symmet
 | Field | Value |
 | --- | --- |
 | original python name | `BaseSymmetry` |
-| original python file | `cyten/symmetries/_symmetries.py` |
-| original python module | `cyten.symmetries` |
-| declaration | `include/cyten/symmetries/base_symmetry.h` |
+| original python file | `lasyten/symmetries/_symmetries.py` |
+| original python module | `lasyten.symmetries` |
+| declaration | `include/lasyten/symmetries/base_symmetry.h` |
 | definition | `src/symmetries/base_symmetry.cpp` |
 | pybind11 binding | `pybind/symmetries/py_base_symmetry.cpp` |
 | trampoline | yes (`PyBaseSymmetry`) |

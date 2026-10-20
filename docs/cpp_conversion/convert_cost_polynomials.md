@@ -3,22 +3,22 @@
 ## metadata
 
 - original python names: `BigOMonomial`, `BigOPolynomial` (module `cost_polynomials`)
-- original python file: `cyten/tools/cost_polynomials.py`
-- original python module: `cyten.tools.cost_polynomials`
-- declaration in C++ header file: `include/cyten/tools/cost_polynomials.h` (also pulled in by `include/cyten/tools.h`)
+- original python file: `lasyten/tools/cost_polynomials.py`
+- original python module: `lasyten.tools.cost_polynomials`
+- declaration in C++ header file: `include/lasyten/tools/cost_polynomials.h` (also pulled in by `include/lasyten/tools.h`)
 - definition in C++ file: `src/tools/cost_polynomials.cpp`
 - pybind11 binding: `pybind/tools/py_cost_polynomials.cpp`
 - first line of docstring (BigOMonomial): A symbolic representation of an algorithmic cost as a monomial.
 - first line of docstring (BigOPolynomial): A symbolic representation of an algorithmic cost as a monomial.
 
-Public Python export today: `cyten.tools.BigOPolynomial` (via `__init__.py`).
+Public Python export today: `lasyten.tools.BigOPolynomial` (via `__init__.py`).
 `BigOMonomial` is used internally and by `BigOPolynomial`; bind both for a faithful API.
 No dedicated unit tests; covered indirectly by `tests/python_tests/test_planar.py`.
 Trampoline: not needed (no subclasses / virtual overrides in the Python library).
 
 ## Dependencies / design notes
 
-- Layer 0 tools; no cyten C++ deps beyond existing `tools.h` / `cyten.h`.
+- Layer 0 tools; no lasyten C++ deps beyond existing `tools.h` / `lasyten.h`.
 - Types: `dict[str, int]` → `std::map<std::string, int64>`; `terms` → `std::set<BigOMonomial>` (unique monomials; `BigOMonomial` has `operator<`).
 - `BigOMonomial + BigOMonomial` returns a `BigOPolynomial`; multiplication stays monomial.
 - `BigOPolynomial.from_str` / arithmetic accept `str` and `BigOMonomial` like Python.
@@ -30,7 +30,7 @@ Trampoline: not needed (no subclasses / virtual overrides in the Python library)
 
 - [x] initial setup (clean tree, branch `convert_cost_polynomials`, planar/tools pytest green)
 - [x] planning (this file)
-- [x] generate the declaration draft (`gen_cpp_declaration` for both classes into `include/cyten/tools.h`)
+- [x] generate the declaration draft (`gen_cpp_declaration` for both classes into `include/lasyten/tools.h`)
 - [x] improve and fix the declaration draft (namespace, types, C++23 / pre-commit)
 - [x] generate the C++ definitions (`gen_cpp_definition` into `src/tools.cpp`)
 - [x] improve and fix the definition drafts (CHECKME/FIXME, clang-tidy, rebuild, ctest)
@@ -40,4 +40,4 @@ Trampoline: not needed (no subclasses / virtual overrides in the Python library)
 - [x] monkey-patch: `from .._core import BigOMonomial, BigOPolynomial` in `cost_polynomials.py`
 - [x] run python tests (planar first, then full suite)
 - [x] remove original python class bodies; keep `_core` import
-- [ ] wrap up — commit remaining changes (`cyten/tools/cost_polynomials.py`, docs) and merge `convert_cost_polynomials` into `main` / `main_cpp`
+- [ ] wrap up — commit remaining changes (`lasyten/tools/cost_polynomials.py`, docs) and merge `convert_cost_polynomials` into `main` / `main_cpp`

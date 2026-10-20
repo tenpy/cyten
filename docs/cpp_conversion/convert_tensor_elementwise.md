@@ -3,9 +3,9 @@
 ## metadata
 
 - original python names: `angle`, `cutoff_inverse`, `complex_conj`, `imag`, `real`, `real_if_close`, `sqrt`, `stable_log`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration: `include/cyten/tensors/ops_elementwise.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration: `include/lasyten/tensors/ops_elementwise.h`
 - definition: `src/tensors/ops_elementwise.cpp`
 - pybind11 binding: `pybind/tensors/py_ops_elementwise.cpp`
 - trampoline: n/a (free functions)

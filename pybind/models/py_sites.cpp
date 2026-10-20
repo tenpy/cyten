@@ -1,19 +1,19 @@
-#include <cyten/models/sites.h>
+#include <lasyten/models/sites.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "docstrings/models/sites.h"
 
 #include <optional>
 #include <string>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_models_sites(py::module_& m)
 {
     py::class_<SpinSite, SpinDOF, py::smart_holder> spin_site(m, "SpinSite");
-    spin_site.doc() = DOC(cyten, SpinSite);
+    spin_site.doc() = DOC(lasyten, SpinSite);
 
     spin_site
       .def(py::init<float64,
@@ -30,12 +30,12 @@ bind_models_sites(py::module_& m)
       .def_readwrite("double_total_spin", &SpinSite::double_total_spin)
       .def_readwrite("conserve", &SpinSite::conserve)
       .def_readwrite("use_test_su2", &SpinSite::use_test_su2)
-      .def("test_sanity", &SpinSite::test_sanity, DOC(cyten, SpinSite, test_sanity))
+      .def("test_sanity", &SpinSite::test_sanity, DOC(lasyten, SpinSite, test_sanity))
       .def("__repr__", &SpinSite::repr);
 
     py::class_<SpinlessBosonSite, BosonicDOF, py::smart_holder> spinless_boson_site(
       m, "SpinlessBosonSite");
-    spinless_boson_site.doc() = DOC(cyten, SpinlessBosonSite);
+    spinless_boson_site.doc() = DOC(lasyten, SpinlessBosonSite);
 
     spinless_boson_site
       .def(py::init<py::object,
@@ -54,7 +54,7 @@ bind_models_sites(py::module_& m)
 
     py::class_<SpinlessFermionSite, FermionicDOF, py::smart_holder> spinless_fermion_site(
       m, "SpinlessFermionSite");
-    spinless_fermion_site.doc() = DOC(cyten, SpinlessFermionSite);
+    spinless_fermion_site.doc() = DOC(lasyten, SpinlessFermionSite);
 
     spinless_fermion_site
       .def(py::init<int64,
@@ -74,7 +74,7 @@ bind_models_sites(py::module_& m)
 
     py::class_<SpinHalfFermionSite, SpinDOF, FermionicDOF, py::smart_holder>
       spin_half_fermion_site(m, "SpinHalfFermionSite");
-    spin_half_fermion_site.doc() = DOC(cyten, SpinHalfFermionSite);
+    spin_half_fermion_site.doc() = DOC(lasyten, SpinHalfFermionSite);
 
     spin_half_fermion_site
       .def(py::init<std::string,
@@ -95,11 +95,11 @@ bind_models_sites(py::module_& m)
       .def_readwrite("use_test_su2", &SpinHalfFermionSite::use_test_su2)
       .def("test_sanity",
            &SpinHalfFermionSite::test_sanity,
-           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "cyten::SpinHalfFermionSite::test_sanity()"))
+           doc_cpp_ref(R"pydoc(test_sanity)pydoc", "lasyten::SpinHalfFermionSite::test_sanity()"))
       .def("__repr__", &SpinHalfFermionSite::repr);
 
     py::class_<ClockSite, ClockDOF, py::smart_holder> clock_site(m, "ClockSite");
-    clock_site.doc() = DOC(cyten, ClockSite);
+    clock_site.doc() = DOC(lasyten, ClockSite);
 
     clock_site
       .def(py::init<int64,
@@ -115,7 +115,7 @@ bind_models_sites(py::module_& m)
       .def("__repr__", &ClockSite::repr);
 
     py::class_<AnyonSite, AnyonDOF, py::smart_holder> anyon_site(m, "AnyonSite");
-    anyon_site.doc() = DOC(cyten, AnyonSite);
+    anyon_site.doc() = DOC(lasyten, AnyonSite);
 
     anyon_site
       .def(py::init<Symmetry::Ptr, TensorBackend::Ptr, std::optional<std::string>>(),
@@ -126,7 +126,7 @@ bind_models_sites(py::module_& m)
 
     py::class_<FibonacciAnyonSite, AnyonSite, py::smart_holder> fibonacci_anyon_site(
       m, "FibonacciAnyonSite");
-    fibonacci_anyon_site.doc() = DOC(cyten, FibonacciAnyonSite);
+    fibonacci_anyon_site.doc() = DOC(lasyten, FibonacciAnyonSite);
 
     fibonacci_anyon_site
       .def(py::init<TensorBackend::Ptr, std::optional<std::string>>(),
@@ -135,7 +135,7 @@ bind_models_sites(py::module_& m)
       .def("__repr__", &FibonacciAnyonSite::repr);
 
     py::class_<IsingAnyonSite, AnyonSite, py::smart_holder> ising_anyon_site(m, "IsingAnyonSite");
-    ising_anyon_site.doc() = DOC(cyten, IsingAnyonSite);
+    ising_anyon_site.doc() = DOC(lasyten, IsingAnyonSite);
 
     ising_anyon_site
       .def(py::init<int, TensorBackend::Ptr, std::optional<std::string>>(),
@@ -145,7 +145,7 @@ bind_models_sites(py::module_& m)
       .def("__repr__", &IsingAnyonSite::repr);
 
     py::class_<GoldenSite, AnyonDOF, py::smart_holder> golden_site(m, "GoldenSite");
-    golden_site.doc() = DOC(cyten, GoldenSite);
+    golden_site.doc() = DOC(lasyten, GoldenSite);
 
     golden_site
       .def(py::init<std::string, TensorBackend::Ptr, std::optional<std::string>>(),
@@ -155,7 +155,7 @@ bind_models_sites(py::module_& m)
       .def("__repr__", &GoldenSite::repr);
 
     py::class_<SU2kSpin1Site, AnyonDOF, py::smart_holder> su2k_spin1_site(m, "SU2kSpin1Site");
-    su2k_spin1_site.doc() = DOC(cyten, SU2kSpin1Site);
+    su2k_spin1_site.doc() = DOC(lasyten, SU2kSpin1Site);
 
     su2k_spin1_site
       .def(py::init<int64, TensorBackend::Ptr, std::optional<std::string>>(),
@@ -166,4 +166,4 @@ bind_models_sites(py::module_& m)
       .def("__repr__", &SU2kSpin1Site::repr);
 }
 
-} // namespace cyten
+} // namespace lasyten

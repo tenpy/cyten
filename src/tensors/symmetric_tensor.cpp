@@ -1,29 +1,29 @@
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/helpers.h>
-#include <cyten/tensors/hidden_leg_tensor.h>
-#include <cyten/tensors/ops_legs.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/helpers.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/ops_legs.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
-#include <cyten/backends/abelian.h>
-#include <cyten/backends/backend_factory.h>
-#include <cyten/backends/fusion_tree_backend.h>
-#include <cyten/block_backend/torch.h>
-#include <cyten/tools.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/backends/abelian.h>
+#include <lasyten/backends/backend_factory.h>
+#include <lasyten/backends/fusion_tree_backend.h>
+#include <lasyten/block_backend/torch.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
 #include <format>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 #include <numeric>
 #include <ranges>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -873,7 +873,7 @@ SymmetricTensor::to_dense_block_trivial_sector() const
 }
 
 void
-SymmetricTensor::save_hdf5(cyten::hdf5::Saver& saver,
+SymmetricTensor::save_hdf5(lasyten::hdf5::Saver& saver,
                            HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
@@ -891,7 +891,7 @@ SymmetricTensor::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 SymmetricTensor::Ptr
-SymmetricTensor::from_hdf5(cyten::hdf5::Loader& loader,
+SymmetricTensor::from_hdf5(lasyten::hdf5::Loader& loader,
                            HighFive::Group& h5gr,
                            std::string const& subpath)
 {
@@ -931,4 +931,4 @@ SymmetricTensor::from_hdf5(cyten::hdf5::Loader& loader,
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

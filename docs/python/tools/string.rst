@@ -1,8 +1,8 @@
-cyten.tools.string
+lasyten.tools.string
 ==================
 
-Declared in ``cyten/tools/string.py``.
+Declared in ``lasyten/tools/string.py``.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
-.. autofunction:: cyten.tools.string.format_like_list
+.. autofunction:: lasyten.tools.string.format_like_list

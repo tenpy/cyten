@@ -1,20 +1,20 @@
 exceptions.h
 ============
 
-Declared in ``include/cyten/symmetries/exceptions.h``.
+Declared in ``include/lasyten/symmetries/exceptions.h``.
 
-cyten::BraidChiralityUnspecifiedError
+lasyten::BraidChiralityUnspecifiedError
 -------------------------------------
 
-.. doxygenclass:: cyten::BraidChiralityUnspecifiedError
-   :project: cyten
+.. doxygenclass:: lasyten::BraidChiralityUnspecifiedError
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::SymmetryError
+lasyten::SymmetryError
 --------------------
 
-.. doxygenclass:: cyten::SymmetryError
-   :project: cyten
+.. doxygenclass:: lasyten::SymmetryError
+   :project: lasyten
    :members:
    :undoc-members:

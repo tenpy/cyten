@@ -1,12 +1,12 @@
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
 #include "py_callbacks.hpp"
 #include "py_factory_parse.hpp"
 #include "py_trampolines.hpp"
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/symmetric_tensor.h"
 
@@ -20,7 +20,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -55,7 +55,7 @@ declare_tensors_symmetric_tensor(py::module_& m)
 {
     g_symmetric_tensor = py::class_<SymmetricTensor, Tensor, PySymmetricTensor, py::smart_holder>(
       m, "SymmetricTensor");
-    (*g_symmetric_tensor).doc() = DOC(cyten, SymmetricTensor);
+    (*g_symmetric_tensor).doc() = DOC(lasyten, SymmetricTensor);
 }
 
 void
@@ -97,7 +97,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       });
 
     cls.def(
-      "test_sanity", &SymmetricTensor::test_sanity, DOC(cyten, SymmetricTensor, test_sanity));
+      "test_sanity", &SymmetricTensor::test_sanity, DOC(lasyten, SymmetricTensor, test_sanity));
     cls.def("verify_dtype", &SymmetricTensor::verify_dtype);
 
     cls.def_static(
@@ -127,7 +127,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("shape_kw") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, SymmetricTensor, from_block_func));
+      DOC(lasyten, SymmetricTensor, from_block_func));
 
     cls.def_static(
       "from_dense_block",
@@ -161,7 +161,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("device") = py::none(),
       py::arg("tol") = 1e-6,
       py::arg("understood_braiding") = false,
-      DOC(cyten, SymmetricTensor, from_dense_block));
+      DOC(lasyten, SymmetricTensor, from_dense_block));
 
     cls.def_static(
       "from_dense_block_trivial_sector",
@@ -182,7 +182,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("backend") = nullptr,
       py::arg("device") = py::none(),
       py::arg("label") = py::none(),
-      DOC(cyten, SymmetricTensor, from_dense_block_trivial_sector));
+      DOC(lasyten, SymmetricTensor, from_dense_block_trivial_sector));
 
     cls.def_static(
       "from_eye",
@@ -204,7 +204,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
       py::arg("device") = py::none(),
-      DOC(cyten, SymmetricTensor, from_eye));
+      DOC(lasyten, SymmetricTensor, from_eye));
 
     cls.def_static(
       "from_random_normal",
@@ -246,7 +246,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
       py::arg("device") = py::none(),
-      DOC(cyten, SymmetricTensor, from_random_normal));
+      DOC(lasyten, SymmetricTensor, from_random_normal));
 
     cls.def_static(
       "from_random_uniform",
@@ -266,7 +266,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
       py::arg("device") = py::none(),
-      DOC(cyten, SymmetricTensor, from_random_uniform));
+      DOC(lasyten, SymmetricTensor, from_random_uniform));
 
     cls.def_static(
       "from_sector_block_func",
@@ -293,7 +293,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("func_kwargs") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, SymmetricTensor, from_sector_block_func));
+      DOC(lasyten, SymmetricTensor, from_sector_block_func));
 
     cls.def_static(
       "from_sector_projection",
@@ -317,7 +317,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, SymmetricTensor, from_sector_projection));
+      DOC(lasyten, SymmetricTensor, from_sector_projection));
 
     cls.def_static(
       "from_tree_pairs",
@@ -339,7 +339,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
-      DOC(cyten, SymmetricTensor, from_tree_pairs));
+      DOC(lasyten, SymmetricTensor, from_tree_pairs));
 
     cls.def_static(
       "from_zero",
@@ -359,7 +359,7 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("labels") = py::none(),
       py::arg("dtype") = Dtype::Complex128,
       py::arg("device") = py::none(),
-      DOC(cyten, SymmetricTensor, from_zero));
+      DOC(lasyten, SymmetricTensor, from_zero));
 
     cls.def_static("_parse_default_dtype",
                    &SymmetricTensor::_parse_default_dtype,
@@ -369,36 +369,36 @@ bind_tensors_symmetric_tensor(py::module_& m)
     cls.def("as_dtype",
             &SymmetricTensor::as_dtype,
             py::arg("dtype"),
-            DOC(cyten, SymmetricTensor, as_dtype));
+            DOC(lasyten, SymmetricTensor, as_dtype));
     cls.def("as_SymmetricTensor",
             &SymmetricTensor::as_SymmetricTensor,
             py::arg("guarantee_copy") = false,
             py::arg("warning") = py::none(),
-            DOC(cyten, SymmetricTensor, as_SymmetricTensor));
+            DOC(lasyten, SymmetricTensor, as_SymmetricTensor));
     cls.def("copy",
             &SymmetricTensor::copy,
             py::arg("deep") = true,
             py::arg("device") = py::none(),
             py::arg("dtype") = py::none(),
-            DOC(cyten, SymmetricTensor, copy));
+            DOC(lasyten, SymmetricTensor, copy));
     cls.def("diagonal",
             &SymmetricTensor::diagonal,
             py::arg("check_offdiagonal") = false,
-            DOC(cyten, SymmetricTensor, diagonal));
+            DOC(lasyten, SymmetricTensor, diagonal));
     cls.def("_get_item",
             &SymmetricTensor::_get_item,
             py::arg("idx"),
-            DOC(cyten, SymmetricTensor, _get_item));
+            DOC(lasyten, SymmetricTensor, _get_item));
     cls.def("move_to_device",
             &SymmetricTensor::move_to_device,
             py::arg("device"),
-            DOC(cyten, SymmetricTensor, move_to_device));
+            DOC(lasyten, SymmetricTensor, move_to_device));
     cls.def("to_backend",
             &SymmetricTensor::to_backend,
             py::arg("backend"),
             py::arg("dtype") = py::none(),
             py::arg("device") = py::none(),
-            DOC(cyten, SymmetricTensor, to_backend));
+            DOC(lasyten, SymmetricTensor, to_backend));
     cls.def(
       "to_dense_block",
       [](SymmetricTensor& self,
@@ -410,22 +410,22 @@ bind_tensors_symmetric_tensor(py::module_& m)
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
       py::arg("understood_braiding") = false,
-      DOC(cyten, SymmetricTensor, to_dense_block));
+      DOC(lasyten, SymmetricTensor, to_dense_block));
     cls.def("to_dense_block_trivial_sector",
             &SymmetricTensor::to_dense_block_trivial_sector,
-            DOC(cyten, SymmetricTensor, to_dense_block_trivial_sector));
+            DOC(lasyten, SymmetricTensor, to_dense_block_trivial_sector));
     cls.def("save_hdf5",
-            cyten::hdf5::wrap_save_hdf5_const<SymmetricTensor>(),
+            lasyten::hdf5::wrap_save_hdf5_const<SymmetricTensor>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
-            DOC(cyten, SymmetricTensor, save_hdf5));
+            DOC(lasyten, SymmetricTensor, save_hdf5));
     cls.def_static("from_hdf5",
-                   cyten::hdf5::wrap_from_hdf5<SymmetricTensor>(),
+                   lasyten::hdf5::wrap_from_hdf5<SymmetricTensor>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
-                   DOC(cyten, SymmetricTensor, from_hdf5));
+                   DOC(lasyten, SymmetricTensor, from_hdf5));
 }
 
-} // namespace cyten
+} // namespace lasyten

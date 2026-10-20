@@ -1,33 +1,33 @@
 tools
 =====
 
-Declared in ``include/cyten/tools.h``.
+Declared in ``include/lasyten/tools.h``.
 
-cyten::NotImplemented
+lasyten::NotImplemented
 ---------------------
 
-.. doxygenclass:: cyten::NotImplemented
-   :project: cyten
+.. doxygenclass:: lasyten::NotImplemented
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::format_like_list
-   :project: cyten
+.. doxygenfunction:: lasyten::format_like_list
+   :project: lasyten
 
-.. doxygenfunction:: cyten::is_iterable
-   :project: cyten
+.. doxygenfunction:: lasyten::is_iterable
+   :project: lasyten
 
-.. doxygenfunction:: cyten::to_iterable
-   :project: cyten
+.. doxygenfunction:: lasyten::to_iterable
+   :project: lasyten
 
-.. doxygenfunction:: cyten::to_valid_idx
-   :project: cyten
+.. doxygenfunction:: lasyten::to_valid_idx
+   :project: lasyten
 
-.. doxygenfunction:: cyten::permutation_as_swaps
-   :project: cyten
+.. doxygenfunction:: lasyten::permutation_as_swaps
+   :project: lasyten
 
 Subheaders
 ----------

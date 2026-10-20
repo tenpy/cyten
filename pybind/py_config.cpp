@@ -1,10 +1,10 @@
-#include <cyten/config.h>
+#include <lasyten/config.h>
 
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 #include "tools/hdf5_bind.h"
 
 namespace py = pybind11;
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -36,7 +36,7 @@ class TemporaryOptions
     }
 
   private:
-    CytenConfig saved_;
+    LasytenConfig saved_;
     py::dict options_;
     bool entered_ = false;
 };
@@ -46,48 +46,51 @@ class TemporaryOptions
 void
 bind_config(py::module_& m)
 {
-    py::class_<CytenConfig>(m, "CytenConfig")
+    py::class_<LasytenConfig>(m, "LasytenConfig")
       .def(py::init<>())
-      .def_readonly("print_linewidth", &CytenConfig::print_linewidth)
-      .def_readonly("print_indent", &CytenConfig::print_indent)
-      .def_readonly("maxlines_spaces", &CytenConfig::maxlines_spaces)
-      .def_readonly("maxlines_tensors", &CytenConfig::maxlines_tensors)
-      .def_readonly("check_fusion", &CytenConfig::check_fusion)
-      .def_readonly("implicit_scalar_conversion", &CytenConfig::implicit_scalar_conversion)
-      .def_readonly("default_tensor_backend", &CytenConfig::default_tensor_backend)
-      .def_readonly("default_block_backend", &CytenConfig::default_block_backend)
-      .def_readonly("fusion_tree_eps", &CytenConfig::fusion_tree_eps)
-      .def_readonly("su_n_data_path", &CytenConfig::su_n_data_path)
-      .def_readonly("su_n_data_filename_base", &CytenConfig::su_n_data_filename_base)
-      .def_readonly("coupling_cutoff", &CytenConfig::coupling_cutoff)
-      .def_static(
-        "all_option_keys", &CytenConfig::all_option_keys, "Names of all recognized config options")
+      .def_readonly("print_linewidth", &LasytenConfig::print_linewidth)
+      .def_readonly("print_indent", &LasytenConfig::print_indent)
+      .def_readonly("maxlines_spaces", &LasytenConfig::maxlines_spaces)
+      .def_readonly("maxlines_tensors", &LasytenConfig::maxlines_tensors)
+      .def_readonly("check_fusion", &LasytenConfig::check_fusion)
+      .def_readonly("implicit_scalar_conversion", &LasytenConfig::implicit_scalar_conversion)
+      .def_readonly("default_tensor_backend", &LasytenConfig::default_tensor_backend)
+      .def_readonly("default_block_backend", &LasytenConfig::default_block_backend)
+      .def_readonly("fusion_tree_eps", &LasytenConfig::fusion_tree_eps)
+      .def_readonly("su_n_data_path", &LasytenConfig::su_n_data_path)
+      .def_readonly("su_n_data_filename_base", &LasytenConfig::su_n_data_filename_base)
+      .def_readonly("coupling_cutoff", &LasytenConfig::coupling_cutoff)
+      .def_static("all_option_keys",
+                  &LasytenConfig::all_option_keys,
+                  "Names of all recognized config options")
       .def_static("env_var_name",
-                  &CytenConfig::env_var_name,
+                  &LasytenConfig::env_var_name,
                   py::arg("key"),
                   "Environment variable name for a config option")
       .def("set_option",
-           py::overload_cast<const std::string&, bool>(&CytenConfig::set_option),
+           py::overload_cast<const std::string&, bool>(&LasytenConfig::set_option),
            py::arg("key"),
            py::arg("value"))
       .def("set_option",
-           py::overload_cast<const std::string&, int64>(&CytenConfig::set_option),
+           py::overload_cast<const std::string&, int64>(&LasytenConfig::set_option),
            py::arg("key"),
            py::arg("value"))
       .def("set_option",
-           py::overload_cast<const std::string&, float64>(&CytenConfig::set_option),
+           py::overload_cast<const std::string&, float64>(&LasytenConfig::set_option),
            py::arg("key"),
            py::arg("value"))
       .def("set_option",
-           py::overload_cast<const std::string&, const std::string&>(&CytenConfig::set_option),
+           py::overload_cast<const std::string&, const std::string&>(&LasytenConfig::set_option),
            py::arg("key"),
            py::arg("value"))
-      .def("update", py::overload_cast<py::dict>(&CytenConfig::update), py::arg("options"))
-      .def("update", py::overload_cast<const CytenConfig&>(&CytenConfig::update), py::arg("other"))
-      .def("update_from_env", &CytenConfig::update_from_env)
+      .def("update", py::overload_cast<py::dict>(&LasytenConfig::update), py::arg("options"))
+      .def("update",
+           py::overload_cast<const LasytenConfig&>(&LasytenConfig::update),
+           py::arg("other"))
+      .def("update_from_env", &LasytenConfig::update_from_env)
       .def(
         "update_from_yaml",
-        [](CytenConfig& self, std::string const& yaml_text) {
+        [](LasytenConfig& self, std::string const& yaml_text) {
             // YAML parsing stays in the Python binding layer (PyYAML); C++ accepts mappings.
             py::module_ yaml = py::module_::import("yaml");
             py::object data = yaml.attr("safe_load")(yaml_text);
@@ -100,19 +103,19 @@ bind_config(py::module_& m)
             self.update_from_mapping(py::reinterpret_borrow<py::dict>(data));
         },
         py::arg("yaml_text"))
-      .def("update_from_file", &CytenConfig::update_from_file, py::arg("filename"))
-      .def("get_option", &CytenConfig::get_option, py::arg("key"))
-      .def("str", &CytenConfig::str)
-      .def("__str__", &CytenConfig::str)
-      .def("__repr__", &CytenConfig::str)
+      .def("update_from_file", &LasytenConfig::update_from_file, py::arg("filename"))
+      .def("get_option", &LasytenConfig::get_option, py::arg("key"))
+      .def("str", &LasytenConfig::str)
+      .def("__str__", &LasytenConfig::str)
+      .def("__repr__", &LasytenConfig::str)
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5_const<CytenConfig>(),
+           lasyten::hdf5::wrap_save_hdf5_const<LasytenConfig>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Export config to hdf5 such that it can be re-imported with from_hdf5")
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<CytenConfig>(),
+                  lasyten::hdf5::wrap_from_hdf5<LasytenConfig>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),
@@ -150,4 +153,4 @@ bind_config(py::module_& m)
           "Reset config to defaults and optionally reload files/env");
 }
 
-} // namespace cyten
+} // namespace lasyten

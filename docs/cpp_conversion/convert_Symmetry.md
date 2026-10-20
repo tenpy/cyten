@@ -9,7 +9,7 @@ Codegen `gen_cpp_declaration --py-name Symmetry` fails with `KeyError: 'BaseSymm
 ### Pitfalls fixed during monkey-patch
 
 - `SymmetryFactor::as_Symmetry` / `__mul__` must not use `shared_from_this()` with smart_holder trampolines (`bad_weak_ptr`). Bindings take `py::object self` and `cast<SymmetryFactor::Ptr>()`.
-- `libcyten` must not `py::cast` `Sector` / `SectorArray` without type casters — use `sector_numpy.h` helpers (`sector_to_numpy` / `sector_array_from_numpy`).
+- `liblasyten` must not `py::cast` `Sector` / `SectorArray` without type casters — use `sector_numpy.h` helpers (`sector_to_numpy` / `sector_array_from_numpy`).
 - `is_valid_sector` / `are_valid_sectors` bindings: invalid Python types → `False` (match Python), not a cast `TypeError`.
 - Product `fusion_tensor_dtype`: read each factor’s dtype via Python `attr` (class attributes on subclasses); C++ `optional` member may be empty.
 - Trampoline for `_multiple_fusion_broadcast`: Python overrides take `*sectors`; unpack `std::vector<SectorArray>` as `*args` (do not pass one list).
@@ -19,9 +19,9 @@ Codegen `gen_cpp_declaration --py-name Symmetry` fails with `KeyError: 'BaseSymm
 | Field | Value |
 | --- | --- |
 | original python name | `Symmetry` |
-| original python file | `cyten/symmetries/_symmetries.py` |
-| original python module | `cyten.symmetries` |
-| declaration | `include/cyten/symmetries/symmetry.h` |
+| original python file | `lasyten/symmetries/_symmetries.py` |
+| original python module | `lasyten.symmetries` |
+| declaration | `include/lasyten/symmetries/symmetry.h` |
 | definition | `src/symmetries/symmetry.cpp` |
 | pybind11 binding | `pybind/symmetries/py_symmetry.cpp` |
 | trampoline | skipped (no Python subclasses) |

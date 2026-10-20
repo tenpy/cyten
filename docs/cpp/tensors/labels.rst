@@ -1,33 +1,33 @@
 labels.h
 ========
 
-Declared in ``include/cyten/tensors/labels.h``.
+Declared in ``include/lasyten/tensors/labels.h``.
 
-cyten::LabelledLegs
+lasyten::LabelledLegs
 -------------------
 
-.. doxygenclass:: cyten::LabelledLegs
-   :project: cyten
+.. doxygenclass:: lasyten::LabelledLegs
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::is_valid_leg_label
-   :project: cyten
+.. doxygenfunction:: lasyten::is_valid_leg_label
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_combine_leg_labels
-   :project: cyten
+.. doxygenfunction:: lasyten::_combine_leg_labels
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_split_leg_label
-   :project: cyten
+.. doxygenfunction:: lasyten::_split_leg_label
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_dual_leg_label
-   :project: cyten
+.. doxygenfunction:: lasyten::_dual_leg_label
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_dual_label_list
-   :project: cyten
+.. doxygenfunction:: lasyten::_dual_label_list
+   :project: lasyten
 
-.. doxygenfunction:: cyten::_get_matching_labels
-   :project: cyten
+.. doxygenfunction:: lasyten::_get_matching_labels
+   :project: lasyten

@@ -1,11 +1,11 @@
-Cyten main module
+LASyTen main module
 =================
 
-- full name: cyten
-- parent module: :mod:`cyten`
+- full name: lasyten
+- parent module: :mod:`lasyten`
 - type: module
 
-.. currentmodule:: cyten
+.. currentmodule:: lasyten
 
 .. rubric:: Subpackages
 
@@ -23,7 +23,7 @@ Pybind11 classes and functions (``R"pydoc(...)pydoc"`` docstrings from
     models
 
 .. rubric:: Module description
-.. automodule:: cyten
+.. automodule:: lasyten
     :show-inheritance:
 
 

@@ -3,10 +3,10 @@ import getpass
 import numpy as np
 import pytest
 
-import cyten as ct
-from cyten.config import CytenConfig, get_config, get_option, restore_defaults, set_options, temporary_options
+import lasyten as lasy
+from lasyten.config import LasytenConfig, get_config, get_option, restore_defaults, set_options, temporary_options
 
-u1_symmetry = ct.U1().as_Symmetry()
+u1_symmetry = lasy.U1().as_Symmetry()
 
 FAKE_USER_CONFIG = """
 print_linewidth: 93
@@ -26,17 +26,17 @@ check_fusion: False
 @pytest.fixture
 def setup_fake_config(tmp_path_factory, monkeypatch):
     with monkeypatch.context() as m:
-        user_config_path = tmp_path_factory.mktemp('home').joinpath('.cytenconfig.yaml')
+        user_config_path = tmp_path_factory.mktemp('home').joinpath('.lasytenconfig.yaml')
         user_config_path.write_text(FAKE_USER_CONFIG)
-        m.setenv('CYTEN_CONFIG_FILE', str(user_config_path))
+        m.setenv('LASYTEN_CONFIG_FILE', str(user_config_path))
 
         cwd = tmp_path_factory.mktemp('wd')
-        cwd.joinpath('.cytenconfig.yaml').write_text(FAKE_LOCAL_CONFIG)
+        cwd.joinpath('.lasytenconfig.yaml').write_text(FAKE_LOCAL_CONFIG)
         m.chdir(cwd)
 
-        m.setenv('CYTEN_PRINT_LINEWIDTH', '91')
-        m.setenv('CYTEN_PRINT_INDENT', '2')
-        m.setenv('CYTEN_MAXLINES_TENSORS', '21')
+        m.setenv('LASYTEN_PRINT_LINEWIDTH', '91')
+        m.setenv('LASYTEN_PRINT_INDENT', '2')
+        m.setenv('LASYTEN_MAXLINES_TENSORS', '21')
 
         restore_defaults()
 
@@ -106,7 +106,7 @@ def test_config_precedence(setup_fake_config):
         assert get_option('default_block_backend') == 'gpu'
         assert get_option('coupling_cutoff') == 1e-13
         # now, doing an invalid fusion should raise
-        with pytest.raises(ct.SymmetryError, match='not consistent with fusion rules'):
+        with pytest.raises(lasy.SymmetryError, match='not consistent with fusion rules'):
             invalid_fusion = u1_symmetry.r_symbol(np.array([1]), np.array([1]), np.array([-1]))
 
     assert get_option('print_linewidth') == 90
@@ -122,7 +122,7 @@ def test_config_precedence(setup_fake_config):
 
 
 def test_options_consistency():
-    config = CytenConfig()  # default config
+    config = LasytenConfig()  # default config
     assert config.get_option('implicit_scalar_conversion') is True
     for key in get_config().all_option_keys():
         default_val = get_option(key)
@@ -137,8 +137,8 @@ def test_su_n_data_defaults():
 
 def test_su_n_data_env_override(monkeypatch):
     with monkeypatch.context() as m:
-        m.setenv('CYTEN_SU_N_DATA_PATH', '/some/where/else')
-        m.setenv('CYTEN_SU_N_DATA_FILENAME_BASE', 'my_base')
+        m.setenv('LASYTEN_SU_N_DATA_PATH', '/some/where/else')
+        m.setenv('LASYTEN_SU_N_DATA_FILENAME_BASE', 'my_base')
         restore_defaults()
         assert get_option('su_n_data_path') == '/some/where/else'
         assert get_option('su_n_data_filename_base') == 'my_base'
@@ -146,7 +146,7 @@ def test_su_n_data_env_override(monkeypatch):
 
 
 def test_su_n_data_set_option_types():
-    config = CytenConfig()
+    config = LasytenConfig()
     config.set_option('su_n_data_path', r'C:\Users\x\su_n')  # free-form, no allow-list
     assert config.get_option('su_n_data_path') == r'C:\Users\x\su_n'
     with pytest.raises(TypeError):
@@ -156,7 +156,7 @@ def test_su_n_data_set_option_types():
 
 
 def test_su_n_data_file_path():
-    from cyten.symmetries import su_n_data_file_path, su_n_data_filename
+    from lasyten.symmetries import su_n_data_file_path, su_n_data_filename
 
     assert su_n_data_filename(3, 'CG', 7) == 'su_n_clebsch_gordan_data_N3_CG_hweight7.hdf5'
     assert su_n_data_filename(3, 'F', 4, filename_base='foo') == 'foo_N3_F_hweight4.hdf5'

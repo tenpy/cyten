@@ -1,12 +1,12 @@
 no_symmetry.h
 =============
 
-Declared in ``include/cyten/symmetries/factors/no_symmetry.h``.
+Declared in ``include/lasyten/symmetries/factors/no_symmetry.h``.
 
-cyten::NoSymmetry
+lasyten::NoSymmetry
 -----------------
 
-.. doxygenclass:: cyten::NoSymmetry
-   :project: cyten
+.. doxygenclass:: lasyten::NoSymmetry
+   :project: lasyten
    :members:
    :undoc-members:

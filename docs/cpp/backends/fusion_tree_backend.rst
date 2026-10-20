@@ -1,20 +1,20 @@
 fusion_tree_backend.h
 =====================
 
-Declared in ``include/cyten/backends/fusion_tree_backend.h``.
+Declared in ``include/lasyten/backends/fusion_tree_backend.h``.
 
-cyten::FusionTreeBackend
+lasyten::FusionTreeBackend
 ------------------------
 
-.. doxygenclass:: cyten::FusionTreeBackend
-   :project: cyten
+.. doxygenclass:: lasyten::FusionTreeBackend
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::FusionTreeData
+lasyten::FusionTreeData
 ---------------------
 
-.. doxygenclass:: cyten::FusionTreeData
-   :project: cyten
+.. doxygenclass:: lasyten::FusionTreeData
+   :project: lasyten
    :members:
    :undoc-members:

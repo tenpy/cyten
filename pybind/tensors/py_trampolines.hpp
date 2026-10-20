@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tensors/tensor.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tensors/tensor.h>
 
 #include <pybind11/pybind11.h>
 
@@ -12,7 +12,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 /// pybind11 trampoline for :class:`Tensor` so Python subclasses can override virtuals.
 class PyTensor
@@ -249,4 +249,4 @@ class PyDiagonalTensor
     }
 };
 
-} // namespace cyten
+} // namespace lasyten

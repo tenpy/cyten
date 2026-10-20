@@ -1,1 +1,1 @@
-"""Cyten performance benchmarks (not part of the installed package)."""
+"""LASyTen performance benchmarks (not part of the installed package)."""

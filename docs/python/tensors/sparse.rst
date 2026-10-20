@@ -1,82 +1,82 @@
-cyten.tensors.sparse
+lasyten.tensors.sparse
 ====================
 
-Declared in ``cyten/tensors/sparse.py`` (bindings in ``pybind/tensors/py_sparse.cpp``).
+Declared in ``lasyten/tensors/sparse.py`` (bindings in ``pybind/tensors/py_sparse.cpp``).
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.tensors.sparse.LinearOperator
+lasyten.tensors.sparse.LinearOperator
 -----------------------------------
 
-.. autoclass:: cyten.tensors.sparse.LinearOperator
+.. autoclass:: lasyten.tensors.sparse.LinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.sparse.TensorLinearOperator
+lasyten.tensors.sparse.TensorLinearOperator
 -----------------------------------------
 
-.. autoclass:: cyten.tensors.sparse.TensorLinearOperator
+.. autoclass:: lasyten.tensors.sparse.TensorLinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.sparse.LinearOperatorWrapper
+lasyten.tensors.sparse.LinearOperatorWrapper
 ------------------------------------------
 
-.. autoclass:: cyten.tensors.sparse.LinearOperatorWrapper
+.. autoclass:: lasyten.tensors.sparse.LinearOperatorWrapper
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.sparse.SumLinearOperator
+lasyten.tensors.sparse.SumLinearOperator
 --------------------------------------
 
-.. autoclass:: cyten.tensors.sparse.SumLinearOperator
+.. autoclass:: lasyten.tensors.sparse.SumLinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.sparse.ShiftedLinearOperator
+lasyten.tensors.sparse.ShiftedLinearOperator
 ------------------------------------------
 
-.. autoclass:: cyten.tensors.sparse.ShiftedLinearOperator
+.. autoclass:: lasyten.tensors.sparse.ShiftedLinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.sparse.ProjectedLinearOperator
+lasyten.tensors.sparse.ProjectedLinearOperator
 --------------------------------------------
 
-.. autoclass:: cyten.tensors.sparse.ProjectedLinearOperator
+.. autoclass:: lasyten.tensors.sparse.ProjectedLinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.sparse.DirectSumLinearOperator
+lasyten.tensors.sparse.DirectSumLinearOperator
 --------------------------------------------
 
-.. autoclass:: cyten.tensors.sparse.DirectSumLinearOperator
+.. autoclass:: lasyten.tensors.sparse.DirectSumLinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.sparse.NumpyArrayLinearOperator
+lasyten.tensors.sparse.NumpyArrayLinearOperator
 ---------------------------------------------
 
-.. autoclass:: cyten.tensors.sparse.NumpyArrayLinearOperator
+.. autoclass:: lasyten.tensors.sparse.NumpyArrayLinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.tensors.sparse.HermitianNumpyArrayLinearOperator
+lasyten.tensors.sparse.HermitianNumpyArrayLinearOperator
 ------------------------------------------------------
 
-.. autoclass:: cyten.tensors.sparse.HermitianNumpyArrayLinearOperator
+.. autoclass:: lasyten.tensors.sparse.HermitianNumpyArrayLinearOperator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -84,4 +84,4 @@ cyten.tensors.sparse.HermitianNumpyArrayLinearOperator
 Functions
 ---------
 
-.. autofunction:: cyten.tensors.sparse.gram_schmidt
+.. autofunction:: lasyten.tensors.sparse.gram_schmidt

@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: format_like_list
-- original python file: cyten/tools/string.py
-- original python module: cyten.tools.string
-- declaration in C++ header file: include/cyten/tools.h
+- original python file: lasyten/tools/string.py
+- original python module: lasyten.tools.string
+- declaration in C++ header file: include/lasyten/tools.h
 - definition in C++ file: src/tools.cpp
 - pybind11 binding: pybind/tools.cpp
 - first line of docstring: Format elements of an iterable as if it were a plain list.

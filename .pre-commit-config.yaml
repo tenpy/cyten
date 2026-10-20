@@ -81,8 +81,8 @@ repos:
         pass_filenames: false
         always_run: true
       - id: core-stub-parity
-        name: check cyten._core stub parity
-        # note: this requires cyten to be installed
+        name: check lasyten._core stub parity
+        # note: this requires lasyten to be installed
         language: unsupported_script
         entry: scripts/check_core_stub_parity.py
         args: [--generate]

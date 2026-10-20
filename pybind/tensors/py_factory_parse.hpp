@@ -5,13 +5,13 @@
 /// Sequence-of-spaces (co)domains, nested labels, numpy blocks, and optional tensors stay at
 /// the binding layer. Typed C++ factories receive Ptrs / BlockPtrs / OptionalLabels.
 
-#include <cyten/tensors/charged_tensor.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tensors/tensor.h>
+#include <lasyten/tensors/charged_tensor.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tensors/tensor.h>
 
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include <optional>
 #include <stdexcept>
@@ -19,7 +19,7 @@
 #include <utility>
 #include <variant>
 
-namespace cyten {
+namespace lasyten {
 
 inline Space::Ptr
 py_as_space_leg(py::object leg)
@@ -117,4 +117,4 @@ py_from_charged_or_scalar(std::variant<ChargedTensor::Ptr, BlockBackend::Scalar>
     return std::visit([](auto const& v) -> py::object { return py::cast(v); }, result);
 }
 
-} // namespace cyten
+} // namespace lasyten

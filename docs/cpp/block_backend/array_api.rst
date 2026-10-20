@@ -1,12 +1,12 @@
 array_api.h
 ===========
 
-Declared in ``include/cyten/block_backend/array_api.h``.
+Declared in ``include/lasyten/block_backend/array_api.h``.
 
-cyten::ArrayApiBlockBackend
+lasyten::ArrayApiBlockBackend
 ---------------------------
 
-.. doxygenclass:: cyten::ArrayApiBlockBackend
-   :project: cyten
+.. doxygenclass:: lasyten::ArrayApiBlockBackend
+   :project: lasyten
    :members:
    :undoc-members:

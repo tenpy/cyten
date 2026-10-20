@@ -1,7 +1,7 @@
 Introductions
 =============
 
-The following documents introduce Cyten.
+The following documents introduce LASyTen.
 
 If you are new here, start with the :doc:`intro/overview` of the source tree,
 then run the :doc:`intro/first_steps` example. If you already use TeNPy, see

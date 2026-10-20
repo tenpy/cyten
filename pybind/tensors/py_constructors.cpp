@@ -1,9 +1,9 @@
-#include <cyten/tensors/constructors.h>
-#include <cyten/tensors/hidden_leg_tensor.h>
-#include <cyten/tensors/tensor.h>
+#include <lasyten/tensors/constructors.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/tensor.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "py_factory_parse.hpp"
 
 #include "docstrings/tensors/constructors.h"
@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_tensors_constructors(py::module_& m)
@@ -43,7 +43,7 @@ bind_tensors_constructors(py::module_& m)
       py::arg("dtype") = Dtype::Float64,
       py::arg("device") = py::none(),
       py::arg("diagonal") = true,
-      DOC(cyten, eye));
+      DOC(lasyten, eye));
 
     m.def(
       "tensor",
@@ -101,7 +101,7 @@ bind_tensors_constructors(py::module_& m)
       py::arg("dtype") = py::none(),
       py::arg("device") = py::none(),
       py::arg("understood_braiding") = false,
-      doc_plus(DOC(cyten, tensor),
+      doc_plus(DOC(lasyten, tensor),
                R"pydoc(
 Also accepts a dense block (second C++ overload). ``None`` for optional arguments
 matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the block path.
@@ -145,13 +145,13 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
       py::arg("domain_pos") = py::none(),
       py::arg("label") = py::none(),
       py::arg("is_dual") = false,
-      DOC(cyten, add_trivial_leg));
+      DOC(lasyten, add_trivial_leg));
 
     m.def(
       "zero_like",
       [](py::object tensor) { return zero_like(tensor.cast<TensorCPtr>()); },
       py::arg("tensor"),
-      DOC(cyten, zero_like));
+      DOC(lasyten, zero_like));
 
     m.def(
       "tensor_from_grid",
@@ -186,7 +186,7 @@ matches C++ null / ``nullopt``. ``understood_braiding`` applies only to the bloc
       py::kw_only(),
       py::arg("row_labels") = py::none(),
       py::arg("col_labels") = py::none(),
-      doc_plus(DOC(cyten, tensor_from_grid),
+      doc_plus(DOC(lasyten, tensor_from_grid),
                R"pydoc(
 In Python, ``grid`` is ``list[list[SymmetricTensor | None]]`` (``None`` = zero cell);
 ``labels`` / ``dtype`` / ``row_labels`` / ``col_labels`` use ``None`` for C++ ``nullopt``.
@@ -229,7 +229,7 @@ In Python, ``grid`` is ``list[list[SymmetricTensor | None]]`` (``None`` = zero c
       py::arg("col"),
       py::arg("row_leg") = py::none(),
       py::arg("col_leg") = py::none(),
-      doc_plus(DOC(cyten, tensor_grid_cell),
+      doc_plus(DOC(lasyten, tensor_grid_cell),
                R"pydoc(
 In Python, ``row`` / ``col`` accept ``int | str`` (a summand label, resolved via
 ``DirectSumSpace.get_summand_idx``).
@@ -273,7 +273,7 @@ In Python, ``row`` / ``col`` accept ``int | str`` (a summand label, resolved via
       py::arg("cols"),
       py::arg("row_leg") = py::none(),
       py::arg("col_leg") = py::none(),
-      doc_plus(DOC(cyten, tensor_subgrid),
+      doc_plus(DOC(lasyten, tensor_subgrid),
                R"pydoc(
 In Python, ``rows`` / ``cols`` are sequences of ``int | str`` (summand labels).
 )pydoc"));
@@ -310,10 +310,10 @@ In Python, ``rows`` / ``cols`` are sequences of ``int | str`` (summand labels).
       py::arg("legs"),
       py::arg("cells"),
       py::arg("squeeze") = false,
-      doc_plus(DOC(cyten, grid_project),
+      doc_plus(DOC(lasyten, grid_project),
                R"pydoc(
 In Python, ``legs`` and ``cells`` are parallel sequences of ``str | int`` values.
 )pydoc"));
 }
 
-} // namespace cyten
+} // namespace lasyten

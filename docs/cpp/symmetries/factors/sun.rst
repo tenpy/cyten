@@ -1,12 +1,12 @@
 sun.h
 =====
 
-Declared in ``include/cyten/symmetries/factors/sun.h``.
+Declared in ``include/lasyten/symmetries/factors/sun.h``.
 
-cyten::SUN
+lasyten::SUN
 ----------
 
-.. doxygenclass:: cyten::SUN
-   :project: cyten
+.. doxygenclass:: lasyten::SUN
+   :project: lasyten
    :members:
    :undoc-members:

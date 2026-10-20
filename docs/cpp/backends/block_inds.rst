@@ -1,12 +1,12 @@
 block_inds.h
 ============
 
-Declared in ``include/cyten/backends/block_inds.h``.
+Declared in ``include/lasyten/backends/block_inds.h``.
 
-cyten::BlockInds
+lasyten::BlockInds
 ----------------
 
-.. doxygenclass:: cyten::BlockInds
-   :project: cyten
+.. doxygenclass:: lasyten::BlockInds
+   :project: lasyten
    :members:
    :undoc-members:

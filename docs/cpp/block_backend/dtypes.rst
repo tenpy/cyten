@@ -1,52 +1,52 @@
 dtypes.h
 ========
 
-Declared in ``include/cyten/block_backend/dtypes.h``.
+Declared in ``include/lasyten/block_backend/dtypes.h``.
 
-cyten::Dtype
+lasyten::Dtype
 ------------
 
-.. doxygenenum:: cyten::Dtype
-   :project: cyten
+.. doxygenenum:: lasyten::Dtype
+   :project: lasyten
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::dtype::is_real
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::is_real
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::is_complex
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::is_complex
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::to_complex
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::to_complex
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::to_real
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::to_real
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::repr
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::repr
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::eps
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::eps
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::to_numpy_dtype
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::to_numpy_dtype
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::from_numpy_dtype
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::from_numpy_dtype
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::common
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::common
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::convert_python_scalar
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::convert_python_scalar
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::python_type
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::python_type
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::zero_scalar
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::zero_scalar
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dtype::one_scalar
-   :project: cyten
+.. doxygenfunction:: lasyten::dtype::one_scalar
+   :project: lasyten

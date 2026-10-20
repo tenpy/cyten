@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from cyten.block_backends import ArrayApiBlockBackend, Dtype
+from lasyten.block_backends import ArrayApiBlockBackend, Dtype
 
 
 @pytest.fixture

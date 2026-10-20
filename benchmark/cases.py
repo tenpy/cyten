@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-import cyten as ct
-from cyten.symmetries import su_n_data_file_path, su_n_data_filename
+import lasyten as lasy
+from lasyten.symmetries import su_n_data_file_path, su_n_data_filename
 
 from .common import get_tensor_backend
 
@@ -73,7 +73,7 @@ def _sun2_symmetry():
         descriptive_name='SU(2)',
     )
     try:
-        return ct.SUN(2, _SUN2_CG_HWEIGHT, **kwargs).as_Symmetry()
+        return lasy.SUN(2, _SUN2_CG_HWEIGHT, **kwargs).as_Symmetry()
     except FileNotFoundError as first_exc:
         fallback = _repo_sun_symbols_path()
         if fallback is None:
@@ -82,18 +82,18 @@ def _sun2_symmetry():
                 'Install files for N=2 with hweights '
                 f'CG={_SUN2_CG_HWEIGHT}, F={_SUN2_F_HWEIGHT}, R={_SUN2_R_HWEIGHT}, e.g. '
                 f'{su_n_data_file_path(2, "CG", _SUN2_CG_HWEIGHT)!r}, '
-                "or set cyten.set_options(su_n_data_path='...'), or check out "
+                "or set lasyten.set_options(su_n_data_path='...'), or check out "
                 'the external/SUN_symbols submodule in this repository.'
             ) from first_exc
-        return ct.SUN(2, _SUN2_CG_HWEIGHT, path=str(fallback), **kwargs).as_Symmetry()
+        return lasy.SUN(2, _SUN2_CG_HWEIGHT, path=str(fallback), **kwargs).as_Symmetry()
 
 
 def get_symmetry(case: str):
     """Return the ``Symmetry`` instance for a named case."""
     if case == 'nosym':
-        return ct.NoSymmetry().as_Symmetry()
+        return lasy.NoSymmetry().as_Symmetry()
     if case == 'u1':
-        return ct.U1().as_Symmetry()
+        return lasy.U1().as_Symmetry()
     if case == 'su2':
         return _sun2_symmetry()
     raise ValueError(f'Unknown case {case!r}; choose from {sorted(CASES)}')
@@ -113,7 +113,7 @@ def _u1_leg(symmetry, dim: int):
     n = len(sectors)
     mult = max(1, int(dim) // n)
     multiplicities = [mult] * n
-    return ct.ElementarySpace.from_defining_sectors(symmetry, sectors, multiplicities=multiplicities)
+    return lasy.ElementarySpace.from_defining_sectors(symmetry, sectors, multiplicities=multiplicities)
 
 
 def _su2_leg(symmetry, dim: int):
@@ -126,7 +126,7 @@ def _su2_leg(symmetry, dim: int):
     unit = sum(qdims)
     mult = max(1, int(dim) // unit)
     multiplicities = [mult] * len(sectors)
-    return ct.ElementarySpace.from_defining_sectors(symmetry, sectors, multiplicities=multiplicities)
+    return lasy.ElementarySpace.from_defining_sectors(symmetry, sectors, multiplicities=multiplicities)
 
 
 def make_leg(case: str, dim: int):
@@ -135,7 +135,7 @@ def make_leg(case: str, dim: int):
         raise ValueError('dim must be >= 1')
     symmetry = get_symmetry(case)
     if case == 'nosym':
-        return ct.ElementarySpace.from_trivial_sector(int(dim), symmetry=symmetry)
+        return lasy.ElementarySpace.from_trivial_sector(int(dim), symmetry=symmetry)
     if case == 'u1':
         return _u1_leg(symmetry, dim)
     if case == 'su2':
@@ -162,10 +162,10 @@ def make_matrix_pair(
     leg = make_leg(case, dim)
     actual_dim = int(leg.dim)
     backend = get_tensor_backend(symmetry_backend, block_backend)
-    # Seed is recorded by callers; cyten random fills are not currently seeded via
+    # Seed is recorded by callers; lasyten random fills are not currently seeded via
     # a public RNG argument on from_random_uniform, so we only stabilize shape/size.
     _ = seed
-    A = ct.SymmetricTensor.from_random_uniform(
+    A = lasy.SymmetricTensor.from_random_uniform(
         codomain=[leg],
         domain=[leg],
         backend=backend,
@@ -173,7 +173,7 @@ def make_matrix_pair(
         dtype=dtype,
         device=device,
     )
-    B = ct.SymmetricTensor.from_random_uniform(
+    B = lasy.SymmetricTensor.from_random_uniform(
         codomain=[leg],
         domain=[leg],
         backend=backend,
@@ -201,7 +201,7 @@ def make_svd_tensor(
     actual_dim = int(leg.dim)
     backend = get_tensor_backend(symmetry_backend, block_backend)
     _ = seed
-    T = ct.SymmetricTensor.from_random_uniform(
+    T = lasy.SymmetricTensor.from_random_uniform(
         codomain=[leg],
         domain=[leg],
         backend=backend,
@@ -255,7 +255,7 @@ def make_rank4_tensor(
     actual_dim = int(leg.dim)
     backend = get_tensor_backend(symmetry_backend, block_backend)
     _ = seed
-    T = ct.SymmetricTensor.from_random_uniform(
+    T = lasy.SymmetricTensor.from_random_uniform(
         codomain=[leg, leg],
         domain=[leg, leg],
         backend=backend,

@@ -1,12 +1,12 @@
-#include <cyten/symmetries/symmetry_factor.h>
+#include <lasyten/symmetries/symmetry_factor.h>
 
-#include <cyten/symmetries/symmetry.h>
+#include <lasyten/symmetries/symmetry.h>
 
-#include <cyten/tools/hdf5.h>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
 #include <stdexcept>
 
-namespace cyten {
+namespace lasyten {
 
 SymmetryFactor::SymmetryFactor(FusionStyle fusion_style,
                                BraidingStyle braiding_style,
@@ -99,7 +99,7 @@ SymmetryFactor::equals(SymmetryFactor const& other) const
 }
 
 void
-SymmetryFactor::save_hdf5(cyten::hdf5::Saver& saver,
+SymmetryFactor::save_hdf5(lasyten::hdf5::Saver& saver,
                           HighFive::Group& h5gr,
                           std::string const& subpath) const
 {
@@ -107,10 +107,10 @@ SymmetryFactor::save_hdf5(cyten::hdf5::Saver& saver,
     saver.save_int64(subpath + "fusion_style", static_cast<std::int64_t>(fusion_style));
     saver.save_int64(subpath + "braiding_style", static_cast<std::int64_t>(braiding_style));
     saver.save_instance(subpath + "trivial_sector",
-                        "cyten._core",
+                        "lasyten._core",
                         "Sector",
                         &trivial_sector,
-                        [&](cyten::hdf5::Saver& s, HighFive::Group& g, std::string const& sub) {
+                        [&](lasyten::hdf5::Saver& s, HighFive::Group& g, std::string const& sub) {
                             trivial_sector.save_hdf5(s, g, sub);
                         });
     saver.save_float64(subpath + "num_sectors", num_sectors);
@@ -123,7 +123,7 @@ SymmetryFactor::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 void
-SymmetryFactor::load_hdf5_common(cyten::hdf5::Loader& loader,
+SymmetryFactor::load_hdf5_common(lasyten::hdf5::Loader& loader,
                                  HighFive::Group& h5gr,
                                  std::string const& subpath)
 {
@@ -146,7 +146,7 @@ SymmetryFactor::load_hdf5_common(cyten::hdf5::Loader& loader,
         hid_t id = loader.open(subpath + "trivial_sector");
         HighFive::Group sector_gr = hdf5_io::group_from_hid(id);
         trivial_sector = Sector::from_hdf5(
-          loader, sector_gr, cyten::hdf5::ensure_slash(subpath + "trivial_sector"));
+          loader, sector_gr, lasyten::hdf5::ensure_slash(subpath + "trivial_sector"));
     }
     {
         hid_t id = loader.open(subpath + "num_sectors");
@@ -177,7 +177,7 @@ descriptive_name_from_hdf5_attrs(HighFive::Group& h5gr)
 }
 
 bool
-trivial_shift_from_hdf5(cyten::hdf5::Loader& loader, std::string const& subpath)
+trivial_shift_from_hdf5(lasyten::hdf5::Loader& loader, std::string const& subpath)
 {
     if (!hdf5_io::h5_contains(loader.root(), subpath + "trivial_shift")) {
         return true;
@@ -188,4 +188,4 @@ trivial_shift_from_hdf5(cyten::hdf5::Loader& loader, std::string const& subpath)
     return v;
 }
 
-} // namespace cyten
+} // namespace lasyten

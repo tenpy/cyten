@@ -1,5 +1,5 @@
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "docstrings/block_backend/block_backend.h"
 #include "py_array_api.cpp"
 #include "py_dtypes.cpp"
@@ -8,17 +8,17 @@
 #include "py_trampolines.hpp"
 
 #include "tools/hdf5_bind.h"
-#include <cyten/block_backend/array_api.h>
-#include <cyten/block_backend/block_backend.h>
-#include <cyten/block_backend/numpy.h>
-#include <cyten/block_backend/torch.h>
-#include <cyten/config.h>
-#include <cyten/symmetries/spaces.h>
+#include <lasyten/block_backend/array_api.h>
+#include <lasyten/block_backend/block_backend.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/block_backend/torch.h>
+#include <lasyten/config.h>
+#include <lasyten/symmetries/spaces.h>
 #include <pybind11/detail/common.h>
 #include <span>
 #include <sstream>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -29,7 +29,7 @@ require_implicit_scalar_conversion(const char* dest)
         throw py::type_error(
           std::string("Implicit conversion of Scalar to ") + dest +
           " is disabled. Use as_float64() / as_complex128() / to_numpy(), or set "
-          "cyten.set_option('implicit_scalar_conversion', True).");
+          "lasyten.set_option('implicit_scalar_conversion', True).");
     }
 }
 
@@ -134,7 +134,8 @@ bind_block_backend(py::module_& m)
            "As complex (real/bool have zero imaginary part).")
       .def("as_int64", &BlockBackend::Scalar::as_int64, "As int64; raises if dtype is not Int64.")
       .def("as_bool", &BlockBackend::Scalar::as_bool, "As bool; raises if dtype is not Bool.")
-      .def("to_numpy", &BlockBackend::Scalar::to_numpy, DOC(cyten, BlockBackend, Scalar, to_numpy))
+      .def(
+        "to_numpy", &BlockBackend::Scalar::to_numpy, DOC(lasyten, BlockBackend, Scalar, to_numpy))
       .def(
         "__float__",
         [](const BlockBackend::Scalar& self) {
@@ -360,13 +361,13 @@ bind_block_backend(py::module_& m)
       .def_property_readonly(
         "_block", &BlockBackend::Scalar::_block, "Return the underlying block.")
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5<BlockBackend::Scalar>(),
+           lasyten::hdf5::wrap_save_hdf5<BlockBackend::Scalar>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Save scalar to HDF5.")
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<BlockBackend::Scalar>(),
+                  lasyten::hdf5::wrap_from_hdf5<BlockBackend::Scalar>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),
@@ -623,13 +624,13 @@ bind_block_backend(py::module_& m)
            &BlockBackend::Block::_item_as_int64,
            "Return the element of a zero-dimensional block as a int64.")
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5<BlockBackend::Block>(),
+           lasyten::hdf5::wrap_save_hdf5<BlockBackend::Block>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Save block state to HDF5.")
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<BlockBackend::Block>(),
+                  lasyten::hdf5::wrap_from_hdf5<BlockBackend::Block>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),
@@ -711,7 +712,7 @@ bind_block_backend(py::module_& m)
         py::arg("block"),
         py::arg("legs"),
         py::arg("inv") = false,
-        DOC(cyten, BlockBackend, apply_basis_perm))
+        DOC(lasyten, BlockBackend, apply_basis_perm))
       .def("apply_leg_permutations",
            &BlockBackend::apply_leg_permutations,
            py::arg("block"),
@@ -722,11 +723,11 @@ bind_block_backend(py::module_& m)
            py::arg("a"),
            py::arg("dtype") = py::none(),
            py::arg("device") = py::none(),
-           DOC(cyten, BlockBackend, as_block))
+           DOC(lasyten, BlockBackend, as_block))
       .def("as_device",
            &BlockBackend::as_device,
            py::arg("device"),
-           DOC(cyten, BlockBackend, as_device))
+           DOC(lasyten, BlockBackend, as_device))
       .def("abs_argmax",
            &BlockBackend::abs_argmax,
            py::arg("block"),
@@ -765,7 +766,7 @@ bind_block_backend(py::module_& m)
            py::arg("block"),
            py::arg("sort") = py::none(),
            py::arg("axis") = 0,
-           DOC(cyten, BlockBackend, argsort))
+           DOC(lasyten, BlockBackend, argsort))
       .def("_argsort",
            &BlockBackend::_argsort,
            py::arg("block"),
@@ -778,7 +779,7 @@ bind_block_backend(py::module_& m)
            py::arg("a"),
            py::arg("leg_idcs_combine"),
            py::arg("cstyles"),
-           DOC(cyten, BlockBackend, combine_legs))
+           DOC(lasyten, BlockBackend, combine_legs))
       .def("combine_legs",
            py::overload_cast<const BlockCPtr&, const std::vector<std::vector<int64>>&, bool>(
              &BlockBackend::combine_legs),
@@ -790,7 +791,7 @@ bind_block_backend(py::module_& m)
            &BlockBackend::copy_block,
            py::arg("a"),
            py::arg("device") = py::none(),
-           DOC(cyten, BlockBackend, copy_block))
+           DOC(lasyten, BlockBackend, copy_block))
       .def(
         "cutoff_inverse",
         &BlockBackend::cutoff_inverse,
@@ -806,28 +807,28 @@ bind_block_backend(py::module_& m)
            &BlockBackend::eigh,
            py::arg("block"),
            py::arg("sort") = py::none(),
-           DOC(cyten, BlockBackend, eigh))
+           DOC(lasyten, BlockBackend, eigh))
       .def("eig",
            &BlockBackend::eig,
            py::arg("block"),
            py::arg("sort") = py::none(),
-           DOC(cyten, BlockBackend, eig))
+           DOC(lasyten, BlockBackend, eig))
       .def("eigvalsh",
            &BlockBackend::eigvalsh,
            py::arg("block"),
            py::arg("sort") = py::none(),
-           DOC(cyten, BlockBackend, eigvalsh))
+           DOC(lasyten, BlockBackend, eigvalsh))
       .def("eigvals",
            &BlockBackend::eigvals,
            py::arg("block"),
            py::arg("sort") = py::none(),
-           DOC(cyten, BlockBackend, eigvals))
+           DOC(lasyten, BlockBackend, eigvals))
       .def("enlarge_leg",
            &BlockBackend::enlarge_leg,
            py::arg("block"),
            py::arg("mask"),
            py::arg("axis"))
-      .def("exp", &BlockBackend::exp, py::arg("a"), DOC(cyten, BlockBackend, exp))
+      .def("exp", &BlockBackend::exp, py::arg("a"), DOC(lasyten, BlockBackend, exp))
       .def("block_from_diagonal",
            &BlockBackend::block_from_diagonal,
            py::arg("diag"),
@@ -836,7 +837,7 @@ bind_block_backend(py::module_& m)
            &BlockBackend::block_from_mask,
            py::arg("mask"),
            py::arg("dtype"),
-           DOC(cyten, BlockBackend, block_from_mask))
+           DOC(lasyten, BlockBackend, block_from_mask))
       .def("block_from_numpy",
            &BlockBackend::block_from_numpy,
            py::arg("a"),
@@ -857,21 +858,22 @@ bind_block_backend(py::module_& m)
            py::arg("a"),
            py::arg("b"),
            py::arg("do_dagger"),
-           DOC(cyten, BlockBackend, inner))
-      .def("is_real", &BlockBackend::is_real, py::arg("a"), DOC(cyten, BlockBackend, is_real))
+           DOC(lasyten, BlockBackend, inner))
+      .def("is_real", &BlockBackend::is_real, py::arg("a"), DOC(lasyten, BlockBackend, is_real))
       .def("item",
            &BlockBackend::item,
            py::arg("a"),
            "Assumes that data is a scalar (i.e. has only one entry). Returns that scalar as "
            "python float or complex")
-      .def("kron", &BlockBackend::kron, py::arg("a"), py::arg("b"), DOC(cyten, BlockBackend, kron))
+      .def(
+        "kron", &BlockBackend::kron, py::arg("a"), py::arg("b"), DOC(lasyten, BlockBackend, kron))
       .def("linear_combination",
            &BlockBackend::linear_combination,
            py::arg("a"),
            py::arg("v"),
            py::arg("b"),
            py::arg("w"))
-      .def("log", &BlockBackend::log, py::arg("a"), DOC(cyten, BlockBackend, log))
+      .def("log", &BlockBackend::log, py::arg("a"), DOC(lasyten, BlockBackend, log))
       .def("max", &BlockBackend::max, py::arg("a"))
       .def("max_abs", &BlockBackend::max_abs, py::arg("a"))
       .def("min", &BlockBackend::min, py::arg("a"))
@@ -892,9 +894,12 @@ bind_block_backend(py::module_& m)
            py::arg("a"),
            py::arg("order") = 2,
            py::arg("axis") = py::none(),
-           DOC(cyten, BlockBackend, norm))
-      .def(
-        "outer", &BlockBackend::outer, py::arg("a"), py::arg("b"), DOC(cyten, BlockBackend, outer))
+           DOC(lasyten, BlockBackend, norm))
+      .def("outer",
+           &BlockBackend::outer,
+           py::arg("a"),
+           py::arg("b"),
+           DOC(lasyten, BlockBackend, outer))
       .def("permute_axes", &BlockBackend::permute_axes, py::arg("a"), py::arg("permutation"))
       .def("permute_combined_matrix",
            &BlockBackend::permute_combined_matrix,
@@ -903,14 +908,14 @@ bind_block_backend(py::module_& m)
            py::arg("idcs1"),
            py::arg("dims2"),
            py::arg("idcs2"),
-           DOC(cyten, BlockBackend, permute_combined_matrix))
+           DOC(lasyten, BlockBackend, permute_combined_matrix))
       .def("permute_combined_idx",
            &BlockBackend::permute_combined_idx,
            py::arg("block"),
            py::arg("axis"),
            py::arg("dims"),
            py::arg("idcs"),
-           DOC(cyten, BlockBackend, permute_combined_idx))
+           DOC(lasyten, BlockBackend, permute_combined_idx))
       .def("random_normal",
            &BlockBackend::random_normal,
            py::arg("dims"),
@@ -930,7 +935,7 @@ bind_block_backend(py::module_& m)
            &BlockBackend::real_if_close,
            py::arg("a"),
            py::arg("tol"),
-           DOC(cyten, BlockBackend, real_if_close))
+           DOC(lasyten, BlockBackend, real_if_close))
       .def("tile",
            &BlockBackend::tile,
            py::arg("a"),
@@ -948,7 +953,7 @@ bind_block_backend(py::module_& m)
            py::arg("block"),
            py::arg("factors"),
            py::arg("axis"),
-           DOC(cyten, BlockBackend, scale_axis))
+           DOC(lasyten, BlockBackend, scale_axis))
       .def(
         "get_shape",
         [](BlockBackend& self, const BlockCPtr& a) {
@@ -964,7 +969,7 @@ bind_block_backend(py::module_& m)
            py::arg("idcs"),
            py::arg("dims"),
            py::arg("cstyles"),
-           DOC(cyten, BlockBackend, split_legs))
+           DOC(lasyten, BlockBackend, split_legs))
       .def("split_legs",
            py::overload_cast<const BlockCPtr&,
                              const std::vector<int64>&,
@@ -982,7 +987,7 @@ bind_block_backend(py::module_& m)
            py::arg("cutoff"),
            "Elementwise stable log. For entries > cutoff, yield their natural log. Otherwise 0.")
       .def("sum", &BlockBackend::sum, py::arg("a"), py::arg("ax"), "The sum over a single axis.")
-      .def("sum_all", &BlockBackend::sum_all, py::arg("a"), DOC(cyten, BlockBackend, sum_all))
+      .def("sum_all", &BlockBackend::sum_all, py::arg("a"), DOC(lasyten, BlockBackend, sum_all))
       .def("tdot",
            &BlockBackend::tdot,
            py::arg("a"),
@@ -994,7 +999,7 @@ bind_block_backend(py::module_& m)
            py::arg("a"),
            py::arg("b"),
            py::arg("K"),
-           DOC(cyten, BlockBackend, tensor_outer))
+           DOC(lasyten, BlockBackend, tensor_outer))
       .def("to_dtype", &BlockBackend::to_dtype, py::arg("a"), py::arg("dtype"))
       .def("to_numpy", &BlockBackend::to_numpy, py::arg("a"), py::arg("numpy_dtype") = py::none())
       .def("trace_full", &BlockBackend::trace_full, py::arg("a"))
@@ -1009,7 +1014,7 @@ bind_block_backend(py::module_& m)
            py::arg("legs"),
            py::arg("dtype"),
            py::arg("device") = py::none(),
-           DOC(cyten, BlockBackend, eye_block))
+           DOC(lasyten, BlockBackend, eye_block))
       .def("eye_matrix",
            &BlockBackend::eye_matrix,
            py::arg("dim"),
@@ -1023,7 +1028,7 @@ bind_block_backend(py::module_& m)
            py::arg("large_leg_idx"),
            py::arg("small_leg_idx"),
            py::arg("sum_block") = 0,
-           DOC(cyten, BlockBackend, get_block_mask_element))
+           DOC(lasyten, BlockBackend, get_block_mask_element))
       .def("matrix_dot",
            &BlockBackend::matrix_dot,
            py::arg("a"),
@@ -1064,12 +1069,12 @@ bind_block_backend(py::module_& m)
            py::arg("dtype"),
            py::arg("device") = py::none())
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5<BlockBackend>(),
+           lasyten::hdf5::wrap_save_hdf5<BlockBackend>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"))
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<BlockBackend>(),
+                  lasyten::hdf5::wrap_from_hdf5<BlockBackend>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath")); // completed block_backend methods
@@ -1079,4 +1084,4 @@ bind_block_backend(py::module_& m)
     bind_block_backend_array_api(m);
 }
 
-} // namespace cyten
+} // namespace lasyten

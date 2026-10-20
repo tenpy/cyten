@@ -5,7 +5,7 @@ import numpy as np
 import scipy.sparse as scisp
 from scipy.sparse.linalg import eigsh
 
-import cyten as ct
+import lasyten as lasy
 
 
 class TFIModel:
@@ -18,10 +18,10 @@ class TFIModel:
         g: float,
         bc: str = 'finite',
         conserve: str = 'none',
-        backend: ct.backends.TensorBackend | None = None,
+        backend: lasy.backends.TensorBackend | None = None,
     ):
         assert bc in ['finite', 'infinite']
-        self.site = ct.sites.SpinSite(S=0.5, conserve=conserve, backend=backend)
+        self.site = lasy.sites.SpinSite(S=0.5, conserve=conserve, backend=backend)
         self.backend = backend
         self.symmetry = self.site.symmetry
         self.L = L
@@ -42,11 +42,11 @@ class TFIModel:
         # OPTIMIZE this currently constructs the tensors, splits them for the coupling
         # and then recomputes the tensor again in order to form a superposition...
         # factors 2 and 4 due to difference between spin and Pauli matrices
-        XX = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4).to_tensor()
-        Z = ct.couplings.spin_field_coupling(sites=[p], hz=2).to_tensor()
-        I = ct.SymmetricTensor.from_eye([p.leg], labels=['p'], backend=self.backend)
-        IZ = ct.outer(I, Z, {'p': 'p0', 'p*': 'p0*'}, {'p0': 'p1', 'p0*': 'p1*'})
-        ZI = ct.outer(Z, I, None, {'p': 'p1', 'p*': 'p1*'})
+        XX = lasy.couplings.spin_spin_coupling(sites=[p, p], Jx=4).to_tensor()
+        Z = lasy.couplings.spin_field_coupling(sites=[p], hz=2).to_tensor()
+        I = lasy.SymmetricTensor.from_eye([p.leg], labels=['p'], backend=self.backend)
+        IZ = lasy.outer(I, Z, {'p': 'p0', 'p*': 'p0*'}, {'p0': 'p1', 'p0*': 'p1*'})
+        ZI = lasy.outer(Z, I, None, {'p': 'p1', 'p*': 'p1*'})
 
         H_list = []
         for i in range(nbonds):
@@ -66,17 +66,17 @@ class TFIModel:
         Called by __init__().
         """
         p = self.site
-        XX = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4)
-        Z = ct.couplings.spin_field_coupling(sites=[p], hz=2)
-        I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
-        I = ct.Coupling.from_tensor(I, [p])
+        XX = lasy.couplings.spin_spin_coupling(sites=[p, p], Jx=4)
+        Z = lasy.couplings.spin_field_coupling(sites=[p], hz=2)
+        I = lasy.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
+        I = lasy.Coupling.from_tensor(I, [p])
 
         grid = [
             [I.factorization[0], -self.J * XX.factorization[0], -self.g * Z.factorization[0]],
             [None, None, XX.factorization[1]],
             [None, None, I.factorization[0]],
         ]
-        W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
+        W = lasy.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
         self.H_mpo = [W] * self.L
 
 
@@ -89,11 +89,11 @@ class HeisenbergModel:
         J: float,
         bc: str = 'finite',
         conserve: str = 'none',
-        backend: ct.backends.TensorBackend | None = None,
+        backend: lasy.backends.TensorBackend | None = None,
     ):
         assert bc in ['finite', 'infinite']
         use_test_su2 = conserve in ('SU2', 'SU(2)', 'Stot')
-        self.site = ct.sites.SpinSite(S=0.5, conserve=conserve, backend=backend, use_test_su2=use_test_su2)
+        self.site = lasy.sites.SpinSite(S=0.5, conserve=conserve, backend=backend, use_test_su2=use_test_su2)
         self.backend = backend
         self.symmetry = self.site.symmetry
         self.L = L
@@ -109,7 +109,7 @@ class HeisenbergModel:
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
         p = self.site
-        SdotS = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4).to_tensor()
+        SdotS = lasy.couplings.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4).to_tensor()
         self.H_bonds = [self.J * SdotS] * nbonds
 
     # (note: not required for TEBD)
@@ -119,24 +119,24 @@ class HeisenbergModel:
         Called by __init__().
         """
         p = self.site
-        SdotS = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4)
-        I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
-        I = ct.Coupling.from_tensor(I, [p])
+        SdotS = lasy.couplings.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4)
+        I = lasy.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
+        I = lasy.Coupling.from_tensor(I, [p])
         grid = [
             [I.factorization[0], self.J * SdotS.factorization[0], None],
             [None, None, SdotS.factorization[1]],
             [None, None, I.factorization[0]],
         ]
-        W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
+        W = lasy.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
         self.H_mpo = [W] * self.L
 
 
 class GoldenChainModel:
     r"""-J P^{\tau \tau}_1 (projector of two neighboring Fibonacci anyons onto their trivial fusion channel)"""
 
-    def __init__(self, L: int, J: float, bc: str = 'finite', backend: ct.backends.TensorBackend | None = None):
+    def __init__(self, L: int, J: float, bc: str = 'finite', backend: lasy.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
-        self.site = ct.sites.GoldenSite('left', backend=backend)
+        self.site = lasy.sites.GoldenSite('left', backend=backend)
         self.backend = backend
         self.symmetry = self.site.symmetry
         self.L = L
@@ -152,7 +152,7 @@ class GoldenChainModel:
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
         p = self.site
-        P1 = ct.couplings.gold_coupling([p, p]).to_tensor()
+        P1 = lasy.couplings.gold_coupling([p, p]).to_tensor()
         self.H_bonds = [self.J * P1] * nbonds
 
     def init_H_mpo(self):
@@ -161,15 +161,15 @@ class GoldenChainModel:
         Called by __init__().
         """
         p = self.site
-        P1 = ct.couplings.gold_coupling([p, p])
-        I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
-        I = ct.Coupling.from_tensor(I, [p])
+        P1 = lasy.couplings.gold_coupling([p, p])
+        I = lasy.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
+        I = lasy.Coupling.from_tensor(I, [p])
         grid = [
             [I.factorization[0], self.J * P1.factorization[0], None],
             [None, None, P1.factorization[1]],
             [None, None, I.factorization[0]],
         ]
-        W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
+        W = lasy.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
         self.H_mpo = [W] * self.L
 
 

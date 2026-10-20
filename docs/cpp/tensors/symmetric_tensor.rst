@@ -1,12 +1,12 @@
 symmetric_tensor.h
 ==================
 
-Declared in ``include/cyten/tensors/symmetric_tensor.h``.
+Declared in ``include/lasyten/tensors/symmetric_tensor.h``.
 
-cyten::SymmetricTensor
+lasyten::SymmetricTensor
 ----------------------
 
-.. doxygenclass:: cyten::SymmetricTensor
-   :project: cyten
+.. doxygenclass:: lasyten::SymmetricTensor
+   :project: lasyten
    :members:
    :undoc-members:

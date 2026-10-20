@@ -28,7 +28,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v6
       with:
-        # external/hdf5_io: CMake (CYTEN_WITH_HDF5) and the Python hdf5_io package
+        # external/hdf5_io: CMake (LASYTEN_WITH_HDF5) and the Python hdf5_io package
         submodules: true
 
     - name: Set up micromamba
@@ -39,14 +39,14 @@ jobs:
 
     - name: Build and install
       # build deps (pybind11, scikit-build-core, cmake, ...) come from environment.yml
-      # hdf5_io is not on PyPI yet; install the git submodule (needed for cyten.tools.hdf5_io)
+      # hdf5_io is not on PyPI yet; install the git submodule (needed for lasyten.tools.hdf5_io)
       run: |
         pip install --no-build-isolation -e ./external/hdf5_io
         pip install --no-build-isolation -e .
 
     - name: Run pytest
       # configuration in pyproject.toml
-      # Note: This runs in the repo root directory, which contains the cyten source folder.
+      # Note: This runs in the repo root directory, which contains the lasyten source folder.
       #       To use the version we just installed, it is important to run `pytest`
       #       instead of `python -m pytest`.
       run: pytest --block-backends "torch"

@@ -1,116 +1,116 @@
 spaces.h
 ========
 
-Declared in ``include/cyten/symmetries/spaces.h``.
+Declared in ``include/lasyten/symmetries/spaces.h``.
 
-cyten::AbelianLegPipe
+lasyten::AbelianLegPipe
 ---------------------
 
-.. doxygenclass:: cyten::AbelianLegPipe
-   :project: cyten
+.. doxygenclass:: lasyten::AbelianLegPipe
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::ElementarySpace
+lasyten::ElementarySpace
 ----------------------
 
-.. doxygenclass:: cyten::ElementarySpace
-   :project: cyten
+.. doxygenclass:: lasyten::ElementarySpace
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::ForestBlockItem
+lasyten::ForestBlockItem
 ----------------------
 
-.. doxygenstruct:: cyten::ForestBlockItem
-   :project: cyten
+.. doxygenstruct:: lasyten::ForestBlockItem
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::IndexSlice
+lasyten::IndexSlice
 -----------------
 
-.. doxygenstruct:: cyten::IndexSlice
-   :project: cyten
+.. doxygenstruct:: lasyten::IndexSlice
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::Leg
+lasyten::Leg
 ----------
 
-.. doxygenclass:: cyten::Leg
-   :project: cyten
+.. doxygenclass:: lasyten::Leg
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::LegOrSpace
+lasyten::LegOrSpace
 -----------------
 
-.. doxygenclass:: cyten::LegOrSpace
-   :project: cyten
+.. doxygenclass:: lasyten::LegOrSpace
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::LegPipe
+lasyten::LegPipe
 --------------
 
-.. doxygenclass:: cyten::LegPipe
-   :project: cyten
+.. doxygenclass:: lasyten::LegPipe
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::Space
+lasyten::Space
 ------------
 
-.. doxygenclass:: cyten::Space
-   :project: cyten
+.. doxygenclass:: lasyten::Space
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::TensorProduct
+lasyten::TensorProduct
 --------------------
 
-.. doxygenclass:: cyten::TensorProduct
-   :project: cyten
+.. doxygenclass:: lasyten::TensorProduct
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::TreeBlockItem
+lasyten::TreeBlockItem
 --------------------
 
-.. doxygenstruct:: cyten::TreeBlockItem
-   :project: cyten
+.. doxygenstruct:: lasyten::TreeBlockItem
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::UncoupledItem
+lasyten::UncoupledItem
 --------------------
 
-.. doxygenstruct:: cyten::UncoupledItem
-   :project: cyten
+.. doxygenstruct:: lasyten::UncoupledItem
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::swap_gate
-   :project: cyten
+.. doxygenfunction:: lasyten::swap_gate
+   :project: lasyten
 
-.. doxygenfunction:: cyten::twist_gate
-   :project: cyten
+.. doxygenfunction:: lasyten::twist_gate
+   :project: lasyten
 
-.. doxygenfunction:: cyten::twist_gate_diag
-   :project: cyten
+.. doxygenfunction:: lasyten::twist_gate_diag
+   :project: lasyten
 
-.. doxygenfunction:: cyten::flat_leg_permutation
-   :project: cyten
+.. doxygenfunction:: lasyten::flat_leg_permutation
+   :project: lasyten
 
-.. doxygenfunction:: cyten::unique_sorted_sectors
-   :project: cyten
+.. doxygenfunction:: lasyten::unique_sorted_sectors
+   :project: lasyten
 
-.. doxygenfunction:: cyten::sort_sectors_public
-   :project: cyten
+.. doxygenfunction:: lasyten::sort_sectors_public
+   :project: lasyten
 
-.. doxygenfunction:: cyten::parse_inputs_drop_symmetry_public
-   :project: cyten
+.. doxygenfunction:: lasyten::parse_inputs_drop_symmetry_public
+   :project: lasyten

@@ -8,27 +8,27 @@ Installation instructions
 
 With the `conda package manager <https://docs.conda.io>`_ you can install python with::
 
-    conda install --channel=conda-forge cyten  # TODO doesn't work yet
+    conda install --channel=conda-forge lasyten  # TODO doesn't work yet
 
 If you don't have conda, but you have `pip <https://pip.pypa.io>`_, you can::
 
-    pip install cyten   # TODO doesn't work yet
+    pip install lasyten   # TODO doesn't work yet
 
 Building from source
 ++++++++++++++++++++
 
-To build cyten locally on your machine, install the following requirements
+To build lasyten locally on your machine, install the following requirements
 (currently only tested on standard linux distros like ubuntu, MacOS specific notes see below,
 no Windows support yet, use WSL):
 
 - C++ compiler with at least C++17 standard. In a conda env this **must** be
   conda-forge ``cxx-compiler`` (included in ``environment.yml``), not a newer
   system ``g++``. Python already loads conda's ``libstdc++``; objects compiled
-  with a newer GCC fail at ``import cyten`` with missing ``GLIBCXX_*`` symbols.
+  with a newer GCC fail at ``import lasyten`` with missing ``GLIBCXX_*`` symbols.
 - CMake, make
 - Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed in ``environment.yml``
 - **PyTorch** (``torch`` / conda-forge ``pytorch``): required at build and runtime.
-  CMake finds libtorch via ``torch.utils.cmake_prefix_path`` and links ``cyten._core`` against
+  CMake finds libtorch via ``torch.utils.cmake_prefix_path`` and links ``lasyten._core`` against
   the same shared libraries as ``import torch``, so PyTorch must be installed in the build
   environment before compiling.
   Avoid a plain isolated ``pip install pytorch`` against PyPI ``torch`` on machines without the
@@ -42,8 +42,8 @@ The easiest way to install all of those is to create a conda environment from th
 (which includes PyTorch) and then pip-install the package
 (use ``docs/environment.yml`` if you plan to build the documentation as well)::
 
-    conda env create -f environment.yml -n cyten
-    conda activate cyten
+    conda env create -f environment.yml -n lasyten
+    conda activate lasyten
     conda install -c conda-forge _openmp_mutex=*=*_llvm # on Linux/WSL only
     pip install -v --no-build-isolation .
 
@@ -72,3 +72,22 @@ In addition to the above instructions, do the following:
 - This working setup using Clang did not support all features that the GNU/Ubuntu setup did,
   e.g. ``std::numbers`` was not available. In this particular case, we could simply get rid of that
   dependency, but future updates may again introduce features that are not supported by the Clang/MacOS toolchain.
+
+Hosting and packaging cutover (manual)
+++++++++++++++++++++++++++++++++++++++
+
+These steps are outside the git tree and must be done when renaming from the old
+``cyten`` project:
+
+1. **GitHub:** Rename ``tenpy/cyten`` → ``tenpy/lasyten`` (Settings → Rename).
+   In-repo URLs already point at ``https://github.com/tenpy/lasyten``.
+2. **Read the Docs:** Create or rename the project slug to ``lasyten`` so docs
+   build at ``https://lasyten.readthedocs.io/``. Point the project at
+   ``tenpy/lasyten`` and confirm the webhook; builds use ``.readthedocs.yml``
+   and ``docs/environment.yml``. Retire any old ``cyten`` RTD project.
+3. **PyPI (soon):** Reserve the name ``lasyten`` with a temporary source-only
+   sdist (alpha version). Do not publish under ``cyten``.
+4. **conda-forge (later):** Add a ``lasyten`` feedstock once a real release
+   exists (build deps match ``environment.yml``, including PyTorch).
+5. **Related repos:** Update TeNPy ``v2_main`` (submodule URL/path and imports)
+   and, when convenient, example mentions of ``cyten`` in ``tenpy/hdf5_io``.

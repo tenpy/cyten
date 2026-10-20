@@ -3,9 +3,9 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from cyten import SymmetryError, get_backend, symmetries, tensors
-from cyten.block_backends import NumpyBlockBackend
-from cyten.symmetries import (
+from lasyten import SymmetryError, get_backend, symmetries, tensors
+from lasyten.block_backends import NumpyBlockBackend
+from lasyten.symmetries import (
     U1,
     FermionParity,
     NoSymmetry,
@@ -15,9 +15,9 @@ from cyten.symmetries import (
     spaces,
     trees,
 )
-from cyten.tensors import Mask, SymmetricTensor
-from cyten.testing import random_ElementarySpace, random_LegPipe
-from cyten.tools import is_permutation, make_grid
+from lasyten.tensors import Mask, SymmetricTensor
+from lasyten.testing import random_ElementarySpace, random_LegPipe
+from lasyten.tools import is_permutation, make_grid
 
 fermion_parity = FermionParity().as_Symmetry()
 no_symmetry = NoSymmetry().as_Symmetry()

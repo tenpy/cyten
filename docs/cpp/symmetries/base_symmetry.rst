@@ -1,12 +1,12 @@
 base_symmetry.h
 ===============
 
-Declared in ``include/cyten/symmetries/base_symmetry.h``.
+Declared in ``include/lasyten/symmetries/base_symmetry.h``.
 
-cyten::BaseSymmetry
+lasyten::BaseSymmetry
 -------------------
 
-.. doxygenclass:: cyten::BaseSymmetry
-   :project: cyten
+.. doxygenclass:: lasyten::BaseSymmetry
+   :project: lasyten
    :members:
    :undoc-members:

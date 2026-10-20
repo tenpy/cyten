@@ -1,7 +1,7 @@
-#include <cyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/hidden_leg_tensor.h"
 
@@ -12,13 +12,13 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_tensors_hidden_leg_tensor(py::module_& m)
 {
     py::class_<HiddenLegTensor, SymmetricTensor, py::smart_holder> cls(m, "HiddenLegTensor");
-    cls.doc() = DOC(cyten, HiddenLegTensor);
+    cls.doc() = DOC(lasyten, HiddenLegTensor);
 
     cls.def(
       py::init([](py::object tensor, py::object which_legs) {
@@ -53,7 +53,7 @@ bind_tensors_hidden_leg_tensor(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("which_legs"),
-      DOC(cyten, HiddenLegTensor, from_tensor));
+      DOC(lasyten, HiddenLegTensor, from_tensor));
 
     cls.def_static(
       "is_hidden_leg_label",
@@ -64,16 +64,16 @@ bind_tensors_hidden_leg_tensor(py::module_& m)
           return HiddenLegTensor::is_hidden_leg_label(label.cast<std::string>());
       },
       py::arg("label"),
-      DOC(cyten, HiddenLegTensor, is_hidden_leg_label));
+      DOC(lasyten, HiddenLegTensor, is_hidden_leg_label));
 
     cls.def("hidden_leg_idcs",
             &HiddenLegTensor::hidden_leg_idcs,
-            DOC(cyten, HiddenLegTensor, hidden_leg_idcs));
+            DOC(lasyten, HiddenLegTensor, hidden_leg_idcs));
     cls.def("public_leg_idcs",
             &HiddenLegTensor::public_leg_idcs,
-            DOC(cyten, HiddenLegTensor, public_leg_idcs));
+            DOC(lasyten, HiddenLegTensor, public_leg_idcs));
     cls.def(
-      "unhide_legs", &HiddenLegTensor::unhide_legs, DOC(cyten, HiddenLegTensor, unhide_legs));
+      "unhide_legs", &HiddenLegTensor::unhide_legs, DOC(lasyten, HiddenLegTensor, unhide_legs));
 
     cls.def("test_sanity", &HiddenLegTensor::test_sanity);
     cls.def_property_readonly("dagger", &HiddenLegTensor::dagger);
@@ -90,20 +90,20 @@ bind_tensors_hidden_leg_tensor(py::module_& m)
       },
       py::arg("guarantee_copy") = false,
       py::arg("warning") = py::none(),
-      DOC(cyten, HiddenLegTensor, as_SymmetricTensor));
+      DOC(lasyten, HiddenLegTensor, as_SymmetricTensor));
 
     cls.def_static("from_hdf5",
-                   cyten::hdf5::wrap_from_hdf5<HiddenLegTensor>(),
+                   lasyten::hdf5::wrap_from_hdf5<HiddenLegTensor>(),
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
-                   DOC(cyten, HiddenLegTensor, from_hdf5));
+                   DOC(lasyten, HiddenLegTensor, from_hdf5));
     cls.def("save_hdf5",
-            cyten::hdf5::wrap_save_hdf5_const<HiddenLegTensor>(),
+            lasyten::hdf5::wrap_save_hdf5_const<HiddenLegTensor>(),
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
-            DOC(cyten, HiddenLegTensor, save_hdf5));
+            DOC(lasyten, HiddenLegTensor, save_hdf5));
 }
 
-} // namespace cyten
+} // namespace lasyten

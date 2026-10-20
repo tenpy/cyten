@@ -1,26 +1,26 @@
-cyten.symmetries.trees
+lasyten.symmetries.trees
 ======================
 
-Declared in ``cyten/symmetries/trees.py``.
+Declared in ``lasyten/symmetries/trees.py``.
 
-Classes and functions imported from the pybind11 module :mod:`cyten._core`.
+Classes and functions imported from the pybind11 module :mod:`lasyten._core`.
 
 .. rubric:: Inheritance Diagram
 
-.. cyten-inheritance-diagram::
+.. lasyten-inheritance-diagram::
 
-cyten.symmetries.trees.FusionTree
+lasyten.symmetries.trees.FusionTree
 ---------------------------------
 
-.. autoclass:: cyten.symmetries.trees.FusionTree
+.. autoclass:: lasyten.symmetries.trees.FusionTree
    :members:
    :undoc-members:
    :show-inheritance:
 
-cyten.symmetries.trees.fusion_trees
+lasyten.symmetries.trees.fusion_trees
 -----------------------------------
 
-.. autoclass:: cyten.symmetries.trees.fusion_trees
+.. autoclass:: lasyten.symmetries.trees.fusion_trees
    :members:
    :undoc-members:
    :show-inheritance:

@@ -7,7 +7,7 @@
 #include <pybind11/pybind11.h>
 #include <string>
 
-namespace cyten::hdf5 {
+namespace lasyten::hdf5 {
 
 namespace py = pybind11;
 
@@ -64,4 +64,4 @@ wrap_from_hdf5_classmethod()
     };
 }
 
-} // namespace cyten::hdf5
+} // namespace lasyten::hdf5

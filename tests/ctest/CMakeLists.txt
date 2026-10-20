@@ -8,10 +8,10 @@ enable_testing()
 # pybind11::embed so a Python interpreter is available. Pure C++ unit tests
 # that never touch numpy/pybind APIs would not need embed — none of the
 # current suite qualifies yet while public headers pull in py:: types.
-if(NOT CYTEN_WITH_PYTHON)
+if(NOT LASYTEN_WITH_PYTHON)
   message(STATUS
-    "CYTEN_WITH_PYTHON=OFF: skipping CommonCppTests / examples that need "
-    "numpy backends (excluded from libcyten).")
+    "LASYTEN_WITH_PYTHON=OFF: skipping CommonCppTests / examples that need "
+    "numpy backends (excluded from liblasyten).")
   return()
 endif()
 
@@ -38,7 +38,7 @@ target_include_directories(CommonCppTests
 )
 # embed: NumpyBlockBackend and related tests need an interpreter; keep even if
 # some tests look "pure C++" until headers no longer require py::.
-target_link_libraries(CommonCppTests PUBLIC cyten pybind11::embed)
+target_link_libraries(CommonCppTests PUBLIC lasyten pybind11::embed)
 
 # Add all the ADD_TEST for each test
 foreach (test ${TestsToRun})
@@ -54,7 +54,7 @@ set_source_files_properties(${example_heisenberg_src} PROPERTIES SKIP_LINTING ON
 target_include_directories(example_heisenberg_two_site
   PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
-target_link_libraries(example_heisenberg_two_site PUBLIC cyten pybind11::embed)
+target_link_libraries(example_heisenberg_two_site PUBLIC lasyten pybind11::embed)
 set_target_properties(example_heisenberg_two_site PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON

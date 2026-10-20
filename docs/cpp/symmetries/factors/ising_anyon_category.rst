@@ -1,12 +1,12 @@
 ising_anyon_category.h
 ======================
 
-Declared in ``include/cyten/symmetries/factors/ising_anyon_category.h``.
+Declared in ``include/lasyten/symmetries/factors/ising_anyon_category.h``.
 
-cyten::IsingAnyonCategory
+lasyten::IsingAnyonCategory
 -------------------------
 
-.. doxygenclass:: cyten::IsingAnyonCategory
-   :project: cyten
+.. doxygenclass:: lasyten::IsingAnyonCategory
+   :project: lasyten
    :members:
    :undoc-members:

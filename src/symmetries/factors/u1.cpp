@@ -1,11 +1,11 @@
-#include <cyten/symmetries/factors/u1.h>
+#include <lasyten/symmetries/factors/u1.h>
 
 #include <cmath>
-#include <cyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5.h>
 #include <limits>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 U1::U1(std::optional<std::string> descriptive_name, bool trivial_shift)
   : AbelianGroup(Sector{ 0 },
@@ -92,7 +92,7 @@ U1::_is_equivalent_factor(SymmetryFactor const& other) const
 }
 
 U1::Ptr
-U1::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
+U1::from_hdf5(lasyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
     bool trivial_shift = trivial_shift_from_hdf5(loader, subpath);
@@ -101,4 +101,4 @@ U1::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string co
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

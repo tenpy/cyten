@@ -1,25 +1,25 @@
-#include <cyten/tensors/decompositions.h>
-#include <cyten/tensors/ops_algebra.h>
+#include <lasyten/tensors/decompositions.h>
+#include <lasyten/tensors/ops_algebra.h>
 
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/backends/tensor_backend.h>
-#include <cyten/block_backend/dtypes.h>
-#include <cyten/symmetries/exceptions.h>
-#include <cyten/symmetries/spaces.h>
-#include <cyten/tensors/charged_tensor.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/helpers.h>
-#include <cyten/tensors/hidden_leg_tensor.h>
-#include <cyten/tensors/labels.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/ops_elementwise.h>
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tensors/tensor.h>
-#include <cyten/tools.h>
-#include <cyten/tools/misc.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/backends/tensor_backend.h>
+#include <lasyten/block_backend/dtypes.h>
+#include <lasyten/symmetries/exceptions.h>
+#include <lasyten/symmetries/spaces.h>
+#include <lasyten/tensors/charged_tensor.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/helpers.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/labels.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/ops_elementwise.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tensors/tensor.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/misc.h>
+#include <lasyten/tools/warn.h>
 
-#include <cyten/tensors/ops_legs.h>
+#include <lasyten/tensors/ops_legs.h>
 
 #include <algorithm>
 #include <cassert>
@@ -33,7 +33,7 @@
 #include <utility>
 #include <variant>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -2193,4 +2193,4 @@ scalar_multiply(BlockBackend::Scalar const& a, VectorLikeCPtr v)
     }
     return v->scaled(a);
 }
-} // namespace cyten
+} // namespace lasyten

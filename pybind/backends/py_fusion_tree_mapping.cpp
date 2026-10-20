@@ -1,8 +1,8 @@
-#include <cyten/backends/fusion_tree_mapping.h>
-#include <cyten/backends/fusion_tree_permute.h>
+#include <lasyten/backends/fusion_tree_mapping.h>
+#include <lasyten/backends/fusion_tree_permute.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 #include "docstrings/backends/fusion_tree_mapping.h"
 
 #include <format>
@@ -11,14 +11,14 @@
 #include <string>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_fusion_tree_mapping(py::module_& m)
 {
     py::class_<BraidInstruction> braid_cls(m, "BraidInstruction");
     braid_cls.doc() =
-      doc_cpp_ref(R"pydoc(BraidInstruction)pydoc", "cyten::BraidInstruction", "class");
+      doc_cpp_ref(R"pydoc(BraidInstruction)pydoc", "lasyten::BraidInstruction", "class");
 
     braid_cls
       .def(
@@ -34,7 +34,7 @@ bind_fusion_tree_mapping(py::module_& m)
 
     py::class_<BendInstruction> bend_cls(m, "BendInstruction");
     bend_cls.doc() =
-      doc_cpp_ref(R"pydoc(BendInstruction)pydoc", "cyten::BendInstruction", "class");
+      doc_cpp_ref(R"pydoc(BendInstruction)pydoc", "lasyten::BendInstruction", "class");
 
     bend_cls.def(py::init<bool>(), py::arg("bend_down"))
       .def_readwrite("bend_down", &BendInstruction::bend_down)
@@ -45,7 +45,7 @@ bind_fusion_tree_mapping(py::module_& m)
 
     py::class_<TwistInstruction> twist_cls(m, "TwistInstruction");
     twist_cls.doc() =
-      doc_cpp_ref(R"pydoc(TwistInstruction)pydoc", "cyten::TwistInstruction", "class");
+      doc_cpp_ref(R"pydoc(TwistInstruction)pydoc", "lasyten::TwistInstruction", "class");
 
     twist_cls
       .def(py::init<bool, std::vector<int64>, bool>(),
@@ -72,7 +72,7 @@ bind_fusion_tree_mapping(py::module_& m)
       });
 
     py::class_<TreePairMapping> tree_pair(m, "TreePairMapping");
-    tree_pair.doc() = DOC(cyten, TreePairMapping);
+    tree_pair.doc() = DOC(lasyten, TreePairMapping);
 
     tree_pair
       .def(py::init<SparseMappingFusionTreePair, bool>(), py::arg("mapping"), py::arg("is_real"))
@@ -83,7 +83,7 @@ bind_fusion_tree_mapping(py::module_& m)
                   py::arg("codomain"),
                   py::arg("domain"),
                   py::arg("block_inds") = py::none(),
-                  DOC(cyten, TreePairMapping, from_identity))
+                  DOC(lasyten, TreePairMapping, from_identity))
       .def_static("from_instructions",
                   &TreePairMapping::from_instructions,
                   py::arg("instructions"),
@@ -93,7 +93,7 @@ bind_fusion_tree_mapping(py::module_& m)
       .def("prune",
            &TreePairMapping::prune,
            py::arg("tol") = 1e-15,
-           doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::TreePairMapping::prune()"))
+           doc_cpp_ref(R"pydoc(prune)pydoc", "lasyten::TreePairMapping::prune()"))
       .def(
         "transform_tensor",
         [](TreePairMapping const& self,
@@ -124,10 +124,10 @@ bind_fusion_tree_mapping(py::module_& m)
         py::arg("domain_idcs"),
         py::arg("block_backend"),
         doc_cpp_ref(R"pydoc(transform_tensor)pydoc",
-                    "cyten::TreePairMapping::transform_tensor()"));
+                    "lasyten::TreePairMapping::transform_tensor()"));
 
     py::class_<FactorizedTreeMapping> fact(m, "FactorizedTreeMapping");
-    fact.doc() = DOC(cyten, FactorizedTreeMapping);
+    fact.doc() = DOC(lasyten, FactorizedTreeMapping);
 
     fact
       .def(py::init<FusionTreeMappingVariant, FusionTreeMappingVariant, bool>(),
@@ -137,13 +137,13 @@ bind_fusion_tree_mapping(py::module_& m)
       .def_readwrite("is_real", &FactorizedTreeMapping::is_real)
       .def_readwrite("splitting_tree_mapping", &FactorizedTreeMapping::splitting_tree_mapping)
       .def_readwrite("fusion_tree_mapping", &FactorizedTreeMapping::fusion_tree_mapping)
-      .def_static(
-        "from_identity",
-        &FactorizedTreeMapping::from_identity,
-        py::arg("codomain"),
-        py::arg("domain"),
-        py::arg("block_inds") = py::none(),
-        doc_cpp_ref(R"pydoc(from_identity)pydoc", "cyten::FactorizedTreeMapping::from_identity()"))
+      .def_static("from_identity",
+                  &FactorizedTreeMapping::from_identity,
+                  py::arg("codomain"),
+                  py::arg("domain"),
+                  py::arg("block_inds") = py::none(),
+                  doc_cpp_ref(R"pydoc(from_identity)pydoc",
+                              "lasyten::FactorizedTreeMapping::from_identity()"))
       .def_static("from_instructions",
                   &FactorizedTreeMapping::from_instructions,
                   py::arg("instructions"),
@@ -153,7 +153,7 @@ bind_fusion_tree_mapping(py::module_& m)
       .def("prune",
            &FactorizedTreeMapping::prune,
            py::arg("tol") = 1e-15,
-           doc_cpp_ref(R"pydoc(prune)pydoc", "cyten::FactorizedTreeMapping::prune()"))
+           doc_cpp_ref(R"pydoc(prune)pydoc", "lasyten::FactorizedTreeMapping::prune()"))
       .def(
         "transform_tensor",
         [](FactorizedTreeMapping const& self,
@@ -184,11 +184,12 @@ bind_fusion_tree_mapping(py::module_& m)
         py::arg("domain_idcs"),
         py::arg("block_backend"),
         doc_cpp_ref(R"pydoc(transform_tensor)pydoc",
-                    "cyten::FactorizedTreeMapping::transform_tensor()"));
+                    "lasyten::FactorizedTreeMapping::transform_tensor()"));
 
     py::class_<PermuteLegsInstructionEngine> perm_cls(m, "PermuteLegsInstructionEngine");
-    perm_cls.doc() = doc_cpp_ref(
-      R"pydoc(PermuteLegsInstructionEngine)pydoc", "cyten::PermuteLegsInstructionEngine", "class");
+    perm_cls.doc() = doc_cpp_ref(R"pydoc(PermuteLegsInstructionEngine)pydoc",
+                                 "lasyten::PermuteLegsInstructionEngine",
+                                 "class");
 
     perm_cls
       .def(py::init<int64,
@@ -226,7 +227,7 @@ bind_fusion_tree_mapping(py::module_& m)
            py::arg("num_domain_legs"),
            py::arg("codomain_idcs"),
            py::arg("domain_idcs"),
-           doc_cpp_ref(R"pydoc(verify)pydoc", "cyten::PermuteLegsInstructionEngine::verify()"));
+           doc_cpp_ref(R"pydoc(verify)pydoc", "lasyten::PermuteLegsInstructionEngine::verify()"));
 }
 
-} // namespace cyten
+} // namespace lasyten

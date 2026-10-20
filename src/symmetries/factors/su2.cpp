@@ -1,17 +1,17 @@
-#include <cyten/symmetries/factors/su2.h>
+#include <lasyten/symmetries/factors/su2.h>
 
-#include <cyten/block_backend/numpy.h>
-#include <cyten/symmetries/fusion_symbol.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/symmetries/fusion_symbol.h>
 
 #include <cmath>
 #include <cstdlib>
-#include <cyten/tools/hdf5.h>
 #include <iostream>
+#include <lasyten/tools/hdf5.h>
 #include <limits>
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -30,7 +30,7 @@ namespace {
 py::module_
 su2data()
 {
-    return py::module_::import("cyten.symmetries._su2data");
+    return py::module_::import("lasyten.symmetries._su2data");
 }
 
 } // namespace
@@ -243,7 +243,9 @@ _SU2::Z_iso(Sector a) const
 }
 
 _SU2::Ptr
-_SU2::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& /*subpath*/)
+_SU2::from_hdf5(lasyten::hdf5::Loader& loader,
+                HighFive::Group& h5gr,
+                std::string const& /*subpath*/)
 {
     auto name = descriptive_name_from_hdf5_attrs(h5gr);
     auto obj = std::make_shared<_SU2>(name);
@@ -251,4 +253,4 @@ _SU2::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string 
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

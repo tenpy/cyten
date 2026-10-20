@@ -1,10 +1,10 @@
-#include <cyten/tensors/direct_sum.h>
-#include <cyten/tensors/ops_algebra.h>
-#include <cyten/tensors/tensor.h>
-#include <cyten/tensors/vector_like.h>
+#include <lasyten/tensors/direct_sum.h>
+#include <lasyten/tensors/ops_algebra.h>
+#include <lasyten/tensors/tensor.h>
+#include <lasyten/tensors/vector_like.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include <pybind11/operators.h>
 
@@ -13,7 +13,7 @@
 #include <optional>
 #include <string>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -98,7 +98,7 @@ void
 declare_tensors_vector_like(py::module_& m)
 {
     g_vector_like = py::class_<VectorLike, PyVectorLike, py::smart_holder>(m, "VectorLike");
-    (*g_vector_like).doc() = DOC(cyten, VectorLike);
+    (*g_vector_like).doc() = DOC(lasyten, VectorLike);
 }
 
 void
@@ -112,24 +112,24 @@ bind_tensors_vector_like(py::module_& m)
     cls.def(
       "copy",
       [](VectorLike const& self) { return py_cast_vector_like(self.clone()); },
-      DOC(cyten, VectorLike, clone));
+      DOC(lasyten, VectorLike, clone));
     cls.def_property_readonly(
-      "dtype", &VectorLike::vector_dtype, DOC(cyten, VectorLike, vector_dtype));
+      "dtype", &VectorLike::vector_dtype, DOC(lasyten, VectorLike, vector_dtype));
     cls.def_property_readonly(
-      "device", &VectorLike::vector_device, DOC(cyten, VectorLike, vector_device));
+      "device", &VectorLike::vector_device, DOC(lasyten, VectorLike, vector_device));
     cls.def_property_readonly(
-      "backend", &VectorLike::vector_backend, DOC(cyten, VectorLike, vector_backend));
+      "backend", &VectorLike::vector_backend, DOC(lasyten, VectorLike, vector_backend));
     cls.def("compatible_with",
             &VectorLike::compatible_with,
             py::arg("other"),
-            DOC(cyten, VectorLike, compatible_with));
+            DOC(lasyten, VectorLike, compatible_with));
     cls.def(
       "scaled",
       [](VectorLike const& self, py::object a) {
           return py_cast_vector_like(self.scaled(as_scalar_for(self, a)));
       },
       py::arg("a"),
-      DOC(cyten, VectorLike, scaled));
+      DOC(lasyten, VectorLike, scaled));
     cls.def(
       "axpy",
       [](VectorLike const& self, py::object a, VectorLike::CPtr other) {
@@ -137,7 +137,7 @@ bind_tensors_vector_like(py::module_& m)
       },
       py::arg("a"),
       py::arg("other"),
-      DOC(cyten, VectorLike, axpy));
+      DOC(lasyten, VectorLike, axpy));
 
     cls
       .def(
@@ -188,4 +188,4 @@ bind_tensors_vector_like(py::module_& m)
       .def("__pos__", [](VectorLike::Ptr self) { return self; });
 }
 
-} // namespace cyten
+} // namespace lasyten

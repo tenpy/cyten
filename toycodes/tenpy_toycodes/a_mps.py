@@ -3,7 +3,7 @@
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 
-import cyten as ct
+import lasyten as lasy
 
 
 class SimpleMPS:
@@ -32,14 +32,14 @@ class SimpleMPS:
 
     """
 
-    def __init__(self, Bs: list[ct.SymmetricTensor], Ss: list[ct.DiagonalTensor], bc='finite'):
+    def __init__(self, Bs: list[lasy.SymmetricTensor], Ss: list[lasy.DiagonalTensor], bc='finite'):
         assert bc in ['finite', 'infinite']
         self.symmetry = Bs[0].symmetry
         self.Bs = Bs
         self.Ss = Ss
         self.bc = bc
         self.L = len(Bs)
-        self.backend = ct.backends.get_same_backend(*Bs, *Ss)
+        self.backend = lasy.backends.get_same_backend(*Bs, *Ss)
         self.nbonds = self.L - 1 if self.bc == 'finite' else self.L
 
     def copy(self):
@@ -50,7 +50,7 @@ class SimpleMPS:
 
         The returned array has legs labels ``vL, p, vR``
         """
-        return ct.scale_axis(self.Bs[i], self.Ss[i], 'vL')
+        return lasy.scale_axis(self.Bs[i], self.Ss[i], 'vL')
 
     def get_theta2(self, i):
         """Calculate effective two-site wave function on sites i,j=(i+1) in mixed canonical form.
@@ -58,14 +58,14 @@ class SimpleMPS:
         The returned array has legs ``vL, i, j, vR``.
         """
         j = (i + 1) % self.L
-        Bj = ct.permute_legs(self.Bs[j], codomain=['vL'], bend_right=True)
-        return ct.tdot(self.get_theta1(i), Bj, 'vR', 'vL', relabel1=dict(p='p0'), relabel2=dict(p='p1'))
+        Bj = lasy.permute_legs(self.Bs[j], codomain=['vL'], bend_right=True)
+        return lasy.tdot(self.get_theta1(i), Bj, 'vR', 'vL', relabel1=dict(p='p0'), relabel2=dict(p='p1'))
 
     def get_chi(self):
         """Return bond dimensions."""
         return [sum(self.Bs[i].get_leg_co_domain('vR').multiplicities) for i in range(self.nbonds)]
 
-    def site_expectation_value(self, op: ct.Tensor):
+    def site_expectation_value(self, op: lasy.Tensor):
         """Calculate expectation values of a local operator at each site.
 
         op has labels ``p, p*`` in any order.
@@ -73,12 +73,12 @@ class SimpleMPS:
         result = []
         for i in range(self.L):
             theta = self.get_theta1(i)  # vL i vR
-            op_theta = ct.tdot(op, theta, 'p*', 'p')
-            result.append(ct.tdot(theta.hc, op_theta, ['vL*', 'p*', 'vR*'], ['vL', 'p', 'vR']))
+            op_theta = lasy.tdot(op, theta, 'p*', 'p')
+            result.append(lasy.tdot(theta.hc, op_theta, ['vL*', 'p*', 'vR*'], ['vL', 'p', 'vR']))
             # [vL*] [i*] [vR*], [i] [vL] [vR]
         return np.real_if_close(result)
 
-    def bond_expectation_value(self, op: list[ct.Tensor]):
+    def bond_expectation_value(self, op: list[lasy.Tensor]):
         """Calculate expectation values of a local operator at each bond.
 
         op has labels ``p0, p1, p0*, p1*`` in any order.
@@ -86,15 +86,15 @@ class SimpleMPS:
         result = []
         for i in range(self.nbonds):
             theta = self.get_theta2(i)  # vL i j vR
-            op_theta = ct.tdot(op[i], theta, ['p0*', 'p1*'], ['p0', 'p1'])
+            op_theta = lasy.tdot(op[i], theta, ['p0*', 'p1*'], ['p0', 'p1'])
             # i j [i*] [j*], vL [i] [j] vR
-            result.append(ct.tdot(theta.hc, op_theta, ['vL*', 'p0*', 'p1*', 'vR*'], ['vL', 'p0', 'p1', 'vR']))
+            result.append(lasy.tdot(theta.hc, op_theta, ['vL*', 'p0*', 'p1*', 'vR*'], ['vL', 'p0', 'p1', 'vR']))
         return np.real_if_close(result)
 
     def entanglement_entropy(self):
         """Return the (von-Neumann) entanglement entropy for a bipartition at any of the bonds."""
         bonds = range(1, self.L) if self.bc == 'finite' else range(0, self.L)
-        return [ct.entropy(self.Ss[i]) for i in bonds]
+        return [lasy.entropy(self.Ss[i]) for i in bonds]
 
     def correlation_length(self):
         """Diagonalize transfer matrix to obtain the correlation length."""
@@ -109,36 +109,36 @@ class SimpleMPS:
         """
         assert i < j
         theta = self.get_theta1(i)
-        C = ct.tdot(op_i, theta, 'p*', 'p')
-        C = ct.tdot(theta.dagger, C, ['vL*', 'p*'], ['vL', 'p'])
+        C = lasy.tdot(op_i, theta, 'p*', 'p')
+        C = lasy.tdot(theta.dagger, C, ['vL*', 'p*'], ['vL', 'p'])
         for k in range(i + 1, j):
             k = k % self.L
             B = self.Bs[k]
-            C = ct.tdot(C, B, 'vR', 'vL')
-            C = ct.tdot(B.hc, C, ['vL*', 'p*'], ['vL', 'p'])
+            C = lasy.tdot(C, B, 'vR', 'vL')
+            C = lasy.tdot(B.hc, C, ['vL*', 'p*'], ['vL', 'p'])
         B = self.Bs[j % self.L]
-        C = ct.tdot(C, B, 'vR', 'vL')
-        C = ct.tdot(op_j, C, 'p*', 'p')
-        C = ct.tdot(B.hc, C, ['vL*', 'p*', 'vR*'], ['vL', 'p', 'vR'])
-        return ct.item(C)
+        C = lasy.tdot(C, B, 'vR', 'vL')
+        C = lasy.tdot(op_j, C, 'p*', 'p')
+        C = lasy.tdot(B.hc, C, ['vL*', 'p*', 'vR*'], ['vL', 'p', 'vR'])
+        return lasy.item(C)
 
 
 def init_FM_MPS(L, d=2, bc='finite', backend='abelian', conserve='none'):
     """Return a ferromagnetic MPS (= product state with all spins up)"""
     if backend in ['no_symmetry', 'abelian', 'fusion_tree']:
-        backend = ct.get_backend(backend, 'numpy')
+        backend = lasy.get_backend(backend, 'numpy')
     B = np.array([1] + [0] * (d - 1), float)[None, :, None]
     if conserve == 'none':
-        p = ct.ElementarySpace.from_trivial_sector(d)
-        v = ct.ElementarySpace.from_trivial_sector(1)
-        B = ct.tensor(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
-        S = ct.eye(v, backend=backend, labels=['vL', 'vR'])
+        p = lasy.ElementarySpace.from_trivial_sector(d)
+        v = lasy.ElementarySpace.from_trivial_sector(1)
+        B = lasy.tensor(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+        S = lasy.eye(v, backend=backend, labels=['vL', 'vR'])
     elif conserve == 'Z2':
-        sym = ct.ZN(2, 'Sz_parity').as_Symmetry()
-        p = ct.ElementarySpace.from_basis(sym, np.arange(d)[:, None] % 2)
-        v = ct.ElementarySpace.from_trivial_sector(1, sym)
-        B = ct.SymmetricTensor.from_dense_block(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
-        S = ct.eye(v, backend=backend, labels=['vL', 'vR'])
+        sym = lasy.ZN(2, 'Sz_parity').as_Symmetry()
+        p = lasy.ElementarySpace.from_basis(sym, np.arange(d)[:, None] % 2)
+        v = lasy.ElementarySpace.from_trivial_sector(1, sym)
+        B = lasy.SymmetricTensor.from_dense_block(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+        S = lasy.eye(v, backend=backend, labels=['vL', 'vR'])
     else:
         raise ValueError
     return SimpleMPS([B] * L, [S] * L, bc=bc)
@@ -148,29 +148,29 @@ def init_Neel_MPS(L, d=2, bc='finite', backend='abelian', conserve='none'):
     """Return a Neel state MPS (= product state with alternating spins up  down up down... )"""
     assert bc == 'finite' or L % 2 == 0
     if backend in ['no_symmetry', 'abelian', 'fusion_tree']:
-        backend = ct.get_backend(backend, 'numpy')
+        backend = lasy.get_backend(backend, 'numpy')
     B1 = np.array([1] + [0] * (d - 1), float)[None, :, None]
     B2 = np.array([0] * (d - 1) + [1], float)[None, :, None]
     if conserve == 'none':
-        p = ct.ElementarySpace.from_trivial_sector(d)
-        v = ct.ElementarySpace.from_trivial_sector(1)
-        B1 = ct.SymmetricTensor.from_dense_block(B1, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
-        B2 = ct.SymmetricTensor.from_dense_block(B2, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
-        S = ct.DiagonalTensor.from_eye(v, backend=backend, labels=['vL', 'vR'])
+        p = lasy.ElementarySpace.from_trivial_sector(d)
+        v = lasy.ElementarySpace.from_trivial_sector(1)
+        B1 = lasy.SymmetricTensor.from_dense_block(B1, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+        B2 = lasy.SymmetricTensor.from_dense_block(B2, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+        S = lasy.DiagonalTensor.from_eye(v, backend=backend, labels=['vL', 'vR'])
         B_list = [B1, B2] * (L // 2) + [B1] * (L % 2)
         S_list = [S] * L
     elif conserve == 'Z2':
-        sym = ct.ZN(2, 'Sz_parity').as_Symmetry()
-        p = ct.ElementarySpace.from_basis(sym, np.arange(d)[:, None] % 2)
-        v1 = ct.ElementarySpace.from_trivial_sector(1, sym)
-        v2 = ct.ElementarySpace.from_defining_sectors(sym, [[1]])
+        sym = lasy.ZN(2, 'Sz_parity').as_Symmetry()
+        p = lasy.ElementarySpace.from_basis(sym, np.arange(d)[:, None] % 2)
+        v1 = lasy.ElementarySpace.from_trivial_sector(1, sym)
+        v2 = lasy.ElementarySpace.from_defining_sectors(sym, [[1]])
         v2.test_sanity()
-        B11 = ct.SymmetricTensor.from_dense_block(B1, [v1, p], [v1], labels=['vL', 'p', 'vR'], backend=backend)
-        B12 = ct.SymmetricTensor.from_dense_block(B1, [v2, p], [v2], labels=['vL', 'p', 'vR'], backend=backend)
-        B21 = ct.SymmetricTensor.from_dense_block(B2, [v1, p], [v2], labels=['vL', 'p', 'vR'], backend=backend)
-        B22 = ct.SymmetricTensor.from_dense_block(B2, [v2, p], [v1], labels=['vL', 'p', 'vR'], backend=backend)
-        S1 = ct.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
-        S2 = ct.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
+        B11 = lasy.SymmetricTensor.from_dense_block(B1, [v1, p], [v1], labels=['vL', 'p', 'vR'], backend=backend)
+        B12 = lasy.SymmetricTensor.from_dense_block(B1, [v2, p], [v2], labels=['vL', 'p', 'vR'], backend=backend)
+        B21 = lasy.SymmetricTensor.from_dense_block(B2, [v1, p], [v2], labels=['vL', 'p', 'vR'], backend=backend)
+        B22 = lasy.SymmetricTensor.from_dense_block(B2, [v2, p], [v1], labels=['vL', 'p', 'vR'], backend=backend)
+        S1 = lasy.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
+        S2 = lasy.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
         B_list = [B11, B21, B12, B22]
         B_list = B_list * (L // 4) + B_list[: L % 4]
         S_list = [S1, S1, S2, S2]
@@ -184,33 +184,33 @@ def init_SU2_sym_MPS(L, d=2, bc='finite', backend=None):
     """Return the simplest SU(2) symmetric MPS (neighboring spins form singlets)"""
     assert L % 2 == 0
     if backend is None:
-        backend = ct.get_backend('fusion_tree', 'numpy')
-    sym = ct._SU2('spin').as_Symmetry()
-    p = ct.ElementarySpace.from_defining_sectors(sym, [[d - 1]])
-    v1 = ct.ElementarySpace.from_trivial_sector(1, sym)
+        backend = lasy.get_backend('fusion_tree', 'numpy')
+    sym = lasy._SU2('spin').as_Symmetry()
+    p = lasy.ElementarySpace.from_defining_sectors(sym, [[d - 1]])
+    v1 = lasy.ElementarySpace.from_trivial_sector(1, sym)
     v2 = p
-    B1 = ct.SymmetricTensor.from_block_func(
+    B1 = lasy.SymmetricTensor.from_block_func(
         lambda x: np.ones(x), [v1, p], [v2], labels=['vL', 'p', 'vR'], backend=backend
     )
-    B2 = ct.SymmetricTensor.from_block_func(
+    B2 = lasy.SymmetricTensor.from_block_func(
         lambda x: np.ones(x), [v2, p], [v1], labels=['vL', 'p', 'vR'], backend=backend
     )
-    S1 = ct.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
-    S2 = ct.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
+    S1 = lasy.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
+    S2 = lasy.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
     return SimpleMPS([B1, B2] * (L // 2), [S1, S2] * (L // 2), bc=bc)
 
 
 def init_Fib_anyon_MPS(L, bc='finite', backend=None):
     """Return the Fib anyon symmetric MPS with tau charges on all bonds."""
     if backend is None:
-        backend = ct.get_backend('fusion_tree', 'numpy')
-    sym = ct.FibonacciAnyonCategory(handedness='left').as_Symmetry()
-    p = ct.ElementarySpace.from_defining_sectors(sym, [[1]])
+        backend = lasy.get_backend('fusion_tree', 'numpy')
+    sym = lasy.FibonacciAnyonCategory(handedness='left').as_Symmetry()
+    p = lasy.ElementarySpace.from_defining_sectors(sym, [[1]])
     v = p
-    B = ct.SymmetricTensor.from_block_func(
+    B = lasy.SymmetricTensor.from_block_func(
         lambda x: np.ones(x, dtype=complex), [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend
     )
-    S = ct.DiagonalTensor.from_eye(v, backend=backend, labels=['vL', 'vR'])
+    S = lasy.DiagonalTensor.from_eye(v, backend=backend, labels=['vL', 'vR'])
     return SimpleMPS([B] * L, [S] * L, bc=bc)
 
 
@@ -243,8 +243,8 @@ def split_truncate_theta(theta, chi_max, eps):
         Right-canonical matrix on site j, with legs ``vL, p, vR``
 
     """
-    A, S, B, _, _ = ct.truncated_svd(theta, ['vR', 'vL'], chi_max=chi_max, svd_min=eps)
-    B = ct.permute_legs(B, codomain=['vL', 'p1'], bend_right=True)
+    A, S, B, _, _ = lasy.truncated_svd(theta, ['vR', 'vL'], chi_max=chi_max, svd_min=eps)
+    B = lasy.permute_legs(B, codomain=['vL', 'p1'], bend_right=True)
     A.relabel({'p0': 'p'})
     B.relabel({'p1': 'p'})
     return A, S, B

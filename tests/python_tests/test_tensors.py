@@ -1,4 +1,4 @@
-"""A collection of tests for cyten.tensors."""
+"""A collection of tests for lasyten.tensors."""
 
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
@@ -10,11 +10,11 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from cyten import BraidChiralityUnspecifiedError, backends, tensors
-from cyten.backends import conventional_leg_order, get_backend
-from cyten.block_backends import NumpyBlockBackend, Scalar
-from cyten.block_backends.dtypes import Dtype
-from cyten.symmetries import (
+from lasyten import BraidChiralityUnspecifiedError, backends, tensors
+from lasyten.backends import conventional_leg_order, get_backend
+from lasyten.block_backends import NumpyBlockBackend, Scalar
+from lasyten.block_backends.dtypes import Dtype
+from lasyten.symmetries import (
     _SU2,
     U1,
     ZN,
@@ -29,9 +29,9 @@ from cyten.symmetries import (
     SymmetryError,
     TensorProduct,
 )
-from cyten.tensors import ChargedTensor, DiagonalTensor, HiddenLegTensor, Mask, SymmetricTensor, Tensor
-from cyten.testing import assert_equivalent_legs, assert_tensors_almost_equal, random_tensor, swap_gate_numpy
-from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
+from lasyten.tensors import ChargedTensor, DiagonalTensor, HiddenLegTensor, Mask, SymmetricTensor, Tensor
+from lasyten.testing import assert_equivalent_legs, assert_tensors_almost_equal, random_tensor, swap_gate_numpy
+from lasyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
 
 fermion_parity = FermionParity().as_Symmetry()
 fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left').as_Symmetry()
@@ -1771,7 +1771,7 @@ def test_combine_split(use_pipes, make_compatible_tensor):
 
 
 def test_swap_gate_numpy(np_random):
-    from cyten.testing import random_tensor
+    from lasyten.testing import random_tensor
 
     symm = fermion_parity
 
@@ -2023,7 +2023,7 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
 
 
 @pytest.mark.parametrize(
-    'cyten_func, numpy_func, dtype, kwargs',
+    'lasyten_func, numpy_func, dtype, kwargs',
     # dtype=None indicates that we need to special case the tensor creations to fulfill constraints.
     [
         pytest.param(tensors.angle, np.angle, Dtype.complex128, {}, id='angle()-complex'),
@@ -2046,13 +2046,13 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     ],
     # TODO more functions? exp, log
 )
-def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs, make_compatible_tensor):
+def test_DiagonalTensor_elementwise_unary(lasyten_func, numpy_func, dtype, kwargs, make_compatible_tensor):
     if dtype is not None:
         D: DiagonalTensor = make_compatible_tensor(cls=DiagonalTensor, dtype=dtype)
-    elif cyten_func is tensors.sqrt:
+    elif lasyten_func is tensors.sqrt:
         # need positive
         D: DiagonalTensor = abs(make_compatible_tensor(cls=DiagonalTensor, dtype=Dtype.float64))
-    elif cyten_func is tensors.real_if_close:
+    elif lasyten_func is tensors.real_if_close:
         # want almost real
         rp = make_compatible_tensor(cls=DiagonalTensor, dtype=Dtype.float64)
         ip = make_compatible_tensor(domain=rp.domain, cls=DiagonalTensor, dtype=Dtype.float64)
@@ -2060,13 +2060,13 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
     else:
         raise ValueError
 
-    res = cyten_func(D, **kwargs)
+    res = lasyten_func(D, **kwargs)
     res.test_sanity()
 
     if not D.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
-    if cyten_func is tensors.cutoff_inverse:
+    if lasyten_func is tensors.cutoff_inverse:
 
         def numpy_func(a, cutoff=kwargs['cutoff']):
             return 1 / np.where(np.abs(a) < cutoff, np.inf, a)

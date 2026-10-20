@@ -1,4 +1,4 @@
-"""A collection of tests for :mod:`cyten.models.couplings`."""
+"""A collection of tests for :mod:`lasyten.models.couplings`."""
 # Copyright (C) TeNPy Developers, Apache license
 
 import itertools as it
@@ -9,13 +9,13 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-import cyten
-from cyten import SymmetryError, backends, tensors
-from cyten.models import couplings, degrees_of_freedom, sites
-from cyten.models.couplings import heisenberg_coupling, spin_field_coupling
-from cyten.models.sites import SpinSite
-from cyten.symmetries import BraidChiralityUnspecifiedError
-from cyten.tensors import permute_legs
+import lasyten
+from lasyten import SymmetryError, backends, tensors
+from lasyten.models import couplings, degrees_of_freedom, sites
+from lasyten.models.couplings import heisenberg_coupling, spin_field_coupling
+from lasyten.models.sites import SpinSite
+from lasyten.symmetries import BraidChiralityUnspecifiedError
+from lasyten.tensors import permute_legs
 
 
 def check_coupling(coupling_cls, site_num: int, invalid_site_nums: list[int], boson_fermion_mixing: bool, **kwargs):
@@ -120,7 +120,7 @@ def generate_clock_dofs(backend: backends.TensorBackend) -> list[degrees_of_free
     return site_list
 
 
-def generate_anyon_dofs(block_backend: cyten.block_backends.BlockBackend) -> list[degrees_of_freedom.AnyonDOF]:
+def generate_anyon_dofs(block_backend: lasyten.block_backends.BlockBackend) -> list[degrees_of_freedom.AnyonDOF]:
     """Return a list of `AnyonDOF` sites."""
     backend = backends.get_backend('fusion_tree', block_backend=block_backend)
     site_list = [
@@ -624,7 +624,7 @@ def test_clock_field_coupling(any_backend, np_random):
     site_list = generate_clock_dofs(any_backend)
     for site in site_list:
         hx, hz = np_random.random(2)
-        if isinstance(site.leg.symmetry.factors[0], cyten.ZN):
+        if isinstance(site.leg.symmetry.factors[0], lasyten.ZN):
             hx = 0
         coupling = couplings.clock_field_coupling([site], hx=hx, hz=hz)
         coupling.test_sanity()
@@ -634,7 +634,7 @@ def test_clock_field_coupling(any_backend, np_random):
         # trace is zero
         npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
         # check eigenvalues
-        if isinstance(site.leg.symmetry.factors[0], cyten.ZN):
+        if isinstance(site.leg.symmetry.factors[0], lasyten.ZN):
             expect_evs = 2 * np.cos(np.linspace(0, 2 * np.pi, site.q, endpoint=False))
             evs = tensor.to_numpy(understood_braiding=True)
             evs = np.sort(np.linalg.eigvalsh(evs))
@@ -1068,7 +1068,7 @@ def test_coupling_permute_errors():
 def _asym_hopping_dense_block(site):
     """Dense block [p0,p1,p1*,p0*] for the (non-Hermitian) 2-site term ``Cd_0 C_1`` (or the
     bosonic analogue ``Bd_0 B_1``), correctly JW-dressed as in
-    :func:`~cyten.models.couplings._quadratic_coupling_numpy`: the *first* (left) operand carries
+    :func:`~lasyten.models.couplings._quadratic_coupling_numpy`: the *first* (left) operand carries
     the JW-string factor.
     """
     creator = site.get_creator_numpy(species=0, include_JW=True)

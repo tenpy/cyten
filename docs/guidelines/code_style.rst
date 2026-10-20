@@ -21,7 +21,7 @@ Python guidelines
   It should contain only bullet points.
   See e.g. `this example <https://github.com/tenpy/tenpy/blob/b49485e7cfdfe9ec4fe740e6dbeea3451783840b/doc/changelog/latest/pr_520.txt>`_.
 
-- Use relative imports within cyten. Example::
+- Use relative imports within lasyten. Example::
 
       from ..spaces import ElementarySpace
 
@@ -50,8 +50,8 @@ Error handling
 Public API input checks must throw, not use C ``assert``. ``assert`` is compiled out under
 ``NDEBUG`` (typical Release builds), so caller mistakes would otherwise go unchecked.
 
-- Use ``cyten::check`` for a fixed message, or ``throw std::invalid_argument`` /
-  ``std::out_of_range`` / ``cyten::SymmetryError`` with ``std::format`` when the
+- Use ``lasyten::check`` for a fixed message, or ``throw std::invalid_argument`` /
+  ``std::out_of_range`` / ``lasyten::SymmetryError`` with ``std::format`` when the
   message should include values. These map to Python ``ValueError``, ``IndexError``, and
   ``SymmetryError``.
 - Keep C ``assert`` only for hot-path internal invariants and expensive algebraic sanity
@@ -79,11 +79,11 @@ configuration
 
 - C++ linter rules are defined in `.clang-tidy`, but are currently not enforced as errors in the pre-commit action.
 
-- Parity of the generated ``cyten._core`` autodoc stub against the compiled extension
-  (``scripts/check_core_stub_parity.py --generate``). Skips if ``cyten._core`` is not importable.
+- Parity of the generated ``lasyten._core`` autodoc stub against the compiled extension
+  (``scripts/check_core_stub_parity.py --generate``). Skips if ``lasyten._core`` is not importable.
 
-- Freshness of the ``__all__`` lists in cyten's re-export hub modules (``cyten/__init__.py``,
-  ``cyten/tensors/__init__.py``, etc.), checked via ``scripts/generate_reexport_all.py --check``.
+- Freshness of the ``__all__`` lists in lasyten's re-export hub modules (``lasyten/__init__.py``,
+  ``lasyten/tensors/__init__.py``, etc.), checked via ``scripts/generate_reexport_all.py --check``.
   These lists mark names as explicitly re-exported, which ``py.typed`` packages require for
   IDEs (Pylance/Pyright) to offer autocomplete on re-exported names. If you add or remove a
   bare ``from .x import y`` in one of these hubs, re-run ``scripts/generate_reexport_all.py``

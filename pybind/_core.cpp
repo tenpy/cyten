@@ -1,10 +1,10 @@
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
-using namespace cyten;
+using namespace lasyten;
 
 PYBIND11_MODULE(_core, m)
 {
-    m.doc() = "Cyten python bindings using pybind11"; // optional module docstring
+    m.doc() = "LASyTen python bindings using pybind11"; // optional module docstring
 
     bind_tools(m);
     bind_cost_polynomials(m);

@@ -1,6 +1,6 @@
 tensors
 =======
-Headers in ``include/cyten/tensors/``.
+Headers in ``include/lasyten/tensors/``.
 
 .. toctree::
    :maxdepth: 1

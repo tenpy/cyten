@@ -1,13 +1,13 @@
-#include <cyten/models/couplings.h>
+#include <lasyten/models/couplings.h>
 
-#include <cyten/config.h>
-#include <cyten/symmetries/exceptions.h>
-#include <cyten/symmetries/factors/fibonacci_anyon_category.h>
-#include <cyten/symmetries/symmetry.h>
-#include <cyten/tensors/constructors.h>
-#include <cyten/tensors/ops_algebra.h>
-#include <cyten/tensors/planar.h>
-#include <cyten/tools.h>
+#include <lasyten/config.h>
+#include <lasyten/symmetries/exceptions.h>
+#include <lasyten/symmetries/factors/fibonacci_anyon_category.h>
+#include <lasyten/symmetries/symmetry.h>
+#include <lasyten/tensors/constructors.h>
+#include <lasyten/tensors/ops_algebra.h>
+#include <lasyten/tensors/planar.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <format>
@@ -17,7 +17,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -1266,4 +1266,4 @@ gold_coupling(std::vector<Site::Ptr> sites,
                                       device);
 }
 
-} // namespace cyten
+} // namespace lasyten

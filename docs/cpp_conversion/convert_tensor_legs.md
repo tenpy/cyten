@@ -3,9 +3,9 @@
 ## metadata
 
 - original python names: `bend_legs`, `check_same_legs`, `combine_legs`, `combine_to_matrix`, `move_leg`, `permute_legs`, `split_legs`, `squeeze_legs`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration: `include/cyten/tensors/ops_legs.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration: `include/lasyten/tensors/ops_legs.h`
 - definition: `src/tensors/ops_legs.cpp`
 - pybind11 binding: `pybind/tensors/py_ops_legs.cpp`
 - trampoline: n/a (free functions)
@@ -27,7 +27,7 @@ Stay on branch **`convert_tensors`**.
 - Variadic `combine_legs(*which_legs)`: bind with `py::args`.
 - Flexible `levels` / `bend_right` / leg-index args: keep as `py::object` where Python accepts list|dict|bool|None.
 - Label helpers: C++ `_combine_leg_labels` / `_split_leg_label`.
-- `duplicate_entries` / `inverse_permutation`: call Python `cyten.tools.misc` for now.
+- `duplicate_entries` / `inverse_permutation`: call Python `lasyten.tools.misc` for now.
 - `check_same_legs` warning: Python `logging` via import.
 - After monkey-patch, algebra's `tensors_mod().attr("permute_legs")` / `move_leg` automatically hit C++.
 

@@ -1,43 +1,43 @@
 decompositions.h
 ================
 
-Declared in ``include/cyten/tensors/decompositions.h``.
+Declared in ``include/lasyten/tensors/decompositions.h``.
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::apply_mask_DiagonalTensor
-   :project: cyten
+.. doxygenfunction:: lasyten::apply_mask_DiagonalTensor
+   :project: lasyten
 
-.. doxygenfunction:: cyten::eigh
-    :project: cyten
+.. doxygenfunction:: lasyten::eigh
+    :project: lasyten
 
-.. doxygenfunction:: cyten::eig
-    :project: cyten
+.. doxygenfunction:: lasyten::eig
+    :project: lasyten
 
-.. doxygenfunction:: cyten::eigvalsh
-    :project: cyten
+.. doxygenfunction:: lasyten::eigvalsh
+    :project: lasyten
 
-.. doxygenfunction:: cyten::eigvals
-    :project: cyten
+.. doxygenfunction:: lasyten::eigvals
+    :project: lasyten
 
-.. doxygenfunction:: cyten::entropy
-   :project: cyten
+.. doxygenfunction:: lasyten::entropy
+   :project: lasyten
 
-.. doxygenfunction:: cyten::lq
-   :project: cyten
+.. doxygenfunction:: lasyten::lq
+   :project: lasyten
 
-.. doxygenfunction:: cyten::qr
-   :project: cyten
+.. doxygenfunction:: lasyten::qr
+   :project: lasyten
 
-.. doxygenfunction:: cyten::svd
-   :project: cyten
+.. doxygenfunction:: lasyten::svd
+   :project: lasyten
 
-.. doxygenfunction:: cyten::svd_apply_mask
-   :project: cyten
+.. doxygenfunction:: lasyten::svd_apply_mask
+   :project: lasyten
 
-.. doxygenfunction:: cyten::truncate_singular_values
-   :project: cyten
+.. doxygenfunction:: lasyten::truncate_singular_values
+   :project: lasyten
 
-.. doxygenfunction:: cyten::truncated_svd
-   :project: cyten
+.. doxygenfunction:: lasyten::truncated_svd
+   :project: lasyten

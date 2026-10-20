@@ -1,13 +1,13 @@
-#include <cyten/tensors/direct_sum.h>
+#include <lasyten/tensors/direct_sum.h>
 
-#include <cyten/block_backend/dtypes.h>
-#include <cyten/tensors/ops_algebra.h>
+#include <lasyten/block_backend/dtypes.h>
+#include <lasyten/tensors/ops_algebra.h>
 
 #include <format>
 #include <stdexcept>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -173,4 +173,4 @@ DirectSum::compatible_with(VectorLike::CPtr other) const
     return true;
 }
 
-} // namespace cyten
+} // namespace lasyten

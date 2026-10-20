@@ -1,6 +1,6 @@
-#include <cyten/symmetries/base_symmetry.h>
+#include <lasyten/symmetries/base_symmetry.h>
 
-#include <cyten/config.h>
+#include <lasyten/config.h>
 
 #include <algorithm>
 #include <cmath>
@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 BaseSymmetry::BaseSymmetry(FusionStyle fusion_style_,
                            BraidingStyle braiding_style_,
@@ -485,7 +485,7 @@ BaseSymmetry::s_matrix() const
     return S;
 }
 
-} // namespace cyten
+} // namespace lasyten
 
 // =============================================================================
 // ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)

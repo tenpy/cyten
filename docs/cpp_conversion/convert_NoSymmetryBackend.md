@@ -2,7 +2,7 @@
 
 ## Status
 
-**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.NoSymmetryBackend`. Imported in `cyten/backends/no_symmetry.py` from `_core`.
+**Done / monkey-patched** on branch `convert_backends`. Exported as `lasyten._core.NoSymmetryBackend`. Imported in `lasyten/backends/no_symmetry.py` from `_core`.
 
 Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md).
 
@@ -11,9 +11,9 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 | Field | Value |
 | --- | --- |
 | original python name | `NoSymmetryBackend` |
-| original python file | `cyten/backends/no_symmetry.py` |
-| original python module | `cyten.backends.no_symmetry` |
-| declaration | `include/cyten/backends/no_symmetry.h` |
+| original python file | `lasyten/backends/no_symmetry.py` |
+| original python module | `lasyten.backends.no_symmetry` |
+| declaration | `include/lasyten/backends/no_symmetry.h` |
 | definition | `src/backends/no_symmetry.cpp` |
 | pybind11 binding | `pybind/backends/py_no_symmetry.cpp` |
 | trampoline | none (no further Python subclasses expected; concrete leaf) |

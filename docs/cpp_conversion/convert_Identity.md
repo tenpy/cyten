@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `Identity`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration in C++ header file: `include/cyten/tensors/diagonal_tensor.h` (same file as DiagonalTensor)
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration in C++ header file: `include/lasyten/tensors/diagonal_tensor.h` (same file as DiagonalTensor)
 - definition in C++ file: `src/tensors/diagonal_tensor.cpp` (same file)
 - pybind11 binding: `pybind/tensors/py_diagonal_tensor.cpp` (extend) or `py_identity.cpp`
 - trampoline: not needed (no library subclasses of Identity)

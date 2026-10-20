@@ -6,9 +6,9 @@
 /// extend *load* so call sites can still pass ndarrays during migration; *cast*
 /// always produces bound Sector / SectorArray instances (never bare ndarrays).
 
-#include <cyten/symmetries/fusion_symbol.h>
-#include <cyten/symmetries/sector.h>
-#include <cyten/symmetries/sector_numpy.h>
+#include <lasyten/symmetries/fusion_symbol.h>
+#include <lasyten/symmetries/sector.h>
+#include <lasyten/symmetries/sector_numpy.h>
 
 #include <pybind11/cast.h>
 #include <pybind11/numpy.h>
@@ -16,7 +16,7 @@
 
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 inline py::array
 vector_i64_to_numpy(std::vector<int64> const& v)
@@ -70,15 +70,15 @@ vector_f64_from_numpy(py::object obj)
     return std::vector<float64>(ptr, ptr + info.shape[0]);
 }
 
-} // namespace cyten
+} // namespace lasyten
 
 namespace pybind11::detail {
 
 /// Transparent FusionSymbol ↔ numpy.ndarray for bindings / trampolines.
 template<>
-struct type_caster<cyten::FusionSymbol>
+struct type_caster<lasyten::FusionSymbol>
 {
-    PYBIND11_TYPE_CASTER(cyten::FusionSymbol, const_name("numpy.ndarray"));
+    PYBIND11_TYPE_CASTER(lasyten::FusionSymbol, const_name("numpy.ndarray"));
 
     bool load(handle src, bool convert)
     {
@@ -86,25 +86,25 @@ struct type_caster<cyten::FusionSymbol>
             return false;
         }
         try {
-            value = cyten::fusion_symbol_from_numpy(array::ensure(src));
+            value = lasyten::fusion_symbol_from_numpy(array::ensure(src));
             return true;
         } catch (...) {
             return false;
         }
     }
 
-    static handle cast(cyten::FusionSymbol const& src,
+    static handle cast(lasyten::FusionSymbol const& src,
                        return_value_policy /*policy*/,
                        handle /*parent*/)
     {
-        return cyten::fusion_symbol_to_numpy(src).release();
+        return lasyten::fusion_symbol_to_numpy(src).release();
     }
 };
 
 template<>
-struct type_caster<cyten::Sector> : type_caster_base<cyten::Sector>
+struct type_caster<lasyten::Sector> : type_caster_base<lasyten::Sector>
 {
-    using base = type_caster_base<cyten::Sector>;
+    using base = type_caster_base<lasyten::Sector>;
 
     bool load(handle src, bool convert)
     {
@@ -115,8 +115,8 @@ struct type_caster<cyten::Sector> : type_caster_base<cyten::Sector>
             return false;
         }
         try {
-            cyten::Sector tmp = cyten::sector_from_numpy(src);
-            value = new cyten::Sector(std::move(tmp));
+            lasyten::Sector tmp = lasyten::sector_from_numpy(src);
+            value = new lasyten::Sector(std::move(tmp));
             return true;
         } catch (...) {
             return false;
@@ -125,9 +125,9 @@ struct type_caster<cyten::Sector> : type_caster_base<cyten::Sector>
 };
 
 template<>
-struct type_caster<cyten::SectorArray> : type_caster_base<cyten::SectorArray>
+struct type_caster<lasyten::SectorArray> : type_caster_base<lasyten::SectorArray>
 {
-    using base = type_caster_base<cyten::SectorArray>;
+    using base = type_caster_base<lasyten::SectorArray>;
 
     bool load(handle src, bool convert)
     {
@@ -138,8 +138,8 @@ struct type_caster<cyten::SectorArray> : type_caster_base<cyten::SectorArray>
             return false;
         }
         try {
-            cyten::SectorArray tmp = cyten::sector_array_from_numpy(src);
-            value = new cyten::SectorArray(std::move(tmp));
+            lasyten::SectorArray tmp = lasyten::sector_array_from_numpy(src);
+            value = new lasyten::SectorArray(std::move(tmp));
             return true;
         } catch (...) {
             return false;

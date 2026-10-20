@@ -1,20 +1,20 @@
 mappings.h
 ==========
 
-Declared in ``include/cyten/tools/mappings.h``.
+Declared in ``include/lasyten/tools/mappings.h``.
 
-cyten::IdentityMapping
+lasyten::IdentityMapping
 ----------------------
 
-.. doxygenclass:: cyten::IdentityMapping
-   :project: cyten
+.. doxygenclass:: lasyten::IdentityMapping
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::SparseMapping
+lasyten::SparseMapping
 --------------------
 
-.. doxygenclass:: cyten::SparseMapping
-   :project: cyten
+.. doxygenclass:: lasyten::SparseMapping
+   :project: lasyten
    :members:
    :undoc-members:

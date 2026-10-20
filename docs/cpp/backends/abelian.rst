@@ -1,26 +1,26 @@
 abelian.h
 =========
 
-Declared in ``include/cyten/backends/abelian.h``.
+Declared in ``include/lasyten/backends/abelian.h``.
 
-cyten::AbelianBackend
+lasyten::AbelianBackend
 ---------------------
 
-.. doxygenclass:: cyten::AbelianBackend
-   :project: cyten
+.. doxygenclass:: lasyten::AbelianBackend
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::AbelianBackendData
+lasyten::AbelianBackendData
 -------------------------
 
-.. doxygenclass:: cyten::AbelianBackendData
-   :project: cyten
+.. doxygenclass:: lasyten::AbelianBackendData
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::valid_block_inds
-   :project: cyten
+.. doxygenfunction:: lasyten::valid_block_inds
+   :project: lasyten

@@ -1,25 +1,25 @@
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
 
-#include <cyten/backends/abelian.h>
-#include <cyten/backends/backend_factory.h>
-#include <cyten/backends/fusion_tree_backend.h>
-#include <cyten/block_backend/torch.h>
-#include <cyten/symmetries/exceptions.h>
-#include <cyten/tools.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/backends/abelian.h>
+#include <lasyten/backends/backend_factory.h>
+#include <lasyten/backends/fusion_tree_backend.h>
+#include <lasyten/block_backend/torch.h>
+#include <lasyten/symmetries/exceptions.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
 #include <format>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 #include <stdexcept>
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -912,7 +912,7 @@ DiagonalTensor::to_dense_block(
 }
 
 void
-DiagonalTensor::save_hdf5(cyten::hdf5::Saver& saver,
+DiagonalTensor::save_hdf5(lasyten::hdf5::Saver& saver,
                           HighFive::Group& h5gr,
                           std::string const& subpath) const
 {
@@ -921,7 +921,7 @@ DiagonalTensor::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 DiagonalTensor::Ptr
-DiagonalTensor::from_hdf5(cyten::hdf5::Loader& loader,
+DiagonalTensor::from_hdf5(lasyten::hdf5::Loader& loader,
                           HighFive::Group& h5gr,
                           std::string const& subpath)
 {
@@ -1027,7 +1027,9 @@ Identity::from_eye(Space::Ptr leg,
 }
 
 Identity::Ptr
-Identity::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
+Identity::from_hdf5(lasyten::hdf5::Loader& loader,
+                    HighFive::Group& h5gr,
+                    std::string const& subpath)
 {
     auto domain = hdf5_export::load_tensor_product(loader, subpath + "domain");
     (void)hdf5_export::load_tensor_product(loader, subpath + "codomain");
@@ -1253,4 +1255,4 @@ Identity::to_dense_block(std::optional<std::vector<std::variant<int64, std::stri
     return as_DiagonalTensor()->to_dense_block(leg_order, dtype_opt, understood_braiding);
 }
 
-} // namespace cyten
+} // namespace lasyten

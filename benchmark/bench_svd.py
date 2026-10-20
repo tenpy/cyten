@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import cyten as ct
+import lasyten as lasy
 
 from .cases import CASES, case_compatible, make_svd_tensor
 from .common import (
@@ -34,7 +34,7 @@ def run_svd_benchmark(
     seed: int = 0,
     numpy_ref: bool = False,
 ) -> list[BenchmarkRecord]:
-    """Time ``cyten.svd``; optionally also time dense ``numpy.linalg.svd``."""
+    """Time ``lasyten.svd``; optionally also time dense ``numpy.linalg.svd``."""
     if case not in CASES:
         raise ValueError(f'Unknown case {case!r}')
     if not config_ok(case, symmetry_backend, block_backend, device, case_compatible_fn=case_compatible):
@@ -51,10 +51,10 @@ def run_svd_benchmark(
         seed=seed,
     )
 
-    def _cyten():
-        return ct.svd(T)
+    def _lasyten():
+        return lasy.svd(T)
 
-    timing = time_call(_cyten, warmup=warmup, repeats=repeats, device=device)
+    timing = time_call(_lasyten, warmup=warmup, repeats=repeats, device=device)
     records = [
         make_record(
             op='svd',

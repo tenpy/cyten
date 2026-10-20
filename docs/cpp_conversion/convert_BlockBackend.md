@@ -2,9 +2,9 @@
 
 ## Status
 
-**Done.** The abstract `BlockBackend`, concrete `NumpyBlockBackend`, and the supporting `Block` / `Scalar` types live in C++ with pybind11 bindings. Python imports them from `cyten._core` via `cyten/block_backends/__init__.py`. The full pytest suite was brought back to green after the switch.
+**Done.** The abstract `BlockBackend`, concrete `NumpyBlockBackend`, and the supporting `Block` / `Scalar` types live in C++ with pybind11 bindings. Python imports them from `lasyten._core` via `lasyten/block_backends/__init__.py`. The full pytest suite was brought back to green after the switch.
 
-The original Python sources `cyten/block_backends/_block_backend.py` and `cyten/block_backends/numpy.py` are still present: `ArrayApiBlockBackend` and `TorchBlockBackend` still subclass the Python ABC. Public users of `BlockBackend` / `NumpyBlockBackend` get the C++ implementations.
+The original Python sources `lasyten/block_backends/_block_backend.py` and `lasyten/block_backends/numpy.py` are still present: `ArrayApiBlockBackend` and `TorchBlockBackend` still subclass the Python ABC. Public users of `BlockBackend` / `NumpyBlockBackend` get the C++ implementations.
 
 Related notes: [convert_Spaces.md](convert_Spaces.md) — `apply_basis_perm` now uses C++ `Leg`.
 
@@ -12,18 +12,18 @@ Related notes: [convert_Spaces.md](convert_Spaces.md) — `apply_basis_perm` now
 
 | Object | Original Python | C++ header | C++ source | Bindings |
 | --- | --- | --- | --- | --- |
-| `BlockBackend` | `cyten/block_backends/_block_backend.py` | `include/cyten/block_backend/block_backend.h` | `src/block_backend/block_backend.cpp` | `pybind/block_backend/py_block_backend.cpp` |
+| `BlockBackend` | `lasyten/block_backends/_block_backend.py` | `include/lasyten/block_backend/block_backend.h` | `src/block_backend/block_backend.cpp` | `pybind/block_backend/py_block_backend.cpp` |
 | `Block` | TypeVar / `np.ndarray` (numpy) | nested `BlockBackend::Block` | same + `numpy.cpp` for numpy impl | nested as `BlockBackend.BlockCls` |
 | `Scalar` | *(new on C++ side)* | nested `BlockBackend::Scalar` | `block_backend.cpp` | nested as `BlockBackend.Scalar` |
-| `NumpyBlockBackend` | `cyten/block_backends/numpy.py` | `include/cyten/block_backend/numpy.h` | `src/block_backend/numpy.cpp` | `pybind/block_backend/py_numpy.cpp` |
-| `Dtype` | `cyten/block_backends/dtypes.py` | `include/cyten/block_backend/dtypes.h` | `src/block_backend/dtypes.cpp` | `pybind/block_backend/py_dtypes.cpp` |
+| `NumpyBlockBackend` | `lasyten/block_backends/numpy.py` | `include/lasyten/block_backend/numpy.h` | `src/block_backend/numpy.cpp` | `pybind/block_backend/py_numpy.cpp` |
+| `Dtype` | `lasyten/block_backends/dtypes.py` | `include/lasyten/block_backend/dtypes.h` | `src/block_backend/dtypes.cpp` | `pybind/block_backend/py_dtypes.cpp` |
 
 Trampolines (for Python subclasses of the ABCs): `pybind/block_backend/py_trampolines.hpp` (`PyBlockBackend`, `PyBlock`).
 
 Python wiring:
 
 ```python
-# cyten/block_backends/__init__.py
+# lasyten/block_backends/__init__.py
 from .._core import BlockBackend, NumpyBlockBackend
 
 Block = BlockBackend.BlockCls
@@ -74,7 +74,7 @@ Python still accepts `numbers.Number` in many tensor APIs; those call sites were
 - [x] initial setup / planning
 - [x] C++ declaration + definition for `BlockBackend`, `Block`, `Scalar`, `NumpyBlockBackend`
 - [x] pybind11 bindings + trampolines
-- [x] monkey-patch via `cyten/block_backends/__init__.py`
+- [x] monkey-patch via `lasyten/block_backends/__init__.py`
 - [x] adjust tensor/backend Python for `Scalar` where needed
 - [x] pytest green with C++ BlockBackend
 - [ ] remove leftover Python `NumpyBlockBackend` / abstract `BlockBackend` once ArrayApi/Torch are ported or otherwise decoupled

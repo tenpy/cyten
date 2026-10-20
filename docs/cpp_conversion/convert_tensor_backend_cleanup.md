@@ -3,8 +3,8 @@
 ## metadata
 
 - status: **done**
-- primary header: `include/cyten/backends/tensor_backend.h`
-- forward decls: `include/cyten/tensors/forward_declare.h` (new)
+- primary header: `include/lasyten/backends/tensor_backend.h`
+- forward decls: `include/lasyten/tensors/forward_declare.h` (new)
 - related: [convert_tensors.md](convert_tensors.md) §15
 
 ## Goal
@@ -25,7 +25,7 @@ Today:
 
 ```text
 tensor.h / symmetric_tensor.h / …
-    → #include <cyten/backends/tensor_backend.h>
+    → #include <lasyten/backends/tensor_backend.h>
          (and often abelian.h / fusion_tree_backend.h / no_symmetry.h)
 
 tensor_backend.h
@@ -39,13 +39,13 @@ If `tensor_backend.h` included `symmetric_tensor.h` for `SymmetricTensor::Ptr`, 
 
 ## How `forward_declare.h` breaks the cycle
 
-Add **`include/cyten/tensors/forward_declare.h`** with only incomplete types + aliases, e.g.:
+Add **`include/lasyten/tensors/forward_declare.h`** with only incomplete types + aliases, e.g.:
 
 ```cpp
 #pragma once
 #include <memory>
 
-namespace cyten {
+namespace lasyten {
 
 class Tensor;
 class SymmetricTensor;
@@ -58,7 +58,7 @@ using TensorPtr = std::shared_ptr<Tensor>;
 using TensorCPtr = std::shared_ptr<const Tensor>;
 // … same for SymmetricTensor, DiagonalTensor, Mask, ChargedTensor
 
-} // namespace cyten
+} // namespace lasyten
 ```
 
 Rules:
@@ -184,7 +184,7 @@ Mechanical rewrite of every `.attr` in backend bodies is error-prone. Prefer **i
 
 ## Checklist
 
-- [x] Add `include/cyten/tensors/forward_declare.h`
+- [x] Add `include/lasyten/tensors/forward_declare.h`
 - [x] Wire into `tensor_backend.h` (+ concrete backend headers)
 - [x] Pilot one virtual (typed signature + `.cpp` member access + call sites)
 - [x] Migrate diagonal / mask / algebra / decomposition batches

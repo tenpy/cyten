@@ -2,7 +2,7 @@
 
 #include <stdexcept>
 
-namespace cyten::hdf5 {
+namespace lasyten::hdf5 {
 
 namespace {
 
@@ -46,7 +46,7 @@ void
 py_save_handle(std::string const& path, py::handle obj)
 {
     if (!tls_saver)
-        throw std::runtime_error("cyten::hdf5::py_save: no Python Hdf5Saver bound (PyBridge)");
+        throw std::runtime_error("lasyten::hdf5::py_save: no Python Hdf5Saver bound (PyBridge)");
     tls_saver->attr("save")(obj, path);
 }
 
@@ -54,7 +54,7 @@ py::object
 py_load(std::string const& path)
 {
     if (!tls_loader)
-        throw std::runtime_error("cyten::hdf5::py_load: no Python Hdf5Loader bound (PyBridge)");
+        throw std::runtime_error("lasyten::hdf5::py_load: no Python Hdf5Loader bound (PyBridge)");
     return tls_loader->attr("load")(path);
 }
 
@@ -62,7 +62,7 @@ void
 py_memorize_load(HighFive::Group& /*h5gr*/, py::handle obj)
 {
     if (!tls_loader || !tls_h5gr)
-        throw std::runtime_error("cyten::hdf5::py_memorize_load: no Python loader/group bound");
+        throw std::runtime_error("lasyten::hdf5::py_memorize_load: no Python loader/group bound");
     tls_loader->attr("memorize_load")(*tls_h5gr, obj);
 }
 
@@ -70,7 +70,7 @@ py::object
 py_get_attr(HighFive::Group& /*h5gr*/, std::string const& name)
 {
     if (!tls_loader || !tls_h5gr)
-        throw std::runtime_error("cyten::hdf5::py_get_attr: no Python loader/group bound");
+        throw std::runtime_error("lasyten::hdf5::py_get_attr: no Python loader/group bound");
     return tls_loader->attr("get_attr")(*tls_h5gr, name);
 }
 
@@ -78,7 +78,7 @@ void
 py_set_group_attr(std::string const& name, py::handle value)
 {
     if (!tls_h5gr)
-        throw std::runtime_error("cyten::hdf5::py_set_group_attr: no Python group bound");
+        throw std::runtime_error("lasyten::hdf5::py_set_group_attr: no Python group bound");
     (*tls_h5gr).attr("attrs")[py::str(name)] = value;
 }
 
@@ -86,7 +86,7 @@ py::object
 py_get_group_attr(std::string const& name)
 {
     if (!tls_h5gr)
-        throw std::runtime_error("cyten::hdf5::py_get_group_attr: no Python group bound");
+        throw std::runtime_error("lasyten::hdf5::py_get_group_attr: no Python group bound");
     return (*tls_h5gr).attr("attrs")[py::str(name)];
 }
 
@@ -108,4 +108,4 @@ tls_py_h5gr()
     return tls_h5gr;
 }
 
-} // namespace cyten::hdf5
+} // namespace lasyten::hdf5

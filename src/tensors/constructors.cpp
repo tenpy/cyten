@@ -1,15 +1,15 @@
-#include <cyten/tensors/constructors.h>
+#include <lasyten/tensors/constructors.h>
 
-#include <cyten/backends/backend_factory.h>
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/tensors/charged_tensor.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/hidden_leg_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/ops_algebra.h>
-#include <cyten/tensors/ops_legs.h>
-#include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tools.h>
+#include <lasyten/backends/backend_factory.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/tensors/charged_tensor.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/ops_algebra.h>
+#include <lasyten/tensors/ops_legs.h>
+#include <lasyten/tensors/symmetric_tensor.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <format>
@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -827,4 +827,4 @@ grid_project(TensorCPtr tensor,
     return result;
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,6 +1,6 @@
 backends
 ========
-Headers in ``include/cyten/backends/``.
+Headers in ``include/lasyten/backends/``.
 
 .. toctree::
    :maxdepth: 1

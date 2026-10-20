@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import cyten as ct
+import lasyten as lasy
 
 from .cases import CASES, case_compatible, make_matrix_pair
 from .common import (
@@ -51,10 +51,10 @@ def run_tdot_benchmark(
         seed=seed,
     )
 
-    def _cyten():
-        return ct.tdot(A, B, 'j', 'i')
+    def _lasyten():
+        return lasy.tdot(A, B, 'j', 'i')
 
-    timing = time_call(_cyten, warmup=warmup, repeats=repeats, device=device)
+    timing = time_call(_lasyten, warmup=warmup, repeats=repeats, device=device)
     records = [
         make_record(
             op='tdot',

@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `DiagonalTensor`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration in C++ header file: `include/cyten/tensors/diagonal_tensor.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration in C++ header file: `include/lasyten/tensors/diagonal_tensor.h`
 - definition in C++ file: `src/tensors/diagonal_tensor.cpp`
 - pybind11 binding: `pybind/tensors/py_diagonal_tensor.cpp`
 - trampoline: `PyDiagonalTensor` in `pybind/tensors/py_trampolines.hpp` (kept while Python `Identity` / `DiagonalTensor` remain)
@@ -20,7 +20,7 @@
 5. `Identity` — done (monkey-patch deferred)
 6. Next: `Mask` → `ChargedTensor`
 
-Export `cyten._core.DiagonalTensor`; **defer monkey-patch** until wrap-up with SymmetricTensor / Identity (optional) or after Mask/ChargedTensor.
+Export `lasyten._core.DiagonalTensor`; **defer monkey-patch** until wrap-up with SymmetricTensor / Identity (optional) or after Mask/ChargedTensor.
 
 ## Design notes
 

@@ -3,7 +3,7 @@
 from pathlib import Path
 import re
 
-ROOT = Path("/home/johannes/work/tenpy/cyten_main")
+ROOT = Path("/home/johannes/work/tenpy/lasyten_main")
 
 for path in list((ROOT / "src").rglob("*.cpp")) + list((ROOT / "include").rglob("*.h")):
     text = path.read_text()

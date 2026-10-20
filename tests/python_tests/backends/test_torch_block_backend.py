@@ -12,12 +12,12 @@ import scipy
 
 pytest.importorskip('torch')
 
-from cyten.backends.backend_factory import get_backend
-from cyten.block_backends import TorchBlockBackend
-from cyten.block_backends.dtypes import Dtype
-from cyten.symmetries import NoSymmetry
-from cyten.tensors import SymmetricTensor
-from cyten.testing import random_tensor
+from lasyten.backends.backend_factory import get_backend
+from lasyten.block_backends import TorchBlockBackend
+from lasyten.block_backends.dtypes import Dtype
+from lasyten.symmetries import NoSymmetry
+from lasyten.tensors import SymmetricTensor
+from lasyten.testing import random_tensor
 
 no_symmetry = NoSymmetry().as_Symmetry()
 
@@ -48,7 +48,7 @@ def test_to_backend_numpy_to_torch():
 @pytest.mark.torch
 def test_torch_block_getitem_setitem_slice_and_index_array():
     """Torch Block advanced indexing via native C++ BlockIndex path."""
-    from cyten._core import BlockBackend
+    from lasyten._core import BlockBackend
 
     bb = TorchBlockBackend.from_factory('cpu:0')
     block = bb.block_from_numpy(np.arange(12, dtype=np.float64).reshape(3, 4))
@@ -77,7 +77,7 @@ def test_torch_block_getitem_setitem_slice_and_index_array():
 @pytest.mark.torch
 def test_torch_block_hdf5_preserves_device(tmp_path):
     h5py = pytest.importorskip('h5py')
-    from cyten.tools import hdf5_io
+    from lasyten.tools import hdf5_io
 
     bb = TorchBlockBackend.from_factory('cpu:0')
     block = bb.zeros([2, 3], Dtype.float64)
@@ -97,7 +97,7 @@ def test_torch_hdf5_falls_back_when_device_unavailable(tmp_path):
     h5py = pytest.importorskip('h5py')
     import torch
 
-    from cyten.tools import hdf5_io
+    from lasyten.tools import hdf5_io
 
     bb = TorchBlockBackend.from_factory('cpu:0')
     block = bb.block_from_numpy(np.arange(6, dtype=np.float64).reshape(2, 3))
@@ -140,18 +140,18 @@ _DUAL_IMPORT_SCRIPT = textwrap.dedent(
     import sys
 
     order = sys.argv[1]
-    if order == 'torch_then_cyten':
+    if order == 'torch_then_lasyten':
         import torch
-        import cyten  # noqa: F401
+        import lasyten  # noqa: F401
     else:
-        import cyten  # noqa: F401
+        import lasyten  # noqa: F401
         import torch
 
-    from cyten.block_backends import TorchBlockBackend
-    from cyten.block_backends.dtypes import Dtype
+    from lasyten.block_backends import TorchBlockBackend
+    from lasyten.block_backends.dtypes import Dtype
     import numpy as np
 
-    # Same physical libtorch for cyten._core and torch._C (conda/pip layouts).
+    # Same physical libtorch for lasyten._core and torch._C (conda/pip layouts).
     maps = open(f'/proc/{os.getpid()}/maps').read()
     torch_sos = sorted({line.split()[-1] for line in maps.splitlines()
                         if line.endswith('.so') and 'libtorch.so' in line
@@ -172,9 +172,9 @@ _DUAL_IMPORT_SCRIPT = textwrap.dedent(
 
 
 @pytest.mark.torch
-@pytest.mark.parametrize('order', ['cyten_then_torch', 'torch_then_cyten'])
+@pytest.mark.parametrize('order', ['lasyten_then_torch', 'torch_then_lasyten'])
 def test_shared_libtorch_dual_import(order):
-    """cyten._core and torch._C must share one libtorch; both import orders must work."""
+    """lasyten._core and torch._C must share one libtorch; both import orders must work."""
     env = os.environ.copy()
     # Ensure the just-built/installed package is used.
     proc = subprocess.run(

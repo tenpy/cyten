@@ -1,12 +1,12 @@
 numpy.h
 =======
 
-Declared in ``include/cyten/block_backend/numpy.h``.
+Declared in ``include/lasyten/block_backend/numpy.h``.
 
-cyten::NumpyBlockBackend
+lasyten::NumpyBlockBackend
 ------------------------
 
-.. doxygenclass:: cyten::NumpyBlockBackend
-   :project: cyten
+.. doxygenclass:: lasyten::NumpyBlockBackend
+   :project: lasyten
    :members:
    :undoc-members:

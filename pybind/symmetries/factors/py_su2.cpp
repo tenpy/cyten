@@ -1,16 +1,16 @@
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/su2.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/factors/su2.h>
+#include <lasyten/symmetries/factors/su2.h>
 
 #include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -23,7 +23,7 @@ constexpr char const* kSu2TestOnlyWarning =
 void
 bind_su2(py::module_& m)
 {
-    py::class_<_SU2, Group, py::smart_holder> cls(m, "_SU2", DOC(cyten, _SU2));
+    py::class_<_SU2, Group, py::smart_holder> cls(m, "_SU2", DOC(lasyten, _SU2));
 
     cls
       .def(py::init([](std::optional<std::string> descriptive_name) {
@@ -34,7 +34,7 @@ bind_su2(py::module_& m)
            }),
            py::arg("descriptive_name") = py::none())
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<_SU2>(),
+                  lasyten::hdf5::wrap_from_hdf5<_SU2>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -45,4 +45,4 @@ bind_su2(py::module_& m)
     cls.attr("spin_one") = _SU2::spin_one;
 }
 
-} // namespace cyten
+} // namespace lasyten

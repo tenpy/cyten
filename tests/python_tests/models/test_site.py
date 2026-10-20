@@ -1,4 +1,4 @@
-"""A collection of tests for :mod:`cyten.models.sites`."""
+"""A collection of tests for :mod:`lasyten.models.sites`."""
 # Copyright (C) TeNPy Developers, Apache license
 
 import itertools as it
@@ -7,14 +7,14 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-import cyten
-from cyten import backends
-from cyten.models import degrees_of_freedom, sites
-from cyten.testing import random_symmetry_sectors
+import lasyten
+from lasyten import backends
+from lasyten.models import degrees_of_freedom, sites
+from lasyten.testing import random_symmetry_sectors
 
-u1_symmetry = cyten.U1().as_Symmetry()
-z3_symmetry = cyten.ZN(N=3).as_Symmetry()
-no_symmetry = cyten.NoSymmetry().as_Symmetry()
+u1_symmetry = lasyten.U1().as_Symmetry()
+z3_symmetry = lasyten.ZN(N=3).as_Symmetry()
+no_symmetry = lasyten.NoSymmetry().as_Symmetry()
 
 
 def check_same_operators(sites: list[degrees_of_freedom.Site]):
@@ -40,48 +40,48 @@ def check_operator_availability(site: degrees_of_freedom.Site, expect_onsite_ops
     """
     assert set(site.onsite_operators.keys()) == set(expect_onsite_ops.keys())
     for name, is_diag in expect_onsite_ops.items():
-        assert isinstance(site.onsite_operators[name], cyten.DiagonalTensor) == is_diag
+        assert isinstance(site.onsite_operators[name], lasyten.DiagonalTensor) == is_diag
 
 
 @pytest.mark.parametrize(
     'symmetry_backend, use_sym', [('abelian', True), ('fusion_tree', True), ('abelian', False), ('no_symmetry', False)]
 )
 def test_site(np_random, block_backend, symmetry_backend, use_sym):
-    backend = cyten.get_backend(block_backend=block_backend, symmetry=symmetry_backend)
+    backend = lasyten.get_backend(block_backend=block_backend, symmetry=symmetry_backend)
     if use_sym:
         sym = u1_symmetry * z3_symmetry
     else:
         sym = no_symmetry
     dim = 8
     some_sectors = random_symmetry_sectors(sym, num=dim, sort=False, np_random=np_random)
-    leg = cyten.ElementarySpace.from_basis(sym, np_random.choice(some_sectors, size=dim, replace=True))
+    leg = lasyten.ElementarySpace.from_basis(sym, np_random.choice(some_sectors, size=dim, replace=True))
     assert leg.dim == dim
     labels = {f'x{j:d}': i for i, j in enumerate(range(10, 10 + dim))}
     site = degrees_of_freedom.Site(leg, backend=backend, state_labels=labels)
     assert site.state_index('x10') == 0
     assert site.state_index('x17') == 7
     assert set(site.onsite_operators.keys()) == set(('Id',))
-    op1 = cyten.SymmetricTensor.from_random_uniform([leg], [leg], backend=backend, labels=['p', 'p*'])
+    op1 = lasyten.SymmetricTensor.from_random_uniform([leg], [leg], backend=backend, labels=['p', 'p*'])
     site.add_onsite_operator('silly_op', op1)
     assert set(site.onsite_operators.keys()) == {'Id', 'silly_op'}
     assert site.onsite_operators['silly_op'] is op1
 
-    op2 = cyten.SymmetricTensor.from_random_uniform([leg], [leg], backend=backend, labels=['p', 'p*'])
+    op2 = lasyten.SymmetricTensor.from_random_uniform([leg], [leg], backend=backend, labels=['p', 'p*'])
     site.add_onsite_operator('op2', op2)
     assert site.onsite_operators['op2'] is op2
 
     op3_dense = np.diag(np.arange(10, 10 + dim))
     site.add_onsite_operator('op3', op3_dense, is_diagonal=True)
-    assert isinstance(site.onsite_operators['op3'], cyten.DiagonalTensor)
+    assert isinstance(site.onsite_operators['op3'], lasyten.DiagonalTensor)
     npt.assert_equal(site.onsite_operators['op3'].to_numpy(), op3_dense)
 
     # test get_op and multiplication of operators
     # the correct order of multiplication is checked using the spin algebra in test_spin_site
-    assert cyten.almost_equal(site.get_op('silly_op'), site.onsite_operators['silly_op'])
+    assert lasyten.almost_equal(site.get_op('silly_op'), site.onsite_operators['silly_op'])
     combinations = [['silly_op', 'op2'], ['silly_op', 'op3', 'op2'], []]
     for ops in combinations:
         ops_name = site.multiply_op_names(ops)
-        assert cyten.almost_equal(site.multiply_operators(ops), site.get_op(ops_name))
+        assert lasyten.almost_equal(site.multiply_operators(ops), site.get_op(ops_name))
 
     # if use_sym:
     #     leg2 = leg.drop_symmetry(1)
@@ -98,8 +98,8 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
 
 
 def test_site_rejects_out_of_range_state_label(block_backend):
-    backend = cyten.get_backend(block_backend=block_backend, symmetry='no_symmetry')
-    leg = cyten.ElementarySpace.from_trivial_sector(dim=2)
+    backend = lasyten.get_backend(block_backend=block_backend, symmetry='no_symmetry')
+    leg = lasyten.ElementarySpace.from_trivial_sector(dim=2)
     with pytest.raises(ValueError, match='state_label'):
         degrees_of_freedom.Site(leg, backend=backend, state_labels={'bad': 5})
 
@@ -136,13 +136,13 @@ def test_spin_site(any_backend, spin):
 
             # test onsite multiplication with spin algebra
             # [Sx, Sy] = i*Sz
-            assert cyten.almost_equal(
+            assert lasyten.almost_equal(
                 site.get_op('Sx Sy') - site.get_op('Sy Sx'), 1j * site.get_op('Sz').as_SymmetricTensor()
             )
             # [Sy, Sz] = i*Sx
-            assert cyten.almost_equal(site.get_op('Sy Sz') - site.get_op('Sz Sy Id'), 1j * site.get_op('Sx'))
+            assert lasyten.almost_equal(site.get_op('Sy Sz') - site.get_op('Sz Sy Id'), 1j * site.get_op('Sx'))
             # -i * Sz * [Sx, Sy] = Sz Sz
-            assert cyten.almost_equal(
+            assert lasyten.almost_equal(
                 -1j * site.get_op('Sz Id Sx Sy') + 1j * site.get_op('Sz Sy Sx'),
                 site.get_op('Sz Sz').as_SymmetricTensor(),
             )
@@ -162,7 +162,7 @@ def _su2_sun_data_available():
     """Return True if default N=2 SUN symbol files can be resolved."""
     import os
 
-    from cyten import symmetries
+    from lasyten import symmetries
 
     for path in (None, _SUN_SYMBOLS_SUBMODULE_DIR):
         files = [symmetries.su_n_data_file_path(2, kind, h, path=path) for kind, h in [('CG', 20), ('F', 6), ('R', 6)]]
@@ -173,7 +173,7 @@ def _su2_sun_data_available():
 
 def test_spin_conservation_law_to_symmetry_test_su2():
     sym = degrees_of_freedom.SpinDOF.conservation_law_to_symmetry('SU(2)', use_test_su2=True)
-    assert isinstance(sym.factors[0], cyten._SU2)
+    assert isinstance(sym.factors[0], lasyten._SU2)
     assert sym.sector_ind_len == 1
 
 
@@ -182,15 +182,15 @@ def test_spin_site_default_su2_uses_sun():
     if not available:
         pytest.skip('Need SU(N=2) HDF5 symbol files for default SpinSite SU(2)')
 
-    with cyten.temporary_options(**({} if path is None else {'su_n_data_path': path})):
+    with lasyten.temporary_options(**({} if path is None else {'su_n_data_path': path})):
         sym = degrees_of_freedom.SpinDOF.conservation_law_to_symmetry('SU(2)')
-        assert isinstance(sym.factors[0], cyten.SUN)
+        assert isinstance(sym.factors[0], lasyten.SUN)
         assert sym.factors[0].N == 2
         assert sym.sector_ind_len == 2
 
         backend = backends.get_backend('fusion_tree', 'numpy')
         site = sites.SpinSite(0.5, 'SU(2)', backend=backend)
-        assert isinstance(site.symmetry.factors[0], cyten.SUN)
+        assert isinstance(site.symmetry.factors[0], lasyten.SUN)
         assert site.symmetry.factors[0].N == 2
         assert not site.use_test_su2
         npt.assert_array_equal(np.asarray(site.leg.defining_sectors), [[1, 0]])
@@ -205,10 +205,10 @@ def test_spin_half_fermion_site_default_su2_uses_sun():
     if not available:
         pytest.skip('Need SU(N=2) HDF5 symbol files for default SpinHalfFermionSite SU(2)')
 
-    with cyten.temporary_options(**({} if path is None else {'su_n_data_path': path})):
+    with lasyten.temporary_options(**({} if path is None else {'su_n_data_path': path})):
         backend = backends.get_backend('fusion_tree', 'numpy')
         site = sites.SpinHalfFermionSite('parity', 'SU(2)', backend=backend)
-        assert isinstance(site.symmetry.factors[0], cyten.SUN)
+        assert isinstance(site.symmetry.factors[0], lasyten.SUN)
         assert site.symmetry.factors[0].N == 2
         assert not site.use_test_su2
         # empty/full: [0,0,...]; down/up: [1,0,...] (basis order)

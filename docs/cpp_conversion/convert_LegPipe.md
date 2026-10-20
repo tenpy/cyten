@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `LegPipe`
-- original python file: `cyten/symmetries/spaces.py`
-- original python module: `cyten.symmetries.spaces`
-- declaration in C++ header file: `include/cyten/symmetries/spaces.h`
+- original python file: `lasyten/symmetries/spaces.py`
+- original python module: `lasyten.symmetries.spaces`
+- declaration in C++ header file: `include/lasyten/symmetries/spaces.h`
 - definition in C++ file: `src/symmetries/spaces.cpp`
 - pybind11 binding: `pybind/symmetries/py_spaces.cpp`
 - trampoline: `PyLegPipe` in `pybind/symmetries/py_trampolines.hpp` (required — `AbelianLegPipe` subclasses)

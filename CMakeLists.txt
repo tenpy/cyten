@@ -1,6 +1,6 @@
 message(STATUS "")
 message(STATUS "------------------------------------------------------------------------")
-message(STATUS " Project cyten, A Cross-section of Python & C++, Tensor network library ")
+message(STATUS " Project lasyten, A Cross-section of Python & C++, Tensor network library ")
 message(STATUS "------------------------------------------------------------------------")
 message(STATUS "")
 
@@ -16,21 +16,21 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Prefer the conda-forge compiler (headers + libstdc++) that conda Python
 # actually loads. A newer system g++ (e.g. Fedora GCC 16) emits symbols
 # such as GLIBCXX_3.4.36 that conda's libstdc++ (GCC 15) does not provide;
-# `import cyten` then fails because Python has already loaded the older
+# `import lasyten` then fails because Python has already loaded the older
 # libstdc++. Install with: conda install -c conda-forge cxx-compiler
 if(NOT CMAKE_CXX_COMPILER AND DEFINED ENV{CONDA_PREFIX})
-  foreach(_cyten_cxx
+  foreach(_lasyten_cxx
       "$ENV{CONDA_PREFIX}/bin/c++"
       "$ENV{CONDA_PREFIX}/bin/g++")
-    if(EXISTS "${_cyten_cxx}")
-      set(CMAKE_CXX_COMPILER "${_cyten_cxx}")
+    if(EXISTS "${_lasyten_cxx}")
+      set(CMAKE_CXX_COMPILER "${_lasyten_cxx}")
       break()
     endif()
   endforeach()
   if(NOT CMAKE_CXX_COMPILER)
-    file(GLOB _cyten_conda_gxx "$ENV{CONDA_PREFIX}/bin/*-conda-*-g++")
-    if(_cyten_conda_gxx)
-      list(GET _cyten_conda_gxx 0 CMAKE_CXX_COMPILER)
+    file(GLOB _lasyten_conda_gxx "$ENV{CONDA_PREFIX}/bin/*-conda-*-g++")
+    if(_lasyten_conda_gxx)
+      list(GET _lasyten_conda_gxx 0 CMAKE_CXX_COMPILER)
     endif()
   endif()
 endif()
@@ -54,22 +54,22 @@ endif()
 option(BUILD_DOC "Build API documentation" OFF)
 option(LINTING "Use clang-tidy for linting" OFF)
 option(BUILD_TESTING "Build ctest tests" ON)
-option(CYTEN_WITH_HDF5 "Link hdf5_io_core for native HDF5 I/O" ON)
+option(LASYTEN_WITH_HDF5 "Link hdf5_io_core for native HDF5 I/O" ON)
 # When ON (default): build Numpy/Torch/Array-API backends, models, _SU2, and
 # the pybind11 ``_core`` extension. NumpyBlockBackend requires a live Python
 # interpreter (extension or pybind11::embed) — it is not a pure-C++ backend.
-# When OFF: those Python-owned TUs are excluded from libcyten; ``_core`` is
-# not built. Public headers still use ``py::`` extensively (via cyten.h), so
+# When OFF: those Python-owned TUs are excluded from liblasyten; ``_core`` is
+# not built. Public headers still use ``py::`` extensively (via lasyten.h), so
 # pybind11 remains a compile/link requirement until those APIs are decoupled.
-option(CYTEN_WITH_PYTHON
-  "Include Python/pybind11-dependent libcyten sources and build _core" ON)
+option(LASYTEN_WITH_PYTHON
+  "Include Python/pybind11-dependent liblasyten sources and build _core" ON)
 
 
 # #####################################################################
 # ## PROJECT
 # #####################################################################
 project(
-    cyten
+    lasyten
     VERSION ${SKBUILD_PROJECT_VERSION}
     LANGUAGES CXX
 )
@@ -81,7 +81,7 @@ cmake_print_variables(CMAKE_CXX_STANDARD)
 # #####################################################################
 # ## find python / pybind11
 # #####################################################################
-# Required even with CYTEN_WITH_PYTHON=OFF: include/cyten/cyten.h and many
+# Required even with LASYTEN_WITH_PYTHON=OFF: include/lasyten/lasyten.h and many
 # public headers declare py:: types. A Python-free configure is blocked until
 # those headers are split (see message below when OFF).
 
@@ -97,22 +97,22 @@ cmake_print_variables(Python_INCLUDE_DIRS)
 cmake_print_variables(Python_NumPy_VERSION)
 cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
 
-if(NOT CYTEN_WITH_PYTHON)
+if(NOT LASYTEN_WITH_PYTHON)
   message(WARNING
-    "CYTEN_WITH_PYTHON=OFF: excluding block_backend/{numpy,torch,array_api}.cpp, "
-    "symmetries/factors/su2.cpp, and models/*.cpp from libcyten; skipping _core.\n"
+    "LASYTEN_WITH_PYTHON=OFF: excluding block_backend/{numpy,torch,array_api}.cpp, "
+    "symmetries/factors/su2.cpp, and models/*.cpp from liblasyten; skipping _core.\n"
     "pybind11 is STILL required because public headers use py:: types. Remaining "
-    "blockers for a Python-free libcyten (non-exhaustive):\n"
-    "  include/cyten/cyten.h  (includes pybind11; namespace py = pybind11)\n"
-    "  include/cyten/config.h\n"
-    "  include/cyten/tools.h, tools/warn.h, tools/hdf5_export.h\n"
-    "  include/cyten/block_backend/{block_backend,dtypes,numpy,torch,array_api}.h\n"
-    "  include/cyten/backends/{tensor_backend,abelian,fusion_tree_*,no_symmetry,\n"
+    "blockers for a Python-free liblasyten (non-exhaustive):\n"
+    "  include/lasyten/lasyten.h  (includes pybind11; namespace py = pybind11)\n"
+    "  include/lasyten/config.h\n"
+    "  include/lasyten/tools.h, tools/warn.h, tools/hdf5_export.h\n"
+    "  include/lasyten/block_backend/{block_backend,dtypes,numpy,torch,array_api}.h\n"
+    "  include/lasyten/backends/{tensor_backend,abelian,fusion_tree_*,no_symmetry,\n"
     "                         backend_factory,block_inds_numpy}.h\n"
-    "  include/cyten/tensors/{tensor,diagonal_tensor,mask,symmetric_tensor,\n"
+    "  include/lasyten/tensors/{tensor,diagonal_tensor,mask,symmetric_tensor,\n"
     "                        sparse,krylov_based}.h\n"
-    "  include/cyten/symmetries/{spaces,sector_numpy,fusion_symbol}.h\n"
-    "  include/cyten/models/{degrees_of_freedom,sites,couplings}.h\n"
+    "  include/lasyten/symmetries/{spaces,sector_numpy,fusion_symbol}.h\n"
+    "  include/lasyten/models/{degrees_of_freedom,sites,couplings}.h\n"
     "Also: src TUs outside the gated list still call Numpy/Torch APIs "
     "(e.g. backends/backend_factory.cpp, tools/hdf5_export.cpp, "
     "symmetries/trees.cpp, block_backend/block_backend.cpp) — linking "
@@ -120,7 +120,7 @@ if(NOT CYTEN_WITH_PYTHON)
 endif()
 
 # Reject a compiler whose libstdc++ is newer than the one conda Python loads.
-function(cyten_glibcxx_max so_file out_var)
+function(lasyten_glibcxx_max so_file out_var)
   set(_max "")
   if(EXISTS "${so_file}")
     execute_process(
@@ -136,27 +136,27 @@ function(cyten_glibcxx_max so_file out_var)
   set(${out_var} "${_max}" PARENT_SCOPE)
 endfunction()
 
-set(_cyten_conda_stdcxx "")
+set(_lasyten_conda_stdcxx "")
 if(DEFINED ENV{CONDA_PREFIX}
    AND EXISTS "$ENV{CONDA_PREFIX}/lib/libstdc++.so.6")
-  set(_cyten_conda_stdcxx "$ENV{CONDA_PREFIX}/lib/libstdc++.so.6")
+  set(_lasyten_conda_stdcxx "$ENV{CONDA_PREFIX}/lib/libstdc++.so.6")
 endif()
-if(_cyten_conda_stdcxx)
+if(_lasyten_conda_stdcxx)
   execute_process(
     COMMAND "${CMAKE_CXX_COMPILER}" -print-file-name=libstdc++.so
-    OUTPUT_VARIABLE _cyten_cxx_stdcxx
+    OUTPUT_VARIABLE _lasyten_cxx_stdcxx
     OUTPUT_STRIP_TRAILING_WHITESPACE)
-  get_filename_component(_cyten_cxx_stdcxx "${_cyten_cxx_stdcxx}" REALPATH)
-  get_filename_component(_cyten_conda_stdcxx_real
-    "${_cyten_conda_stdcxx}" REALPATH)
-  cyten_glibcxx_max("${_cyten_cxx_stdcxx}" _cyten_cxx_glibcxx)
-  cyten_glibcxx_max("${_cyten_conda_stdcxx_real}" _cyten_conda_glibcxx)
-  if(_cyten_cxx_glibcxx AND _cyten_conda_glibcxx
-     AND _cyten_cxx_glibcxx VERSION_GREATER _cyten_conda_glibcxx)
+  get_filename_component(_lasyten_cxx_stdcxx "${_lasyten_cxx_stdcxx}" REALPATH)
+  get_filename_component(_lasyten_conda_stdcxx_real
+    "${_lasyten_conda_stdcxx}" REALPATH)
+  lasyten_glibcxx_max("${_lasyten_cxx_stdcxx}" _lasyten_cxx_glibcxx)
+  lasyten_glibcxx_max("${_lasyten_conda_stdcxx_real}" _lasyten_conda_glibcxx)
+  if(_lasyten_cxx_glibcxx AND _lasyten_conda_glibcxx
+     AND _lasyten_cxx_glibcxx VERSION_GREATER _lasyten_conda_glibcxx)
     message(FATAL_ERROR
-      "C++ compiler ${CMAKE_CXX_COMPILER} uses libstdc++ ${_cyten_cxx_stdcxx} "
-      "(GLIBCXX_${_cyten_cxx_glibcxx}), but conda Python loads "
-      "${_cyten_conda_stdcxx_real} (GLIBCXX_${_cyten_conda_glibcxx}). "
+      "C++ compiler ${CMAKE_CXX_COMPILER} uses libstdc++ ${_lasyten_cxx_stdcxx} "
+      "(GLIBCXX_${_lasyten_cxx_glibcxx}), but conda Python loads "
+      "${_lasyten_conda_stdcxx_real} (GLIBCXX_${_lasyten_conda_glibcxx}). "
       "Install the matching compiler and reconfigure from a clean build dir:\n"
       "  conda install -c conda-forge cxx-compiler\n"
       "  conda activate $CONDA_PREFIX\n"
@@ -170,25 +170,25 @@ endif()
 # ## find pytorch (same shared libs as `import torch`)
 # #####################################################################
 #
-# Discover Torch via the active interpreter's installed package so cyten._core
+# Discover Torch via the active interpreter's installed package so lasyten._core
 # links the same libtorch / libc10 that Python's torch._C loads. That makes
-# `import cyten` + `import torch` in one process safe (one shared libtorch).
+# `import lasyten` + `import torch` in one process safe (one shared libtorch).
 execute_process(
   COMMAND "${Python_EXECUTABLE}" -c "import torch; print(torch.utils.cmake_prefix_path)"
-  OUTPUT_VARIABLE CYTEN_TORCH_CMAKE_PREFIX
+  OUTPUT_VARIABLE LASYTEN_TORCH_CMAKE_PREFIX
   OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE CYTEN_TORCH_CMAKE_PREFIX_RESULT
+  RESULT_VARIABLE LASYTEN_TORCH_CMAKE_PREFIX_RESULT
 )
-if(NOT CYTEN_TORCH_CMAKE_PREFIX_RESULT EQUAL 0 OR CYTEN_TORCH_CMAKE_PREFIX STREQUAL "")
+if(NOT LASYTEN_TORCH_CMAKE_PREFIX_RESULT EQUAL 0 OR LASYTEN_TORCH_CMAKE_PREFIX STREQUAL "")
   message(FATAL_ERROR
     "Could not obtain torch.utils.cmake_prefix_path from ${Python_EXECUTABLE}. "
     "Install the matching Python torch package in this environment.")
 endif()
-list(PREPEND CMAKE_PREFIX_PATH "${CYTEN_TORCH_CMAKE_PREFIX}")
+list(PREPEND CMAKE_PREFIX_PATH "${LASYTEN_TORCH_CMAKE_PREFIX}")
 
 # Torch's Caffe2/mkl.cmake sets caffe2::mkl INTERFACE_LINK_DIRECTORIES to
 # ${MKL_ROOT}/lib/intel64 (etc.). When MKL_ROOT is unset those become the
-# bogus absolute paths /lib/intel64, and executables that link cyten (e.g.
+# bogus absolute paths /lib/intel64, and executables that link lasyten (e.g.
 # CommonCppTests) fail to resolve libtorch_cpu's MKL/sleef/omp deps. Conda
 # ships those libs in $CONDA_PREFIX/lib.
 if(NOT MKL_ROOT AND DEFINED ENV{CONDA_PREFIX})
@@ -216,25 +216,25 @@ cmake_print_variables(TORCH_LIBRARIES)
 # ## C++ LIBRARY
 # #####################################################################
 
-add_library(cyten STATIC)
-set_property(TARGET cyten PROPERTY C_VISIBILITY_PRESET hidden)
-set_property(TARGET cyten PROPERTY CXX_VISIBILITY_PRESET hidden)
-set_property(TARGET cyten PROPERTY VISIBILITY_INLINES_HIDDEN ON)
+add_library(lasyten STATIC)
+set_property(TARGET lasyten PROPERTY C_VISIBILITY_PRESET hidden)
+set_property(TARGET lasyten PROPERTY CXX_VISIBILITY_PRESET hidden)
+set_property(TARGET lasyten PROPERTY VISIBILITY_INLINES_HIDDEN ON)
 # CXX_VISIBILITY_PRESET is ignored for STATIC libraries; pybind11 still needs
 # -fvisibility=hidden on every TU that includes pybind types (see FAQ:
 # "'SomeClass' declared with greater visibility than the type of its field").
 # PUBLIC so dependents (examples, ctests, user programs) get the same flag;
 # otherwise SpinSite/Coupling headers warn about py::array / py::object fields.
 # pybind11_add_module(_core) already adds the flag for the extension module.
-target_compile_options(cyten PRIVATE
+target_compile_options(lasyten PRIVATE
   $<$<COMPILE_LANGUAGE:C>:-fvisibility=hidden>
 )
-target_compile_options(cyten PUBLIC
+target_compile_options(lasyten PUBLIC
   $<$<COMPILE_LANGUAGE:CXX>:-fvisibility=hidden>
   $<$<COMPILE_LANGUAGE:CXX>:-fvisibility-inlines-hidden>
 )
 
-target_include_directories(cyten
+target_include_directories(lasyten
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   PUBLIC
@@ -242,43 +242,43 @@ target_include_directories(cyten
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 add_subdirectory(src)
-target_compile_options(cyten PUBLIC -fPIC)
+target_compile_options(lasyten PUBLIC -fPIC)
 
 # pybind11::headers are required while public APIs still use py:: types
-# (include/cyten/cyten.h). CYTEN_WITH_PYTHON gates which *sources* ship the
+# (include/lasyten/lasyten.h). LASYTEN_WITH_PYTHON gates which *sources* ship the
 # numpy/torch/array_api backends; it does not remove this link dependency yet.
 # NumpyBlockBackend specifically needs a Python interpreter at runtime.
-target_link_libraries(cyten PUBLIC pybind11::pybind11 "${TORCH_LIBRARIES}")
+target_link_libraries(lasyten PUBLIC pybind11::pybind11 "${TORCH_LIBRARIES}")
 
 # #####################################################################
 # ## hdf5_io_core (optional native HDF5)
 # #####################################################################
-if(CYTEN_WITH_HDF5)
-  set(_cyten_hdf5_io_default "${CMAKE_CURRENT_SOURCE_DIR}/external/hdf5_io")
+if(LASYTEN_WITH_HDF5)
+  set(_lasyten_hdf5_io_default "${CMAKE_CURRENT_SOURCE_DIR}/external/hdf5_io")
   # Prefer a sibling checkout that already has the Python-free core (Phase B).
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../tenpy_other/hdf5_io/include/hdf5_io/core_io.h")
-    set(_cyten_hdf5_io_default "${CMAKE_CURRENT_SOURCE_DIR}/../tenpy_other/hdf5_io")
-  elseif(NOT EXISTS "${_cyten_hdf5_io_default}/include/hdf5_io/core_io.h")
+    set(_lasyten_hdf5_io_default "${CMAKE_CURRENT_SOURCE_DIR}/../tenpy_other/hdf5_io")
+  elseif(NOT EXISTS "${_lasyten_hdf5_io_default}/include/hdf5_io/core_io.h")
     message(FATAL_ERROR
-      "CYTEN_WITH_HDF5=ON but hdf5_io core not found. "
-      "Init submodule external/hdf5_io or set CYTEN_HDF5_IO_DIR to a Phase-B hdf5_io tree.")
+      "LASYTEN_WITH_HDF5=ON but hdf5_io core not found. "
+      "Init submodule external/hdf5_io or set LASYTEN_HDF5_IO_DIR to a Phase-B hdf5_io tree.")
   endif()
-  set(CYTEN_HDF5_IO_DIR "${_cyten_hdf5_io_default}" CACHE PATH
+  set(LASYTEN_HDF5_IO_DIR "${_lasyten_hdf5_io_default}" CACHE PATH
     "Source tree of hdf5_io (must provide hdf5_io_core)")
   set(HDF5_IO_BUILD_PYTHON OFF CACHE BOOL "Build hdf5_io Python module when embedded" FORCE)
-  add_subdirectory("${CYTEN_HDF5_IO_DIR}" "${CMAKE_BINARY_DIR}/_deps/hdf5_io")
-  target_link_libraries(cyten PUBLIC hdf5_io_core)
-  target_compile_definitions(cyten PUBLIC CYTEN_WITH_HDF5=1)
-  message(STATUS "CYTEN_WITH_HDF5: using ${CYTEN_HDF5_IO_DIR}")
+  add_subdirectory("${LASYTEN_HDF5_IO_DIR}" "${CMAKE_BINARY_DIR}/_deps/hdf5_io")
+  target_link_libraries(lasyten PUBLIC hdf5_io_core)
+  target_compile_definitions(lasyten PUBLIC LASYTEN_WITH_HDF5=1)
+  message(STATUS "LASYTEN_WITH_HDF5: using ${LASYTEN_HDF5_IO_DIR}")
 endif()
 
 # #####################################################################
 # ## PYTHON BINDINGS
 # #####################################################################
 # hdf5_py_bridge.{h,cpp} live under pybind/tools/ and are compiled only into
-# ``_core`` (not libcyten).
+# ``_core`` (not liblasyten).
 
-if(CYTEN_WITH_PYTHON)
+if(LASYTEN_WITH_PYTHON)
   pybind11_add_module(_core pybind/_core.cpp)
 
   target_include_directories(_core
@@ -286,20 +286,20 @@ if(CYTEN_WITH_PYTHON)
     PUBLIC "${PROJECT_SOURCE_DIR}/include")
   add_subdirectory(pybind)  # adds source files to _core
 
-  target_link_libraries(_core PUBLIC cyten)
+  target_link_libraries(_core PUBLIC lasyten)
 else()
-  message(STATUS "CYTEN_WITH_PYTHON=OFF: skipping pybind11 module _core")
+  message(STATUS "LASYTEN_WITH_PYTHON=OFF: skipping pybind11 module _core")
 endif()
 
 # #####################################################################
 # ## Docstrings (Doxygen XML → pybind/docstrings/<rel>, always at build)
 # #####################################################################
-# Layout: include/cyten/<rel>  →  pybind/docstrings/<rel> (gitignored; IDE-visible)
+# Layout: include/lasyten/<rel>  →  pybind/docstrings/<rel> (gitignored; IDE-visible)
 # Each pybind TU includes only the docstring headers it needs.
 # Requires doxygen (see environment.yml).
 #
 # Pilot list — extend as more bindings switch to DOC(...):
-set(CYTEN_MKDOC_HEADERS
+set(LASYTEN_MKDOC_HEADERS
   tensors/ops_algebra.h
   tensors/constructors.h
   tensors/ops_elementwise.h
@@ -363,29 +363,29 @@ set(CYTEN_MKDOC_HEADERS
   tools.h
 )
 
-if(CYTEN_WITH_PYTHON)
-find_program(CYTEN_DOXYGEN_EXECUTABLE NAMES doxygen REQUIRED)
-set(CYTEN_DOCSTRINGS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pybind/docstrings")
-set(CYTEN_DOCSTRING_SCRIPT
+if(LASYTEN_WITH_PYTHON)
+find_program(LASYTEN_DOXYGEN_EXECUTABLE NAMES doxygen REQUIRED)
+set(LASYTEN_DOCSTRINGS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pybind/docstrings")
+set(LASYTEN_DOCSTRING_SCRIPT
   "${CMAKE_CURRENT_SOURCE_DIR}/scripts/doxygen_xml_to_docstrings.py")
-set(CYTEN_DOCSTRINGS_XML_ROOT
+set(LASYTEN_DOCSTRINGS_XML_ROOT
   "${CMAKE_CURRENT_BINARY_DIR}/docstrings_doxygen")
 
-set(_cyten_doc_outputs "")
-foreach(_cyten_hdr_rel IN LISTS CYTEN_MKDOC_HEADERS)
-  set(_cyten_src_hdr "${CMAKE_CURRENT_SOURCE_DIR}/include/cyten/${_cyten_hdr_rel}")
-  set(_cyten_doc_out "${CYTEN_DOCSTRINGS_DIR}/${_cyten_hdr_rel}")
-  set(_cyten_safe_rel "${_cyten_hdr_rel}")
-  string(REPLACE "/" "_" _cyten_safe_rel "${_cyten_safe_rel}")
-  string(REPLACE "." "_" _cyten_safe_rel "${_cyten_safe_rel}")
-  set(_cyten_xml_out "${CYTEN_DOCSTRINGS_XML_ROOT}/${_cyten_safe_rel}")
-  set(_cyten_doxyfile "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile_docstrings_${_cyten_safe_rel}")
-  get_filename_component(_cyten_doc_outdir "${_cyten_doc_out}" DIRECTORY)
+set(_lasyten_doc_outputs "")
+foreach(_lasyten_hdr_rel IN LISTS LASYTEN_MKDOC_HEADERS)
+  set(_lasyten_src_hdr "${CMAKE_CURRENT_SOURCE_DIR}/include/lasyten/${_lasyten_hdr_rel}")
+  set(_lasyten_doc_out "${LASYTEN_DOCSTRINGS_DIR}/${_lasyten_hdr_rel}")
+  set(_lasyten_safe_rel "${_lasyten_hdr_rel}")
+  string(REPLACE "/" "_" _lasyten_safe_rel "${_lasyten_safe_rel}")
+  string(REPLACE "." "_" _lasyten_safe_rel "${_lasyten_safe_rel}")
+  set(_lasyten_xml_out "${LASYTEN_DOCSTRINGS_XML_ROOT}/${_lasyten_safe_rel}")
+  set(_lasyten_doxyfile "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile_docstrings_${_lasyten_safe_rel}")
+  get_filename_component(_lasyten_doc_outdir "${_lasyten_doc_out}" DIRECTORY)
 
-  file(WRITE "${_cyten_doxyfile}"
-"PROJECT_NAME           = cyten
-OUTPUT_DIRECTORY       = ${_cyten_xml_out}
-INPUT                  = ${_cyten_src_hdr}
+  file(WRITE "${_lasyten_doxyfile}"
+"PROJECT_NAME           = lasyten
+OUTPUT_DIRECTORY       = ${_lasyten_xml_out}
+INPUT                  = ${_lasyten_src_hdr}
 RECURSIVE              = NO
 GENERATE_HTML          = NO
 GENERATE_LATEX         = NO
@@ -400,84 +400,84 @@ AUTOLINK_SUPPORT       = NO
   # Write into the source tree under pybind/docstrings/ so IDEs can open DOC()
   # headers next to the bindings. Files are gitignored; always regenerated.
   add_custom_command(
-    OUTPUT ${_cyten_doc_out}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_doc_outdir}
-    COMMAND ${CMAKE_COMMAND} -E rm -rf ${_cyten_xml_out}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${_cyten_xml_out}
-    COMMAND ${CYTEN_DOXYGEN_EXECUTABLE} ${_cyten_doxyfile}
-    COMMAND ${Python_EXECUTABLE} ${CYTEN_DOCSTRING_SCRIPT}
-            --xml-dir ${_cyten_xml_out}/xml
-            --header-rel ${_cyten_hdr_rel}
+    OUTPUT ${_lasyten_doc_out}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${_lasyten_doc_outdir}
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${_lasyten_xml_out}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${_lasyten_xml_out}
+    COMMAND ${LASYTEN_DOXYGEN_EXECUTABLE} ${_lasyten_doxyfile}
+    COMMAND ${Python_EXECUTABLE} ${LASYTEN_DOCSTRING_SCRIPT}
+            --xml-dir ${_lasyten_xml_out}/xml
+            --header-rel ${_lasyten_hdr_rel}
             --source-root ${CMAKE_CURRENT_SOURCE_DIR}
-            -o ${_cyten_doc_out}
-    DEPENDS ${_cyten_src_hdr} ${CYTEN_DOCSTRING_SCRIPT} ${_cyten_doxyfile}
-    COMMENT "Generating pybind/docstrings/${_cyten_hdr_rel}"
+            -o ${_lasyten_doc_out}
+    DEPENDS ${_lasyten_src_hdr} ${LASYTEN_DOCSTRING_SCRIPT} ${_lasyten_doxyfile}
+    COMMENT "Generating pybind/docstrings/${_lasyten_hdr_rel}"
     VERBATIM
   )
-  list(APPEND _cyten_doc_outputs ${_cyten_doc_out})
+  list(APPEND _lasyten_doc_outputs ${_lasyten_doc_out})
 endforeach()
 
-add_custom_target(cyten_generate_docstrings DEPENDS ${_cyten_doc_outputs})
-add_custom_target(cyten_mkdoc_docstrings DEPENDS cyten_generate_docstrings)
-add_dependencies(_core cyten_generate_docstrings)
+add_custom_target(lasyten_generate_docstrings DEPENDS ${_lasyten_doc_outputs})
+add_custom_target(lasyten_mkdoc_docstrings DEPENDS lasyten_generate_docstrings)
+add_dependencies(_core lasyten_generate_docstrings)
 message(STATUS
-  "Docstrings: generating ${CYTEN_MKDOC_HEADERS} under pybind/docstrings/ "
-  "(doxygen=${CYTEN_DOXYGEN_EXECUTABLE})")
+  "Docstrings: generating ${LASYTEN_MKDOC_HEADERS} under pybind/docstrings/ "
+  "(doxygen=${LASYTEN_DOXYGEN_EXECUTABLE})")
 
 
 # #####################################################################
-# ## .pyi stub (pybind11-stubgen → cyten/_core.pyi, for IDE type hints)
+# ## .pyi stub (pybind11-stubgen → lasyten/_core.pyi, for IDE type hints)
 # #####################################################################
 # Written into the source tree next to _core.so (gitignored; always regenerated)
 # so IDEs/LSPs get parameter hints for the compiled extension. Optional: if
 # pybind11-stubgen is unavailable or fails, warn and skip rather than fail the build.
-find_program(CYTEN_PYBIND11_STUBGEN_EXECUTABLE NAMES pybind11-stubgen)
-set(CYTEN_CORE_PYI "${CMAKE_CURRENT_SOURCE_DIR}/cyten/_core.pyi")
+find_program(LASYTEN_PYBIND11_STUBGEN_EXECUTABLE NAMES pybind11-stubgen)
+set(LASYTEN_CORE_PYI "${CMAKE_CURRENT_SOURCE_DIR}/lasyten/_core.pyi")
 
-if(CYTEN_PYBIND11_STUBGEN_EXECUTABLE)
+if(LASYTEN_PYBIND11_STUBGEN_EXECUTABLE)
   add_custom_command(
-    OUTPUT ${CYTEN_CORE_PYI}
-    COMMAND sh -c "PYTHONPATH=$<TARGET_FILE_DIR:_core> ${CYTEN_PYBIND11_STUBGEN_EXECUTABLE} _core -o ${CMAKE_CURRENT_SOURCE_DIR}/cyten \
-        || echo 'WARNING: pybind11-stubgen failed; cyten/_core.pyi not (re)generated'"
+    OUTPUT ${LASYTEN_CORE_PYI}
+    COMMAND sh -c "PYTHONPATH=$<TARGET_FILE_DIR:_core> ${LASYTEN_PYBIND11_STUBGEN_EXECUTABLE} _core -o ${CMAKE_CURRENT_SOURCE_DIR}/lasyten \
+        || echo 'WARNING: pybind11-stubgen failed; lasyten/_core.pyi not (re)generated'"
     DEPENDS _core
-    COMMENT "Generating cyten/_core.pyi via pybind11-stubgen"
+    COMMENT "Generating lasyten/_core.pyi via pybind11-stubgen"
     VERBATIM
   )
-  add_custom_target(cyten_generate_pyi_stub ALL DEPENDS ${CYTEN_CORE_PYI})
-  add_dependencies(cyten_generate_pyi_stub _core)
+  add_custom_target(lasyten_generate_pyi_stub ALL DEPENDS ${LASYTEN_CORE_PYI})
+  add_dependencies(lasyten_generate_pyi_stub _core)
 else()
   message(WARNING
-    "pybind11-stubgen not found; skipping cyten/_core.pyi generation. "
-    "Install it (pip install pybind11-stubgen, or the 'cyten[stubs]' extra) for IDE type hints.")
+    "pybind11-stubgen not found; skipping lasyten/_core.pyi generation. "
+    "Install it (pip install pybind11-stubgen, or the 'lasyten[stubs]' extra) for IDE type hints.")
 endif()
 
 
 # Resolve libtorch/c10 from the same place as Python torch._C.
-# Installed layout: site-packages/cyten/_core*.so
+# Installed layout: site-packages/lasyten/_core*.so
 #   $ORIGIN/../../..  -> env/lib (conda/micromamba shared torch libs)
 #   $ORIGIN/../torch/lib -> site-packages/torch/lib (pip wheel layout)
 # Do not use INSTALL_RPATH_USE_LINK_PATH: Torch/Caffe2 link dirs may inject
 # unrelated paths (e.g. Intel MKL stubs) that we do not want on the module.
-get_filename_component(_cyten_torch_lib_dir "${TORCH_INSTALL_PREFIX}/lib" ABSOLUTE)
-set(_cyten_core_rpath "$ORIGIN/../../..;$ORIGIN/../torch/lib;${_cyten_torch_lib_dir}")
+get_filename_component(_lasyten_torch_lib_dir "${TORCH_INSTALL_PREFIX}/lib" ABSOLUTE)
+set(_lasyten_core_rpath "$ORIGIN/../../..;$ORIGIN/../torch/lib;${_lasyten_torch_lib_dir}")
 if(DEFINED ENV{CONDA_PREFIX} AND NOT "$ENV{CONDA_PREFIX}" STREQUAL "")
-  list(APPEND _cyten_core_rpath "$ENV{CONDA_PREFIX}/lib")
+  list(APPEND _lasyten_core_rpath "$ENV{CONDA_PREFIX}/lib")
 endif()
 # list(APPEND) on a ;-string splits; rebuild a single RPATH string.
-string(JOIN ":" _cyten_core_rpath_str ${_cyten_core_rpath})
+string(JOIN ":" _lasyten_core_rpath_str ${_lasyten_core_rpath})
 set_target_properties(_core PROPERTIES
-  BUILD_RPATH "${_cyten_core_rpath_str}"
-  INSTALL_RPATH "${_cyten_core_rpath_str}"
+  BUILD_RPATH "${_lasyten_core_rpath_str}"
+  INSTALL_RPATH "${_lasyten_core_rpath_str}"
   INSTALL_RPATH_USE_LINK_PATH FALSE
 )
 
 
 # The install directory is the output (wheel) directory
-install(TARGETS _core LIBRARY DESTINATION cyten)
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cyten/py.typed" DESTINATION cyten)
-install(FILES ${CYTEN_CORE_PYI} DESTINATION cyten OPTIONAL)
+install(TARGETS _core LIBRARY DESTINATION lasyten)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/lasyten/py.typed" DESTINATION lasyten)
+install(FILES ${LASYTEN_CORE_PYI} DESTINATION lasyten OPTIONAL)
 
-endif() # CYTEN_WITH_PYTHON
+endif() # LASYTEN_WITH_PYTHON
 
 
 # #####################################################################
@@ -487,7 +487,7 @@ if(BUILD_DOC)
   find_package(Doxygen REQUIRED)
 
   if(DOXYGEN_FOUND)
-    configure_file(cyten_Doxyfile.in cytenDoxyfile)
+    configure_file(lasyten_Doxyfile.in lasytenDoxyfile)
     add_custom_target(doc ALL
       ${DOXYGEN_EXECUTABLE} ${PROJECT_SOURCE_DIR}/docs/Doxyfile
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/docs

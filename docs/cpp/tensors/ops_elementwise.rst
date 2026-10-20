@@ -1,58 +1,58 @@
 ops_elementwise.h
 =================
 
-Declared in ``include/cyten/tensors/ops_elementwise.h``.
+Declared in ``include/lasyten/tensors/ops_elementwise.h``.
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::angle(DiagonalTensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::angle(DiagonalTensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::angle(BlockBackend::Scalar const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::angle(BlockBackend::Scalar const &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::cutoff_inverse(DiagonalTensorCPtr, float64)
-   :project: cyten
+.. doxygenfunction:: lasyten::cutoff_inverse(DiagonalTensorCPtr, float64)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::cutoff_inverse(BlockBackend::Scalar const &, float64)
-   :project: cyten
+.. doxygenfunction:: lasyten::cutoff_inverse(BlockBackend::Scalar const &, float64)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::complex_conj(DiagonalTensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::complex_conj(DiagonalTensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::complex_conj(BlockBackend::Scalar const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::complex_conj(BlockBackend::Scalar const &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::imag(DiagonalTensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::imag(DiagonalTensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::imag(BlockBackend::Scalar const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::imag(BlockBackend::Scalar const &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::real(DiagonalTensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::real(DiagonalTensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::real(BlockBackend::Scalar const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::real(BlockBackend::Scalar const &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::real_if_close(DiagonalTensorCPtr, float64)
-   :project: cyten
+.. doxygenfunction:: lasyten::real_if_close(DiagonalTensorCPtr, float64)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::real_if_close(BlockBackend::Scalar const &, float64)
-   :project: cyten
+.. doxygenfunction:: lasyten::real_if_close(BlockBackend::Scalar const &, float64)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::sqrt(DiagonalTensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::sqrt(DiagonalTensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::sqrt(BlockBackend::Scalar const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::sqrt(BlockBackend::Scalar const &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::stable_log(DiagonalTensorCPtr, float64)
-   :project: cyten
+.. doxygenfunction:: lasyten::stable_log(DiagonalTensorCPtr, float64)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::stable_log(BlockBackend::Scalar const &, float64)
-   :project: cyten
+.. doxygenfunction:: lasyten::stable_log(BlockBackend::Scalar const &, float64)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::exp
-   :project: cyten
+.. doxygenfunction:: lasyten::exp
+   :project: lasyten

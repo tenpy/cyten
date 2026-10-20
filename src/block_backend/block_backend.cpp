@@ -1,14 +1,14 @@
-#include <cyten/block_backend/block_backend.h>
-#include <cyten/block_backend/dtypes.h>
-#include <cyten/block_backend/numpy.h>
-#include <cyten/cyten.h>
-#include <cyten/symmetries/spaces.h>
-#include <cyten/tools.h>
+#include <lasyten/block_backend/block_backend.h>
+#include <lasyten/block_backend/dtypes.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/lasyten.h>
+#include <lasyten/symmetries/spaces.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <cstring>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 #include <memory>
 #include <numeric>
 #include <ostream>
@@ -17,7 +17,7 @@
 #include <type_traits>
 #include <variant>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -52,7 +52,7 @@ try_py_handle_to_block_index(py::handle key)
                 return BlockBackend::BlockCPtr(std::make_shared<NumpyBlockBackend::Block>(arr));
             }
         } catch (std::invalid_argument const&) {
-            // Unsupported dtype for cyten — leave for the py::object escape hatch.
+            // Unsupported dtype for lasyten — leave for the py::object escape hatch.
             return std::nullopt;
         }
         py::array_t<int64, py::array::c_style | py::array::forcecast> iarr(arr);
@@ -412,7 +412,7 @@ BlockBackend::Scalar::_block() const
 }
 
 void
-BlockBackend::Scalar::save_hdf5(cyten::hdf5::Saver& saver,
+BlockBackend::Scalar::save_hdf5(lasyten::hdf5::Saver& saver,
                                 HighFive::Group& /*h5gr*/,
                                 const std::string& subpath)
 {
@@ -420,7 +420,7 @@ BlockBackend::Scalar::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 BlockBackend::Scalar
-BlockBackend::Scalar::from_hdf5(cyten::hdf5::Loader& loader,
+BlockBackend::Scalar::from_hdf5(lasyten::hdf5::Loader& loader,
                                 HighFive::Group& h5gr,
                                 std::string const& subpath)
 {
@@ -432,7 +432,7 @@ BlockBackend::Scalar::from_hdf5(cyten::hdf5::Loader& loader,
 }
 
 std::shared_ptr<BlockBackend::Block>
-BlockBackend::Block::from_hdf5(cyten::hdf5::Loader& /*loader*/,
+BlockBackend::Block::from_hdf5(lasyten::hdf5::Loader& /*loader*/,
                                HighFive::Group& /*h5gr*/,
                                const std::string& /*subpath*/)
 {
@@ -1112,7 +1112,7 @@ BlockBackend::inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger)
 }
 
 void
-BlockBackend::save_hdf5(cyten::hdf5::Saver& saver,
+BlockBackend::save_hdf5(lasyten::hdf5::Saver& saver,
                         HighFive::Group& /*h5gr*/,
                         const std::string& subpath)
 {
@@ -1120,7 +1120,7 @@ BlockBackend::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 std::shared_ptr<BlockBackend>
-BlockBackend::from_hdf5(cyten::hdf5::Loader& loader,
+BlockBackend::from_hdf5(lasyten::hdf5::Loader& loader,
                         HighFive::Group& h5gr,
                         std::string const& subpath)
 {
@@ -1241,4 +1241,4 @@ operator<<(std::ostream& os, const BlockBackend::Scalar& scalar)
     return os;
 }
 
-} // namespace cyten
+} // namespace lasyten

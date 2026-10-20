@@ -1,18 +1,18 @@
 fusion_tree_permute.h
 =====================
 
-Declared in ``include/cyten/backends/fusion_tree_permute.h``.
+Declared in ``include/lasyten/backends/fusion_tree_permute.h``.
 
-cyten::PermuteLegsInstructionEngine
+lasyten::PermuteLegsInstructionEngine
 -----------------------------------
 
-.. doxygenclass:: cyten::PermuteLegsInstructionEngine
-   :project: cyten
+.. doxygenclass:: lasyten::PermuteLegsInstructionEngine
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::ShouldBend
+lasyten::ShouldBend
 -----------------
 
-.. doxygenenum:: cyten::ShouldBend
-   :project: cyten
+.. doxygenenum:: lasyten::ShouldBend
+   :project: lasyten

@@ -11,8 +11,8 @@ Hand-written after codegen declaration drafts (types were placeholders).
 | Field | Value |
 | --- | --- |
 | original python name | `NoSymmetry` (+ `U1`, `ZN`) |
-| original python file | `cyten/symmetries/_symmetries.py` |
-| declaration | `include/cyten/symmetries/{no_symmetry,u1,zn}.h` |
+| original python file | `lasyten/symmetries/_symmetries.py` |
+| declaration | `include/lasyten/symmetries/{no_symmetry,u1,zn}.h` |
 | definition | `src/symmetries/{no_symmetry,u1,zn}.cpp` |
 | pybind11 binding | `pybind/symmetries/factors/py_{no_symmetry,u1,zn}.cpp` |
 | trampoline | none (no further Python subclasses in tree) |

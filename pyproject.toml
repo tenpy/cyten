@@ -1,16 +1,16 @@
 [project]
-name = "cyten"
+name = "lasyten"
 dynamic = ["version"]  # set during packaging/build from git description
-description = ""
+description = "LASyTen: Linear Algebra with SYmmetric TENsors"
 readme = {file = "README.rst", content-type = "text/x-rst"}
 requires-python = ">=3.14"
 license = {text = "Apache_v2"}
 # authors = [
 #     {name = "TeNPy Developer Team"},
-#     {name = "cyten Developer Team"},
+#     {name = "LASyTen Developer Team"},
 # ]
 # maintainers = [
-#     {name = "Johannes Hauschild", email="cyten@johannes-hauschild.de"},
+#     {name = "Johannes Hauschild", email="lasyten@johannes-hauschild.de"},
 #     ...
 # ]
 keywords = ["tensor networks", "tensor"]
@@ -44,7 +44,7 @@ dependencies = [
 io = ["h5py", "hdf5_io"]
 # gpu was previously ["torch"]; torch is now a hard dependency (see above)
 # dev:
-test = ["pytest>=6.0", "sympy", "cyten[io]"]
+test = ["pytest>=6.0", "sympy", "lasyten[io]"]
 lint = ["ruff", "flake8", "flake8-rst-docstrings", "sphinx-lint"]
 docbuild = [
     "Sphinx",
@@ -54,22 +54,22 @@ docbuild = [
     "clang",
     "pybind11-mkdoc",
 ]
-# generates cyten/_core.pyi at build time for IDE type hints (optional; build warns if missing)
+# generates lasyten/_core.pyi at build time for IDE type hints (optional; build warns if missing)
 stubs = ["pybind11-stubgen"]
 # bundles
-dev = ["cyten[io, test, lint, docbuild, stubs]"]
-all = ["cyten[io, test, lint, docbuild, stubs]"]
+dev = ["lasyten[io, test, lint, docbuild, stubs]"]
+all = ["lasyten[io, test, lint, docbuild, stubs]"]
 
 
 [project.urls]
-"Homepage" = "https://github.com/tenpy/cyten"
-# "Documentation" = "https://cyten.readthedocs.io/"
-"Source" = "https://github.com/tenpy/cyten"
-"Bug Tracker" = "https://github.com/tenpy/cyten/issues"
+"Homepage" = "https://github.com/tenpy/lasyten"
+"Documentation" = "https://lasyten.readthedocs.io/"
+"Source" = "https://github.com/tenpy/lasyten"
+"Bug Tracker" = "https://github.com/tenpy/lasyten/issues"
 
 
 # [project.scripts]
-# cyten-run = "cyten:console_main"
+# lasyten-run = "lasyten:console_main"
 
 [build-system]
 # torch is required at build time: CMake links against the same libtorch as `import torch`
@@ -86,17 +86,17 @@ build-dir = "build" # The build directory. Defaults to a temporary directory, bu
 cmake.build-type = "Debug"  # TODO: for now setup debug builds - update this once we release!
 # Select the editable mode to use. Can be "redirect" (default) or "inplace".
 # editable.mode = "inplace"
-wheel.packages = ["cyten"]
-sdist.include = ["cyten/_version.py"]
+wheel.packages = ["lasyten"]
+sdist.include = ["lasyten/_version.py"]
 
 [[tool.dynamic-metadata]]
 provider = "scikit_build_core.metadata.setuptools_scm"
 
 [tool.setuptools_scm]  # Section required
-write_to = "cyten/_version.py"
+write_to = "lasyten/_version.py"
 
 #[tool.setuptools.packages.find]
-#include = ['cyten*']
+#include = ['lasyten*']
 
 
 [tool.pytest.ini_options]
@@ -128,7 +128,7 @@ exclude = ["scripts/", "**/*.ipynb"]
 
 [tool.ruff.lint.isort]
 # CI ruff check does not install the package; pin first-party so I001 matches local.
-known-first-party = ["cyten"]
+known-first-party = ["lasyten"]
 
 [tool.ruff.lint]
 # Note: we use flake8 to lint docstrings, see .flake8

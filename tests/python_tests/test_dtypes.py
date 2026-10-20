@@ -1,10 +1,10 @@
-"""Tests for :class:`~cyten.block_backends.dtypes.Dtype`."""
+"""Tests for :class:`~lasyten.block_backends.dtypes.Dtype`."""
 
 import numpy as np
 import pytest
 
-from cyten import Dtype
-from cyten.tools import hdf5_io
+from lasyten import Dtype
+from lasyten.tools import hdf5_io
 
 h5py = pytest.importorskip('h5py')
 

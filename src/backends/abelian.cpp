@@ -1,24 +1,24 @@
 // ---- 00_keep_helpers.cpp ----
-#include <cyten/backends/abelian.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/backends/abelian.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
-#include <cyten/backends/block_inds_numpy.h>
-#include <cyten/symmetries/sector_numpy.h>
-#include <cyten/tools.h>
+#include <lasyten/backends/block_inds_numpy.h>
+#include <lasyten/symmetries/sector_numpy.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
 #include <format>
 #include <functional>
 #include <hdf5_io/constants.h>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 #include <map>
 #include <numeric>
 #include <optional>
@@ -29,7 +29,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -160,7 +160,7 @@ AbelianBackendData::get_block(BlockInds const& query) const
 }
 
 void
-AbelianBackendData::save_hdf5(cyten::hdf5::Saver& saver,
+AbelianBackendData::save_hdf5(lasyten::hdf5::Saver& saver,
                               HighFive::Group& /*h5gr*/,
                               std::string const& subpath) const
 {
@@ -172,7 +172,7 @@ AbelianBackendData::save_hdf5(cyten::hdf5::Saver& saver,
                               static_cast<std::int64_t>(blocks.size()),
                               blocks_g,
                               blocks_sub);
-    cyten::hdf5::Saver blocks_saver(blocks_g);
+    lasyten::hdf5::Saver blocks_saver(blocks_g);
     for (std::size_t i = 0; i < blocks.size(); ++i) {
         hdf5_export::save_block(blocks_saver, std::to_string(i), blocks[i]);
     }
@@ -181,7 +181,7 @@ AbelianBackendData::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 AbelianBackendData::Ptr
-AbelianBackendData::from_hdf5(cyten::hdf5::Loader& loader,
+AbelianBackendData::from_hdf5(lasyten::hdf5::Loader& loader,
                               HighFive::Group& h5gr,
                               std::string const& subpath)
 {
@@ -189,7 +189,7 @@ AbelianBackendData::from_hdf5(cyten::hdf5::Loader& loader,
     hid_t blocks_id = loader.open(subpath + "blocks");
     auto const n = hdf5_io::h5_get_attr_int64(blocks_id, hdf5_io::ATTR_LEN).value_or(0);
     HighFive::Group blocks_g = hdf5_io::group_from_hid(blocks_id);
-    cyten::hdf5::Loader blocks_loader(blocks_g);
+    lasyten::hdf5::Loader blocks_loader(blocks_g);
     std::vector<BlockBackend::BlockPtr> blocks;
     blocks.reserve(static_cast<std::size_t>(n));
     for (std::int64_t i = 0; i < n; ++i) {
@@ -1103,7 +1103,8 @@ AbelianBackend::diagonal_transpose(DiagonalTensorCPtr tens)
 }
 
 // ---- Remaining methods ----
-// Native ports from cyten/backends/abelian.py. See docs/cpp_conversion/convert_AbelianBackend.md.
+// Native ports from lasyten/backends/abelian.py. See
+// docs/cpp_conversion/convert_AbelianBackend.md.
 
 TensorBackend::DataPtr
 AbelianBackend::combine_legs(TensorCPtr tensor,
@@ -3727,4 +3728,4 @@ AbelianBackend::truncate_singular_values(DiagonalTensorCPtr S,
     return { mask_data, small_leg, err, new_norm };
 }
 
-} // namespace cyten
+} // namespace lasyten

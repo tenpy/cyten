@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-"""Run the python tests for the cyten library."""
+"""Run the python tests for the lasyten library."""
 
 import sys
 

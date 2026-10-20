@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from cyten import symmetries
+from lasyten import symmetries
 
 default_rng = np.random.default_rng()
 
@@ -1121,12 +1121,12 @@ def test_suN_from_config(N, cg_h, f_h, r_h):
 
 
 def test_suN_missing_data_error(tmp_path):
-    from cyten.config import temporary_options
+    from lasyten.config import temporary_options
 
     with temporary_options(su_n_data_path=str(tmp_path)):
         with pytest.raises(FileNotFoundError, match=r'su_n_clebsch_gordan_data_N3_CG_hweight7\.hdf5'):
             symmetries.SUN(3, 7)
-        with pytest.raises(FileNotFoundError, match='CYTEN_SU_N_DATA_PATH'):
+        with pytest.raises(FileNotFoundError, match='LASYTEN_SU_N_DATA_PATH'):
             symmetries.SUN(3, 7)
 
     # the path/filename_base overrides are a per-call escape hatch too

@@ -1,4 +1,4 @@
-"""Dense NumPy reference helpers for cyten benchmarks."""
+"""Dense NumPy reference helpers for lasyten benchmarks."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import numpy as np
 
 
 def to_numpy(tensor) -> np.ndarray:
-    """Export a cyten tensor to a dense ndarray."""
+    """Export a lasyten tensor to a dense ndarray."""
     return tensor.to_numpy(understood_braiding=True)
 
 

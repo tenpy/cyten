@@ -3,9 +3,9 @@
 ## metadata
 
 - original python names: `_check_compatible_legs`, `_compose_with_Mask`, `_compose_SymmetricTensors`, `_convert_abelian_to_FT`, `_convert_FT_to_abelian`, `_decomposition_prepare`, `_decomposition_labels`, `_svd_new_labels`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration: `include/cyten/tensors/helpers.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration: `include/lasyten/tensors/helpers.h`
 - definition: `src/tensors/helpers.cpp`
 - pybind11 binding: `pybind/tensors/py_helpers.cpp`
 - trampoline: n/a (free functions)
@@ -20,7 +20,7 @@ Stay on branch **`convert_tensors`**.
 
 ## Design notes
 
-- Free functions in namespace `cyten::`.
+- Free functions in namespace `lasyten::`.
 - Tensor / Mask args for compose helpers: `py::object` so Python and C++ tensors both work until the Tensor hierarchy is monkey-patched. Results are built via the **Python** `SymmetricTensor` / `ChargedTensor` constructors so `isinstance` keeps working.
 - NoSymmetry: C++ `DataPtr` is `BlockData`; unwrap to `Block` before constructing Python tensors (`data_as_python`).
 - `_compose_with_Mask`: rebind `leg_idx` from `_parse_leg_idx` (same as Python) before recursive ChargedTensor call / backend contract.

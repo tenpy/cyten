@@ -1,10 +1,10 @@
 #pragma once
 
-#include <cyten/backends/tensor_backend.h>
-#include <cyten/block_backend/block_backend.h>
-#include <cyten/block_backend/dtypes.h>
-#include <cyten/cyten.h>
-#include <cyten/symmetries/sector.h>
+#include <lasyten/backends/tensor_backend.h>
+#include <lasyten/block_backend/block_backend.h>
+#include <lasyten/block_backend/dtypes.h>
+#include <lasyten/lasyten.h>
+#include <lasyten/symmetries/sector.h>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 inline py::dict
 copy_kwargs(py::object obj)
@@ -150,4 +150,4 @@ adapt_block_bool_binary(py::function func, std::shared_ptr<BlockBackend> bb)
     };
 }
 
-} // namespace cyten
+} // namespace lasyten

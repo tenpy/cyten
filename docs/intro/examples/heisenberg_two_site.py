@@ -2,14 +2,14 @@
 
 import numpy as np
 
-import cyten as ct
+import lasyten as lasy
 
 # Local spin-1/2 Hilbert space (no conserved quantum numbers).
-site0 = ct.models.SpinSite(S=0.5, conserve=None)
-site1 = ct.models.SpinSite(S=0.5, conserve=None)
+site0 = lasy.models.SpinSite(S=0.5, conserve=None)
+site1 = lasy.models.SpinSite(S=0.5, conserve=None)
 
 # Two-site coupling  H = J S_0 · S_1  with antiferromagnetic J = 1.
-coupling = ct.models.heisenberg_coupling([site0, site1], J=1)
+coupling = lasy.models.heisenberg_coupling([site0, site1], J=1)
 print(coupling)
 
 # Contract the MPO-like factors to a two-site Hamiltonian tensor.
@@ -17,7 +17,7 @@ H = coupling.to_tensor()
 print(H)
 
 # Hermitian eigen-decomposition. W is diagonal (the eigenvalues).
-W, _ = ct.eigh(H, new_labels=['e'], new_leg_dual=False)
+W, _ = lasy.eigh(H, new_labels=['e'], new_leg_dual=False)
 evals = np.sort(np.real(W.diagonal_as_numpy()))
 print('eigenvalues:', evals)
 

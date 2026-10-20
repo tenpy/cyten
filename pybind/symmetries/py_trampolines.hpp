@@ -1,12 +1,12 @@
 #pragma once
 
-#include <cyten/symmetries/abelian_group.h>
-#include <cyten/symmetries/base_symmetry.h>
-#include <cyten/symmetries/fusion_symbol.h>
-#include <cyten/symmetries/group.h>
-#include <cyten/symmetries/sector_numpy.h>
-#include <cyten/symmetries/spaces.h>
-#include <cyten/symmetries/symmetry_factor.h>
+#include <lasyten/symmetries/abelian_group.h>
+#include <lasyten/symmetries/base_symmetry.h>
+#include <lasyten/symmetries/fusion_symbol.h>
+#include <lasyten/symmetries/group.h>
+#include <lasyten/symmetries/sector_numpy.h>
+#include <lasyten/symmetries/spaces.h>
+#include <lasyten/symmetries/symmetry_factor.h>
 
 #include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 /// pybind11 trampoline so Python subclasses (SymmetryFactor, Symmetry, …) can override.
 class PyBaseSymmetry
@@ -949,4 +949,4 @@ class PyTensorProduct
     }
 };
 
-} // namespace cyten
+} // namespace lasyten

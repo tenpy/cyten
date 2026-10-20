@@ -1,12 +1,12 @@
-Cyten backend benchmarks
+LASyTen backend benchmarks
 ========================
 
-Standalone scripts that assume ``cyten`` is installed and ``import cyten`` works.
+Standalone scripts that assume ``lasyten`` is installed and ``import lasyten`` works.
 They sweep tensor size across selectable **symmetry backends**, **block backends**,
 and **devices**, timing contraction, decompositions, and leg combine/split.
 
 Results are written as JSON for analysis in ``plot_results.ipynb``
-(requires Jupyter / matplotlib; not part of cyten install requirements).
+(requires Jupyter / matplotlib; not part of lasyten install requirements).
 
 
 Quick start
@@ -31,9 +31,9 @@ Or as a module::
     python -m benchmark.run_benchmarks --devices cpu --dims 32,64 --numpy-ref
 
 ``--max-ram`` defaults to ``5GB`` (``5 * 1024**3`` bytes). It caps the process address
-space, the same limit as ``ulimit -v``. If a cyten configuration cannot allocate
+space, the same limit as ``ulimit -v``. If a lasyten configuration cannot allocate
 within the cap it is skipped. If only the dense ``--numpy-ref`` path fails, the
-cyten timing is kept and that NumPy reference is skipped. Pass ``--max-ram none``
+lasyten timing is kept and that NumPy reference is skipped. Pass ``--max-ram none``
 to disable the cap, or a larger value such as ``--max-ram 16GB`` when the machine
 can spare it.
 
@@ -54,9 +54,9 @@ su2   SUN(N=2)   fusion_tree               GT sectors ``[0,0],[1,0],[2,0]`` (j=0
 ===== ========== ========================= =======================================================
 
 Comparing ``u1`` + ``abelian`` vs ``u1`` + ``fusion_tree`` isolates symmetry-backend
-overhead on the same block structure. ``nosym`` is the dense cyten baseline.
+overhead on the same block structure. ``nosym`` is the dense lasyten baseline.
 
-The ``su2`` case uses ``cyten.SUN(N=2, ...)`` (not the deprecated ``_SU2``).
+The ``su2`` case uses ``lasyten.SUN(N=2, ...)`` (not the deprecated ``_SU2``).
 It needs the standard SU(N) HDF5 symbol files for N=2 (CG hweight 20, F/R hweight 6),
 from ``su_n_data_path`` or the ``external/SUN_symbols`` git submodule.
 
@@ -70,11 +70,11 @@ Dense NumPy reference (``--numpy-ref``):
 
 * Emits extra JSON rows with ``impl="numpy"``, ``symmetry_backend="dense"``,
   ``block_backend="numpy"``, ``device="cpu"``
-* Timed once per ``(op, case, dim, dtype)`` (deduped across cyten backend/device combos)
+* Timed once per ``(op, case, dim, dtype)`` (deduped across lasyten backend/device combos)
 * Uses ``to_numpy(understood_braiding=True)`` then ``numpy.tensordot`` /
   ``numpy.linalg.svd`` / ``eigh`` / transpose+reshape combine/split
 
-Block backends / aliases (via ``cyten.get_backend``):
+Block backends / aliases (via ``lasyten.get_backend``):
 
 * ``numpy`` / ``cpu`` — NumPy on CPU
 * ``torch`` — PyTorch (pass ``--devices cpu``, ``cuda:0``, or ``mps:0``)
@@ -100,8 +100,8 @@ Flag                          Meaning
 ``--warmup`` / ``--repeats``  Timing iterations
 ``--numpy-ref``               Also time dense NumPy analogues (deduped)
 ``--max-ram``                 Address-space cap (default ``5GB``). ``0`` or ``none`` disables it.
-                              Oversized cyten configs are skipped; oversized
-                              ``--numpy-ref`` densifies are skipped while keeping cyten.
+                              Oversized lasyten configs are skipped; oversized
+                              ``--numpy-ref`` densifies are skipped while keeping lasyten.
 ``--output``                  JSON path (default ``benchmark/results/run.json``)
 ``--list-devices``            Print availability of requested devices and exit
 ============================  ===================================================================
@@ -114,25 +114,25 @@ JSON layout::
 
     {
       "metadata": {
-        "cyten_version": "...",
-        "cyten_commit_id": "...",
+        "lasyten_version": "...",
+        "lasyten_commit_id": "...",
         "hostname": "...",
         "started_at": "YYYY-MM-DDTHH:MM",
         "compile": { "cmake_build_type": "Debug", "...": "..." },
         "max_ram_bytes": 5368709120,
         "..."
       },
-      "results": [ { "op": "tdot", "impl": "cyten", "...": "..." }, ... ]
+      "results": [ { "op": "tdot", "impl": "lasyten", "...": "..." }, ... ]
     }
 
-Each result row includes ``impl`` (``cyten`` or ``numpy``), ``mean`` / ``median`` /
+Each result row includes ``impl`` (``lasyten`` or ``numpy``), ``mean`` / ``median`` /
 ``min`` / ``stdev`` wall times, plus ``actual_dim``, ``num_blocks``, and backend metadata.
 
 * At **small** ``actual_dim``, symmetry-backend bookkeeping often dominates: expect
   ``fusion_tree`` slower than ``abelian``, and both slower than ``nosym``.
 * At **large** ``actual_dim``, block GEMM/SVD cost dominates: Torch CUDA/MPS can
   pull ahead of NumPy/CPU when the dense blocks are large enough.
-* With ``--numpy-ref``, compare cyten rows to the matching ``impl=numpy`` baseline
+* With ``--numpy-ref``, compare lasyten rows to the matching ``impl=numpy`` baseline
   for the same ``op`` / ``case`` / ``actual_dim``.
 
 

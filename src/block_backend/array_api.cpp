@@ -1,12 +1,12 @@
-#include <cyten/block_backend/array_api.h>
-#include <cyten/tools.h>
+#include <lasyten/block_backend/array_api.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <cmath>
 #include <complex>
 #include <cstdint>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
@@ -14,7 +14,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -358,7 +358,7 @@ ArrayApiBlockBackend::Block::pow(const BlockBackend::Block& exponent) const
 }
 
 void
-ArrayApiBlockBackend::Block::save_hdf5(cyten::hdf5::Saver& saver,
+ArrayApiBlockBackend::Block::save_hdf5(lasyten::hdf5::Saver& saver,
                                        HighFive::Group& /*h5gr*/,
                                        const std::string& subpath)
 {
@@ -366,7 +366,7 @@ ArrayApiBlockBackend::Block::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 std::shared_ptr<ArrayApiBlockBackend::Block>
-ArrayApiBlockBackend::Block::from_hdf5(cyten::hdf5::Loader& /*loader*/,
+ArrayApiBlockBackend::Block::from_hdf5(lasyten::hdf5::Loader& /*loader*/,
                                        HighFive::Group& /*h5gr*/,
                                        const std::string& /*subpath*/)
 {
@@ -411,8 +411,8 @@ ArrayApiBlockBackend::dtype_from_api(py::object api_dtype) const
     if (api_dtype.is_none())
         throw std::invalid_argument("ArrayApiBlockBackend: dtype is None");
     auto key = reinterpret_cast<std::uintptr_t>(api_dtype.ptr());
-    auto it = cyten_dtype_map_.find(key);
-    if (it != cyten_dtype_map_.end())
+    auto it = lasyten_dtype_map_.find(key);
+    if (it != lasyten_dtype_map_.end())
         return it->second;
     // Fall back via numpy dtype conversion (covers aliases / dtype instances).
     return dtype::from_numpy_dtype(numpy_module().attr("dtype")(api_dtype));
@@ -524,12 +524,12 @@ ArrayApiBlockBackend::ArrayApiBlockBackend(py::object api_namespace,
         backend_dtype_map_.emplace(Dtype::Int64, api_.attr("int64"));
 
     for (auto const& [dt, api_dt] : backend_dtype_map_) {
-        cyten_dtype_map_[reinterpret_cast<std::uintptr_t>(api_dt.ptr())] = dt;
+        lasyten_dtype_map_[reinterpret_cast<std::uintptr_t>(api_dt.ptr())] = dt;
     }
 }
 
 std::shared_ptr<ArrayApiBlockBackend>
-ArrayApiBlockBackend::from_hdf5(cyten::hdf5::Loader& /*loader*/,
+ArrayApiBlockBackend::from_hdf5(lasyten::hdf5::Loader& /*loader*/,
                                 HighFive::Group& /*h5gr*/,
                                 const std::string& /*subpath*/)
 {
@@ -1187,4 +1187,4 @@ ArrayApiBlockBackend::zeros(const std::vector<int64>& shape,
                                    py::arg("device") = device ? py::cast(*device) : py::none()));
 }
 
-} // namespace cyten
+} // namespace lasyten

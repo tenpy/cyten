@@ -27,7 +27,7 @@ if str(_REPO_ROOT) not in sys.path:
 sys.path.insert(0, str(_DOCS_DIR / 'sphinx'))
 
 
-def _extension_module_available(name: str = 'cyten._core') -> bool:
+def _extension_module_available(name: str = 'lasyten._core') -> bool:
     """True if a compiled extension (not a pure-Python stub) can be loaded."""
     try:
         spec = importlib.util.find_spec(name)
@@ -40,7 +40,7 @@ def _extension_module_available(name: str = 'cyten._core') -> bool:
 
 
 def _ensure_version_module() -> None:
-    version_py = _REPO_ROOT / 'cyten' / '_version.py'
+    version_py = _REPO_ROOT / 'lasyten' / '_version.py'
     if version_py.is_file():
         return
     try:
@@ -57,10 +57,10 @@ def _ensure_version_module() -> None:
 
 
 def _ensure_core_stub() -> None:
-    """Generate ``cyten/_core.py`` when the compiled extension is unavailable."""
+    """Generate ``lasyten/_core.py`` when the compiled extension is unavailable."""
     if _extension_module_available():
         return
-    stub = _REPO_ROOT / 'cyten' / '_core.py'
+    stub = _REPO_ROOT / 'lasyten' / '_core.py'
     if stub.is_file():
         return
     script = _REPO_ROOT / 'scripts' / 'generate_core_stubs.py'
@@ -75,14 +75,14 @@ def _ensure_core_stub() -> None:
 _ensure_version_module()
 _ensure_core_stub()
 
-import cyten  # noqa: E402
+import lasyten  # noqa: E402
 
-project = 'Cyten'
-copyright = '2024, Cyten developer team'
-author = 'Cyten developer team'
-release = cyten.__version__
+project = 'LASyTen'
+copyright = '2024, LASyTen developer team'
+author = 'LASyTen developer team'
+release = lasyten.__version__
 
-GITHUBBASE = 'https://github.com/tenpy/cyten'
+GITHUBBASE = 'https://github.com/tenpy/lasyten'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -101,11 +101,11 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.linkcode',
     'sphinx.ext.githubpages',
-    'cyten_cpp_link',  # after autodoc; connects with priority before napoleon
+    'lasyten_cpp_link',  # after autodoc; connects with priority before napoleon
     'sphinx.ext.napoleon',
     'sphinx.ext.graphviz',
     'sphinx.ext.inheritance_diagram',
-    'cyten_inheritance',  # pybind re-exports; after inheritance_diagram
+    'lasyten_inheritance',  # pybind re-exports; after inheritance_diagram
     'doxygen_inheritance',  # Doxygen CLASS_GRAPH PNGs on C++ pages
     'sphinx_rtd_theme',
     'sphinx_copybutton',
@@ -125,8 +125,8 @@ pygments_style = 'sphinx'  # syntax highlighting style
 
 html_theme = 'sphinx_rtd_theme'
 
-#  html_logo = 'images/cyten_logo.png'
-#  html_favicon = "images/logo.ico"
+html_logo = 'images/lasyten_logo.png'
+html_favicon = 'images/lasyten_icon_32.png'
 html_static_path = ['sphinx/static']
 html_last_updated_fmt = '%b %d, %Y'
 
@@ -137,16 +137,16 @@ html_css_files = [
 html_context = {
     'display_github': True,  # Integrate GitHub
     'github_user': 'tenpy',  # Username
-    'github_repo': 'cyten',  # Repo name
+    'github_repo': 'lasyten',  # Repo name
     'github_version': 'main',  # Version
     'conf_py_path': '/docs/',  # Path in the checkout to the docs root
 }
 
 # -- breathe (including doxygen docs) -------------------------------------
 
-breathe_projects = {'cyten': 'build_docs/doxy_xml'}
+breathe_projects = {'lasyten': 'build_docs/doxy_xml'}
 
-breathe_default_project = 'cyten'
+breathe_default_project = 'lasyten'
 
 breathe_default_members = ('members', 'undoc-members')
 
@@ -179,7 +179,7 @@ doctest_global_setup = """
 import numpy as np
 import scipy
 import scipy.linalg
-import cyten
+import lasyten
 np.set_printoptions(suppress=True)
 """
 
@@ -226,7 +226,7 @@ extlinks = {
 # linkcode to put links to the github repository from the documentation
 
 # C++ domain does not populate signode['names']; we fill it on doctree-read.
-# ids are a fallback (readable ``cyten::…`` entries, not ``_CPPv4…``).
+# ids are a fallback (readable ``lasyten::…`` entries, not ``_CPPv4…``).
 add_linkcode_domain('cpp', ['names', '_toc_parts', 'ids'], override=True)
 
 _DOXY_XML = str(_DOCS_DIR / 'build_docs' / 'doxy_xml')
@@ -235,10 +235,10 @@ _REPO_ROOT_STR = str(_REPO_ROOT)
 
 def _github_ref():
     """GitHub ref for source links: a release tag, else the build commit."""
-    if 'dev' not in cyten.__version__:
-        return f'v{cyten.__version__}'
+    if 'dev' not in lasyten.__version__:
+        return f'v{lasyten.__version__}'
     # setuptools_scm writes ``g`` + git node (e.g. ``g2ce59cf1a``).
-    commit_id = cyten._version.commit_id
+    commit_id = lasyten._version.commit_id
     if not commit_id:
         return 'main'
     return commit_id[1:] if commit_id.startswith('g') else commit_id
@@ -271,7 +271,7 @@ def _toc_as_qname(toc):
 def _qname_from_ids(ids):
     """Readable Sphinx C++ id, including overload suffix when present.
 
-    ``cyten::sqrt__DiagonalTensorCPtr`` is kept intact so overloads can be
+    ``lasyten::sqrt__DiagonalTensorCPtr`` is kept intact so overloads can be
     distinguished. ``_CPPv4…`` mangled ids are ignored.
     """
     if isinstance(ids, str):
@@ -284,7 +284,7 @@ def _qname_from_ids(ids):
 
 
 def _cpp_qname(info):
-    """Qualified C++ name from linkcode info (``cyten::sqrt__DiagonalTensorCPtr``)."""
+    """Qualified C++ name from linkcode info (``lasyten::sqrt__DiagonalTensorCPtr``)."""
     from_id = _qname_from_ids(info.get('ids'))
     if from_id and '__' in from_id:
         return from_id
@@ -310,7 +310,7 @@ def _cpp_prepare_linkcode(app, doctree):
 
     Sphinx's C++ domain leaves ``names`` empty. ``_toc_parts`` is a short name
     such as ``dagger()`` for free functions and methods; class signatures use
-    ``cyten::Tensor``. Nested members are prefixed with the enclosing class.
+    ``lasyten::Tensor``. Nested members are prefixed with the enclosing class.
     """
     del app  # unused; signature required by Sphinx
     for objnode in doctree.findall(addnodes.desc):
@@ -372,7 +372,7 @@ def _cpp_url_for_qname(qname, ids=None):
 def _python_source_url(obj):
     """URL for a pure-Python object whose source file lives in this repo.
 
-    The generated autodoc stub ``cyten/_core.py`` is skipped so linkcode can
+    The generated autodoc stub ``lasyten/_core.py`` is skipped so linkcode can
     fall back to the C++ GitHub location (same target as the ``[C++]`` badge).
     """
     try:
@@ -394,7 +394,7 @@ def _python_source_url(obj):
     if rel.startswith('..'):
         return None
     # Generated stub for RTD — not a useful [source] target.
-    if rel == 'cyten/_core.py':
+    if rel == 'lasyten/_core.py':
         return None
     try:
         source, lineno = inspect.getsourcelines(obj)
@@ -434,13 +434,13 @@ def _linkcode_resolve_py(info):
         if url:
             return url
 
-    import cyten_cpp_link
+    import lasyten_cpp_link
 
     qname = None
     if obj is not None:
-        qname = cyten_cpp_link.cpp_ref_from_object(obj)
+        qname = lasyten_cpp_link.cpp_ref_from_object(obj)
     if not qname:
-        qname = cyten_cpp_link.lookup_cpp_ref(modname, fullname)
+        qname = lasyten_cpp_link.lookup_cpp_ref(modname, fullname)
     return _cpp_url_for_qname(qname)
 
 

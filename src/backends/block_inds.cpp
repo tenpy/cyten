@@ -1,14 +1,14 @@
-#include <cyten/backends/block_inds.h>
+#include <lasyten/backends/block_inds.h>
 
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 
 #include <algorithm>
 #include <numeric>
 #include <stdexcept>
 #include <string>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -658,7 +658,7 @@ BlockInds::iter_common_noncommon_sorted(
 }
 
 void
-BlockInds::save_hdf5(cyten::hdf5::Saver& saver,
+BlockInds::save_hdf5(lasyten::hdf5::Saver& saver,
                      HighFive::Group& /*h5gr*/,
                      std::string const& subpath) const
 {
@@ -666,7 +666,7 @@ BlockInds::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 BlockInds
-BlockInds::from_hdf5(cyten::hdf5::Loader& loader,
+BlockInds::from_hdf5(lasyten::hdf5::Loader& loader,
                      HighFive::Group& /*h5gr*/,
                      std::string const& subpath)
 {
@@ -677,4 +677,4 @@ BlockInds::from_hdf5(cyten::hdf5::Loader& loader,
     return BlockInds(std::move(flat), shape.first, shape.second);
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,11 +1,11 @@
-#include <cyten/symmetries/factors/zn.h>
+#include <lasyten/symmetries/factors/zn.h>
 
-#include <cyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5.h>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -147,14 +147,14 @@ ZN::_is_equivalent_factor(SymmetryFactor const& other) const
 }
 
 void
-ZN::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
+ZN::save_hdf5(lasyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
 {
     SymmetryFactor::save_hdf5(saver, h5gr, subpath);
     saver.save_int64(subpath + "N", N);
 }
 
 ZN::Ptr
-ZN::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
+ZN::from_hdf5(lasyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
     hid_t id = loader.open(subpath + "N");
     int N = static_cast<int>(loader.load_int64(id));
@@ -166,4 +166,4 @@ ZN::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string co
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

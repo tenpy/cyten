@@ -19,9 +19,9 @@
 | Field | Value |
 | --- | --- |
 | original python name | `Group` |
-| original python file | `cyten/symmetries/_symmetries.py` |
-| original python module | `cyten.symmetries` |
-| declaration | `include/cyten/symmetries/group.h` |
+| original python file | `lasyten/symmetries/_symmetries.py` |
+| original python module | `lasyten.symmetries` |
+| declaration | `include/lasyten/symmetries/group.h` |
 | definition | `src/symmetries/group.cpp` |
 | pybind11 binding | `pybind/symmetries/py_group.cpp` |
 | trampoline | `PyGroup` in `pybind/symmetries/py_trampolines.hpp` |

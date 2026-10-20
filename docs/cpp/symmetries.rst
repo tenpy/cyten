@@ -1,6 +1,6 @@
 symmetries
 ==========
-Headers in ``include/cyten/symmetries/``.
+Headers in ``include/lasyten/symmetries/``.
 
 .. toctree::
    :maxdepth: 1

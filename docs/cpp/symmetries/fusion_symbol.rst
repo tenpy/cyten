@@ -1,30 +1,30 @@
 fusion_symbol.h
 ===============
 
-Declared in ``include/cyten/symmetries/fusion_symbol.h``.
+Declared in ``include/lasyten/symmetries/fusion_symbol.h``.
 
-cyten::FusionSymbol
+lasyten::FusionSymbol
 -------------------
 
-.. doxygenclass:: cyten::FusionSymbol
-   :project: cyten
+.. doxygenclass:: lasyten::FusionSymbol
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::kron
-   :project: cyten
+.. doxygenfunction:: lasyten::kron
+   :project: lasyten
 
-.. doxygenfunction:: cyten::fusion_symbol_to_numpy
-   :project: cyten
+.. doxygenfunction:: lasyten::fusion_symbol_to_numpy
+   :project: lasyten
 
-.. doxygenfunction:: cyten::fusion_symbol_from_numpy
-   :project: cyten
+.. doxygenfunction:: lasyten::fusion_symbol_from_numpy
+   :project: lasyten
 
-.. doxygenfunction:: cyten::block_from_fusion_symbol
-   :project: cyten
+.. doxygenfunction:: lasyten::block_from_fusion_symbol
+   :project: lasyten
 
-.. doxygenfunction:: cyten::fusion_symbol_from_block
-   :project: cyten
+.. doxygenfunction:: lasyten::fusion_symbol_from_block
+   :project: lasyten

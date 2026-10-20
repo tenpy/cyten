@@ -1,24 +1,24 @@
 zn_anyon_category2.h
 ====================
 
-Declared in ``include/cyten/symmetries/factors/zn_anyon_category2.h``.
+Declared in ``include/lasyten/symmetries/factors/zn_anyon_category2.h``.
 
-cyten::ZNAnyonCategory2
+lasyten::ZNAnyonCategory2
 -----------------------
 
-.. doxygenclass:: cyten::ZNAnyonCategory2
-   :project: cyten
+.. doxygenclass:: lasyten::ZNAnyonCategory2
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::semion_category
+lasyten::semion_category
 ----------------------
 
-.. doxygenfunction:: cyten::semion_category
-   :project: cyten
+.. doxygenfunction:: lasyten::semion_category
+   :project: lasyten
 
-cyten::double_semion_category
+lasyten::double_semion_category
 -----------------------------
 
-.. doxygenfunction:: cyten::double_semion_category
-   :project: cyten
+.. doxygenfunction:: lasyten::double_semion_category
+   :project: lasyten

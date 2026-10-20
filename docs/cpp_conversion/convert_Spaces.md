@@ -18,10 +18,10 @@ The spaces hierarchy is now C++ (`Leg`, `Space`, `ElementarySpace`, …); this f
 
 ## Metadata
 
-- declaration: `include/cyten/block_backend/block_backend.h`
+- declaration: `include/lasyten/block_backend/block_backend.h`
 - definition: `src/block_backend/block_backend.cpp`
 - binding: `pybind/block_backend/py_block_backend.cpp`
-- related spaces API: `include/cyten/symmetries/spaces.h`
+- related spaces API: `include/lasyten/symmetries/spaces.h`
 
 ## TODO
 

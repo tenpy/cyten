@@ -69,7 +69,7 @@ def _xml_dir(app: Sphinx) -> Path:
 
 
 def _compound_index(app: Sphinx) -> dict[str, str]:
-    """Map ``cyten::Tensor`` → Doxygen refid ``classcyten_1_1Tensor``."""
+    """Map ``lasyten::Tensor`` → Doxygen refid ``classlasyten_1_1Tensor``."""
     env = app.env
     cached = getattr(env, _ENV_INDEX, None)
     if cached is not None:
@@ -242,7 +242,7 @@ def html_visit_doxygen_inheritance(self, node: doxygen_inheritance_diagram) -> N
             continue
         if not qname:
             text = child.astext().strip()
-            if text.startswith('cyten::') or '::' in text:
+            if text.startswith('lasyten::') or '::' in text:
                 qname = text
         uri = None
         if child.get('refuri'):

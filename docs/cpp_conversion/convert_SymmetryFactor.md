@@ -19,8 +19,8 @@ Python `Group` / concretes / product `Symmetry` still subclass the C++ bases. Ne
 | Field | Value |
 | --- | --- |
 | original python name | `SymmetryFactor` |
-| original python file | `cyten/symmetries/_symmetries.py` |
-| declaration | `include/cyten/symmetries/symmetry_factor.h` |
+| original python file | `lasyten/symmetries/_symmetries.py` |
+| declaration | `include/lasyten/symmetries/symmetry_factor.h` |
 | definition | `src/symmetries/symmetry_factor.cpp` |
 | pybind11 binding | `pybind/symmetries/py_symmetry_factor.cpp` |
 | trampoline | `PySymmetryFactor` in `pybind/symmetries/py_trampolines.hpp` |

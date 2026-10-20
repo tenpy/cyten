@@ -1,12 +1,12 @@
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/direct_sum.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/ops_algebra.h>
-#include <cyten/tensors/tensor.h>
-#include <cyten/tensors/vector_like.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/direct_sum.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/ops_algebra.h>
+#include <lasyten/tensors/tensor.h>
+#include <lasyten/tensors/vector_like.h>
 
 #include "../doc_plus.h"
-#include "../py_cyten_pybind11.h"
+#include "../py_lasyten_pybind11.h"
 
 #include "docstrings/tensors/ops_algebra.h"
 
@@ -17,7 +17,7 @@
 #include <variant>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -98,7 +98,7 @@ bind_tensors_ops_algebra(py::module_& m)
           py::arg("rtol") = 1e-5,
           py::arg("atol") = 1e-8,
           py::arg("allow_different_types") = false,
-          DOC(cyten, almost_equal));
+          DOC(lasyten, almost_equal));
 
     m.def(
       "apply_mask",
@@ -108,7 +108,7 @@ bind_tensors_ops_algebra(py::module_& m)
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg"),
-      DOC(cyten, apply_mask));
+      DOC(lasyten, apply_mask));
 
     m.def(
       "enlarge_leg",
@@ -118,9 +118,9 @@ bind_tensors_ops_algebra(py::module_& m)
       py::arg("tensor"),
       py::arg("mask"),
       py::arg("leg"),
-      DOC(cyten, enlarge_leg));
+      DOC(lasyten, enlarge_leg));
 
-    m.def("dagger", &dagger, py::arg("tensor"), DOC(cyten, dagger));
+    m.def("dagger", &dagger, py::arg("tensor"), DOC(lasyten, dagger));
 
     m.def(
       "compose",
@@ -134,7 +134,7 @@ bind_tensors_ops_algebra(py::module_& m)
       py::arg("tensor2"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      doc_plus(DOC(cyten, compose),
+      doc_plus(DOC(lasyten, compose),
                R"pydoc(
 In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabel).
 )pydoc"));
@@ -151,15 +151,15 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       },
       py::kw_only(),
       py::arg("error_msg") = "Incompatible devices.",
-      DOC(cyten, get_same_device));
+      DOC(lasyten, get_same_device));
 
-    // Bind the VectorLike overload (DOC(..., 2)); Tensor overload is DOC(cyten, inner).
+    // Bind the VectorLike overload (DOC(..., 2)); Tensor overload is DOC(lasyten, inner).
     m.def("inner",
           static_cast<BlockBackend::Scalar (*)(VectorLikeCPtr, VectorLikeCPtr, bool)>(&inner),
           py::arg("A"),
           py::arg("B"),
           py::arg("do_dagger") = true,
-          DOC(cyten, inner, 2));
+          DOC(lasyten, inner, 2));
 
     m.def(
       "is_scalar",
@@ -190,12 +190,12 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
           return py::isinstance(obj, py::module_::import("numbers").attr("Number"));
       },
       py::arg("obj"),
-      doc_plus(DOC(cyten, is_scalar),
+      doc_plus(DOC(lasyten, is_scalar),
                R"pydoc(
 Also accepts Python numbers and duck-typed tensors with ``domain`` / ``codomain``.
 )pydoc"));
 
-    m.def("item", &item, py::arg("tensor"), DOC(cyten, item));
+    m.def("item", &item, py::arg("tensor"), DOC(lasyten, item));
 
     m.def(
       "linear_combination",
@@ -234,20 +234,20 @@ Also accepts Python numbers and duck-typed tensors with ``domain`` / ``codomain`
       py::arg("b").none(true),
       py::arg("w"),
       doc_cpp_ref(R"pydoc(The linear combination ``a * v + b * w``)pydoc",
-                  "cyten::linear_combination(BlockBackend::Scalar const &, VectorLikeCPtr, "
+                  "lasyten::linear_combination(BlockBackend::Scalar const &, VectorLikeCPtr, "
                   "BlockBackend::Scalar const &, VectorLikeCPtr)"));
 
     m.def("norm",
           static_cast<BlockBackend::Scalar (*)(VectorLikeCPtr)>(&norm),
           py::arg("tensor"),
-          DOC(cyten, norm, 2));
+          DOC(lasyten, norm, 2));
 
     m.def("on_device",
           &on_device,
           py::arg("tensor"),
           py::arg("device"),
           py::arg("copy") = true,
-          DOC(cyten, on_device));
+          DOC(lasyten, on_device));
 
     m.def(
       "outer",
@@ -261,7 +261,7 @@ Also accepts Python numbers and duck-typed tensors with ``domain`` / ``codomain`
       py::arg("tensor2"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      doc_plus(DOC(cyten, outer),
+      doc_plus(DOC(lasyten, outer),
                R"pydoc(
 In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabel).
 )pydoc"));
@@ -286,7 +286,7 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       py::arg("relabel2") = py::none(),
       doc_cpp_ref(
         R"pydoc(Tensor contraction / composition involving only a part of the full (co)domain.)pydoc",
-        "cyten::partial_compose()"));
+        "lasyten::partial_compose()"));
 
     m.def(
       "partial_trace",
@@ -315,9 +315,9 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       py::arg("tensor"),
       py::kw_only(),
       py::arg("levels") = py::none(),
-      DOC(cyten, partial_trace));
+      DOC(lasyten, partial_trace));
 
-    m.def("pinv", &pinv, py::arg("tensor"), py::arg("cutoff") = 1e-15, DOC(cyten, pinv));
+    m.def("pinv", &pinv, py::arg("tensor"), py::arg("cutoff") = 1e-15, DOC(lasyten, pinv));
 
     m.def(
       "scalar_multiply",
@@ -347,7 +347,7 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       py::arg("a").none(true),
       py::arg("v"),
       doc_cpp_ref(R"pydoc(The scalar multiplication ``a * v``)pydoc",
-                  "cyten::scalar_multiply(BlockBackend::Scalar const &, VectorLikeCPtr)"));
+                  "lasyten::scalar_multiply(BlockBackend::Scalar const &, VectorLikeCPtr)"));
 
     m.def(
       "scale_axis",
@@ -357,7 +357,7 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       py::arg("tensor"),
       py::arg("diag"),
       py::arg("leg"),
-      DOC(cyten, scale_axis));
+      DOC(lasyten, scale_axis));
 
     m.def(
       "tdot",
@@ -380,15 +380,15 @@ In Python, ``relabel1`` / ``relabel2`` are ``dict | None`` (``None`` = no relabe
       py::arg("legs2"),
       py::arg("relabel1") = py::none(),
       py::arg("relabel2") = py::none(),
-      doc_plus(DOC(cyten, tdot),
+      doc_plus(DOC(lasyten, tdot),
                R"pydoc(
 In Python, ``legs1`` / ``legs2`` are ``int``, ``str``, or a sequence thereof;
 ``relabel1`` / ``relabel2`` are ``dict | None``.
 )pydoc"));
 
-    m.def("trace", &trace, py::arg("tensor"), DOC(cyten, trace));
+    m.def("trace", &trace, py::arg("tensor"), DOC(lasyten, trace));
 
-    m.def("transpose", &transpose, py::arg("tensor"), DOC(cyten, transpose));
+    m.def("transpose", &transpose, py::arg("tensor"), DOC(lasyten, transpose));
 }
 
-} // namespace cyten
+} // namespace lasyten

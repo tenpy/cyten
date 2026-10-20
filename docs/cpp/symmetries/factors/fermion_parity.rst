@@ -1,12 +1,12 @@
 fermion_parity.h
 ================
 
-Declared in ``include/cyten/symmetries/factors/fermion_parity.h``.
+Declared in ``include/lasyten/symmetries/factors/fermion_parity.h``.
 
-cyten::FermionParity
+lasyten::FermionParity
 --------------------
 
-.. doxygenclass:: cyten::FermionParity
-   :project: cyten
+.. doxygenclass:: lasyten::FermionParity
+   :project: lasyten
    :members:
    :undoc-members:

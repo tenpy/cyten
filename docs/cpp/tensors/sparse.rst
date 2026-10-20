@@ -1,45 +1,45 @@
 sparse.h
 ========
 
-Declared in ``include/cyten/tensors/sparse.h``.
+Declared in ``include/lasyten/tensors/sparse.h``.
 
-.. doxygenclass:: cyten::LinearOperator
-   :project: cyten
+.. doxygenclass:: lasyten::LinearOperator
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::TensorLinearOperator
-   :project: cyten
+.. doxygenclass:: lasyten::TensorLinearOperator
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::LinearOperatorWrapper
-   :project: cyten
+.. doxygenclass:: lasyten::LinearOperatorWrapper
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::SumLinearOperator
-   :project: cyten
+.. doxygenclass:: lasyten::SumLinearOperator
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::ShiftedLinearOperator
-   :project: cyten
+.. doxygenclass:: lasyten::ShiftedLinearOperator
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::ProjectedLinearOperator
-   :project: cyten
+.. doxygenclass:: lasyten::ProjectedLinearOperator
+   :project: lasyten
    :members:
    :undoc-members:
 
-.. doxygenclass:: cyten::DirectSumLinearOperator
-   :project: cyten
+.. doxygenclass:: lasyten::DirectSumLinearOperator
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::gram_schmidt
-   :project: cyten
+.. doxygenfunction:: lasyten::gram_schmidt
+   :project: lasyten

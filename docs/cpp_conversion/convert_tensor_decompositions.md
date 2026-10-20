@@ -3,9 +3,9 @@
 ## metadata
 
 - original python names: `eigh`, `entropy`, `qr`, `lq`, `svd`, `svd_apply_mask`, `truncate_singular_values`, `truncated_svd`, `apply_mask_DiagonalTensor`
-- original python file: `cyten/tensors/_tensors.py`
-- original python module: `cyten.tensors._tensors`
-- declaration: `include/cyten/tensors/decompositions.h`
+- original python file: `lasyten/tensors/_tensors.py`
+- original python module: `lasyten.tensors._tensors`
+- declaration: `include/lasyten/tensors/decompositions.h`
 - definition: `src/tensors/decompositions.cpp`
 - pybind11 binding: `pybind/tensors/py_decompositions.cpp`
 - trampoline: n/a (free functions)

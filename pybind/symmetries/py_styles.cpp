@@ -1,18 +1,18 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/styles.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
-#include <cyten/symmetries/styles.h>
+#include <lasyten/symmetries/styles.h>
 
 #include <pybind11/native_enum.h>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_symmetries_styles(py::module_& m)
 {
     py::native_enum<FusionStyle> fusion_enum(
-      m, "FusionStyle", "enum.IntEnum", DOC(cyten, FusionStyle));
+      m, "FusionStyle", "enum.IntEnum", DOC(lasyten, FusionStyle));
     fusion_enum.value("single", FusionStyle::single)
       .value("multiple_unique", FusionStyle::multiple_unique)
       .value("general", FusionStyle::general)
@@ -20,7 +20,7 @@ bind_symmetries_styles(py::module_& m)
       .finalize();
 
     py::native_enum<BraidingStyle> braid_enum(
-      m, "BraidingStyle", "enum.IntEnum", DOC(cyten, BraidingStyle));
+      m, "BraidingStyle", "enum.IntEnum", DOC(lasyten, BraidingStyle));
     braid_enum.value("bosonic", BraidingStyle::bosonic)
       .value("fermionic", BraidingStyle::fermionic)
       .value("anyonic", BraidingStyle::anyonic)
@@ -29,4 +29,4 @@ bind_symmetries_styles(py::module_& m)
       .finalize();
 }
 
-} // namespace cyten
+} // namespace lasyten

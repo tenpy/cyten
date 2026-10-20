@@ -1,10 +1,10 @@
 """Two-site DMRG EffectiveH as a PlanarLinearOperator."""
 
-import cyten as ct
-from cyten.testing import random_tensor
+import lasyten as lasy
+from lasyten.testing import random_tensor
 
 
-class TwoSiteEffectiveH(ct.PlanarLinearOperator):
+class TwoSiteEffectiveH(lasy.PlanarLinearOperator):
     """Effective Hamiltonian on two MPS sites.
 
     The operator is the planar network::
@@ -19,7 +19,7 @@ class TwoSiteEffectiveH(ct.PlanarLinearOperator):
     ket legs.
     """
 
-    op_diagram = ct.PlanarDiagram(
+    op_diagram = lasy.PlanarDiagram(
         tensors='Lp[vR*, wR, vR], W0[wL, p, wR, p*], W1[wL, p, wR, p*], Rp[vL*, vL, wL]',
         definition=(
             'Lp:vR* -> vL, Lp:wR @ W0:wL, Lp:vR -> vL*, '
@@ -44,7 +44,7 @@ class TwoSiteEffectiveH(ct.PlanarLinearOperator):
         )
 
 
-sym = ct.U1().as_Symmetry()
+sym = lasy.U1().as_Symmetry()
 theta = random_tensor(sym, 4, labels=['vL', 'p0', 'p1', 'vR'], max_multiplicity=2, max_blocks=2)
 vL, p0, p1, vR = theta.legs
 Lp = random_tensor(sym, [vL, None, vL.dual], labels=['vR*', 'wR', 'vR'], max_multiplicity=2, max_blocks=2)
@@ -65,10 +65,10 @@ W1 = random_tensor(
 Rp = random_tensor(sym, [vR, vR.dual, W1.get_leg('wR').dual], labels=['vL*', 'vL', 'wL'])
 
 Heff = TwoSiteEffectiveH(Lp=Lp, W0=W0, W1=W1, Rp=Rp)
-op = ct.planar_permute_legs(Heff.to_tensor(), codomain=['vL', 'p0', 'p1', 'vR'])
+op = lasy.planar_permute_legs(Heff.to_tensor(), codomain=['vL', 'p0', 'p1', 'vR'])
 assert op.codomain_labels == ['vL', 'p0', 'p1', 'vR']
 assert op.domain_labels == ['vL*', 'p0*', 'p1*', 'vR*']
 
 H_theta = Heff.matvec(theta)
 assert H_theta.codomain_labels == ['vL', 'p0', 'p1', 'vR']
-assert ct.almost_equal(ct.compose(op, theta), H_theta)
+assert lasy.almost_equal(lasy.compose(op, theta), H_theta)

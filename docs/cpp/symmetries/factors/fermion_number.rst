@@ -1,12 +1,12 @@
 fermion_number.h
 ================
 
-Declared in ``include/cyten/symmetries/factors/fermion_number.h``.
+Declared in ``include/lasyten/symmetries/factors/fermion_number.h``.
 
-cyten::FermionNumber
+lasyten::FermionNumber
 --------------------
 
-.. doxygenclass:: cyten::FermionNumber
-   :project: cyten
+.. doxygenclass:: lasyten::FermionNumber
+   :project: lasyten
    :members:
    :undoc-members:

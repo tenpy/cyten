@@ -1,60 +1,60 @@
 couplings.h
 ===========
 
-Declared in ``include/cyten/models/couplings.h``.
+Declared in ``include/lasyten/models/couplings.h``.
 
-.. doxygenclass:: cyten::Coupling
-   :project: cyten
+.. doxygenclass:: lasyten::Coupling
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::freeze
-   :project: cyten
+.. doxygenfunction:: lasyten::freeze
+   :project: lasyten
 
-.. doxygenfunction:: cyten::spin_spin_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::spin_spin_coupling
+   :project: lasyten
 
-.. doxygenfunction:: cyten::spin_field_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::spin_field_coupling
+   :project: lasyten
 
-.. doxygenfunction:: cyten::aklt_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::aklt_coupling
+   :project: lasyten
 
-.. doxygenfunction:: cyten::heisenberg_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::heisenberg_coupling
+   :project: lasyten
 
-.. doxygenfunction:: cyten::chiral_3spin_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::chiral_3spin_coupling
+   :project: lasyten
 
-.. doxygenfunction:: cyten::chemical_potential
-   :project: cyten
+.. doxygenfunction:: lasyten::chemical_potential
+   :project: lasyten
 
-.. doxygenfunction:: cyten::onsite_interaction
-   :project: cyten
+.. doxygenfunction:: lasyten::onsite_interaction
+   :project: lasyten
 
-.. doxygenfunction:: cyten::density_density_interaction
-   :project: cyten
+.. doxygenfunction:: lasyten::density_density_interaction
+   :project: lasyten
 
-.. doxygenfunction:: cyten::hopping
-   :project: cyten
+.. doxygenfunction:: lasyten::hopping
+   :project: lasyten
 
-.. doxygenfunction:: cyten::pairing
-   :project: cyten
+.. doxygenfunction:: lasyten::pairing
+   :project: lasyten
 
-.. doxygenfunction:: cyten::onsite_pairing
-   :project: cyten
+.. doxygenfunction:: lasyten::onsite_pairing
+   :project: lasyten
 
-.. doxygenfunction:: cyten::clock_clock_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::clock_clock_coupling
+   :project: lasyten
 
-.. doxygenfunction:: cyten::clock_field_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::clock_field_coupling
+   :project: lasyten
 
-.. doxygenfunction:: cyten::sector_projection_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::sector_projection_coupling
+   :project: lasyten
 
-.. doxygenfunction:: cyten::gold_coupling
-   :project: cyten
+.. doxygenfunction:: lasyten::gold_coupling
+   :project: lasyten

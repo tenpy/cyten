@@ -1,82 +1,82 @@
 ops_algebra.h
 =============
 
-Declared in ``include/cyten/tensors/ops_algebra.h``.
+Declared in ``include/lasyten/tensors/ops_algebra.h``.
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::almost_equal
-   :project: cyten
+.. doxygenfunction:: lasyten::almost_equal
+   :project: lasyten
 
-.. doxygenfunction:: cyten::apply_mask
-   :project: cyten
+.. doxygenfunction:: lasyten::apply_mask
+   :project: lasyten
 
-.. doxygenfunction:: cyten::enlarge_leg
-   :project: cyten
+.. doxygenfunction:: lasyten::enlarge_leg
+   :project: lasyten
 
-.. doxygenfunction:: cyten::dagger
-   :project: cyten
+.. doxygenfunction:: lasyten::dagger
+   :project: lasyten
 
-.. doxygenfunction:: cyten::compose
-   :project: cyten
+.. doxygenfunction:: lasyten::compose
+   :project: lasyten
 
-.. doxygenfunction:: cyten::get_same_device
-   :project: cyten
+.. doxygenfunction:: lasyten::get_same_device
+   :project: lasyten
 
-.. doxygenfunction:: cyten::inner(TensorCPtr, TensorCPtr, bool)
-   :project: cyten
+.. doxygenfunction:: lasyten::inner(TensorCPtr, TensorCPtr, bool)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)
-   :project: cyten
+.. doxygenfunction:: lasyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::is_scalar
-   :project: cyten
+.. doxygenfunction:: lasyten::is_scalar
+   :project: lasyten
 
-.. doxygenfunction:: cyten::item
-   :project: cyten
+.. doxygenfunction:: lasyten::item
+   :project: lasyten
 
-.. doxygenfunction:: cyten::linear_combination(BlockBackend::Scalar const &, TensorCPtr, BlockBackend::Scalar const &, TensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::linear_combination(BlockBackend::Scalar const &, TensorCPtr, BlockBackend::Scalar const &, TensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::linear_combination(BlockBackend::Scalar const &, VectorLikeCPtr, BlockBackend::Scalar const &, VectorLikeCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::linear_combination(BlockBackend::Scalar const &, VectorLikeCPtr, BlockBackend::Scalar const &, VectorLikeCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::norm(TensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::norm(TensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::norm(VectorLikeCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::norm(VectorLikeCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::on_device
-   :project: cyten
+.. doxygenfunction:: lasyten::on_device
+   :project: lasyten
 
-.. doxygenfunction:: cyten::outer
-   :project: cyten
+.. doxygenfunction:: lasyten::outer
+   :project: lasyten
 
-.. doxygenfunction:: cyten::partial_compose
-   :project: cyten
+.. doxygenfunction:: lasyten::partial_compose
+   :project: lasyten
 
-.. doxygenfunction:: cyten::partial_trace
-   :project: cyten
+.. doxygenfunction:: lasyten::partial_trace
+   :project: lasyten
 
-.. doxygenfunction:: cyten::pinv
-   :project: cyten
+.. doxygenfunction:: lasyten::pinv
+   :project: lasyten
 
-.. doxygenfunction:: cyten::scalar_multiply(BlockBackend::Scalar const &, TensorCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::scalar_multiply(BlockBackend::Scalar const &, TensorCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::scalar_multiply(BlockBackend::Scalar const &, VectorLikeCPtr)
-   :project: cyten
+.. doxygenfunction:: lasyten::scalar_multiply(BlockBackend::Scalar const &, VectorLikeCPtr)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::scale_axis
-   :project: cyten
+.. doxygenfunction:: lasyten::scale_axis
+   :project: lasyten
 
-.. doxygenfunction:: cyten::tdot
-   :project: cyten
+.. doxygenfunction:: lasyten::tdot
+   :project: lasyten
 
-.. doxygenfunction:: cyten::trace
-   :project: cyten
+.. doxygenfunction:: lasyten::trace
+   :project: lasyten
 
-.. doxygenfunction:: cyten::transpose
-   :project: cyten
+.. doxygenfunction:: lasyten::transpose
+   :project: lasyten

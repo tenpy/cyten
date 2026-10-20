@@ -1,28 +1,28 @@
 #include "../../doc_plus.h"
 #include "docstrings/symmetries/factors/fermion_parity.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/factors/fermion_parity.h>
+#include <lasyten/symmetries/factors/fermion_parity.h>
 
 #include "tools/hdf5_bind.h"
 #include <optional>
 #include <string>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_fermion_parity(py::module_& m)
 {
     py::class_<FermionParity, SymmetryFactor, py::smart_holder> cls(
-      m, "FermionParity", DOC(cyten, FermionParity));
+      m, "FermionParity", DOC(lasyten, FermionParity));
     cls
       .def(py::init<std::optional<std::string>, bool>(),
            py::arg("descriptive_name") = py::none(),
            py::arg("trivial_shift") = true)
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<FermionParity>(),
+                  lasyten::hdf5::wrap_from_hdf5<FermionParity>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
@@ -30,4 +30,4 @@ bind_fermion_parity(py::module_& m)
     cls.attr("odd") = FermionParity::odd;
 }
 
-} // namespace cyten
+} // namespace lasyten

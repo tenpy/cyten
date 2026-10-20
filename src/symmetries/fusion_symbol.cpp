@@ -1,4 +1,4 @@
-#include <cyten/symmetries/fusion_symbol.h>
+#include <lasyten/symmetries/fusion_symbol.h>
 
 #include <algorithm>
 #include <cmath>
@@ -6,7 +6,7 @@
 #include <format>
 #include <numeric>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -680,4 +680,4 @@ fusion_symbol_from_block(BlockBackend::BlockCPtr const& block)
     return fusion_symbol_from_numpy(block->to_numpy());
 }
 
-} // namespace cyten
+} // namespace lasyten

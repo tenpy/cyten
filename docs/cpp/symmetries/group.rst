@@ -1,12 +1,12 @@
 group.h
 =======
 
-Declared in ``include/cyten/symmetries/group.h``.
+Declared in ``include/lasyten/symmetries/group.h``.
 
-cyten::Group
+lasyten::Group
 ------------
 
-.. doxygenclass:: cyten::Group
-   :project: cyten
+.. doxygenclass:: lasyten::Group
+   :project: lasyten
    :members:
    :undoc-members:

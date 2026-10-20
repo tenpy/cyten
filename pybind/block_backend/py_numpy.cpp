@@ -4,9 +4,9 @@
 
 #include "py_trampolines.hpp"
 #include "tools/hdf5_bind.h"
-#include <cyten/block_backend/numpy.h>
+#include <lasyten/block_backend/numpy.h>
 
-namespace cyten {
+namespace lasyten {
 
 void
 bind_block_backend_numpy(py::module_& m)
@@ -14,7 +14,7 @@ bind_block_backend_numpy(py::module_& m)
 
     py::class_<NumpyBlockBackend, BlockBackend, py::smart_holder> numpy_block_backend(
       m, "NumpyBlockBackend");
-    numpy_block_backend.doc() = DOC(cyten, NumpyBlockBackend);
+    numpy_block_backend.doc() = DOC(lasyten, NumpyBlockBackend);
     numpy_block_backend.def_static(
       "from_factory",
       &NumpyBlockBackend::from_factory,
@@ -22,7 +22,7 @@ bind_block_backend_numpy(py::module_& m)
       py::return_value_policy::reference,
       "Get the backend instance for the given device (nearly-singleton per device).");
     numpy_block_backend.def_static("from_hdf5",
-                                   cyten::hdf5::wrap_from_hdf5<NumpyBlockBackend>(),
+                                   lasyten::hdf5::wrap_from_hdf5<NumpyBlockBackend>(),
                                    py::arg("hdf5_loader"),
                                    py::arg("h5gr"),
                                    py::arg("subpath"),
@@ -39,13 +39,13 @@ bind_block_backend_numpy(py::module_& m)
            py::arg("dtype"),
            py::return_value_policy::reference_internal)
       .def("save_hdf5",
-           cyten::hdf5::wrap_save_hdf5<NumpyBlockBackend::Block>(),
+           lasyten::hdf5::wrap_save_hdf5<NumpyBlockBackend::Block>(),
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
            py::arg("subpath"),
            "Save block (numpy array) to HDF5.")
       .def_static("from_hdf5",
-                  cyten::hdf5::wrap_from_hdf5<NumpyBlockBackend::Block>(),
+                  lasyten::hdf5::wrap_from_hdf5<NumpyBlockBackend::Block>(),
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),
@@ -55,4 +55,4 @@ bind_block_backend_numpy(py::module_& m)
     // BlockBackend.cpp
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,12 +1,12 @@
 quantum_double_zn_anyon_category.h
 ==================================
 
-Declared in ``include/cyten/symmetries/factors/quantum_double_zn_anyon_category.h``.
+Declared in ``include/lasyten/symmetries/factors/quantum_double_zn_anyon_category.h``.
 
-cyten::QuantumDoubleZNAnyonCategory
+lasyten::QuantumDoubleZNAnyonCategory
 -----------------------------------
 
-.. doxygenclass:: cyten::QuantumDoubleZNAnyonCategory
-   :project: cyten
+.. doxygenclass:: lasyten::QuantumDoubleZNAnyonCategory
+   :project: lasyten
    :members:
    :undoc-members:

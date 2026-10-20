@@ -1,16 +1,16 @@
-#include <cyten/backends/fusion_tree_backend.h>
-#include <cyten/backends/fusion_tree_mapping.h>
-#include <cyten/backends/fusion_tree_permute.h>
-#include <cyten/tensors/diagonal_tensor.h>
-#include <cyten/tensors/mask.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/backends/fusion_tree_backend.h>
+#include <lasyten/backends/fusion_tree_mapping.h>
+#include <lasyten/backends/fusion_tree_permute.h>
+#include <lasyten/tensors/diagonal_tensor.h>
+#include <lasyten/tensors/mask.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
-#include <cyten/backends/block_inds_numpy.h>
-#include <cyten/config.h>
-#include <cyten/symmetries/sector_numpy.h>
-#include <cyten/symmetries/trees.h>
-#include <cyten/tools.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/backends/block_inds_numpy.h>
+#include <lasyten/config.h>
+#include <lasyten/symmetries/sector_numpy.h>
+#include <lasyten/symmetries/trees.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
@@ -29,13 +29,13 @@
 #include <utility>
 #include <vector>
 
-#include <cyten/symmetries/fusion_symbol.h>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
 #include <hdf5_io/constants.h>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/symmetries/fusion_symbol.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -134,7 +134,7 @@ FusionTreeData::discard_zero_blocks(std::shared_ptr<BlockBackend> backend, float
 }
 
 void
-FusionTreeData::save_hdf5(cyten::hdf5::Saver& saver,
+FusionTreeData::save_hdf5(lasyten::hdf5::Saver& saver,
                           HighFive::Group& /*h5gr*/,
                           std::string subpath) const
 {
@@ -146,7 +146,7 @@ FusionTreeData::save_hdf5(cyten::hdf5::Saver& saver,
                               static_cast<std::int64_t>(blocks.size()),
                               blocks_g,
                               blocks_sub);
-    cyten::hdf5::Saver blocks_saver(blocks_g);
+    lasyten::hdf5::Saver blocks_saver(blocks_g);
     for (std::size_t i = 0; i < blocks.size(); ++i) {
         hdf5_export::save_block(blocks_saver, std::to_string(i), blocks[i]);
     }
@@ -155,13 +155,15 @@ FusionTreeData::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 FusionTreeData::Ptr
-FusionTreeData::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string subpath)
+FusionTreeData::from_hdf5(lasyten::hdf5::Loader& loader,
+                          HighFive::Group& h5gr,
+                          std::string subpath)
 {
     auto block_inds = hdf5_export::load_block_inds(loader, subpath + "block_inds");
     hid_t blocks_id = loader.open(subpath + "blocks");
     auto const n = hdf5_io::h5_get_attr_int64(blocks_id, hdf5_io::ATTR_LEN).value_or(0);
     HighFive::Group blocks_g = hdf5_io::group_from_hid(blocks_id);
-    cyten::hdf5::Loader blocks_loader(blocks_g);
+    lasyten::hdf5::Loader blocks_loader(blocks_g);
     std::vector<BlockBackend::BlockPtr> blocks;
     blocks.reserve(static_cast<std::size_t>(n));
     for (std::int64_t i = 0; i < n; ++i) {
@@ -2733,7 +2735,7 @@ tree_block_iter(
 std::tuple<bool, complex128>
 partial_trace_helper(FusionTree const& tree, std::vector<int64> const& idcs)
 {
-    // Native port of cyten.backends.fusion_tree_backend._partial_trace_helper
+    // Native port of lasyten.backends.fusion_tree_backend._partial_trace_helper
     Symmetry::Ptr const& sym = tree.symmetry;
     complex128 b_symbols = 1.0;
     for (int64 idx : idcs) {
@@ -4305,7 +4307,7 @@ FusionTreeBackend::mask_unary_operand(MaskCPtr mask, BlockUnaryFn func)
     return { wrap(data), small_leg };
 }
 
-} // namespace cyten
+} // namespace lasyten
 
 // =============================================================================
 // ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)

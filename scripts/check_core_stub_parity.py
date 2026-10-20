@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare a generated ``cyten._core`` stub against the live compiled extension.
+"""Compare a generated ``lasyten._core`` stub against the live compiled extension.
 
 Run after a normal C++ build / ``pip install -e .``::
 
@@ -11,7 +11,7 @@ not importable). To compare against an already-generated stub::
     python scripts/generate_core_stubs.py -o /tmp/_core_stub.py
     python scripts/check_core_stub_parity.py /tmp/_core_stub.py
 
-Exit status is non-zero if public names, per-class members, or ``cyten-cpp-ref``
+Exit status is non-zero if public names, per-class members, or ``lasyten-cpp-ref``
 markers drift.
 """
 
@@ -43,7 +43,7 @@ def _own_members(cls: type) -> set[str]:
 
 
 def _has_cpp_ref(doc: str | None) -> bool:
-    return bool(doc) and 'cyten-cpp-ref' in doc
+    return bool(doc) and 'lasyten-cpp-ref' in doc
 
 
 def compare(live: ModuleType, stub: ModuleType) -> list[str]:
@@ -65,7 +65,7 @@ def compare(live: ModuleType, stub: ModuleType) -> list[str]:
             # Module-level function / constant: check cpp-ref presence when live has it
             if callable(live_obj) and _has_cpp_ref(getattr(live_obj, '__doc__', None)):
                 if not _has_cpp_ref(getattr(stub_obj, '__doc__', None)):
-                    errors.append(f'{name}: missing cyten-cpp-ref in stub docstring')
+                    errors.append(f'{name}: missing lasyten-cpp-ref in stub docstring')
             continue
         if not isinstance(stub_obj, type):
             errors.append(f'{name}: live is a type, stub is {type(stub_obj).__name__}')
@@ -80,7 +80,7 @@ def compare(live: ModuleType, stub: ModuleType) -> list[str]:
         # Class docstring marker
         if _has_cpp_ref(getattr(live_obj, '__doc__', None)):
             if not _has_cpp_ref(getattr(stub_obj, '__doc__', None)):
-                errors.append(f'{name}: missing cyten-cpp-ref on class docstring')
+                errors.append(f'{name}: missing lasyten-cpp-ref on class docstring')
         # Sample members that have markers on the live object. Skip data
         # attributes (e.g. ``FermionParity.even``) whose ``__doc__`` is the
         # instance type's class docstring rather than a binding-level doc.
@@ -97,7 +97,7 @@ def compare(live: ModuleType, stub: ModuleType) -> list[str]:
                 if isinstance(stub_mem, property):
                     stub_doc = stub_mem.fget.__doc__ if stub_mem.fget else stub_doc
                 if not _has_cpp_ref(stub_doc):
-                    errors.append(f'{name}.{mem}: missing cyten-cpp-ref in stub docstring')
+                    errors.append(f'{name}.{mem}: missing lasyten-cpp-ref in stub docstring')
     return errors
 
 
@@ -119,7 +119,7 @@ def main() -> int:
 
     live = _load_live_core()
     if live is None:
-        print('SKIP: compiled cyten._core not importable')
+        print('SKIP: compiled lasyten._core not importable')
         return 0
 
     stub_path = args.stub
@@ -144,27 +144,27 @@ def main() -> int:
         if len(errors) > 50:
             print(f'  ... ({len(errors) - 50} more)')
         return 1
-    print('OK: stub matches live cyten._core API surface')
+    print('OK: stub matches live lasyten._core API surface')
     return 0
 
 
 def _load_live_core() -> ModuleType | None:
     """Import the compiled extension without preferring a pure-Python stub."""
     # Prefer an already-imported extension module.
-    existing = sys.modules.get('cyten._core')
+    existing = sys.modules.get('lasyten._core')
     if existing is not None:
         origin = getattr(existing, '__file__', '') or ''
         if origin.endswith('.so') or origin.endswith('.pyd'):
             return existing
 
-    # Avoid importing the cyten package (editable installs may rebuild).
+    # Avoid importing the lasyten package (editable installs may rebuild).
     try:
-        import cyten  # noqa: F401
+        import lasyten  # noqa: F401
     except Exception:
         pass
 
     try:
-        import cyten._core as live
+        import lasyten._core as live
     except Exception:
         live = None
     if live is not None:
@@ -174,21 +174,21 @@ def _load_live_core() -> ModuleType | None:
 
     # Last resort: load .so from the scikit-build install tree.
     repo = Path(__file__).resolve().parent.parent
-    candidates = sorted((repo / 'build' / 'install' / 'platlib' / 'cyten').glob('_core*.so'))
+    candidates = sorted((repo / 'build' / 'install' / 'platlib' / 'lasyten').glob('_core*.so'))
     if not candidates:
         return None
     so = candidates[-1]
     try:
-        spec = importlib.util.spec_from_file_location('cyten._core', so)
+        spec = importlib.util.spec_from_file_location('lasyten._core', so)
         if spec is None or spec.loader is None:
             return None
         mod = importlib.util.module_from_spec(spec)
         # Minimal parent package for relative expectations
-        if 'cyten' not in sys.modules:
-            pkg = ModuleType('cyten')
-            pkg.__path__ = [str(repo / 'cyten')]  # type: ignore[attr-defined]
-            sys.modules['cyten'] = pkg
-        sys.modules['cyten._core'] = mod
+        if 'lasyten' not in sys.modules:
+            pkg = ModuleType('lasyten')
+            pkg.__path__ = [str(repo / 'lasyten')]  # type: ignore[attr-defined]
+            sys.modules['lasyten'] = pkg
+        sys.modules['lasyten._core'] = mod
         spec.loader.exec_module(mod)
         return mod
     except Exception as exc:

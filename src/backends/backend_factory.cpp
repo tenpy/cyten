@@ -1,19 +1,19 @@
-#include <cyten/backends/abelian.h>
-#include <cyten/backends/backend_factory.h>
-#include <cyten/backends/fusion_tree_backend.h>
-#include <cyten/backends/no_symmetry.h>
-#include <cyten/block_backend/numpy.h>
-#include <cyten/block_backend/torch.h>
-#include <cyten/config.h>
-#include <cyten/symmetries/factors/no_symmetry.h>
-#include <cyten/tools.h>
+#include <lasyten/backends/abelian.h>
+#include <lasyten/backends/backend_factory.h>
+#include <lasyten/backends/fusion_tree_backend.h>
+#include <lasyten/backends/no_symmetry.h>
+#include <lasyten/block_backend/numpy.h>
+#include <lasyten/block_backend/torch.h>
+#include <lasyten/config.h>
+#include <lasyten/symmetries/factors/no_symmetry.h>
+#include <lasyten/tools.h>
 
 #include <mutex>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -166,4 +166,4 @@ get_backend(Symmetry::Ptr symmetry, std::optional<std::string> block_backend)
     return get_backend(py::cast(std::move(symmetry)), bb).cast<TensorBackend::Ptr>();
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -6,7 +6,7 @@ a lot of expected skips.
 
 import pytest
 
-from cyten import Dtype, tensors
+from lasyten import Dtype, tensors
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases

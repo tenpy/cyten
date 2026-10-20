@@ -3,9 +3,9 @@
 ## metadata
 
 - original python name: `Space`
-- original python file: `cyten/symmetries/spaces.py`
-- original python module: `cyten.symmetries.spaces`
-- declaration in C++ header file: `include/cyten/symmetries/spaces.h` (same file as `Leg`)
+- original python file: `lasyten/symmetries/spaces.py`
+- original python module: `lasyten.symmetries.spaces`
+- declaration in C++ header file: `include/lasyten/symmetries/spaces.h` (same file as `Leg`)
 - definition in C++ file: `src/symmetries/spaces.cpp`
 - pybind11 binding: `pybind/symmetries/py_spaces.cpp`
 - trampoline: `PySpace` in `pybind/symmetries/py_trampolines.hpp` (required — Python subclasses remain)
@@ -17,7 +17,7 @@
 2. **`Space`** — this conversion (abstract base; parallel to `Leg`).
 3. `LegPipe` → `ElementarySpace` → `TensorProduct` → `AbelianLegPipe` → free functions.
 
-Keep original Python `Space` until subclasses (`ElementarySpace`, `TensorProduct`) are converted. Export `cyten._core.Space`; **defer monkey-patch**.
+Keep original Python `Space` until subclasses (`ElementarySpace`, `TensorProduct`) are converted. Export `lasyten._core.Space`; **defer monkey-patch**.
 
 ## Design notes
 

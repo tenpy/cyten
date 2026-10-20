@@ -1,12 +1,12 @@
 tensor.h
 ========
 
-Declared in ``include/cyten/tensors/tensor.h``.
+Declared in ``include/lasyten/tensors/tensor.h``.
 
-cyten::Tensor
+lasyten::Tensor
 -------------
 
-.. doxygenclass:: cyten::Tensor
-   :project: cyten
+.. doxygenclass:: lasyten::Tensor
+   :project: lasyten
    :members:
    :undoc-members:

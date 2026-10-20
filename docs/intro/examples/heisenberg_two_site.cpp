@@ -6,19 +6,19 @@
 
 #include <pybind11/embed.h>
 
-#include <cyten/models/couplings.h>
-#include <cyten/models/sites.h>
-#include <cyten/tensors/decompositions.h>
-#include <cyten/tensors/diagonal_tensor.h>
+#include <lasyten/models/couplings.h>
+#include <lasyten/models/sites.h>
+#include <lasyten/tensors/decompositions.h>
+#include <lasyten/tensors/diagonal_tensor.h>
 
 namespace py = pybind11;
-using namespace cyten;
+using namespace lasyten;
 
 int
 main()
 {
     py::scoped_interpreter guard{};
-    py::module_::import("cyten");
+    py::module_::import("lasyten");
 
     // Local spin-1/2 Hilbert space (no conserved quantum numbers).
     auto site0 = std::make_shared<SpinSite>(0.5);

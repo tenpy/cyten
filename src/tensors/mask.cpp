@@ -1,21 +1,21 @@
-#include <cyten/tensors/mask.h>
+#include <lasyten/tensors/mask.h>
 
-#include <cyten/backends/abelian.h>
-#include <cyten/backends/backend_factory.h>
-#include <cyten/backends/fusion_tree_backend.h>
-#include <cyten/symmetries/exceptions.h>
-#include <cyten/tensors/ops_algebra.h>
-#include <cyten/tools.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/backends/abelian.h>
+#include <lasyten/backends/backend_factory.h>
+#include <lasyten/backends/fusion_tree_backend.h>
+#include <lasyten/symmetries/exceptions.h>
+#include <lasyten/tensors/ops_algebra.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-#include <cyten/tools/hdf5.h>
-#include <cyten/tools/hdf5_export.h>
 #include <format>
 #include <functional>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
+#include <lasyten/tools/hdf5_export.h>
 #include <numeric>
 #include <random>
 #include <ranges>
@@ -23,7 +23,7 @@
 #include <utility>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -569,7 +569,7 @@ Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
         // OPTIMIZE how hard is it to deal with inclusions in the backend?
         auto proj = std::static_pointer_cast<Mask>(dagger());
         auto sym = proj->as_SymmetricTensor(false, std::nullopt, out_dtype);
-        auto dag = cyten::dagger(sym);
+        auto dag = lasyten::dagger(sym);
         auto out = std::dynamic_pointer_cast<SymmetricTensor>(dag);
         if (!out) {
             throw std::runtime_error(
@@ -883,7 +883,9 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
 }
 
 void
-Mask::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string const& subpath) const
+Mask::save_hdf5(lasyten::hdf5::Saver& saver,
+                HighFive::Group& h5gr,
+                std::string const& subpath) const
 {
     hdf5_export::save_tensor_product(saver, subpath + "domain", domain);
     hdf5_export::save_tensor_product(saver, subpath + "codomain", codomain);
@@ -898,7 +900,7 @@ Mask::save_hdf5(cyten::hdf5::Saver& saver, HighFive::Group& h5gr, std::string co
 }
 
 Mask::Ptr
-Mask::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
+Mask::from_hdf5(lasyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string const& subpath)
 {
     auto domain_tp = hdf5_export::load_tensor_product(loader, subpath + "domain");
     auto codomain_tp = hdf5_export::load_tensor_product(loader, subpath + "codomain");
@@ -939,4 +941,4 @@ Mask::from_hdf5(cyten::hdf5::Loader& loader, HighFive::Group& h5gr, std::string 
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

@@ -1,4 +1,4 @@
-#include <cyten/tools.h>
+#include <lasyten/tools.h>
 
 #include <algorithm>
 #include <format>
@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 NotImplemented::NotImplemented(std::string name)
   : std::logic_error(std::format("Not implemented: {}", name)) {};
@@ -98,4 +98,4 @@ permutation_as_swaps(std::vector<int64> const& permutation)
     return swap_positions;
 }
 
-} // namespace cyten
+} // namespace lasyten

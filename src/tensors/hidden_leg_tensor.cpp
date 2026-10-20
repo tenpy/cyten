@@ -1,19 +1,19 @@
-#include <cyten/tensors/hidden_leg_tensor.h>
+#include <lasyten/tensors/hidden_leg_tensor.h>
 
-#include <cyten/tools.h>
-#include <cyten/tools/warn.h>
+#include <lasyten/tools.h>
+#include <lasyten/tools/warn.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cctype>
-#include <cyten/tools/hdf5.h>
 #include <format>
 #include <hdf5_io/h5_ops.h>
+#include <lasyten/tools/hdf5.h>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -372,7 +372,7 @@ HiddenLegTensor::maybe_wrap(SymmetricTensor::Ptr tensor)
 }
 
 void
-HiddenLegTensor::save_hdf5(cyten::hdf5::Saver& saver,
+HiddenLegTensor::save_hdf5(lasyten::hdf5::Saver& saver,
                            HighFive::Group& h5gr,
                            std::string const& subpath) const
 {
@@ -381,7 +381,7 @@ HiddenLegTensor::save_hdf5(cyten::hdf5::Saver& saver,
 }
 
 HiddenLegTensor::Ptr
-HiddenLegTensor::from_hdf5(cyten::hdf5::Loader& loader,
+HiddenLegTensor::from_hdf5(lasyten::hdf5::Loader& loader,
                            HighFive::Group& h5gr,
                            std::string const& subpath)
 {
@@ -391,4 +391,4 @@ HiddenLegTensor::from_hdf5(cyten::hdf5::Loader& loader,
     return obj;
 }
 
-} // namespace cyten
+} // namespace lasyten

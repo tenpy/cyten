@@ -1,21 +1,21 @@
 symmetry_factor.h
 =================
 
-Declared in ``include/cyten/symmetries/symmetry_factor.h``.
+Declared in ``include/lasyten/symmetries/symmetry_factor.h``.
 
-cyten::SymmetryFactor
+lasyten::SymmetryFactor
 ---------------------
 
-.. doxygenclass:: cyten::SymmetryFactor
-   :project: cyten
+.. doxygenclass:: lasyten::SymmetryFactor
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::descriptive_name_from_hdf5_attrs
-   :project: cyten
+.. doxygenfunction:: lasyten::descriptive_name_from_hdf5_attrs
+   :project: lasyten
 
-.. doxygenfunction:: cyten::trivial_shift_from_hdf5
-   :project: cyten
+.. doxygenfunction:: lasyten::trivial_shift_from_hdf5
+   :project: lasyten

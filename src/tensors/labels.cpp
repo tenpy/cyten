@@ -1,5 +1,5 @@
-#include <cyten/tensors/labels.h>
 #include <iostream>
+#include <lasyten/tensors/labels.h>
 
 #include <cassert>
 #include <format>
@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <unordered_set>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -199,7 +199,7 @@ _get_matching_labels(OptionalLabels const& labels1, OptionalLabels const& labels
                       format_leg_labels(labels1),
                       format_leg_labels(labels2));
         // C++ debug log (was Python logging.getLogger(...).debug).
-        std::cerr << "cyten.tensors._tensors DEBUG: " << msg << '\n';
+        std::cerr << "lasyten.tensors._tensors DEBUG: " << msg << '\n';
     }
     return labels;
 }
@@ -401,7 +401,7 @@ LabelledLegs::set_labels(OptionalLabels labels)
     return *this;
 }
 
-} // namespace cyten
+} // namespace lasyten
 
 // =============================================================================
 // ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)

@@ -1,13 +1,13 @@
-"""A collection of tests for cyten.sparse"""
+"""A collection of tests for lasyten.sparse"""
 
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 import numpy.testing as npt
 import pytest
 
-from cyten import Dtype, SymmetryError, backends, sparse, tensors
-from cyten.symmetries import TensorProduct
-from cyten.tensors import (
+from lasyten import Dtype, SymmetryError, backends, sparse, tensors
+from lasyten.symmetries import TensorProduct
+from lasyten.tensors import (
     ChargedTensor,
     SymmetricTensor,
     Tensor,
@@ -185,12 +185,12 @@ def test_NumpyArrayLinearOperator_sector(make_compatible_tensor, use_hermitian, 
     a, b = vec.legs
     H = make_compatible_tensor(codomain=[a, b], domain=[a, b], labels=['a', 'b', 'b*', 'a*'], use_pipes=False)
 
-    def cyten_matvec(v):
+    def lasyten_matvec(v):
         return tdot(H, v, ['b*', 'a*'], ['b', 'a'])
 
     cls = sparse.HermitianNumpyArrayLinearOperator if use_hermitian else sparse.NumpyArrayLinearOperator
     H_op = cls(
-        cyten_matvec,
+        lasyten_matvec,
         legs=vec.legs,
         backend=vec.backend,
         dtype=vec.dtype.to_numpy_dtype(),
@@ -203,7 +203,7 @@ def test_NumpyArrayLinearOperator_sector(make_compatible_tensor, use_hermitian, 
         vec2 = H_op.flat_array_to_tensor(vec_flat)
         assert almost_equal(vec, vec2)
         res_flat = H_op.matvec(vec_flat)
-        npt.assert_allclose(res_flat, H_op.tensor_to_flat_array(cyten_matvec(vec)), atol=tol, rtol=tol)
+        npt.assert_allclose(res_flat, H_op.tensor_to_flat_array(lasyten_matvec(vec)), atol=tol, rtol=tol)
         # from_Tensor on a two-leg endomorphism, if the space contains the trivial sector
         try:
             H2 = make_compatible_tensor(codomain=[a], domain=[a], labels=['w', 'v'], use_pipes=False)
@@ -226,14 +226,14 @@ def test_NumpyArrayLinearOperator_from_matvec_and_vector(make_compatible_tensor,
     a, b = vec.legs
     H = make_compatible_tensor(codomain=[a, b], domain=[a, b], labels=['a', 'b', 'b*', 'a*'], use_pipes=False)
 
-    def cyten_matvec(v):
+    def lasyten_matvec(v):
         return tdot(H, v, ['b*', 'a*'], ['b', 'a'])
 
     def run():
-        op, vec_flat = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(cyten_matvec, vec)
+        op, vec_flat = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(lasyten_matvec, vec)
         vec2 = op.flat_array_to_tensor(vec_flat)
         assert almost_equal(vec, vec2)
-        npt.assert_allclose(op.matvec(vec_flat), op.tensor_to_flat_array(cyten_matvec(vec)))
+        npt.assert_allclose(op.matvec(vec_flat), op.tensor_to_flat_array(lasyten_matvec(vec)))
 
         if not ChargedTensor.supports_symmetry(vec.symmetry):
             return
@@ -253,8 +253,8 @@ def test_NumpyArrayLinearOperator_from_matvec_and_vector(make_compatible_tensor,
             charged = tensors.split_legs(charged, 0)
         if vec.labels is not None and any(l is not None for l in vec.labels):
             charged.set_labels(list(vec.labels))
-        op2, cflat = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(cyten_matvec, charged)
-        npt.assert_allclose(op2.matvec(cflat), op2.tensor_to_flat_array(cyten_matvec(charged)))
+        op2, cflat = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(lasyten_matvec, charged)
+        npt.assert_allclose(op2.matvec(cflat), op2.tensor_to_flat_array(lasyten_matvec(charged)))
 
     _xfail_ft_dense_block_sector(vec.backend, run)
 
@@ -264,11 +264,11 @@ def test_NumpyArrayLinearOperator_all_sectors(make_compatible_tensor, np_random,
     a, b = vec.legs
     H = make_compatible_tensor(codomain=[a, b], domain=[a, b], labels=['a', 'b', 'b*', 'a*'], use_pipes=False)
 
-    def cyten_matvec(v):
+    def lasyten_matvec(v):
         return tdot(H, v, ['b*', 'a*'], ['b', 'a'])
 
     kwargs = dict(
-        cyten_matvec=cyten_matvec,
+        lasyten_matvec=lasyten_matvec,
         legs=vec.legs,
         backend=vec.backend,
         dtype=vec.dtype.to_numpy_dtype(),
@@ -288,13 +288,13 @@ def test_NumpyArrayLinearOperator_all_sectors(make_compatible_tensor, np_random,
     assert isinstance(tens, ChargedTensor)
     assert tens.charged_state is not None
     npt.assert_allclose(H_op.tensor_to_flat_array(tens), flat, atol=tol, rtol=tol)
-    npt.assert_allclose(H_op.matvec(flat), H_op.tensor_to_flat_array(cyten_matvec(tens)), atol=tol, rtol=tol)
+    npt.assert_allclose(H_op.matvec(flat), H_op.tensor_to_flat_array(lasyten_matvec(tens)), atol=tol, rtol=tol)
 
     # a SymmetricTensor (trivial total charge) also converts through the dense all-sector map
     triv_flat = H_op.tensor_to_flat_array(vec)
     npt.assert_allclose(triv_flat, H_op.tensor_to_flat_array(H_op.flat_array_to_tensor(triv_flat)), atol=tol, rtol=tol)
 
-    op2, _ = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(cyten_matvec, tens)
+    op2, _ = sparse.NumpyArrayLinearOperator.from_matvec_and_vector(lasyten_matvec, tens)
     assert op2.charge_sector is None
 
 

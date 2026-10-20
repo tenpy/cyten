@@ -1,20 +1,20 @@
 sector.h
 ========
 
-Declared in ``include/cyten/symmetries/sector.h``.
+Declared in ``include/lasyten/symmetries/sector.h``.
 
-cyten::Sector
+lasyten::Sector
 -------------
 
-.. doxygenclass:: cyten::Sector
-   :project: cyten
+.. doxygenclass:: lasyten::Sector
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::SectorArray
+lasyten::SectorArray
 ------------------
 
-.. doxygenclass:: cyten::SectorArray
-   :project: cyten
+.. doxygenclass:: lasyten::SectorArray
+   :project: lasyten
    :members:
    :undoc-members:

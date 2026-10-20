@@ -1,6 +1,6 @@
-cyten::HiddenLegTensor
+lasyten::HiddenLegTensor
 ======================
 
-.. doxygenclass:: cyten::HiddenLegTensor
+.. doxygenclass:: lasyten::HiddenLegTensor
    :members:
    :undoc-members:

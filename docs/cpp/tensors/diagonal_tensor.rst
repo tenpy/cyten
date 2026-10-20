@@ -1,20 +1,20 @@
 diagonal_tensor.h
 =================
 
-Declared in ``include/cyten/tensors/diagonal_tensor.h``.
+Declared in ``include/lasyten/tensors/diagonal_tensor.h``.
 
-cyten::DiagonalTensor
+lasyten::DiagonalTensor
 ---------------------
 
-.. doxygenclass:: cyten::DiagonalTensor
-   :project: cyten
+.. doxygenclass:: lasyten::DiagonalTensor
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::Identity
+lasyten::Identity
 ---------------
 
-.. doxygenclass:: cyten::Identity
-   :project: cyten
+.. doxygenclass:: lasyten::Identity
+   :project: lasyten
    :members:
    :undoc-members:

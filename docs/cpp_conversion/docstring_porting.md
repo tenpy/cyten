@@ -1,18 +1,18 @@
 # Porting docstrings (dual-language docs)
 
 Policy summary for documenting the C++ core and the pybind11 Python surface.
-Background: [tenpy/cyten#242](https://github.com/tenpy/cyten/issues/242).
+Background: [tenpy/lasyten#242](https://github.com/tenpy/lasyten/issues/242).
 Reference implementations (pilots): tensor algebra —
-[`include/cyten/tensors/ops_algebra.h`](../../include/cyten/tensors/ops_algebra.h),
+[`include/lasyten/tensors/ops_algebra.h`](../../include/lasyten/tensors/ops_algebra.h),
 [`pybind/tensors/py_ops_algebra.cpp`](../../pybind/tensors/py_ops_algebra.cpp);
 constructors —
-[`include/cyten/tensors/constructors.h`](../../include/cyten/tensors/constructors.h),
+[`include/lasyten/tensors/constructors.h`](../../include/lasyten/tensors/constructors.h),
 [`pybind/tensors/py_constructors.cpp`](../../pybind/tensors/py_constructors.cpp).
 
 ## Goals
 
 - Most near-term users read **Python** docs (Sphinx autodoc + Napoleon).
-- A pure C++ / libcyten future needs **header** docs (Doxygen + Breathe).
+- A pure C++ / liblasyten future needs **header** docs (Doxygen + Breathe).
 - Do **not** try to generate C++ comments from `R"pydoc"`, or treat docstring
   generation as the only documentation pipeline.
 
@@ -21,12 +21,12 @@ constructors —
 | Layer | Source of truth | Audience | Tooling |
 | --- | --- | --- | --- |
 | Concepts / how-to | [`docs/`](../) RST (language-neutral) | Everyone | Sphinx |
-| Shared API semantics | `///` on [`include/cyten/`](../../include/cyten/) | C++ + future libcyten | Doxygen / Breathe |
-| Python surface | pybind `DOC(...)` and/or `R"pydoc"` | `import cyten` / TeNPy | autodoc + Napoleon |
+| Shared API semantics | `///` on [`include/lasyten/`](../../include/lasyten/) | C++ + future liblasyten | Doxygen / Breathe |
+| Python surface | pybind `DOC(...)` and/or `R"pydoc"` | `import lasyten` / TeNPy | autodoc + Napoleon |
 
 ```mermaid
 flowchart LR
-  headers["include/cyten ///"] --> doxygen["Doxygen XML"]
+  headers["include/lasyten ///"] --> doxygen["Doxygen XML"]
   doxygen --> script["doxygen_xml_to_docstrings"]
   script --> docsh["pybind/docstrings/ mirror"]
   docsh --> direct["DOC on 1:1 bindings"]
@@ -59,7 +59,7 @@ Include:
 - Markdown for emphasis and code (`*italic*`, `` `code` ``).
 - Shared ASCII / box diagrams with a `Graphically::` (or similar) indented
   literal block — same pattern as `FusionTree` in
-  [`include/cyten/symmetries/trees.h`](../../include/cyten/symmetries/trees.h).
+  [`include/lasyten/symmetries/trees.h`](../../include/lasyten/symmetries/trees.h).
 - Inline math with Doxygen `@f$ ... @f$` (not Sphinx `:math:`). The docstring
   generator rewrites these to `:math:`…`` for Python `DOC()`.
 - Display math with Doxygen `\f[ ... \f]` (not Sphinx `.. math::`). The
@@ -108,10 +108,10 @@ Example (diagram + math, as in `tensor_from_grid`):
 
 | Binding style | Docstring |
 | --- | --- |
-| Direct `&free_function` / `&Class::method` with the **same meaning** as C++ | Prefer `DOC(cyten, …)` from the generated docstring header (auto ``cyten-cpp-ref`` marker → ``[C++]`` badge) |
-| Overloads | Use the overload suffix (`DOC(cyten, inner, 2)` for the second declaration in the header) |
-| Lambdas / wrappers that still wrap a C++ API | `doc_cpp_ref(R"pydoc(…)", "cyten::name()")` — see [`pybind/doc_plus.h`](../../pybind/doc_plus.h) |
-| Shared C++ meaning + Python-only deltas | `doc_plus(DOC(cyten, name), R"pydoc(…)")` — appendix states **only what changes** (inserted *before* the auto marker) |
+| Direct `&free_function` / `&Class::method` with the **same meaning** as C++ | Prefer `DOC(lasyten, …)` from the generated docstring header (auto ``lasyten-cpp-ref`` marker → ``[C++]`` badge) |
+| Overloads | Use the overload suffix (`DOC(lasyten, inner, 2)` for the second declaration in the header) |
+| Lambdas / wrappers that still wrap a C++ API | `doc_cpp_ref(R"pydoc(…)", "lasyten::name()")` — see [`pybind/doc_plus.h`](../../pybind/doc_plus.h) |
+| Shared C++ meaning + Python-only deltas | `doc_plus(DOC(lasyten, name), R"pydoc(…)")` — appendix states **only what changes** (inserted *before* the auto marker) |
 | Python-only helpers (no matching C++ symbol) | Hand-written `R"pydoc"` only — **no** `DOC` / `doc_cpp_ref` |
 
 Do **not** attach `DOC(...)` or `doc_cpp_ref` to a Python helper that does not
@@ -120,14 +120,14 @@ call the documented C++ symbol (e.g. duck-typed `is_scalar` in algebra bindings)
 #### Cross-links to C++ (``[C++]`` badge)
 
 Generated `DOC()` strings end with a machine marker for Sphinx
-([`docs/sphinx/cyten_cpp_link.py`](../sphinx/cyten_cpp_link.py)):
+([`docs/sphinx/lasyten_cpp_link.py`](../sphinx/lasyten_cpp_link.py)):
 
 ```text
-.. cyten-cpp-ref:: cyten::dagger
+.. lasyten-cpp-ref:: lasyten::dagger
 ```
 
 Overloads use the bare name (Sphinx indexes one ``cpp:function`` entry per
-symbol), e.g. ``.. cyten-cpp-ref:: cyten::inner``.
+symbol), e.g. ``.. lasyten-cpp-ref:: lasyten::inner``.
 The HTML docs show a compact ``[C++]`` link after the signature (next to
 ``[source]``); the marker may still appear in interactive ``help()`` /
 ``__doc__``.
@@ -135,8 +135,8 @@ The HTML docs show a compact ``[C++]`` link after the signature (next to
 For explicit control (wrappers, override target):
 
 ```cpp
-doc_cpp_ref(R"pydoc(Brief.)pydoc", "cyten::apply_mask()");  // () stripped
-doc_cpp_ref(DOC(cyten, inner, 2), "cyten::inner");
+doc_cpp_ref(R"pydoc(Brief.)pydoc", "lasyten::apply_mask()");  // () stripped
+doc_cpp_ref(DOC(lasyten, inner, 2), "lasyten::inner");
 ```
 
 The C++ symbol must appear on a `docs/cpp/…` Breathe page or the badge will not
@@ -174,11 +174,11 @@ Breathe cannot resolve a bare name — list each signature explicitly (parameter
 types only is enough), same pattern as [`docs/cpp/config.rst`](../cpp/config.rst):
 
 ```rst
-.. doxygenfunction:: cyten::inner(TensorCPtr, TensorCPtr, bool)
-   :project: cyten
+.. doxygenfunction:: lasyten::inner(TensorCPtr, TensorCPtr, bool)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)
-   :project: cyten
+.. doxygenfunction:: lasyten::inner(VectorLikeCPtr, VectorLikeCPtr, bool)
+   :project: lasyten
 ```
 
 Otherwise Sphinx emits *Unable to resolve function … with arguments None* and
@@ -193,9 +193,9 @@ appears there). See the pilot page
 
 | C++ header | Generated docstring header (gitignored) |
 | --- | --- |
-| `include/cyten/<rel>` | `pybind/docstrings/<rel>` |
+| `include/lasyten/<rel>` | `pybind/docstrings/<rel>` |
 
-Example: `include/cyten/tensors/ops_algebra.h` →
+Example: `include/lasyten/tensors/ops_algebra.h` →
 `pybind/docstrings/tensors/ops_algebra.h`.
 
 Headers are written under `pybind/docstrings/` so IDEs can open them next to the
@@ -215,39 +215,39 @@ unrelated `py_*.cpp` TUs.
 
 1. Write / clean `///` on the public C++ API (Doxygen `@param` / `@returns` +
    markdown; no parameter/return types in the comments).
-2. Add `<rel>` to `CYTEN_MKDOC_HEADERS` in top-level [`CMakeLists.txt`](../../CMakeLists.txt).
-3. Build (or `cmake --build <build-dir> --target cyten_generate_docstrings`) so
+2. Add `<rel>` to `LASYTEN_MKDOC_HEADERS` in top-level [`CMakeLists.txt`](../../CMakeLists.txt).
+3. Build (or `cmake --build <build-dir> --target lasyten_generate_docstrings`) so
    `pybind/docstrings/<rel>` appears; do **not** commit it.
 4. In the matching `pybind/.../py_*.cpp`:
    - `#include "docstrings/<rel>"`
-   - Replace 1:1 `R"pydoc"` with `DOC(cyten, …)` where safe.
+   - Replace 1:1 `R"pydoc"` with `DOC(lasyten, …)` where safe.
    - Leave lambdas as `R"pydoc"`; use `doc_plus` when appending Python-only sections.
-5. Confirm overload suffixes after the first generation (`DOC(cyten, foo, 2)`, …).
+5. Confirm overload suffixes after the first generation (`DOC(lasyten, foo, 2)`, …).
 6. If the header has overloads, update the matching `docs/cpp/…/*.rst` so each
    `doxygenfunction` includes a distinguishing parameter list (see above).
 7. Spot-check `obj.__doc__` in Python for a direct binding and a wrapper.
 
 ### How generation works
 
-Every `_core` build runs target `cyten_generate_docstrings`:
+Every `_core` build runs target `lasyten_generate_docstrings`:
 
-1. Scoped Doxygen XML for each header in `CYTEN_MKDOC_HEADERS`.
+1. Scoped Doxygen XML for each header in `LASYTEN_MKDOC_HEADERS`.
 2. [`scripts/doxygen_xml_to_docstrings.py`](../../scripts/doxygen_xml_to_docstrings.py)
    maps symbols from XML (names, namespaces, overload order), reads `///`
    comment bodies from the source header, converts `@param` / `@returns` to
    NumPy sections, rewrites `@f$…@f$` to Sphinx `:math:`…`` and `\f[…\f]` to
-   `.. math::`, and appends a ``.. cyten-cpp-ref::`` marker for the Sphinx
+   `.. math::`, and appends a ``.. lasyten-cpp-ref::`` marker for the Sphinx
    ``[C++]`` badge.
 
 ```bash
-cmake --build <build-dir> --target cyten_generate_docstrings
+cmake --build <build-dir> --target lasyten_generate_docstrings
 ```
 
-Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
+Alias target `lasyten_mkdoc_docstrings` still exists for older docs/scripts.
 
 ## What not to do
 
-- Do not dump full Python NumPy docs into headers (pollutes libcyten / Breathe;
+- Do not dump full Python NumPy docs into headers (pollutes liblasyten / Breathe;
   Doxygen also mangles NumPy `Parameters` / `Returns` underlines).
 - Do not restate parameter/return types in header `@param` / `@returns`.
 - Do not generate C++ comments from `R"pydoc"`.
@@ -255,7 +255,7 @@ Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
   (`LegRef` vs `int | str`, `optional<map>` vs `dict | None`).
 - Do not commit generated `pybind/docstrings/**/*.h` files.
 - Do not make `_core` depend on one giant docstring header for the whole tree.
-- Do not use a bare `.. doxygenfunction:: cyten::name` when `name` is overloaded
+- Do not use a bare `.. doxygenfunction:: lasyten::name` when `name` is overloaded
   (Breathe needs the argument types).
 
 ## Status
@@ -282,5 +282,5 @@ Alias target `cyten_mkdoc_docstrings` still exists for older docs/scripts.
 
 Near term remains **Python-first**: full user-facing NumPy docs stay available
 through pybind; headers carry shared semantics (and briefs at minimum). When a
-Python-free libcyten is real, invert only the shared layer (headers canonical for
+Python-free liblasyten is real, invert only the shared layer (headers canonical for
 meaning; generated `DOC()` for 1:1 bindings; wrappers keep extra `R"pydoc"`).

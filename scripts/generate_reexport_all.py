@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate/refresh ``__all__`` lists for cyten's re-export hub modules.
+"""Generate/refresh ``__all__`` lists for lasyten's re-export hub modules.
 
-With ``cyten/py.typed`` present, Pyright/Pylance only treat a name re-exported through
+With ``lasyten/py.typed`` present, Pyright/Pylance only treat a name re-exported through
 ``from x import y`` as public API if it is also listed in that module's ``__all__``
-(PEP 484 "implicit re-export" rules). Without it, IDE autocomplete (e.g. ``ct.Sym...``)
+(PEP 484 "implicit re-export" rules). Without it, IDE autocomplete (e.g. ``lasy.Sym...``)
 cannot discover names like ``SymmetricTensor``.
 This script derives ``__all__`` from each hub's own relative imports, so it
 does not need to be hand-maintained.
@@ -28,20 +28,20 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parent.parent
 
 # Re-export hub modules: everything that re-exports names via `from .x import y`
-# (bare, PEP-484-invisible without __all__) for the public cyten API.
+# (bare, PEP-484-invisible without __all__) for the public lasyten API.
 HUB_FILES = [
-    'cyten/__init__.py',
-    'cyten/tensors/__init__.py',
-    'cyten/tensors/_tensors.py',
-    'cyten/symmetries/__init__.py',
-    'cyten/symmetries/_symmetries.py',
-    'cyten/symmetries/spaces.py',
-    'cyten/symmetries/trees.py',
-    'cyten/backends/__init__.py',
-    'cyten/block_backends/__init__.py',
-    'cyten/models/__init__.py',
-    'cyten/testing/__init__.py',
-    'cyten/tools/__init__.py',
+    'lasyten/__init__.py',
+    'lasyten/tensors/__init__.py',
+    'lasyten/tensors/_tensors.py',
+    'lasyten/symmetries/__init__.py',
+    'lasyten/symmetries/_symmetries.py',
+    'lasyten/symmetries/spaces.py',
+    'lasyten/symmetries/trees.py',
+    'lasyten/backends/__init__.py',
+    'lasyten/block_backends/__init__.py',
+    'lasyten/models/__init__.py',
+    'lasyten/testing/__init__.py',
+    'lasyten/tools/__init__.py',
 ]
 
 
@@ -60,7 +60,7 @@ def _collect_reexported_names(tree: ast.Module) -> list[str]:
         if node.module == '__future__':
             continue
         is_relative = node.level > 0
-        is_own_package = node.module is not None and node.module.split('.')[0] == 'cyten'
+        is_own_package = node.module is not None and node.module.split('.')[0] == 'lasyten'
         if not (is_relative or is_own_package):
             continue
         for alias in node.names:

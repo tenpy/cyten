@@ -1,16 +1,16 @@
 #include "../doc_plus.h"
 #include "docstrings/symmetries/base_symmetry.h"
-#include "py_cyten_pybind11.h"
+#include "py_lasyten_pybind11.h"
 
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
 
-#include <cyten/symmetries/base_symmetry.h>
+#include <lasyten/symmetries/base_symmetry.h>
 
 #include <cmath>
 #include <vector>
 
-namespace cyten {
+namespace lasyten {
 
 void declare_symmetry(py::module_& m);
 
@@ -18,7 +18,7 @@ void
 bind_base_symmetry(py::module_& m)
 {
     py::class_<BaseSymmetry, PyBaseSymmetry, py::smart_holder> cls(
-      m, "BaseSymmetry", DOC(cyten, BaseSymmetry));
+      m, "BaseSymmetry", DOC(lasyten, BaseSymmetry));
 
     // Register Symmetry before methods that return it (signatures / stubgen).
     declare_symmetry(m);
@@ -51,27 +51,28 @@ bind_base_symmetry(py::module_& m)
       .def_readonly("trivial_shift", &BaseSymmetry::trivial_shift);
 
     cls
-      .def_property_readonly(
-        "can_be_dropped", &BaseSymmetry::can_be_dropped, DOC(cyten, BaseSymmetry, can_be_dropped))
+      .def_property_readonly("can_be_dropped",
+                             &BaseSymmetry::can_be_dropped,
+                             DOC(lasyten, BaseSymmetry, can_be_dropped))
       .def_property_readonly("has_symmetric_braid", &BaseSymmetry::has_symmetric_braid)
       .def_property_readonly("has_trivial_braid", &BaseSymmetry::has_trivial_braid)
       .def_property_readonly(
-        "is_abelian", &BaseSymmetry::is_abelian, DOC(cyten, BaseSymmetry, is_abelian))
+        "is_abelian", &BaseSymmetry::is_abelian, DOC(lasyten, BaseSymmetry, is_abelian))
       .def_property_readonly("has_unique_fusion",
                              &BaseSymmetry::has_unique_fusion,
-                             DOC(cyten, BaseSymmetry, has_unique_fusion));
+                             DOC(lasyten, BaseSymmetry, has_unique_fusion));
 
     cls
       .def("dual_sector",
            &BaseSymmetry::dual_sector,
            py::arg("a"),
-           DOC(cyten, BaseSymmetry, dual_sector))
+           DOC(lasyten, BaseSymmetry, dual_sector))
       .def("_n_symbol",
            &BaseSymmetry::_n_symbol,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, BaseSymmetry, _n_symbol))
+           DOC(lasyten, BaseSymmetry, _n_symbol))
       .def("_f_symbol",
            &BaseSymmetry::_f_symbol,
            py::arg("a"),
@@ -80,14 +81,14 @@ bind_base_symmetry(py::module_& m)
            py::arg("d"),
            py::arg("e"),
            py::arg("f"),
-           DOC(cyten, BaseSymmetry, _f_symbol))
+           DOC(lasyten, BaseSymmetry, _f_symbol))
       .def("_r_symbol",
            &BaseSymmetry::_r_symbol,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, BaseSymmetry, _r_symbol))
-      .def("as_Symmetry", &BaseSymmetry::as_Symmetry, DOC(cyten, BaseSymmetry, as_Symmetry))
+           DOC(lasyten, BaseSymmetry, _r_symbol))
+      .def("as_Symmetry", &BaseSymmetry::as_Symmetry, DOC(lasyten, BaseSymmetry, as_Symmetry))
       .def(
         "is_valid_sector",
         [](BaseSymmetry const& self, py::object a) {
@@ -105,12 +106,12 @@ bind_base_symmetry(py::module_& m)
             }
         },
         py::arg("a"),
-        DOC(cyten, BaseSymmetry, is_valid_sector))
+        DOC(lasyten, BaseSymmetry, is_valid_sector))
       .def("fusion_outcomes",
            &BaseSymmetry::fusion_outcomes,
            py::arg("a"),
            py::arg("b"),
-           DOC(cyten, BaseSymmetry, fusion_outcomes))
+           DOC(lasyten, BaseSymmetry, fusion_outcomes))
       .def("_fusion_tensor",
            &BaseSymmetry::_fusion_tensor,
            py::arg("a"),
@@ -118,20 +119,20 @@ bind_base_symmetry(py::module_& m)
            py::arg("c"),
            py::arg("Z_a"),
            py::arg("Z_b"),
-           DOC(cyten, BaseSymmetry, _fusion_tensor))
+           DOC(lasyten, BaseSymmetry, _fusion_tensor))
       .def("swap_gate",
            &BaseSymmetry::swap_gate,
            py::arg("a"),
            py::arg("b"),
-           DOC(cyten, BaseSymmetry, swap_gate))
-      .def("Z_iso", &BaseSymmetry::Z_iso, py::arg("a"), DOC(cyten, BaseSymmetry, Z_iso))
-      .def("all_sectors", &BaseSymmetry::all_sectors, DOC(cyten, BaseSymmetry, all_sectors))
+           DOC(lasyten, BaseSymmetry, swap_gate))
+      .def("Z_iso", &BaseSymmetry::Z_iso, py::arg("a"), DOC(lasyten, BaseSymmetry, Z_iso))
+      .def("all_sectors", &BaseSymmetry::all_sectors, DOC(lasyten, BaseSymmetry, all_sectors))
       .def("n_symbol",
            &BaseSymmetry::n_symbol,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, BaseSymmetry, n_symbol))
+           DOC(lasyten, BaseSymmetry, n_symbol))
       .def("f_symbol",
            &BaseSymmetry::f_symbol,
            py::arg("a"),
@@ -140,19 +141,19 @@ bind_base_symmetry(py::module_& m)
            py::arg("d"),
            py::arg("e"),
            py::arg("f"),
-           DOC(cyten, BaseSymmetry, f_symbol))
+           DOC(lasyten, BaseSymmetry, f_symbol))
       .def("b_symbol",
            &BaseSymmetry::b_symbol,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, BaseSymmetry, b_symbol))
+           DOC(lasyten, BaseSymmetry, b_symbol))
       .def("r_symbol",
            &BaseSymmetry::r_symbol,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, BaseSymmetry, r_symbol))
+           DOC(lasyten, BaseSymmetry, r_symbol))
       .def("c_symbol",
            &BaseSymmetry::c_symbol,
            py::arg("a"),
@@ -161,7 +162,7 @@ bind_base_symmetry(py::module_& m)
            py::arg("d"),
            py::arg("e"),
            py::arg("f"),
-           DOC(cyten, BaseSymmetry, c_symbol))
+           DOC(lasyten, BaseSymmetry, c_symbol))
       .def("fusion_tensor",
            &BaseSymmetry::fusion_tensor,
            py::arg("a"),
@@ -169,7 +170,7 @@ bind_base_symmetry(py::module_& m)
            py::arg("c"),
            py::arg("Z_a") = false,
            py::arg("Z_b") = false,
-           DOC(cyten, BaseSymmetry, fusion_tensor))
+           DOC(lasyten, BaseSymmetry, fusion_tensor))
       .def(
         "are_valid_sectors",
         [](BaseSymmetry const& self, py::object sectors) {
@@ -190,7 +191,7 @@ bind_base_symmetry(py::module_& m)
            &BaseSymmetry::fusion_outcomes_broadcast,
            py::arg("a"),
            py::arg("b"),
-           DOC(cyten, BaseSymmetry, fusion_outcomes_broadcast))
+           DOC(lasyten, BaseSymmetry, fusion_outcomes_broadcast))
       .def("multiple_fusion",
            [](BaseSymmetry const& self, py::args args) {
                std::vector<Sector> sectors;
@@ -210,7 +211,7 @@ bind_base_symmetry(py::module_& m)
             }
             return self.multiple_fusion_broadcast(sectors);
         },
-        DOC(cyten, BaseSymmetry, multiple_fusion_broadcast))
+        DOC(lasyten, BaseSymmetry, multiple_fusion_broadcast))
       .def(
         "_multiple_fusion_broadcast",
         [](BaseSymmetry const& self, py::args args) {
@@ -221,57 +222,57 @@ bind_base_symmetry(py::module_& m)
             }
             return self._multiple_fusion_broadcast(sectors);
         },
-        DOC(cyten, BaseSymmetry, _multiple_fusion_broadcast))
+        DOC(lasyten, BaseSymmetry, _multiple_fusion_broadcast))
       .def("can_fuse_to",
            &BaseSymmetry::can_fuse_to,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, BaseSymmetry, can_fuse_to))
+           DOC(lasyten, BaseSymmetry, can_fuse_to))
       .def("sector_dim",
            &BaseSymmetry::sector_dim,
            py::arg("a"),
-           DOC(cyten, BaseSymmetry, sector_dim))
+           DOC(lasyten, BaseSymmetry, sector_dim))
       .def(
         "batch_sector_dim",
         [](BaseSymmetry const& self, SectorArray const& a) {
             return vector_i64_to_numpy(self.batch_sector_dim(a));
         },
         py::arg("a"),
-        DOC(cyten, BaseSymmetry, batch_sector_dim))
+        DOC(lasyten, BaseSymmetry, batch_sector_dim))
       .def(
         "batch_qdim",
         [](BaseSymmetry const& self, SectorArray const& a) {
             return vector_f64_to_numpy(self.batch_qdim(a));
         },
         py::arg("a"),
-        DOC(cyten, BaseSymmetry, batch_qdim))
+        DOC(lasyten, BaseSymmetry, batch_qdim))
       .def("sector_str",
            &BaseSymmetry::sector_str,
            py::arg("a"),
-           DOC(cyten, BaseSymmetry, sector_str))
+           DOC(lasyten, BaseSymmetry, sector_str))
       .def("dual_sectors",
            &BaseSymmetry::dual_sectors,
            py::arg("sectors"),
-           DOC(cyten, BaseSymmetry, dual_sectors))
+           DOC(lasyten, BaseSymmetry, dual_sectors))
       .def("frobenius_schur",
            &BaseSymmetry::frobenius_schur,
            py::arg("a"),
-           DOC(cyten, BaseSymmetry, frobenius_schur))
-      .def("qdim", &BaseSymmetry::qdim, py::arg("a"), DOC(cyten, BaseSymmetry, qdim))
+           DOC(lasyten, BaseSymmetry, frobenius_schur))
+      .def("qdim", &BaseSymmetry::qdim, py::arg("a"), DOC(lasyten, BaseSymmetry, qdim))
       .def(
-        "sqrt_qdim", &BaseSymmetry::sqrt_qdim, py::arg("a"), DOC(cyten, BaseSymmetry, sqrt_qdim))
+        "sqrt_qdim", &BaseSymmetry::sqrt_qdim, py::arg("a"), DOC(lasyten, BaseSymmetry, sqrt_qdim))
       .def("inv_sqrt_qdim",
            &BaseSymmetry::inv_sqrt_qdim,
            py::arg("a"),
-           DOC(cyten, BaseSymmetry, inv_sqrt_qdim))
-      .def("total_qdim", &BaseSymmetry::total_qdim, DOC(cyten, BaseSymmetry, total_qdim))
+           DOC(lasyten, BaseSymmetry, inv_sqrt_qdim))
+      .def("total_qdim", &BaseSymmetry::total_qdim, DOC(lasyten, BaseSymmetry, total_qdim))
       .def("_b_symbol",
            &BaseSymmetry::_b_symbol,
            py::arg("a"),
            py::arg("b"),
            py::arg("c"),
-           DOC(cyten, BaseSymmetry, _b_symbol))
+           DOC(lasyten, BaseSymmetry, _b_symbol))
       .def("_c_symbol",
            &BaseSymmetry::_c_symbol,
            py::arg("a"),
@@ -280,7 +281,7 @@ bind_base_symmetry(py::module_& m)
            py::arg("d"),
            py::arg("e"),
            py::arg("f"),
-           DOC(cyten, BaseSymmetry, _c_symbol))
+           DOC(lasyten, BaseSymmetry, _c_symbol))
       .def(
         "topological_twist",
         [](BaseSymmetry const& self, Sector const& a) -> py::object {
@@ -294,13 +295,13 @@ bind_base_symmetry(py::module_& m)
             return py::cast(z);
         },
         py::arg("a"),
-        DOC(cyten, BaseSymmetry, topological_twist))
+        DOC(lasyten, BaseSymmetry, topological_twist))
       .def("s_matrix_element",
            &BaseSymmetry::s_matrix_element,
            py::arg("a"),
            py::arg("b"),
-           DOC(cyten, BaseSymmetry, s_matrix_element))
-      .def("s_matrix", &BaseSymmetry::s_matrix, DOC(cyten, BaseSymmetry, s_matrix));
+           DOC(lasyten, BaseSymmetry, s_matrix_element))
+      .def("s_matrix", &BaseSymmetry::s_matrix, DOC(lasyten, BaseSymmetry, s_matrix));
 }
 
-} // namespace cyten
+} // namespace lasyten

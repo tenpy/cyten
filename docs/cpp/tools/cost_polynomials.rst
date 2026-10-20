@@ -1,35 +1,35 @@
 cost_polynomials.h
 ==================
 
-Declared in ``include/cyten/tools/cost_polynomials.h``.
+Declared in ``include/lasyten/tools/cost_polynomials.h``.
 
-cyten::BigOMonomial
+lasyten::BigOMonomial
 -------------------
 
-.. doxygenclass:: cyten::BigOMonomial
-   :project: cyten
+.. doxygenclass:: lasyten::BigOMonomial
+   :project: lasyten
    :members:
    :undoc-members:
 
-cyten::BigOPolynomial
+lasyten::BigOPolynomial
 ---------------------
 
-.. doxygenclass:: cyten::BigOPolynomial
-   :project: cyten
+.. doxygenclass:: lasyten::BigOPolynomial
+   :project: lasyten
    :members:
    :undoc-members:
 
 Free functions
 --------------
 
-.. doxygenfunction:: cyten::operator+(std::string const &, BigOPolynomial const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::operator+(std::string const &, BigOPolynomial const &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::operator*(std::string const &, BigOPolynomial const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::operator*(std::string const &, BigOPolynomial const &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::operator+(BigOMonomial const &, BigOPolynomial const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::operator+(BigOMonomial const &, BigOPolynomial const &)
+   :project: lasyten
 
-.. doxygenfunction:: cyten::operator*(BigOMonomial const &, BigOPolynomial const &)
-   :project: cyten
+.. doxygenfunction:: lasyten::operator*(BigOMonomial const &, BigOPolynomial const &)
+   :project: lasyten

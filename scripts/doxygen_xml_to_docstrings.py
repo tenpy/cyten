@@ -4,7 +4,7 @@
 Doxygen discovers symbols (names, overload order, namespaces). Comment bodies are
 read from the C++ header (Doxygen ``@param`` / ``@returns`` + markdown) and
 converted to NumPy-style sections for Sphinx Napoleon / Python ``__doc__``.
-A trailing ``.. cyten-cpp-ref::`` marker is appended so Sphinx can inject a
+A trailing ``.. lasyten-cpp-ref::`` marker is appended so Sphinx can inject a
 compact ``[C++]`` signature badge linking to the matching Breathe page.
 
 Example::
@@ -35,8 +35,8 @@ _CMD_RE = re.compile(
 )
 
 _DOC_PREAMBLE = """\
-#ifndef CYTEN_MKDOC_DOC_MACROS
-#define CYTEN_MKDOC_DOC_MACROS
+#ifndef LASYTEN_MKDOC_DOC_MACROS
+#define LASYTEN_MKDOC_DOC_MACROS
 #define MKD_EXPAND(x)                                      x
 #define MKD_COUNT(_1, _2, _3, _4, _5, _6, _7, COUNT, ...)  COUNT
 #define MKD_VA_SIZE(...)                                   MKD_EXPAND(MKD_COUNT(__VA_ARGS__, 7, 6, 5, 4, 3, 2, 1, 0))
@@ -50,7 +50,7 @@ _DOC_PREAMBLE = """\
 #define MKD_DOC6(n1, n2, n3, n4, n5, n6)                   mkd_doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6
 #define MKD_DOC7(n1, n2, n3, n4, n5, n6, n7)               mkd_doc_##n1##_##n2##_##n3##_##n4##_##n5##_##n6##_##n7
 #define DOC(...)                                           MKD_EXPAND(MKD_EXPAND(MKD_CAT2(MKD_DOC, MKD_VA_SIZE(__VA_ARGS__)))(__VA_ARGS__))
-#endif /* CYTEN_MKDOC_DOC_MACROS */
+#endif /* LASYTEN_MKDOC_DOC_MACROS */
 
 #if defined(__GNUG__)
 #pragma GCC diagnostic push
@@ -61,10 +61,10 @@ _DOC_PREAMBLE = """\
 
 _BANNER = """\
 /*
-  Generated from Doxygen XML + include/cyten/{source_rel} /// comments.
+  Generated from Doxygen XML + include/lasyten/{source_rel} /// comments.
   Not committed — produced at build time (requires doxygen).
 
-  cmake --build <build-dir> --target cyten_generate_docstrings
+  cmake --build <build-dir> --target lasyten_generate_docstrings
  */
 
 """
@@ -533,9 +533,9 @@ def _display_math_to_sphinx(text: str) -> str:
 
 
 def _cpp_ref_marker(sym: Symbol, *, has_overloads: bool) -> str:
-    """Trailing RST marker consumed by ``docs/sphinx/cyten_cpp_link.py``.
+    """Trailing RST marker consumed by ``docs/sphinx/lasyten_cpp_link.py``.
 
-    Targets are bare qualified names (``cyten::compose``) matching Sphinx's
+    Targets are bare qualified names (``lasyten::compose``) matching Sphinx's
     ``cpp:function`` inventory keys. Overload disambiguation is not required for
     the badge (inventory stores one entry per name).
     """
@@ -549,7 +549,7 @@ def _cpp_ref_marker(sym: Symbol, *, has_overloads: bool) -> str:
         role = 'func'
     else:
         return ''
-    lines = [f'.. cyten-cpp-ref:: {qname}']
+    lines = [f'.. lasyten-cpp-ref:: {qname}']
     if role != 'func':
         lines.append(f'   :role: {role}')
     return '\n' + '\n'.join(lines) + '\n'
@@ -642,10 +642,10 @@ def generate_entries(
 ) -> list[tuple[list[str], int | None, str]]:
     """Return ``(macro_parts, overload_suffix, docstring)`` for one header.
 
-    ``macro_parts`` matches ``DOC(part1, part2, ...)`` (e.g. ``['cyten', 'compose']``).
+    ``macro_parts`` matches ``DOC(part1, part2, ...)`` (e.g. ``['lasyten', 'compose']``).
     ``overload_suffix`` is ``None`` for the first overload, else ``2``, ``3``, …
     """
-    source_path = source_root / 'include' / 'cyten' / header_rel
+    source_path = source_root / 'include' / 'lasyten' / header_rel
     if not source_path.is_file():
         raise FileNotFoundError(f'source header not found: {source_path}')
     source_lines = source_path.read_text(encoding='utf-8').splitlines()
@@ -688,7 +688,7 @@ def entries_to_macro_map(
 
 
 def lookup_doc(doc_map: dict[str, str], *doc_args: str | int) -> str | None:
-    """Resolve ``DOC(cyten, name, …)`` args against a macro-name docstring map."""
+    """Resolve ``DOC(lasyten, name, …)`` args against a macro-name docstring map."""
     parts: list[str] = []
     suffix: int | None = None
     for arg in doc_args:
@@ -713,7 +713,7 @@ def generate(xml_dir: Path, header_rel: str, source_root: Path) -> str:
 
 
 # Headers that participate in DOC() generation (kept in sync with CMakeLists.txt).
-CYTEN_MKDOC_HEADERS: tuple[str, ...] = (
+LASYTEN_MKDOC_HEADERS: tuple[str, ...] = (
     'tensors/ops_algebra.h',
     'tensors/constructors.h',
     'tensors/ops_elementwise.h',
@@ -789,14 +789,14 @@ def run_scoped_doxygen(
     import subprocess
     import tempfile
 
-    src_hdr = source_root / 'include' / 'cyten' / header_rel
+    src_hdr = source_root / 'include' / 'lasyten' / header_rel
     if not src_hdr.is_file():
         raise FileNotFoundError(src_hdr)
     xml_out.mkdir(parents=True, exist_ok=True)
     doxyfile = tempfile.NamedTemporaryFile('w', suffix='.doxyfile', delete=False, encoding='utf-8')
     try:
         doxyfile.write(
-            f"""PROJECT_NAME           = cyten
+            f"""PROJECT_NAME           = lasyten
 OUTPUT_DIRECTORY       = {xml_out}
 INPUT                  = {src_hdr}
 RECURSIVE              = NO
@@ -823,7 +823,7 @@ AUTOLINK_SUPPORT       = NO
 def build_doc_map(
     source_root: Path,
     *,
-    headers: tuple[str, ...] | list[str] = CYTEN_MKDOC_HEADERS,
+    headers: tuple[str, ...] | list[str] = LASYTEN_MKDOC_HEADERS,
     work_dir: Path | None = None,
     doxygen: str = 'doxygen',
     reuse_cmake_xml: Path | None = None,
@@ -886,13 +886,13 @@ def main() -> int:
     ap.add_argument(
         '--header-rel',
         required=True,
-        help='Path relative to include/cyten/ (e.g. tensors/ops_algebra.h)',
+        help='Path relative to include/lasyten/ (e.g. tensors/ops_algebra.h)',
     )
     ap.add_argument(
         '--source-root',
         type=Path,
         default=Path('.'),
-        help='Repository root containing include/cyten/',
+        help='Repository root containing include/lasyten/',
     )
     ap.add_argument('-o', '--output', type=Path, required=True, help='Output docstring header')
     args = ap.parse_args()

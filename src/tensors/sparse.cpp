@@ -1,16 +1,16 @@
-#include <cyten/tensors/sparse.h>
+#include <lasyten/tensors/sparse.h>
 
-#include <cyten/block_backend/dtypes.h>
-#include <cyten/tensors/constructors.h>
-#include <cyten/tensors/ops_algebra.h>
-#include <cyten/tensors/ops_legs.h>
-#include <cyten/tensors/symmetric_tensor.h>
+#include <lasyten/block_backend/dtypes.h>
+#include <lasyten/tensors/constructors.h>
+#include <lasyten/tensors/ops_algebra.h>
+#include <lasyten/tensors/ops_legs.h>
+#include <lasyten/tensors/symmetric_tensor.h>
 
 #include <complex>
 #include <stdexcept>
 #include <utility>
 
-namespace cyten {
+namespace lasyten {
 
 namespace {
 
@@ -435,4 +435,4 @@ gram_schmidt(std::vector<VectorLike::Ptr> const& vecs, float64 rcond)
     return res;
 }
 
-} // namespace cyten
+} // namespace lasyten

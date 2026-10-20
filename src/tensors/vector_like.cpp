@@ -1,7 +1,7 @@
-#include <cyten/tensors/vector_like.h>
+#include <lasyten/tensors/vector_like.h>
 
-namespace cyten {
+namespace lasyten {
 
 VectorLike::~VectorLike() = default;
 
-} // namespace cyten
+} // namespace lasyten

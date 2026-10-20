@@ -1,4 +1,4 @@
-"""Shared helpers for cyten benchmarks: backends, timing, JSON I/O."""
+"""Shared helpers for lasyten benchmarks: backends, timing, JSON I/O."""
 
 from __future__ import annotations
 
@@ -11,16 +11,16 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-import cyten as ct
+import lasyten as lasy
 
-# Known string names accepted by ``cyten.get_backend``.
+# Known string names accepted by ``lasyten.get_backend``.
 SYMMETRY_BACKENDS = ('no_symmetry', 'abelian', 'fusion_tree')
 BLOCK_BACKENDS = ('numpy', 'torch', 'cpu', 'gpu', 'apple_silicon')
 DTYPE_MAP = {
-    'float32': ct.float32,
-    'float64': ct.float64,
-    'complex64': ct.complex64,
-    'complex128': ct.complex128,
+    'float32': lasy.float32,
+    'float64': lasy.float64,
+    'complex64': lasy.complex64,
+    'complex128': lasy.complex128,
 }
 
 
@@ -56,7 +56,7 @@ class BenchmarkRecord:
     stdev: float
     repeats: int
     warmup: int
-    impl: str = 'cyten'
+    impl: str = 'lasyten'
     extra: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -221,8 +221,8 @@ def is_memory_limit_error(exc: BaseException) -> bool:
 def run_numpy_ref(factory: Callable[[], BenchmarkRecord]) -> BenchmarkRecord | None:
     """Build a dense NumPy reference record, or return ``None`` if it OOMs.
 
-    Cyten timings should already be finished before calling this. A memory
-    failure here drops only the NumPy reference, not the cyten result.
+    LASyTen timings should already be finished before calling this. A memory
+    failure here drops only the NumPy reference, not the lasyten result.
     """
     release_allocator_caches()
     try:
@@ -235,7 +235,7 @@ def run_numpy_ref(factory: Callable[[], BenchmarkRecord]) -> BenchmarkRecord | N
 
 
 def resolve_dtype(name: str):
-    """Map a dtype name string to a cyten ``Dtype``."""
+    """Map a dtype name string to a lasyten ``Dtype``."""
     key = name.lower()
     if key not in DTYPE_MAP:
         raise ValueError(f'Unknown dtype {name!r}; choose from {sorted(DTYPE_MAP)}')
@@ -268,8 +268,8 @@ def device_compatible(block_backend: str, device: str) -> bool:
 
 
 def get_tensor_backend(symmetry_backend: str, block_backend: str):
-    """Create a tensor backend via ``cyten.get_backend``."""
-    return ct.get_backend(symmetry_backend, block_backend)
+    """Create a tensor backend via ``lasyten.get_backend``."""
+    return lasy.get_backend(symmetry_backend, block_backend)
 
 
 def sync_device(device: str) -> None:
@@ -397,8 +397,8 @@ def _read_cmake_cache(cache_path: Path) -> dict[str, str]:
 def _guess_cmake_cache_paths() -> list[Path]:
     """Candidate CMakeCache.txt locations for an editable / in-tree build."""
     candidates: list[Path] = []
-    # Repo root next to the installed/editable ``cyten`` package.
-    pkg_root = Path(ct.__file__).resolve().parent.parent
+    # Repo root next to the installed/editable ``lasyten`` package.
+    pkg_root = Path(lasy.__file__).resolve().parent.parent
     candidates.append(pkg_root / 'build' / 'CMakeCache.txt')
     # Current working directory (when launching from the repo).
     candidates.append(Path.cwd() / 'build' / 'CMakeCache.txt')
@@ -462,8 +462,8 @@ def collect_run_metadata(*, cli_args: dict[str, Any] | None = None) -> dict[str,
 
     started = datetime.now().astimezone().strftime('%Y-%m-%dT%H:%M')
     return {
-        'cyten_version': getattr(ct, '__version__', None),
-        'cyten_commit_id': getattr(ct, '__commit_id__', None),
+        'lasyten_version': getattr(lasy, '__version__', None),
+        'lasyten_commit_id': getattr(lasy, '__commit_id__', None),
         'hostname': platform.node(),
         'started_at': started,
         'python_version': sys.version.replace('\n', ' '),
@@ -524,7 +524,7 @@ def make_record(
     num_blocks: int | None,
     dtype: str,
     timing: TimingResult,
-    impl: str = 'cyten',
+    impl: str = 'lasyten',
     extra: dict[str, Any] | None = None,
 ) -> BenchmarkRecord:
     """Build a ``BenchmarkRecord`` from timing + metadata."""
